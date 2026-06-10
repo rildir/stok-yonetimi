@@ -1,0 +1,589 @@
+@if (isLoggedIn()) {
+<div class="app-shell">
+  
+  <!-- ─── Sidebar ─── -->
+  <aside class="sidebar">
+    <div>
+      <div class="sidebar-logo">
+        <div class="logo-mark">S</div>
+        <div class="logo-text">
+          <h2>Smart Inventory</h2>
+          <span>v1.2 · MONOCHROME</span>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-btn" [class.active]="currentTab() === 'dashboard'" (click)="currentTab.set('dashboard')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
+          Panel Özeti
+        </button>
+        <button class="nav-btn" [class.active]="currentTab() === 'products'" (click)="currentTab.set('products')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          Ürün Yönetimi
+        </button>
+        <button class="nav-btn" [class.active]="currentTab() === 'orders'" (click)="currentTab.set('orders')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+          Sipariş Takibi
+        </button>
+      </nav>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="system-status">
+        <span class="status-dot"></span> Sistem Çevrimiçi
+      </div>
+      <button class="logout-btn" (click)="doLogout()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Çıkış Yap
+      </button>
+    </div>
+  </aside>
+
+  <!-- ─── Main Content ─── -->
+  <main class="main-content">
+    
+    <!-- Header -->
+    <header class="page-header">
+      <div>
+        <h1>{{ currentTab() === 'dashboard' ? 'Panel Özeti' : currentTab() === 'products' ? 'Ürün Yönetimi' : 'Sipariş Takibi' }}</h1>
+        <p>İşletmenizin anlık durumunu ve stok analizlerini takip edin.</p>
+      </div>
+      <div class="header-actions">
+        @if (currentTab() === 'products') {
+          <button class="btn btn-outline" (click)="openAddProduct()">+ Yeni Ürün Ekle</button>
+        }
+        @if (currentTab() === 'orders') {
+          <button class="btn btn-outline" (click)="openCreateOrder()">+ Yeni Sipariş</button>
+        }
+        <button class="btn btn-primary" (click)="toggleAiPanel()">
+          <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Yapay Zeka Asistanı
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Row -->
+    <section class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon-box products">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <div>
+          <span class="stat-label">Toplam Ürün</span>
+          <div class="stat-value">{{ totalProducts() }}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-box lowstock">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div>
+          <span class="stat-label">Kritik Stok</span>
+          <div class="stat-value low">{{ lowStockCount() }}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-box outstock">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+          <span class="stat-label">Tükenen Ürün</span>
+          <div class="stat-value out">{{ outOfStockCount() }}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-box revenue">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>
+        </div>
+        <div>
+          <span class="stat-label">Toplam Gelir</span>
+          <div class="stat-value good">₺{{ totalRevenue().toLocaleString('tr-TR', { minimumFractionDigits: 2 }) }}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Tabs ═══ -->
+    @switch (currentTab()) {
+      @case ('dashboard') {
+        <div class="dashboard-grid">
+          <div class="card" style="grid-row: 1 / 3;">
+            <h3 class="card-title">Hızlı Erişim Analizleri</h3>
+            <p class="card-subtitle">Verileriniz üzerinde anlık sorgular gerçekleştirmek için sağdaki Yapay Zeka panelini kullanabilirsiniz.</p>
+            <div class="suggestion-pills">
+              <button class="pill-btn" (click)="askQuestion('Geçen ay en az satan 5 ürünü listele')" [disabled]="isAiLoading()">📉 Geçen ay en az satan 5 ürün hangileri?</button>
+              <button class="pill-btn" (click)="askQuestion('Kritik stok seviyesindeki ürünler')" [disabled]="isAiLoading()">⚠️ Hangi ürünlerin stoku kritik seviyede?</button>
+              <button class="pill-btn" (click)="askQuestion('Genel satış durumunu göster')" [disabled]="isAiLoading()">📈 Haftalık ciro ve satış durumu nedir?</button>
+            </div>
+            <div class="ai-cta">
+              <div class="ai-cta-icon">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <h4>Soru Sorun, Cevabı Grafik Olarak Alın</h4>
+              <p>Doğal dil sorguları sayesinde mini grafikler, tablolar ve finansal metrikler anında sağ panelde belirir.</p>
+              <button class="btn btn-outline btn-sm" (click)="toggleAiPanel()">Yapay Zeka Panelini Aç</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card-title">Düşük Stok Uyarıları</h3>
+            <div class="scroll-list">
+              @for (p of products(); track p.id) {
+                @if (p.status !== 'In stock') {
+                  <div class="list-item">
+                    <div class="list-item-name">
+                      <strong>{{ p.name }}</strong>
+                      <span>{{ p.sku }}</span>
+                    </div>
+                    <span class="badge" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
+                      {{ p.quantity }} Adet
+                    </span>
+                  </div>
+                }
+              }
+              @if (lowStockCount() === 0 && outOfStockCount() === 0) {
+                <div class="empty-state">🎉 Harika! Kritik veya tükenmiş stok bulunmuyor.</div>
+              }
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card-title">Son Siparişler</h3>
+            <div class="scroll-list">
+              @for (o of orders().slice(0, 5); track o.id) {
+                <div class="list-item clickable" (click)="openOrderDetail(o)">
+                  <div class="list-item-name">
+                    <strong>{{ o.customerName }}</strong>
+                    <span>{{ o.orderNumber }} · {{ o.date | date:'dd.MM.yyyy' }}</span>
+                  </div>
+                  <div class="list-item-right">
+                    <strong class="mono" style="font-size:0.82rem;">₺{{ o.totalAmount }}</strong>
+                    <span class="sdot" [class.completed]="o.status === 'Completed'" [class.pending]="o.status === 'Pending'" [class.cancelled]="o.status === 'Cancelled'"></span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      @case ('products') {
+        <!-- Search & Filter Bar -->
+        <div class="filter-bar">
+          <div class="search-box">
+            <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder="Ürün adı, SKU veya kategori ara..." [ngModel]="productSearch()" (ngModelChange)="productSearch.set($event)"/>
+          </div>
+          <div class="filter-pills">
+            <button class="filter-pill" [class.active]="productFilterStatus() === 'all'" (click)="productFilterStatus.set('all')">Tümü</button>
+            <button class="filter-pill" [class.active]="productFilterStatus() === 'In stock'" (click)="productFilterStatus.set('In stock')">Stokta</button>
+            <button class="filter-pill" [class.active]="productFilterStatus() === 'Low stock'" (click)="productFilterStatus.set('Low stock')">Azalıyor</button>
+            <button class="filter-pill" [class.active]="productFilterStatus() === 'Out of stock'" (click)="productFilterStatus.set('Out of stock')">Tükendi</button>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ürün Adı</th>
+                  <th>SKU</th>
+                  <th>Kategori</th>
+                  <th>Birim Fiyat</th>
+                  <th>Mevcut Stok</th>
+                  <th>Min. Limit</th>
+                  <th>Durum</th>
+                  <th class="th-actions">Aksiyon</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of filteredProducts(); track p.id) {
+                  <tr>
+                    <td><strong>{{ p.name }}</strong></td>
+                    <td class="mono">{{ p.sku }}</td>
+                    <td>{{ p.category }}</td>
+                    <td class="mono">₺{{ p.price }}</td>
+                    <td class="mono" style="font-weight:600">{{ p.quantity }}</td>
+                    <td class="mono" style="color:var(--text-muted)">{{ p.minQuantity }}</td>
+                    <td>
+                      <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
+                        {{ p.status === 'In stock' ? 'Stokta' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
+                      </span>
+                    </td>
+                    <td class="td-actions">
+                      <button class="edit-btn" (click)="openEditProduct(p)" title="Düzenle">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      </button>
+                      <button class="delete-btn" (click)="promptDeleteProduct(p)" title="Sil">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </td>
+                  </tr>
+                }
+                @if (filteredProducts().length === 0) {
+                  <tr><td colspan="8" class="empty-state">Arama kriterlerinize uygun ürün bulunamadı.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+
+      @case ('orders') {
+        <div class="table-card">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sipariş No</th>
+                  <th>Müşteri</th>
+                  <th>Tarih</th>
+                  <th>Ürünler</th>
+                  <th>Toplam</th>
+                  <th>Durum</th>
+                  <th class="th-actions">Aksiyon</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (o of orders(); track o.id) {
+                  <tr class="clickable-row" (click)="openOrderDetail(o)">
+                    <td class="mono" style="font-weight:600">{{ o.orderNumber }}</td>
+                    <td style="font-weight:500">{{ o.customerName }}</td>
+                    <td class="mono" style="color:var(--text-muted)">{{ o.date | date:'dd.MM.yyyy HH:mm' }}</td>
+                    <td>
+                      <div class="order-items-flex">
+                        @for (item of o.items; track item.productName) {
+                          <span class="order-item-tag">{{ item.productName }} ({{ item.quantity }}x)</span>
+                        }
+                      </div>
+                    </td>
+                    <td class="mono" style="font-weight:700">₺{{ o.totalAmount }}</td>
+                    <td>
+                      <span class="badge" [class.badge-instock]="o.status === 'Completed'" [class.badge-lowstock]="o.status === 'Pending'" [class.badge-outstock]="o.status === 'Cancelled'">
+                        {{ o.status === 'Completed' ? 'Tamamlandı' : o.status === 'Pending' ? 'Bekliyor' : 'İptal Edildi' }}
+                      </span>
+                    </td>
+                    <td (click)="$event.stopPropagation()">
+                      @if (o.status === 'Pending') {
+                        <div class="order-actions-row">
+                          <button class="action-btn-sm approve" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id">
+                            @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { Tamamla }
+                          </button>
+                          <button class="action-btn-sm cancel" (click)="updateOrderStatus(o.id, 'Cancelled')" [disabled]="updatingOrderId() === o.id">İptal</button>
+                        </div>
+                      } @else if (o.status === 'Completed') {
+                        <div class="order-actions-row">
+                          <button class="action-btn-sm cancel" (click)="updateOrderStatus(o.id, 'Cancelled')" [disabled]="updatingOrderId() === o.id">
+                            @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { İade Et }
+                          </button>
+                        </div>
+                      } @else {
+                        <span class="text-muted" style="text-align:right;display:block;">—</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    }
+  </main>
+
+  <!-- ─── AI Panel Backdrop ─── -->
+  @if (isAiPanelOpen()) {
+    <div class="ai-panel-backdrop" (click)="toggleAiPanel()"></div>
+  }
+
+  <!-- ─── AI Panel ─── -->
+  <aside class="ai-panel" [class.open]="isAiPanelOpen()">
+    <div class="ai-panel-header">
+      <div class="ai-panel-title">
+        <svg style="width:18px;height:18px;color:var(--ai-accent)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <h3>Yapay Zeka Asistanı</h3>
+      </div>
+      <button class="close-panel-btn" (click)="toggleAiPanel()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="ai-cards-body">
+      @if (isAiLoading()) {
+        <div class="ai-loading"><div class="spinner"></div><p>Analiz ediliyor...</p></div>
+      }
+      @for (answer of aiAnswers(); track answer.id) {
+        <div class="answer-card">
+          <div class="answer-card-header"><h4>{{ answer.title }}</h4><span class="time">{{ answer.timestamp | date:'HH:mm' }}</span></div>
+          <p class="desc">{{ answer.description }}</p>
+          @if (answer.type === 'metric' && answer.metrics) {
+            <div class="metrics-stack">
+              @for (m of answer.metrics; track m.label) {
+                <div class="metric-row"><span class="label">{{ m.label }}</span><div><span class="value">{{ m.value }}</span>@if (m.change) {<span class="change" [class.positive]="m.isPositive" [class.negative]="!m.isPositive">{{ m.change }}</span>}</div></div>
+              }
+            </div>
+          }
+          @if (answer.type === 'table' && answer.tableData) {
+            <div class="answer-table-wrapper"><table><thead><tr>@for (h of answer.tableData.headers; track h) {<th>{{ h }}</th>}</tr></thead><tbody>@for (row of answer.tableData.rows; track $index) {<tr>@for (cell of row; track $index) {<td>{{ cell }}</td>}</tr>}</tbody></table></div>
+          }
+          @if (answer.type === 'chart' && answer.chartData) {
+            <div class="chart-wrapper">
+              @if (answer.chartType === 'bar') {
+                <svg viewBox="0 0 320 180"><line x1="20" y1="30" x2="300" y2="30" stroke="#F3F4F6"/><line x1="20" y1="90" x2="300" y2="90" stroke="#F3F4F6"/><line x1="20" y1="150" x2="300" y2="150" stroke="#E5E7EB" stroke-width="1.5"/>@for (label of answer.chartData.labels; track label; let idx = $index) {<g><rect [attr.x]="30 + idx * 55" [attr.y]="getBarY(answer.chartData.datasets[0].data[idx], answer.chartData.datasets[0].data)" width="36" [attr.height]="getBarHeight(answer.chartData.datasets[0].data[idx], answer.chartData.datasets[0].data)" rx="3" fill="#4F46E5"/><text [attr.x]="48 + idx * 55" [attr.y]="getBarY(answer.chartData.datasets[0].data[idx], answer.chartData.datasets[0].data) - 6" text-anchor="middle" style="font-family:var(--font-mono);font-size:9px;font-weight:700" fill="#111827">{{ answer.chartData.datasets[0].data[idx] }}</text><text [attr.x]="48 + idx * 55" y="168" text-anchor="middle" style="font-size:8px;font-weight:500" fill="#6B7280">{{ label | slice:0:7 }}..</text></g>}</svg>
+              }
+              @if (answer.chartType === 'pie' || answer.chartType === 'doughnut') {
+                <svg viewBox="0 0 320 200"><g transform="translate(10, 0)">@for (sector of getPieSectors(answer.chartData.datasets[0].data); track sector.label) {<path [attr.d]="sector.d" [attr.fill]="sector.color"/>}@if (answer.chartType === 'doughnut') {<circle cx="100" cy="100" r="45" fill="#FFFFFF"/>}@for (label of answer.chartData.labels; track label; let idx = $index) {<g [attr.transform]="'translate(200, ' + (40 + idx * 24) + ')'"><rect width="10" height="10" rx="2" [attr.fill]="getPieSectors(answer.chartData.datasets[0].data)[idx].color"/><text x="16" y="9" style="font-size:9px;font-weight:500" fill="#111827">{{ label | slice:0:12 }} ({{ answer.chartData.datasets[0].data[idx] }})</text></g>}</g></svg>
+              }
+              @if (answer.chartType === 'line') {
+                <svg viewBox="0 0 300 160"><line x1="20" y1="40" x2="280" y2="40" stroke="#F3F4F6"/><line x1="20" y1="90" x2="280" y2="90" stroke="#F3F4F6"/><line x1="20" y1="140" x2="280" y2="140" stroke="#E5E7EB"/><path [attr.d]="getLinePath(answer.chartData.datasets[0].data)" fill="none" stroke="#4F46E5" stroke-width="2.5" stroke-linecap="round"/>@for (pt of getLinePoints(answer.chartData.datasets[0].data); track $index; let idx = $index) {<g><circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="4" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5"/><text [attr.x]="pt.x" y="153" text-anchor="middle" style="font-size:8px;font-weight:500" fill="#6B7280">{{ answer.chartData.labels[idx] }}</text><text [attr.x]="pt.x" [attr.y]="pt.y - 8" text-anchor="middle" style="font-family:var(--font-mono);font-size:8px;font-weight:700" fill="#4F46E5">₺{{ pt.val }}</text></g>}</svg>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+    <div class="ai-input-area">
+      <div class="quick-prompts">
+        <button class="quick-btn" (click)="askQuestion('Geçen ay en az satan 5 ürünü listele')" [disabled]="isAiLoading()">📉 En az satan 5 ürün</button>
+        <button class="quick-btn" (click)="askQuestion('Kritik stok seviyesindeki ürünler')" [disabled]="isAiLoading()">⚠️ Kritik stoklar</button>
+        <button class="quick-btn" (click)="askQuestion('Genel satış durumunu göster')" [disabled]="isAiLoading()">📈 Satış durumu</button>
+      </div>
+      <div class="input-row">
+        <input class="ai-input" type="text" placeholder="Asistana sorun..." [(ngModel)]="aiPrompt" (keyup.enter)="askQuestion(aiPrompt)" [disabled]="isAiLoading()"/>
+        <button class="send-btn" (click)="askQuestion(aiPrompt)" [disabled]="isAiLoading() || !aiPrompt.trim()">Gönder</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── Order Detail Drawer ─── -->
+  @if (isOrderDetailOpen()) {
+    <div class="ai-panel-backdrop" (click)="closeOrderDetail()"></div>
+  }
+  <aside class="ai-panel order-detail-panel" [class.open]="isOrderDetailOpen()">
+    @if (selectedOrder(); as order) {
+      <div class="ai-panel-header">
+        <div class="ai-panel-title">
+          <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <h3>Sipariş Detayı</h3>
+        </div>
+        <button class="close-panel-btn" (click)="closeOrderDetail()">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="ai-cards-body" style="padding: 1.5rem;">
+        <div class="detail-section">
+          <div class="detail-row"><span class="detail-label">Sipariş No</span><span class="mono" style="font-weight:700">{{ order.orderNumber }}</span></div>
+          <div class="detail-row"><span class="detail-label">Müşteri</span><span style="font-weight:600">{{ order.customerName }}</span></div>
+          <div class="detail-row"><span class="detail-label">Tarih</span><span class="mono">{{ order.date | date:'dd.MM.yyyy HH:mm' }}</span></div>
+          <div class="detail-row">
+            <span class="detail-label">Durum</span>
+            <span class="badge" [class.badge-instock]="order.status === 'Completed'" [class.badge-lowstock]="order.status === 'Pending'" [class.badge-outstock]="order.status === 'Cancelled'">
+              {{ order.status === 'Completed' ? 'Tamamlandı' : order.status === 'Pending' ? 'Bekliyor' : 'İptal Edildi' }}
+            </span>
+          </div>
+        </div>
+
+        <h4 class="detail-subtitle">Sipariş Kalemleri</h4>
+        <div class="detail-items-table">
+          @for (item of order.items; track item.productName) {
+            <div class="detail-item-row">
+              <div>
+                <strong>{{ item.productName }}</strong>
+                <span class="text-muted">{{ item.quantity }}x · ₺{{ item.price }}/adet</span>
+              </div>
+              <span class="mono" style="font-weight:600">₺{{ (item.price * item.quantity).toFixed(2) }}</span>
+            </div>
+          }
+          <div class="detail-item-row detail-total-row">
+            <strong>Genel Toplam</strong>
+            <strong class="mono" style="font-size:1.05rem;">₺{{ order.totalAmount.toFixed(2) }}</strong>
+          </div>
+        </div>
+
+        @if (order.status === 'Pending') {
+          <div class="detail-actions">
+            <button class="btn btn-primary" style="flex:1; justify-content:center;" (click)="updateOrderStatus(order.id, 'Completed')" [disabled]="updatingOrderId() === order.id">
+              @if (updatingOrderId() === order.id) { <span class="spinner-sm spinner-light"></span> } @else { Siparişi Tamamla }
+            </button>
+            <button class="btn btn-danger" style="flex:1; justify-content:center;" (click)="updateOrderStatus(order.id, 'Cancelled')" [disabled]="updatingOrderId() === order.id">İptal Et</button>
+          </div>
+        }
+        @if (order.status === 'Completed') {
+          <div class="detail-actions">
+            <button class="btn btn-danger" style="flex:1; justify-content:center;" (click)="updateOrderStatus(order.id, 'Cancelled')" [disabled]="updatingOrderId() === order.id">
+              @if (updatingOrderId() === order.id) { <span class="spinner-sm spinner-light"></span> } @else { İade Et / İptal Et }
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </aside>
+</div>
+
+<!-- ─── Add Product Modal ─── -->
+@if (showAddProductModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-panel">
+      <div class="modal-header"><h3>Yeni Ürün Ekle</h3><button class="close-modal-btn" (click)="closeAddProduct()">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Ürün Adı</label><input type="text" [(ngModel)]="newProduct.name" placeholder="Örn: Wireless Mouse" [disabled]="isSaveLoading()"/></div>
+        <div class="form-row">
+          <div class="form-group"><label>SKU</label><input type="text" [(ngModel)]="newProduct.sku" placeholder="Örn: MS-30" [disabled]="isSaveLoading()"/></div>
+          <div class="form-group"><label>Kategori</label>
+            <select [(ngModel)]="newProduct.category" [disabled]="isSaveLoading()">
+              <option value="Accessories">Aksesuarlar</option><option value="Audio">Ses Ekipmanları</option><option value="Monitors">Monitörler</option><option value="Wearables">Giyilebilir Teknoloji</option><option value="Furniture">Ofis Mobilyası</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Birim Fiyat (₺)</label><input type="number" [(ngModel)]="newProduct.price" [disabled]="isSaveLoading()"/></div>
+          <div class="form-group"><label>Başlangıç Stoku</label><input type="number" [(ngModel)]="newProduct.quantity" [disabled]="isSaveLoading()"/></div>
+          <div class="form-group"><label>Kritik Seviye</label><input type="number" [(ngModel)]="newProduct.minQuantity" [disabled]="isSaveLoading()"/></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeAddProduct()" [disabled]="isSaveLoading()">Vazgeç</button>
+        <button class="btn btn-primary" (click)="saveProduct()" [disabled]="isSaveLoading()">
+          @if (isSaveLoading()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { Kaydet }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Edit Product Modal ─── -->
+@if (showEditProductModal() && editProduct(); as ep) {
+  <div class="modal-backdrop">
+    <div class="modal-panel">
+      <div class="modal-header"><h3>Ürün Düzenle</h3><button class="close-modal-btn" (click)="closeEditProduct()">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Ürün Adı</label><input type="text" [ngModel]="ep.name" (ngModelChange)="editProduct.set({...ep, name: $event})" [disabled]="isSaveLoading()"/></div>
+        <div class="form-row">
+          <div class="form-group"><label>SKU</label><input type="text" [ngModel]="ep.sku" (ngModelChange)="editProduct.set({...ep, sku: $event})" [disabled]="isSaveLoading()"/></div>
+          <div class="form-group"><label>Kategori</label>
+            <select [ngModel]="ep.category" (ngModelChange)="editProduct.set({...ep, category: $event})" [disabled]="isSaveLoading()">
+              <option value="Accessories">Aksesuarlar</option><option value="Audio">Ses Ekipmanları</option><option value="Monitors">Monitörler</option><option value="Wearables">Giyilebilir Teknoloji</option><option value="Furniture">Ofis Mobilyası</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Birim Fiyat (₺)</label><input type="number" [ngModel]="ep.price" (ngModelChange)="editProduct.set({...ep, price: $event})" [disabled]="isSaveLoading()"/></div>
+          <div class="form-group"><label>Mevcut Stok</label><input type="number" [ngModel]="ep.quantity" (ngModelChange)="editProduct.set({...ep, quantity: $event})" [disabled]="isSaveLoading()"/></div>
+          <div class="form-group"><label>Kritik Seviye</label><input type="number" [ngModel]="ep.minQuantity" (ngModelChange)="editProduct.set({...ep, minQuantity: $event})" [disabled]="isSaveLoading()"/></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeEditProduct()" [disabled]="isSaveLoading()">Vazgeç</button>
+        <button class="btn btn-primary" (click)="saveEditProduct()" [disabled]="isSaveLoading()">
+          @if (isSaveLoading()) { <span class="spinner-sm spinner-light"></span> Güncelleniyor... } @else { Güncelle }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Create Order Modal ─── -->
+@if (showCreateOrderModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-panel modal-panel-lg">
+      <div class="modal-header"><h3>Yeni Sipariş Oluştur</h3><button class="close-modal-btn" (click)="closeCreateOrder()">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Müşteri Adı</label><input type="text" [(ngModel)]="newOrderCustomerName" placeholder="Müşteri adı girin" [disabled]="isOrderSaving()"/></div>
+        
+        <label class="form-section-label">Sipariş Kalemleri</label>
+        @for (line of newOrderLines(); track $index; let i = $index) {
+          <div class="order-line-row">
+            <div class="form-group" style="flex:2">
+              <select [ngModel]="line.productId" (ngModelChange)="onOrderLineProductChange(i); newOrderLines.update(l => { const c = [...l]; c[i] = {...c[i], productId: $event}; return c; })" [disabled]="isOrderSaving()">
+                <option value="">Ürün seçin...</option>
+                @for (p of products(); track p.id) {
+                  @if (p.quantity > 0) {
+                    <option [value]="p.id">{{ p.name }} (Stok: {{ p.quantity }})</option>
+                  }
+                }
+              </select>
+            </div>
+            <div class="form-group" style="flex:0.7">
+              <input type="number" [ngModel]="line.quantity" (ngModelChange)="onOrderLineQtyChange(i, $event)" [max]="line.maxQuantity" min="1" [disabled]="isOrderSaving()"/>
+            </div>
+            <div class="form-group" style="flex:0.8">
+              <input type="text" [value]="'₺' + (line.price * line.quantity).toFixed(2)" disabled class="mono"/>
+            </div>
+            <button class="delete-btn" (click)="removeOrderLine(i)" [disabled]="newOrderLines().length <= 1 || isOrderSaving()">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        }
+        <button class="btn btn-outline btn-sm" (click)="addOrderLine()" [disabled]="isOrderSaving()" style="margin-top:0.5rem">+ Ürün Satırı Ekle</button>
+        
+        <div class="order-total-bar">
+          <span>Toplam Tutar</span>
+          <strong class="mono">₺{{ getNewOrderTotal().toFixed(2) }}</strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeCreateOrder()" [disabled]="isOrderSaving()">Vazgeç</button>
+        <button class="btn btn-primary" (click)="saveOrder()" [disabled]="isOrderSaving()">
+          @if (isOrderSaving()) { <span class="spinner-sm spinner-light"></span> Oluşturuluyor... } @else { Sipariş Oluştur }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Delete Confirmation Modal ─── -->
+@if (showDeleteModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-panel modal-panel-sm">
+      <div class="delete-modal-content">
+        <button class="delete-modal-close" (click)="cancelDeleteProduct()" [disabled]="isDeleteLoading()">✕</button>
+        <div class="delete-icon">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </div>
+        <h3 class="delete-modal-title">Ürünü Sil</h3>
+        <p class="delete-modal-desc">
+          <strong>{{ productToDelete()?.name }}</strong> adlı ürünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+        </p>
+      </div>
+      <div class="delete-modal-actions">
+        <button class="btn btn-secondary" (click)="cancelDeleteProduct()" [disabled]="isDeleteLoading()">Vazgeç</button>
+        <button class="btn btn-danger" (click)="confirmDeleteProduct()" [disabled]="isDeleteLoading()">
+          @if (isDeleteLoading()) { <span class="spinner-sm spinner-light"></span> Siliniyor... } @else { Sil }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+} @else {
+  <!-- ─── Login View ─── -->
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-mark">S</div>
+        <h2>Smart Inventory</h2>
+        <p>Hesabınıza giriş yapın</p>
+      </div>
+      <form class="login-form" (submit)="doLogin(); $event.preventDefault()">
+        <div class="form-group"><label>E-posta veya Kullanıcı Adı</label><input type="text" placeholder="admin@sirket.com" [disabled]="isLoginLoading()" required></div>
+        <div class="form-group"><label>Şifre</label><input type="password" placeholder="••••••••" [disabled]="isLoginLoading()" required></div>
+        <div class="login-actions"><a href="#" class="forgot-link" (click)="$event.preventDefault()">Şifremi Unuttum</a></div>
+        <button type="submit" class="btn btn-primary btn-block" [disabled]="isLoginLoading()">
+          @if (isLoginLoading()) { <span class="spinner-sm spinner-light"></span> Giriş Yapılıyor... } @else { Giriş Yap }
+        </button>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ─── Toast Container ─── -->
+<div class="toast-container">
+  @for (toast of toasts(); track toast.id) {
+    <div class="toast" [class.toast-success]="toast.type === 'success'" [class.toast-error]="toast.type === 'error'" [class.toast-info]="toast.type === 'info'">
+      <div class="toast-icon">
+        @if (toast.type === 'success') { <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> }
+        @else if (toast.type === 'error') { <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> }
+        @else { <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> }
+      </div>
+      <div class="toast-message">{{ toast.message }}</div>
+      <button class="toast-close" (click)="removeToast(toast.id)">✕</button>
+    </div>
+  }
+</div>
