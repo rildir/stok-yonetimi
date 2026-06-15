@@ -51,14 +51,23 @@ Proje bağımlılıklarını kurmak için ana dizinde aşağıdaki komutu çalı
 npm install
 ```
 
-### 1. Backend Servisini Başlatma (NestJS)
+### 1. Ortam Değişkenlerini Ayarlama (.env)
+Projeyi güvenli bir şekilde çalıştırmak için öncelikle `.env` dosyasını oluşturmanız gerekmektedir:
+Ana dizinde bulunan `.env.example` dosyasının adını `.env` olarak değiştirin veya kopyasını oluşturun.
+İçerisindeki veritabanı, JWT ve Admin bilgilerini kendi güvenli değerlerinizle güncelleyin.
+
+```bash
+cp .env.example .env
+```
+
+### 2. Backend Servisini Başlatma (NestJS)
 NestJS uygulamasını port 3000 üzerinde başlatmak için:
 
 ```bash
 npx nx serve backend
 ```
 
-### 2. Frontend Uygulamasını Başlatma (Angular)
+### 3. Frontend Uygulamasını Başlatma (Angular)
 Angular uygulamasını port 4200 üzerinde başlatmak ve NestJS proxy entegrasyonu ile çalıştırmak için:
 
 ```bash

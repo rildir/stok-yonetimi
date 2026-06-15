@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray } from '@angular/forms';
 import { AppStateService } from '../../services/app-state.service';
@@ -110,7 +110,7 @@ import { InventoryService, Order } from '../../inventory.service';
 
     <!-- ─── Create Order Modal ─── -->
     @if (showCreateOrderModal()) {
-      <div class="modal-backdrop">
+      <div class="modal-backdrop" style="z-index: 3000;">
         <div class="modal-panel modal-panel-lg">
           <div class="modal-header"><h3>Yeni Sipariş Oluştur</h3><button class="close-modal-btn" (click)="closeCreateOrder()">✕</button></div>
           <form [formGroup]="orderForm" (ngSubmit)="saveOrder()">
@@ -126,14 +126,33 @@ import { InventoryService, Order } from '../../inventory.service';
                 @for (line of linesArray.controls; track $index; let i = $index) {
                   <div class="order-line-row" [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i">
                     <div class="form-group row-col-product">
-                      <select formControlName="productId" (change)="onOrderLineProductChange(i)" [disabled]="isOrderSaving()">
-                        <option value="">Ürün seçin...</option>
-                        @for (p of state.products(); track p.id) {
-                          @if (p.quantity > 0) {
-                            <option [value]="p.id">{{ p.name }} (Stok: {{ p.quantity }})</option>
-                          }
+                      <div class="custom-select-wrapper" (click)="toggleDropdown(i); $event.stopPropagation()">
+                        <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()">
+                          <span class="selected-text">
+                            @if (line.get('productId')?.value) {
+                              {{ getProductName(line.get('productId')?.value) }} <span class="selected-stock">(Stok: {{ line.get('maxQuantity')?.value }})</span>
+                            } @else {
+                              Ürün seçin...
+                            }
+                          </span>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </div>
+                        @if (isDropdownOpen(i)) {
+                          <div class="custom-select-dropdown">
+                            @for (p of state.products(); track p.id) {
+                              @if (p.quantity > 0) {
+                                <div class="custom-option" (click)="selectProduct(i, p.id); $event.stopPropagation()">
+                                  <div class="opt-left">
+                                    <span class="opt-name">{{ p.name }}</span>
+                                    <span class="opt-stock" [class.low]="p.quantity < 10">Stok: {{ p.quantity }}</span>
+                                  </div>
+                                  <span class="opt-price">₺{{ p.price.toFixed(2) }}</span>
+                                </div>
+                              }
+                            }
+                          </div>
                         }
-                      </select>
+                      </div>
                     </div>
                     <div class="form-group row-col-qty" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
                       <input type="number" formControlName="quantity" min="1" [max]="line.get('maxQuantity')?.value" (input)="enforceMaxQuantity($event, i)" [disabled]="isOrderSaving()"/>
@@ -263,7 +282,7 @@ import { InventoryService, Order } from '../../inventory.service';
 
     <!-- ─── Cancel Confirmation Modal ─── -->
     @if (showCancelModal()) {
-      <div class="modal-backdrop">
+      <div class="modal-backdrop" style="z-index: 3000;">
         <div class="modal-panel modal-panel-sm">
           <div class="delete-modal-content">
             <button class="delete-modal-close" (click)="closeCancelModal()" [disabled]="updatingOrderId() !== null">✕</button>
@@ -427,11 +446,40 @@ export class OrdersComponent {
     return field ? (field.invalid && (field.dirty || field.touched)) : false;
   }
 
+  // Custom Select Logic
+  dropdownOpenIndex = signal<number | null>(null);
+
+  @HostListener('document:click')
+  closeDropdowns() {
+    this.dropdownOpenIndex.set(null);
+  }
+
+  toggleDropdown(index: number) {
+    if (this.isOrderSaving()) return;
+    this.dropdownOpenIndex.set(this.dropdownOpenIndex() === index ? null : index);
+  }
+
+  isDropdownOpen(index: number) {
+    return this.dropdownOpenIndex() === index;
+  }
+
+  getProductName(productId: string) {
+    return this.state.products().find(p => p.id === productId)?.name || '';
+  }
+
+  selectProduct(index: number, productId: string) {
+    const lineGroup = this.linesArray.at(index);
+    lineGroup.patchValue({ productId });
+    this.onOrderLineProductChange(index);
+    this.dropdownOpenIndex.set(null);
+  }
+
   // Create Order
   openCreateOrder() {
     this.orderForm.reset({ customerName: '' });
     this.linesArray.clear();
     this.addOrderLine();
+    this.dropdownOpenIndex.set(null);
     this.showCreateOrderModal.set(true);
   }
 
@@ -471,10 +519,12 @@ export class OrdersComponent {
       // Product exists. Remove the current line.
       this.linesArray.removeAt(index);
 
-      // Increment quantity of the existing line
+      // Increment quantity of the existing line up to max stock
       const existingGroup = this.linesArray.at(existingIndex);
       const currentQty = existingGroup.get('quantity')?.value || 0;
-      existingGroup.patchValue({ quantity: currentQty + 1 });
+      const maxQty = existingGroup.get('maxQuantity')?.value || 0;
+      const newQty = Math.min(currentQty + 1, maxQty);
+      existingGroup.patchValue({ quantity: newQty });
       
       existingGroup.get('quantity')?.markAsTouched();
       existingGroup.get('quantity')?.markAsDirty();
@@ -542,7 +592,10 @@ export class OrdersComponent {
 
     this.inventoryService.createOrder(orderPayload).subscribe({
       next: (order) => {
-        this.state.orders.update(o => [order, ...o]);
+        this.state.orders.update(o => {
+          if (o.some(x => x.id === order.id)) return o;
+          return [order, ...o];
+        });
         // Reload products since stock was reserved
         this.inventoryService.getProducts().subscribe({
           next: (prods) => this.state.products.set(prods),

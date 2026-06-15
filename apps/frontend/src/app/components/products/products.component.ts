@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { AppStateService } from '../../services/app-state.service';
@@ -204,35 +204,7 @@ import { InventoryService, Product } from '../../inventory.service';
   background: #fff;
 }
 
-.btn-secondary {
-  height: 40px;
-  background: #fff;
-  border: 1px solid #d1d1d1;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-.btn-secondary:hover {
-  background: #f5f5f5;
-  border-color: #1a1a1a;
-}
 
-.btn-primary {
-  height: 40px;
-  background: #1a1a1a;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #fff;
-  cursor: pointer;
-}
-.btn-primary:hover { background: #333; }
-.btn-primary:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
 
 .form-error {
   font-size: 12px;
@@ -345,15 +317,24 @@ import { InventoryService, Product } from '../../inventory.service';
               </div>
               
               <div class="form-field">
-                <select id="productCategory" formControlName="category" class="form-input form-select" [class.has-value]="hasValue('category')" required [disabled]="isSaveLoading()">
-                  <option value="" disabled selected></option>
-                  <option value="Accessories">Aksesuarlar</option>
-                  <option value="Audio">Ses Ekipmanları</option>
-                  <option value="Monitors">Monitörler</option>
-                  <option value="Wearables">Giyilebilir Teknoloji</option>
-                  <option value="Furniture">Ofis Mobilyası</option>
-                </select>
-                <label for="productCategory" class="form-label">Kategori</label>
+                <div class="custom-select-wrapper" (click)="toggleCategoryDropdown($event)">
+                  <div class="custom-select-trigger" [class.open]="isCategoryDropdownOpen()" [class.disabled]="isSaveLoading()" style="height: 52px; padding: 18px 14px 6px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px;">
+                    <span class="selected-text" style="font-size: 14px;">
+                      {{ getCategoryName(productForm.get('category')?.value) }}
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                  </div>
+                  @if (isCategoryDropdownOpen()) {
+                    <div class="custom-select-dropdown" style="z-index: 2000;">
+                      @for (cat of categories; track cat.value) {
+                        <div class="custom-option" (click)="selectCategory(cat.value); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
+                          <span class="opt-name">{{ cat.name }}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                  <label class="form-label" style="top: 10px; transform: translateY(0) scale(0.75); color: #666; font-weight: 600; pointer-events: none;">Kategori</label>
+                </div>
               </div>
               
               <div class="form-field">
@@ -377,8 +358,8 @@ import { InventoryService, Product } from '../../inventory.service';
             </div>
             
             <div class="drawer-footer">
-              <button type="button" class="btn-secondary" (click)="closeProductForm()" [disabled]="isSaveLoading()">Vazgeç</button>
-              <button type="submit" class="btn-primary" [disabled]="productForm.invalid || productForm.pristine || isSaveLoading()">
+              <button type="button" class="btn btn-secondary" (click)="closeProductForm()" [disabled]="isSaveLoading()">Vazgeç</button>
+              <button type="submit" class="btn btn-primary" [disabled]="productForm.invalid || productForm.pristine || isSaveLoading()">
                 @if (isSaveLoading()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { Kaydet }
               </button>
             </div>
@@ -417,6 +398,38 @@ export class ProductsComponent {
   ui = inject(UiStateService);
   inventoryService = inject(InventoryService);
   fb = inject(FormBuilder);
+
+  categories = [
+    { value: 'Accessories', name: 'Aksesuarlar' },
+    { value: 'Audio', name: 'Ses Ekipmanları' },
+    { value: 'Monitors', name: 'Monitörler' },
+    { value: 'Wearables', name: 'Giyilebilir Teknoloji' },
+    { value: 'Furniture', name: 'Ofis Mobilyası' }
+  ];
+
+  isCategoryDropdownOpen = signal(false);
+
+  toggleCategoryDropdown(event: Event) {
+    event.stopPropagation();
+    if (this.isSaveLoading()) return;
+    this.isCategoryDropdownOpen.update(v => !v);
+  }
+
+  selectCategory(value: string) {
+    this.productForm.patchValue({ category: value });
+    this.productForm.get('category')?.markAsDirty();
+    this.productForm.get('category')?.markAsTouched();
+    this.isCategoryDropdownOpen.set(false);
+  }
+
+  getCategoryName(value: string): string {
+    return this.categories.find(c => c.value === value)?.name || 'Kategori Seçin...';
+  }
+
+  @HostListener('document:click')
+  closeCategoryDropdown() {
+    this.isCategoryDropdownOpen.set(false);
+  }
 
   // Modals & Forms
   showProductFormModal = signal(false);
@@ -535,7 +548,10 @@ export class ProductsComponent {
       // Create mode
       this.inventoryService.createProduct(payload).subscribe({
         next: (prod) => {
-          this.state.products.update(p => [prod, ...p]);
+          this.state.products.update(p => {
+            if (p.some(x => x.id === prod.id)) return p;
+            return [prod, ...p];
+          });
           this.closeProductForm();
           this.isSaveLoading.set(false);
           this.ui.showToast('Ürün başarıyla eklendi.', 'success');

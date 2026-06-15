@@ -46,3 +46,11 @@ Thumbs.db
 .angular
 
 __screenshots__/
+
+# environment variables
+.env
+.env.local
+.env.development
+.env.production
+*.env
+!.env.example

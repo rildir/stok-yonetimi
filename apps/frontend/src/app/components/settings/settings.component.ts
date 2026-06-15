@@ -34,18 +34,18 @@ import { ToastComponent } from '../shared/toast/toast.component';
           <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
             <div class="settings-form-grid">
               <div class="form-group" [class.has-error]="isProfileFieldInvalid('fullName')">
-                <label>Ad Soyad</label>
+                <label for="">Ad Soyad</label>
                 <input type="text" formControlName="fullName" placeholder="Örn: Ahmet Yılmaz" />
                 @if (isProfileFieldInvalid('fullName')) { <span class="error-msg">Ad soyad en az 3 karakter olmalıdır.</span> }
               </div>
               <div class="form-group" [class.has-error]="isProfileFieldInvalid('email')">
-                <label>E-posta Adresi</label>
+                <label for="">E-posta Adresi</label>
                 <input type="email" formControlName="email" placeholder="ornek@sirket.com" />
                 @if (isProfileFieldInvalid('email')) { <span class="error-msg">Geçerli bir e-posta adresi girin.</span> }
               </div>
             </div>
             <div class="form-group">
-              <label>Şirket / Departman</label>
+              <label for="">Şirket / Departman</label>
               <input type="text" formControlName="department" placeholder="Örn: Depo Yönetimi" />
             </div>
             
@@ -63,7 +63,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
           
           <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()">
             <div class="form-group" [class.has-error]="isPasswordFieldInvalid('currentPassword')">
-              <label>Mevcut Şifre</label>
+              <label for="">Mevcut Şifre</label>
               <div class="password-input-wrapper">
                 <input [type]="showCurrent() ? 'text' : 'password'" formControlName="currentPassword" placeholder="••••••••" />
                 <button type="button" class="password-toggle-btn" (click)="showCurrent.set(!showCurrent())">
@@ -76,7 +76,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
             
             <div class="settings-form-grid">
               <div class="form-group" [class.has-error]="isPasswordFieldInvalid('newPassword')">
-                <label>Yeni Şifre</label>
+                <label for="">Yeni Şifre</label>
                 <div class="password-input-wrapper">
                   <input [type]="showNew() ? 'text' : 'password'" formControlName="newPassword" placeholder="En az 6 karakter" (input)="evaluatePasswordStrength()"/>
                   <button type="button" class="password-toggle-btn" (click)="showNew.set(!showNew())">
@@ -97,7 +97,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
               </div>
               
               <div class="form-group" [class.has-error]="passwordForm.errors?.['mismatch'] && (passwordForm.get('confirmPassword')?.dirty || passwordForm.get('confirmPassword')?.touched)">
-                <label>Yeni Şifre (Tekrar)</label>
+                <label for="">Yeni Şifre (Tekrar)</label>
                 <div class="password-input-wrapper">
                   <input [type]="showConfirm() ? 'text' : 'password'" formControlName="confirmPassword" placeholder="Şifrenizi tekrar girin" />
                   <button type="button" class="password-toggle-btn" (click)="showConfirm.set(!showConfirm())">

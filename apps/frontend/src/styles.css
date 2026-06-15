@@ -12,9 +12,9 @@
   --secondary: #E5E7EB;
   --text-primary: #111827;
   --text-muted: #6B7280;
-  --ai-accent: #4F46E5;
-  --ai-accent-hover: #4338CA;
-  --ai-accent-light: rgba(79, 70, 229, 0.08);
+  --ai-accent: #111827;
+  --ai-accent-hover: #1F2937;
+  --ai-accent-light: rgba(17, 24, 39, 0.05);
   --status-instock: #059669;
   --status-lowstock: #D97706;
   --status-outstock: #DC2626;

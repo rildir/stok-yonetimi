@@ -54,6 +54,7 @@ export interface AiResponseCard {
     change?: string;
     isPositive?: boolean;
   }[];
+  thinking?: string;
 }
 
 @Injectable({
