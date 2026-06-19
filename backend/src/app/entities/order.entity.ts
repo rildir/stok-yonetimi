@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 
 @Entity('orders')
@@ -12,9 +12,11 @@ export class OrderEntity {
   @Column()
   customerName: string;
 
+  @Index()
   @Column()
   date: string;
 
+  @Index()
   @Column()
   status: string;
 
@@ -23,4 +25,10 @@ export class OrderEntity {
 
   @Column('json')
   items: any;
+
+  @Column({ nullable: true })
+  carrier?: string;
+
+  @Column({ nullable: true })
+  trackingNumber?: string;
 }

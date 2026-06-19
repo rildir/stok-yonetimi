@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray, FormsModule } from '@angular/forms';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Order } from '../../inventory.service';
@@ -8,7 +8,7 @@ import { InventoryService, Order } from '../../inventory.service';
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -31,6 +31,16 @@ import { InventoryService, Order } from '../../inventory.service';
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         <input type="text" placeholder="Müşteri adı veya sipariş no ara..." [value]="orderSearch()" (input)="onSearchInput($event)"/>
       </div>
+      
+      <div class="date-filters">
+        <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" title="Başlangıç Tarihi" />
+        <span class="date-separator">-</span>
+        <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" title="Bitiş Tarihi" />
+        @if (startDate() || endDate()) {
+          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" title="Filtreyi Temizle">✕</button>
+        }
+      </div>
+
       <div class="filter-pills">
         <button class="filter-pill" [class.active]="orderFilterStatus() === 'all'" (click)="orderFilterStatus.set('all')">Tümü</button>
         <button class="filter-pill" [class.active]="orderFilterStatus() === 'Pending'" (click)="orderFilterStatus.set('Pending')">Bekleyen</button>
@@ -120,6 +130,18 @@ import { InventoryService, Order } from '../../inventory.service';
                 <input type="text" formControlName="customerName" placeholder="Müşteri adı girin" [disabled]="isOrderSaving()"/>
                 @if (isFieldInvalid('customerName')) { <span class="error-msg">Müşteri adı zorunludur.</span> }
               </div>
+
+              <!-- Shipping Info Rows -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label>Kargo Firması (Opsiyonel)</label>
+                  <input type="text" formControlName="carrier" placeholder="Örn: Yurtiçi Kargo" [disabled]="isOrderSaving()"/>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label>Takip Numarası (Opsiyonel)</label>
+                  <input type="text" formControlName="trackingNumber" placeholder="Örn: YK123456" [disabled]="isOrderSaving()"/>
+                </div>
+              </div>
               
               <label class="form-section-label">Sipariş Kalemleri</label>
               <div formArrayName="lines">
@@ -193,92 +215,100 @@ import { InventoryService, Order } from '../../inventory.service';
 
     <!-- ─── Order Detail Drawer ─── -->
     @if (isOrderDetailOpen()) {
-      <div class="drawer-backdrop" (click)="closeOrderDetail()"></div>
-    }
-    <aside class="drawer" [class.open]="isOrderDetailOpen()">
-      @if (selectedOrder(); as order) {
-        <div class="drawer-header">
-          <div class="detail-header-left">
-            <h3>Sipariş Detayı</h3>
-            <span class="detail-order-no" style="margin-left:8px; color:#666; font-size:13px">{{ order.orderNumber }}</span>
-          </div>
-          <button class="drawer-close-btn" (click)="closeOrderDetail()">
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-        
-        <div class="drawer-body">
-          @if (isOrderDetailLoading()) {
-            <!-- Skeleton Loader -->
-            <div>
-              <div class="skeleton skeleton-title"></div>
-              <div class="skeleton skeleton-text"></div>
-              <div class="skeleton skeleton-text short"></div>
-            </div>
-            <div>
-              <div class="skeleton skeleton-title" style="width: 40%"></div>
-              <div class="skeleton skeleton-row"></div>
-              <div class="skeleton skeleton-row"></div>
-            </div>
-          } @else {
-            <div class="detail-metadata-grid">
-              <span class="detail-label-col">Müşteri</span>
-              <span class="detail-value-col">{{ order.customerName }}</span>
-              
-              <span class="detail-label-col">Tarih</span>
-              <span class="detail-value-col mono" style="font-weight: 500">{{ order.date | date:'dd.MM.yyyy HH:mm' }}</span>
-              
-              <span class="detail-label-col">Durum</span>
-              <div style="text-align: right">
-                <span class="badge" [class.badge-instock]="order.status === 'Completed'" [class.badge-lowstock]="order.status === 'Pending'" [class.badge-outstock]="order.status === 'Cancelled'">
-                  {{ order.status === 'Completed' ? 'TAMAMLANDI' : order.status === 'Pending' ? 'BEKLİYOR' : 'İPTAL EDİLDİ' }}
-                </span>
+      <div class="drawer-overlay" (click)="closeOrderDetail()">
+        <div class="drawer-panel" (click)="$event.stopPropagation()">
+          @if (selectedOrder(); as order) {
+            <div class="drawer-header">
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span class="drawer-title">Sipariş Detayı</span>
+                <span class="mono text-muted" style="font-size: 13px;">{{ order.orderNumber }}</span>
               </div>
+              <button class="drawer-close" (click)="closeOrderDetail()">×</button>
             </div>
-
-            <div class="detail-items-section">
-              <h4 class="detail-section-title">Sipariş Kalemleri</h4>
-              <div class="detail-item-list">
-                @for (item of order.items; track item.productName) {
-                  <div class="detail-item-row">
-                    <div class="detail-item-info">
-                      <span class="detail-item-name">{{ item.productName }}</span>
-                      <span class="detail-item-calc">{{ item.quantity }}x · ₺{{ item.price }}</span>
-                    </div>
-                    <span class="detail-item-total">₺{{ (item.price * item.quantity).toFixed(2) }}</span>
-                  </div>
-                }
-                <div class="detail-grand-total">
-                  <span class="detail-grand-label">Genel Toplam</span>
-                  <span class="detail-grand-value">₺{{ order.totalAmount.toFixed(2) }}</span>
+            
+            <div class="drawer-body">
+              @if (isOrderDetailLoading()) {
+                <!-- Skeleton Loader -->
+                <div>
+                  <div class="skeleton skeleton-title"></div>
+                  <div class="skeleton skeleton-text"></div>
+                  <div class="skeleton skeleton-text short"></div>
                 </div>
-              </div>
+                <div>
+                  <div class="skeleton skeleton-title" style="width: 40%"></div>
+                  <div class="skeleton skeleton-row"></div>
+                  <div class="skeleton skeleton-row"></div>
+                </div>
+              } @else {
+                <div class="detail-metadata-grid">
+                  <span class="detail-label-col">Müşteri</span>
+                  <span class="detail-value-col">{{ order.customerName }}</span>
+                  
+                  <span class="detail-label-col">Tarih</span>
+                  <span class="detail-value-col mono">{{ order.date | date:'dd.MM.yyyy HH:mm' }}</span>
+                  
+                  <span class="detail-label-col">Durum</span>
+                  <div style="text-align: right">
+                    <span class="badge" [class.badge-instock]="order.status === 'Completed'" [class.badge-lowstock]="order.status === 'Pending'" [class.badge-outstock]="order.status === 'Cancelled'">
+                      {{ order.status === 'Completed' ? 'TAMAMLANDI' : order.status === 'Pending' ? 'BEKLİYOR' : 'İPTAL EDİLDİ' }}
+                    </span>
+                  </div>
+
+                  @if (order.carrier) {
+                    <span class="detail-label-col">Kargo Firması</span>
+                    <span class="detail-value-col">{{ order.carrier }}</span>
+                  }
+                  @if (order.trackingNumber) {
+                    <span class="detail-label-col">Kargo Takip No</span>
+                    <span class="detail-value-col mono" style="font-weight: 500;">{{ order.trackingNumber }}</span>
+                  }
+                </div>
+
+                <div class="detail-items-section" style="margin-top: 12px;">
+                  <h4 class="detail-section-title">Sipariş Kalemleri</h4>
+                  <div class="detail-item-list">
+                    @for (item of order.items; track item.productName) {
+                      <div class="detail-item-row" style="padding: 10px 0;">
+                        <div class="detail-item-info">
+                          <span class="detail-item-name" style="font-weight:600; font-size:14px;">{{ item.productName }}</span>
+                          <span class="detail-item-calc" style="font-size:12px; color:var(--text-muted);">{{ item.quantity }}x · ₺{{ item.price }}</span>
+                        </div>
+                        <span class="detail-item-total mono" style="font-weight:600; font-size:14px;">₺{{ (item.price * item.quantity).toFixed(2) }}</span>
+                      </div>
+                    }
+                    <div class="detail-grand-total" style="display:flex; justify-content:space-between; margin-top:16px; padding-top:16px; border-top:1.5px solid var(--secondary);">
+                      <span class="detail-grand-label" style="font-weight:700; font-size:14px;">Genel Toplam</span>
+                      <span class="detail-grand-value mono" style="font-weight:700; font-size:15px; color:var(--primary);">₺{{ order.totalAmount.toFixed(2) }}</span>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <div class="drawer-footer" [class.single-action]="order.status === 'Completed' || order.status === 'Cancelled'">
+              @if (isOrderDetailLoading()) {
+                <div class="skeleton skeleton-row" style="margin: 0; width: 100%"></div>
+              } @else {
+                @if (order.status === 'Pending') {
+                  <button class="btn btn-outline" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">İptal Et</button>
+                  <button class="btn btn-primary" (click)="updateOrderStatus(order.id, 'Completed')" [disabled]="updatingOrderId() === order.id">
+                    @if (updatingOrderId() === order.id) { <span class="spinner-sm spinner-light"></span> } @else { Tamamla }
+                  </button>
+                }
+                @if (order.status === 'Completed') {
+                  <button class="btn btn-outline" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id" style="width: 100%">
+                    @if (updatingOrderId() === order.id) { <span class="spinner-sm"></span> } @else { İade Et }
+                  </button>
+                }
+                @if (order.status === 'Cancelled') {
+                  <div style="color: #999; font-size: 13px; text-align: center; width: 100%; align-self: center;">Bu sipariş iptal edilmiştir.</div>
+                }
+              }
             </div>
           }
         </div>
-
-        <div class="drawer-footer" [class.single-action]="order.status === 'Completed' || order.status === 'Cancelled'">
-          @if (isOrderDetailLoading()) {
-            <div class="skeleton skeleton-row" style="margin: 0; width: 100%"></div>
-          } @else {
-            @if (order.status === 'Pending') {
-              <button class="btn btn-outline" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">İptal Et</button>
-              <button class="btn btn-primary" (click)="updateOrderStatus(order.id, 'Completed')" [disabled]="updatingOrderId() === order.id">
-                @if (updatingOrderId() === order.id) { <span class="spinner-sm spinner-light"></span> } @else { Tamamla }
-              </button>
-            }
-            @if (order.status === 'Completed') {
-              <button class="btn btn-outline" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id" style="width: 100%">
-                @if (updatingOrderId() === order.id) { <span class="spinner-sm"></span> } @else { İade Et }
-              </button>
-            }
-            @if (order.status === 'Cancelled') {
-              <div style="color: #999; font-size: 13px; text-align: center; width: 100%; align-self: center;">Bu sipariş iptal edilmiştir.</div>
-            }
-          }
-        </div>
-      }
-    </aside>
+      </div>
+    }
 
     <!-- ─── Cancel Confirmation Modal ─── -->
     @if (showCancelModal()) {
@@ -326,11 +356,15 @@ export class OrdersComponent {
   // Search & Filter
   orderSearch = signal('');
   orderFilterStatus = signal<'all' | 'Pending' | 'Completed' | 'Cancelled'>('all');
+  startDate = signal('');
+  endDate = signal('');
 
   filteredOrders = computed(() => {
     let list = this.state.orders();
     const search = this.orderSearch().toLowerCase().trim();
     const statusFilter = this.orderFilterStatus();
+    const start = this.startDate();
+    const end = this.endDate();
 
     if (search) {
       list = list.filter(o =>
@@ -341,12 +375,22 @@ export class OrdersComponent {
     if (statusFilter !== 'all') {
       list = list.filter(o => o.status === statusFilter);
     }
+    if (start) {
+      const startMs = new Date(start).setHours(0, 0, 0, 0);
+      list = list.filter(o => new Date(o.date).getTime() >= startMs);
+    }
+    if (end) {
+      const endMs = new Date(end).setHours(23, 59, 59, 999);
+      list = list.filter(o => new Date(o.date).getTime() <= endMs);
+    }
     return list;
   });
 
   // Reactive Form
   orderForm: FormGroup = this.fb.group({
     customerName: ['', [Validators.required, Validators.minLength(2)]],
+    carrier: [''],
+    trackingNumber: [''],
     lines: this.fb.array([])
   });
 
@@ -476,7 +520,7 @@ export class OrdersComponent {
 
   // Create Order
   openCreateOrder() {
-    this.orderForm.reset({ customerName: '' });
+    this.orderForm.reset({ customerName: '', carrier: '', trackingNumber: '' });
     this.linesArray.clear();
     this.addOrderLine();
     this.dropdownOpenIndex.set(null);
@@ -582,6 +626,8 @@ export class OrdersComponent {
       customerName: formValue.customerName.trim(),
       date: new Date().toISOString(),
       status: 'Pending' as const,
+      carrier: formValue.carrier ? formValue.carrier.trim() : null,
+      trackingNumber: formValue.trackingNumber ? formValue.trackingNumber.trim() : null,
       items: formValue.lines.map((l: any) => ({
         productId: l.productId,
         productName: l.productName,

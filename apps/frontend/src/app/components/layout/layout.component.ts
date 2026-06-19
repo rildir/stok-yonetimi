@@ -1,13 +1,15 @@
-import { Component, inject, ViewChild, ElementRef, AfterViewChecked, signal, computed, HostListener } from '@angular/core';
+import { Component, inject, ViewChild, ElementRef, signal, computed, HostListener, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { UiStateService } from '../../services/ui-state.service';
 import { FormsModule } from '@angular/forms';
+import { NotificationService } from '../../services/notification.service';
+import { ModalComponent } from '../modal.component';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, ModalComponent],
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()">
       <aside class="sidebar">
@@ -31,9 +33,31 @@ import { FormsModule } from '@angular/forms';
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
               <span class="nav-text">Ürün Yönetimi</span>
             </a>
+            <a routerLink="/stock-movements" routerLinkActive="active" class="nav-btn" title="Stok Hareketleri">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+              <span class="nav-text">Stok Hareketleri</span>
+            </a>
+            <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" title="Tedarikçiler">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              <span class="nav-text">Tedarikçiler</span>
+            </a>
+            <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" title="Satın Alma">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+              <span class="nav-text">Satın Alma</span>
+            </a>
             <a routerLink="/orders" routerLinkActive="active" class="nav-btn" title="Sipariş Takibi">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
               <span class="nav-text">Sipariş Takibi</span>
+            </a>
+            <a routerLink="/reports" routerLinkActive="active" class="nav-btn" title="Raporlar">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <span class="nav-text">Raporlar</span>
+            </a>
+            <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" title="Stok Sayımı">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+              </svg>
+              <span class="nav-text">Stok Sayımı</span>
             </a>
             <a routerLink="/settings" routerLinkActive="active" class="nav-btn" title="Ayarlar">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -51,6 +75,53 @@ import { FormsModule } from '@angular/forms';
           <div class="navbar-right">
             <div class="system-status">
               <span class="status-dot"></span> <span>Sistem Çevrimiçi</span>
+            </div>
+
+            <!-- Bildirim Paneli -->
+            <div class="notification-widget">
+              <button class="notif-btn" (click)="toggleNotifDropdown($event)" aria-label="Bildirimler">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                @if (notifService.unreadCount() > 0) {
+                  <span class="notif-badge">{{ notifService.unreadCount() }}</span>
+                }
+              </button>
+
+              @if (isNotifOpen()) {
+                <div class="notif-dropdown" (click)="$event.stopPropagation()">
+                  <div class="notif-header">
+                    <h4>Bildirimler</h4>
+                    <div class="notif-actions">
+                      @if (notifService.notifications().length > 0) {
+                        <button class="notif-action-link" (click)="notifService.markAllAsRead()">Tümünü Okundu Say</button>
+                        <span class="divider">•</span>
+                        <button class="notif-action-link" (click)="notifService.clearAll()">Temizle</button>
+                      }
+                    </div>
+                  </div>
+                  <div class="notif-list">
+                    @if (notifService.notifications().length === 0) {
+                      <div class="notif-empty">
+                        <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2m16 4h-2a2 2 0 00-2 2v1a2 2 0 00-2 2H8a2 2 0 00-2-2v-1a2 2 0 00-2-2H2"/>
+                        </svg>
+                        <span>Bildirim bulunmuyor.</span>
+                      </div>
+                    } @else {
+                      @for (n of notifService.notifications(); track n.id) {
+                        <div class="notif-item" [class.unread]="!n.read" (click)="notifService.markAsRead(n.id)">
+                          <div class="notif-indicator" [class]="n.type"></div>
+                          <div class="notif-content">
+                            <p class="notif-message">{{ n.message }}</p>
+                            <span class="notif-time">{{ n.createdAt | date:'dd.MM HH:mm' }}</span>
+                          </div>
+                        </div>
+                      }
+                    }
+                  </div>
+                </div>
+              }
             </div>
             
             <div class="profile-widget" (click)="toggleProfileDropdown($event)">
@@ -272,8 +343,8 @@ import { FormsModule } from '@angular/forms';
                                 <line x1="20" y1="150" x2="300" y2="150" stroke="#E5E7EB" stroke-width="1.5"/>
                                 @for (label of msg.card.chartData.labels; track label; let idx = $index) {
                                   <g>
-                                    <rect [attr.x]="30 + idx * 55" [attr.y]="getBarY(msg.card.chartData.datasets[0].data[idx], msg.card.chartData.datasets[0].data)" width="36" [attr.height]="getBarHeight(msg.card.chartData.datasets[0].data[idx], msg.card.chartData.datasets[0].data)" rx="3" fill="#111827"/>
-                                    <text [attr.x]="48 + idx * 55" [attr.y]="getBarY(msg.card.chartData.datasets[0].data[idx], msg.card.chartData.datasets[0].data) - 6" text-anchor="middle" style="font-family:var(--font-mono);font-size:9px;font-weight:700" fill="#111827">{{ msg.card.chartData.datasets[0].data[idx] }}</text>
+                                    <rect [attr.x]="30 + idx * 55" [attr.y]="ui.getBarY(msg.card.chartData.datasets[0].data[idx], msg.card.chartData.datasets[0].data)" width="36" [attr.height]="ui.getBarHeight(msg.card.chartData.datasets[0].data[idx], msg.card.chartData.datasets[0].data)" rx="3" fill="#111827"/>
+                                    <text [attr.x]="48 + idx * 55" [attr.y]="ui.getBarY(msg.card.chartData.datasets[0].data[idx], msg.card.chartData.datasets[0].data) - 6" text-anchor="middle" style="font-family:var(--font-mono);font-size:9px;font-weight:700" fill="#111827">{{ msg.card.chartData.datasets[0].data[idx] }}</text>
                                     <text [attr.x]="48 + idx * 55" y="168" text-anchor="middle" style="font-size:8px;font-weight:500" fill="#6B7280">{{ label | slice:0:7 }}..</text>
                                   </g>
                                 }
@@ -282,7 +353,7 @@ import { FormsModule } from '@angular/forms';
                             @if (msg.card.chartType === 'pie' || msg.card.chartType === 'doughnut') {
                               <svg viewBox="0 0 320 200">
                                 <g transform="translate(10, 0)">
-                                  @for (sector of getPieSectors(msg.card.chartData.datasets[0].data); track sector.label) {
+                                  @for (sector of ui.getPieSectors(msg.card.chartData.datasets[0].data); track sector.label) {
                                     <path [attr.d]="sector.d" [attr.fill]="sector.color"/>
                                   }
                                   @if (msg.card.chartType === 'doughnut') {
@@ -290,7 +361,7 @@ import { FormsModule } from '@angular/forms';
                                   }
                                   @for (label of msg.card.chartData.labels; track label; let idx = $index) {
                                     <g [attr.transform]="'translate(200, ' + (40 + idx * 24) + ')'">
-                                      <rect width="10" height="10" rx="2" [attr.fill]="getPieSectors(msg.card.chartData.datasets[0].data)[idx].color"/>
+                                      <rect width="10" height="10" rx="2" [attr.fill]="ui.getPieSectors(msg.card.chartData.datasets[0].data)[idx].color"/>
                                       <text x="16" y="9" style="font-size:9px;font-weight:500" fill="#111827">{{ label | slice:0:12 }} ({{ msg.card.chartData.datasets[0].data[idx] }})</text>
                                     </g>
                                   }
@@ -302,8 +373,8 @@ import { FormsModule } from '@angular/forms';
                                 <line x1="20" y1="40" x2="280" y2="40" stroke="#F3F4F6"/>
                                 <line x1="20" y1="90" x2="280" y2="90" stroke="#F3F4F6"/>
                                 <line x1="20" y1="140" x2="280" y2="140" stroke="#E5E7EB"/>
-                                <path [attr.d]="getLinePath(msg.card.chartData.datasets[0].data)" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round"/>
-                                @for (pt of getLinePoints(msg.card.chartData.datasets[0].data); track $index; let idx = $index) {
+                                <path [attr.d]="ui.getLinePath(msg.card.chartData.datasets[0].data)" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round"/>
+                                @for (pt of ui.getLinePoints(msg.card.chartData.datasets[0].data); track $index; let idx = $index) {
                                   <g>
                                     <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="4" fill="#111827" stroke="#FFFFFF" stroke-width="1.5"/>
                                     <text [attr.x]="pt.x" y="153" text-anchor="middle" style="font-size:8px;font-weight:500" fill="#6B7280">{{ msg.card.chartData.labels[idx] }}</text>
@@ -362,16 +433,44 @@ import { FormsModule } from '@angular/forms';
           </div>
         </div>
       </aside>
+
+      <app-modal [isOpen]="!!ui.confirmConfig()" [title]="ui.confirmConfig()?.title || ''" (onClose)="ui.closeConfirm()">
+        <div style="font-size: 14px; line-height: 1.5; color: var(--text-primary);">
+          {{ ui.confirmConfig()?.message }}
+        </div>
+        <div footer style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || 'Vazgeç' }}</button>
+          <button class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || 'Onayla' }}</button>
+        </div>
+      </app-modal>
     </div>
   `
 })
-export class LayoutComponent implements AfterViewChecked {
+export class LayoutComponent {
   ui = inject(UiStateService);
   router = inject(Router);
   aiPrompt = '';
 
+  confirmGlobalAction() {
+    const config = this.ui.confirmConfig();
+    if (config && config.onConfirm) {
+      config.onConfirm();
+    }
+    this.ui.closeConfirm();
+  }
+
+  constructor() {
+    effect(() => {
+      const count = this.ui.activeMessages().length;
+      const loading = this.ui.isAiLoading();
+      setTimeout(() => this.scrollToBottom(), 50);
+    });
+  }
+
+  notifService = inject(NotificationService);
   isSidebarCollapsed = signal(false);
   isProfileOpen = signal(false);
+  isNotifOpen = signal(false);
 
   toggleSidebar() {
     this.isSidebarCollapsed.update(v => !v);
@@ -380,11 +479,19 @@ export class LayoutComponent implements AfterViewChecked {
   toggleProfileDropdown(event: Event) {
     event.stopPropagation();
     this.isProfileOpen.update(v => !v);
+    this.isNotifOpen.set(false);
+  }
+
+  toggleNotifDropdown(event: Event) {
+    event.stopPropagation();
+    this.isNotifOpen.update(v => !v);
+    this.isProfileOpen.set(false);
   }
 
   @HostListener('document:click')
-  closeProfileDropdown() {
+  closeDropdowns() {
     this.isProfileOpen.set(false);
+    this.isNotifOpen.set(false);
   }
 
   currentUser = computed(() => {
@@ -410,7 +517,12 @@ export class LayoutComponent implements AfterViewChecked {
     const url = this.router.url;
     if (url.includes('/dashboard')) return 'Panel Özeti';
     if (url.includes('/products')) return 'Ürün Yönetimi';
+    if (url.includes('/stock-movements')) return 'Stok Hareketleri';
+    if (url.includes('/suppliers')) return 'Tedarikçiler';
+    if (url.includes('/purchase-orders')) return 'Satın Alma';
     if (url.includes('/orders')) return 'Sipariş Takibi';
+    if (url.includes('/reports')) return 'Raporlar & Analiz';
+    if (url.includes('/stock-count')) return 'Stok Sayımı';
     if (url.includes('/settings')) return 'Ayarlar';
     return 'Smart Inventory';
   }
@@ -436,15 +548,7 @@ export class LayoutComponent implements AfterViewChecked {
   }
 
   @ViewChild('chatBody') private chatBodyContainer!: ElementRef;
-  private lastMsgCount = 0;
 
-  ngAfterViewChecked() {
-    const currentCount = this.ui.activeMessages().length + (this.ui.isAiLoading() ? 1 : 0);
-    if (currentCount !== this.lastMsgCount) {
-      this.lastMsgCount = currentCount;
-      this.scrollToBottom();
-    }
-  }
 
   scrollToBottom(): void {
     try {
@@ -472,54 +576,5 @@ export class LayoutComponent implements AfterViewChecked {
   }
 
 
-  // ───── SVG Chart Helpers ─────
-  getBarHeight(val: number, data: number[]): number {
-    const max = Math.max(...data, 1);
-    return (val / max) * 110;
-  }
-  getBarY(val: number, data: number[]): number {
-    return 150 - this.getBarHeight(val, data);
-  }
-  getPieSectors(data: number[]): { d: string; color: string; label: string; value: number }[] {
-    const total = data.reduce((a, b) => a + b, 0);
-    let accumulatedAngle = 0;
-    const colors = ['#111827', '#374151', '#4B5563', '#6B7280', '#9CA3AF'];
-    return data.map((val, idx) => {
-      const percentage = val / (total || 1);
-      const angle = percentage * 360;
-      const startAngle = accumulatedAngle;
-      const endAngle = accumulatedAngle + angle;
-      accumulatedAngle = endAngle;
-      const x1 = 100 + 80 * Math.cos((startAngle - 90) * Math.PI / 180);
-      const y1 = 100 + 80 * Math.sin((startAngle - 90) * Math.PI / 180);
-      const x2 = 100 + 80 * Math.cos((endAngle - 90) * Math.PI / 180);
-      const y2 = 100 + 80 * Math.sin((endAngle - 90) * Math.PI / 180);
-      const largeArc = angle > 180 ? 1 : 0;
-      const d = `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
-      return { d, color: colors[idx % colors.length], label: `Item ${idx}`, value: val };
-    });
-  }
-  getLinePath(data: number[]): string {
-    if (data.length === 0) return '';
-    const max = Math.max(...data, 1);
-    const min = Math.min(...data, 0);
-    const range = max - min || 1;
-    const points = data.map((val, idx) => {
-      const x = (idx / (data.length - 1 || 1)) * 260 + 20;
-      const y = 140 - ((val - min) / range) * 100;
-      return `${x},${y}`;
-    });
-    return `M ${points.join(' L ')}`;
-  }
-  getLinePoints(data: number[]): { x: number; y: number; val: number }[] {
-    const max = Math.max(...data, 1);
-    const min = Math.min(...data, 0);
-    const range = max - min || 1;
-    return data.map((val, idx) => {
-      const x = (idx / (data.length - 1 || 1)) * 260 + 20;
-      const y = 140 - ((val - min) / range) * 100;
-      return { x, y, val };
-    });
-  }
 }
 

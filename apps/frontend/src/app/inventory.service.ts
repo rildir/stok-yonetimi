@@ -10,7 +10,10 @@ export interface Product {
   price: number;
   quantity: number;
   minQuantity: number;
-  status: 'In stock' | 'Low stock' | 'Out of stock';
+  status: 'In stock' | 'Low stock' | 'Out of stock' | string;
+  supplierId?: string;
+  imageUrl?: string;
+  unit?: string;
 }
 
 export interface OrderItem {
@@ -28,6 +31,8 @@ export interface Order {
   status: 'Completed' | 'Pending' | 'Cancelled';
   totalAmount: number;
   items: OrderItem[];
+  carrier?: string;
+  trackingNumber?: string;
 }
 
 export interface AiResponseCard {
@@ -55,13 +60,19 @@ export interface AiResponseCard {
     isPositive?: boolean;
   }[];
   thinking?: string;
+  action?: {
+    type: string;
+    payload: any;
+  };
 }
+
+import { environment } from '../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class InventoryService {
-  private apiUrl = 'http://localhost:3000/api';
+  private apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
@@ -70,7 +81,11 @@ export class InventoryService {
     return this.http.get<Product[]>(`${this.apiUrl}/products`);
   }
 
-  createProduct(product: Omit<Product, 'id' | 'status'>): Observable<Product> {
+  bulkCreateProducts(products: any[]): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/products/bulk`, products);
+  }
+
+  createProduct(product: Partial<Product>): Observable<Product> {
     return this.http.post<Product>(`${this.apiUrl}/products`, product);
   }
 
@@ -80,6 +95,14 @@ export class InventoryService {
 
   deleteProduct(id: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.apiUrl}/products/${id}`);
+  }
+
+  bulkDeleteProducts(ids: string[]): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/products/bulk-delete`, { ids });
+  }
+
+  bulkUpdateProducts(ids: string[], updates: Partial<Product>): Observable<{ success: boolean }> {
+    return this.http.put<{ success: boolean }>(`${this.apiUrl}/products/bulk-update`, { ids, updates });
   }
 
   // Orders
@@ -98,5 +121,112 @@ export class InventoryService {
   // AI Assistant
   askAi(prompt: string): Observable<AiResponseCard> {
     return this.http.post<AiResponseCard>(`${this.apiUrl}/ai/query`, { prompt });
+  }
+
+  // Stock Movements
+  getStockMovements(productId?: string, page: number = 1, limit: number = 20, search?: string): Observable<{ data: any[], total: number }> {
+    let url = `${this.apiUrl}/stock-movements?page=${page}&limit=${limit}`;
+    if (productId) url += `&productId=${productId}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    return this.http.get<{ data: any[], total: number }>(url);
+  }
+
+  createManualAdjustment(productId: string, newQuantity: number, note: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/stock-movements/adjust`, { productId, newQuantity, note });
+  }
+
+  // Suppliers
+  getSuppliers(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/suppliers`);
+  }
+
+  createSupplier(data: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/suppliers`, data);
+  }
+
+  updateSupplier(id: string, data: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/suppliers/${id}`, data);
+  }
+
+  deleteSupplier(id: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/suppliers/${id}`);
+  }
+
+  // Purchase Orders
+  getPurchaseOrders(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/purchase-orders`);
+  }
+
+  createPurchaseOrder(data: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/purchase-orders`, data);
+  }
+
+  updatePurchaseOrderStatus(id: string, status: string): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/purchase-orders/${id}/status`, { status });
+  }
+
+  // Categories
+  getCategories(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/categories`);
+  }
+
+  createCategory(data: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/categories`, data);
+  }
+
+  updateCategory(id: string, data: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/categories/${id}`, data);
+  }
+
+  deleteCategory(id: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/categories/${id}`);
+  }
+
+  // Stock Counts
+  getStockCounts(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/stock-counts`);
+  }
+
+  createStockCount(notes?: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/stock-counts`, { notes });
+  }
+
+  updateStockCount(id: string, items: any[], notes?: string): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/stock-counts/${id}`, { items, notes });
+  }
+
+  completeStockCount(id: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/stock-counts/${id}/complete`, {});
+  }
+
+  // Reports
+  getStockSummary(startDate?: string, endDate?: string): Observable<any> {
+    let url = `${this.apiUrl}/reports/stock-summary`;
+    const params = [];
+    if (startDate) params.push(`startDate=${startDate}`);
+    if (endDate) params.push(`endDate=${endDate}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    return this.http.get<any>(url);
+  }
+
+  getProductMovementsReport(startDate?: string, endDate?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/reports/product-movements`;
+    const params = [];
+    if (startDate) params.push(`startDate=${startDate}`);
+    if (endDate) params.push(`endDate=${endDate}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    return this.http.get<any[]>(url);
+  }
+
+  getCategoryDistributionReport(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/reports/category-distribution`);
+  }
+
+  getTopSellingReport(days = 30): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/reports/top-selling?days=${days}`);
+  }
+
+  getSupplierSummaryReport(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/reports/supplier-summary`);
   }
 }

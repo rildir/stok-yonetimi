@@ -3,6 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ProductEntity } from './entities/product.entity';
 import { OrderEntity } from './entities/order.entity';
+import { StockMovementEntity } from './entities/stock-movement.entity';
+import { SupplierEntity } from './entities/supplier.entity';
+import { PurchaseOrderEntity } from './entities/purchase-order.entity';
+import { CategoryEntity } from './entities/category.entity';
+import { StockCountEntity, StockCountItem } from './entities/stock-count.entity';
 import { AppGateway } from './app.gateway';
 
 export interface Product {
@@ -15,6 +20,7 @@ export interface Product {
   minQuantity: number;
   status: 'In stock' | 'Low stock' | 'Out of stock' | string;
   isDeleted?: boolean;
+  unit?: string;
 }
 
 export interface OrderItem {
@@ -32,6 +38,8 @@ export interface Order {
   status: 'Completed' | 'Pending' | 'Cancelled' | string;
   totalAmount: number;
   items: OrderItem[];
+  carrier?: string;
+  trackingNumber?: string;
 }
 
 @Injectable()
@@ -41,6 +49,12 @@ export class DbService implements OnModuleInit {
     private readonly productRepo: Repository<ProductEntity>,
     @InjectRepository(OrderEntity)
     private readonly orderRepo: Repository<OrderEntity>,
+    @InjectRepository(StockMovementEntity)
+    private readonly stockMovementRepo: Repository<StockMovementEntity>,
+    @InjectRepository(SupplierEntity)
+    private readonly supplierRepo: Repository<SupplierEntity>,
+    @InjectRepository(CategoryEntity)
+    private readonly categoryRepo: Repository<CategoryEntity>,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -50,6 +64,22 @@ export class DbService implements OnModuleInit {
   }
 
   private async seedMockDataIfEmpty() {
+    // Seed Categories
+    const categoryCount = await this.categoryRepo.count();
+    if (categoryCount === 0) {
+      console.log('[DbService] Categories table is empty. Seeding initial categories...');
+      const initialCategories = [
+        { name: 'Aksesuarlar', slug: 'Accessories' },
+        { name: 'Ses Ekipmanları', slug: 'Audio' },
+        { name: 'Monitörler', slug: 'Monitors' },
+        { name: 'Giyilebilir Teknoloji', slug: 'Wearables' },
+        { name: 'Ofis Mobilyası', slug: 'Furniture' }
+      ];
+      for (const cat of initialCategories) {
+        await this.categoryRepo.save(this.categoryRepo.create(cat));
+      }
+    }
+
     const productCount = await this.productRepo.count();
     if (productCount > 0) return;
 
@@ -123,12 +153,90 @@ export class DbService implements OnModuleInit {
     return this.productRepo.findOne({ where: { id, isDeleted: false } });
   }
 
-  async createProduct(prod: Omit<Product, 'id' | 'status' | 'isDeleted'>): Promise<ProductEntity> {
-    const status = this.calculateStatus(prod.quantity, prod.minQuantity);
-    const newProduct = this.productRepo.create({ ...prod, status, isDeleted: false });
-    const saved = await this.productRepo.save(newProduct);
-    this.appGateway.server.emit('product_mutated', { type: 'create', product: saved });
-    return saved;
+  async createProduct(data: Partial<ProductEntity>, performedBy: string = 'System'): Promise<ProductEntity> {
+    const newProd = this.productRepo.create({
+      ...data,
+      status: this.calculateStatus(data.quantity || 0, data.minQuantity || 5)
+    });
+    
+    return await this.dataSource.transaction(async manager => {
+      const savedProd = await manager.save(ProductEntity, newProd);
+      
+      if (savedProd.quantity > 0) {
+        await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+          productId: savedProd.id,
+          productName: savedProd.name,
+          type: 'IN',
+          quantity: savedProd.quantity,
+          previousQuantity: 0,
+          newQuantity: savedProd.quantity,
+          note: 'Yeni ürün oluşturma stok girişi',
+          referenceType: 'manual',
+          performedBy
+        }));
+      }
+
+      this.appGateway.server.emit('product_mutated', { type: 'create', product: savedProd });
+      return savedProd;
+    });
+  }
+
+  async bulkCreateProducts(products: Partial<ProductEntity>[], performedBy: string = 'System'): Promise<ProductEntity[]> {
+    const skus = products.map(p => p.sku).filter(Boolean);
+    
+    // Check duplicates in payload
+    const duplicateSkusInPayload = skus.filter((item, index) => skus.indexOf(item) !== index);
+    if (duplicateSkusInPayload.length > 0) {
+      console.warn(`[DbService] Toplu ürün yükleme çakışması: Yüklenen veri içerisinde yinelenen SKU'lar bulundu: ${duplicateSkusInPayload.join(', ')}`);
+      throw new BadRequestException(`Yüklenen veri içerisinde yinelenen SKU'lar bulundu: ${duplicateSkusInPayload.join(', ')}`);
+    }
+
+    // Check duplicates in database
+    if (skus.length > 0) {
+      const existingProducts = await this.productRepo.createQueryBuilder('p')
+        .where('p.sku IN (:...skus) AND p.isDeleted = false', { skus })
+        .getMany();
+      
+      if (existingProducts.length > 0) {
+        const existingSkus = existingProducts.map(p => p.sku);
+        console.warn(`[DbService] Toplu ürün yükleme çakışması: Sistemde zaten kayıtlı olan SKU'lar bulundu: ${existingSkus.join(', ')}`);
+        throw new BadRequestException(`Sistemde zaten kayıtlı olan SKU'lar bulundu: ${existingSkus.join(', ')}`);
+      }
+    }
+
+    const savedProducts: ProductEntity[] = [];
+    
+    await this.dataSource.transaction(async manager => {
+      for (const data of products) {
+        const newProd = manager.create(ProductEntity, {
+          ...data,
+          status: this.calculateStatus(data.quantity || 0, data.minQuantity || 5)
+        });
+        
+        const savedProd = await manager.save(ProductEntity, newProd);
+        savedProducts.push(savedProd);
+        
+        if (savedProd.quantity > 0) {
+          await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+            productId: savedProd.id,
+            productName: savedProd.name,
+            type: 'IN',
+            quantity: savedProd.quantity,
+            previousQuantity: 0,
+            newQuantity: savedProd.quantity,
+            note: 'Toplu (Bulk) ürün yükleme',
+            referenceType: 'manual',
+            performedBy
+          }));
+        }
+      }
+    });
+
+    for (const p of savedProducts) {
+      this.appGateway.server.emit('product_mutated', { type: 'create', product: p });
+    }
+    
+    return savedProducts;
   }
 
   async updateProduct(id: string, updates: Partial<Omit<Product, 'id' | 'status' | 'isDeleted'>>): Promise<ProductEntity | null> {
@@ -143,8 +251,26 @@ export class DbService implements OnModuleInit {
       const updatedMin = updates.minQuantity !== undefined ? updates.minQuantity : current.minQuantity;
       const status = this.calculateStatus(updatedQty, updatedMin);
 
+      const oldQuantity = current.quantity;
       Object.assign(current, updates, { status });
-      return await manager.save(ProductEntity, current);
+      const savedProd = await manager.save(ProductEntity, current);
+
+      if (updates.quantity !== undefined && oldQuantity !== updates.quantity) {
+        const diff = updates.quantity - oldQuantity;
+        await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+          productId: savedProd.id,
+          productName: savedProd.name,
+          type: 'ADJUSTMENT',
+          quantity: diff,
+          previousQuantity: oldQuantity,
+          newQuantity: updates.quantity,
+          note: 'Stock update',
+          performedBy: 'System',
+          referenceType: 'manual'
+        }));
+      }
+
+      return savedProd;
     });
 
     if (saved) {
@@ -162,6 +288,24 @@ export class DbService implements OnModuleInit {
       return true;
     }
     return false;
+  }
+
+  async bulkDeleteProducts(ids: string[]): Promise<boolean> {
+    let success = false;
+    for (const id of ids) {
+      const deleted = await this.deleteProduct(id);
+      if (deleted) success = true;
+    }
+    return success;
+  }
+
+  async bulkUpdateProducts(ids: string[], updates: Partial<ProductEntity>): Promise<boolean> {
+    let success = false;
+    for (const id of ids) {
+      const updated = await this.updateProduct(id, updates);
+      if (updated) success = true;
+    }
+    return success;
   }
 
   private calculateStatus(quantity: number, minQuantity: number): string {
@@ -204,10 +348,24 @@ export class DbService implements OnModuleInit {
 
         // Subtract stock if completed or pending
         if (order.status === 'Completed' || order.status === 'Pending') {
+          const oldQty = prod.quantity;
           prod.quantity -= item.quantity;
           prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
           const savedProd = await manager.save(ProductEntity, prod);
           productsToEmit.push(savedProd);
+
+          await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+            productId: savedProd.id,
+            productName: savedProd.name,
+            type: 'ORDER',
+            quantity: -item.quantity,
+            previousQuantity: oldQty,
+            newQuantity: prod.quantity,
+            referenceId: orderNumber,
+            referenceType: 'order',
+            note: `Sipariş oluşturuldu: ${orderNumber}`,
+            performedBy: 'System'
+          }));
         }
 
         totalAmount += prod.price * item.quantity;
@@ -259,11 +417,24 @@ export class DbService implements OnModuleInit {
           });
           if (!prod) throw new BadRequestException(`Ürün artık mevcut değil: ${item.productName}`);
           if (prod.quantity < item.quantity) throw new BadRequestException(`Yetersiz stok: ${prod.name} (Mevcut: ${prod.quantity})`);
-          
+          const oldQty = prod.quantity;
           prod.quantity -= item.quantity;
           prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
           const savedProd = await manager.save(ProductEntity, prod);
           productsToEmit.push(savedProd);
+
+          await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+            productId: savedProd.id,
+            productName: savedProd.name,
+            type: 'ORDER',
+            quantity: -item.quantity,
+            previousQuantity: oldQty,
+            newQuantity: prod.quantity,
+            referenceId: order.orderNumber,
+            referenceType: 'order',
+            note: `Sipariş iptalden geri alındı: ${order.orderNumber}`,
+            performedBy: 'System'
+          }));
         }
       }
 
@@ -274,10 +445,24 @@ export class DbService implements OnModuleInit {
             lock: { mode: 'pessimistic_write' }
           });
           if (prod) {
+            const oldQty = prod.quantity;
             prod.quantity += item.quantity;
             prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
             const savedProd = await manager.save(ProductEntity, prod);
             productsToEmit.push(savedProd);
+
+            await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+              productId: savedProd.id,
+              productName: savedProd.name,
+              type: 'RETURN',
+              quantity: item.quantity,
+              previousQuantity: oldQty,
+              newQuantity: prod.quantity,
+              referenceId: order.orderNumber,
+              referenceType: 'order',
+              note: `Sipariş iptal edildi: ${order.orderNumber}`,
+              performedBy: 'System'
+            }));
           }
         }
       }
@@ -293,5 +478,565 @@ export class DbService implements OnModuleInit {
       }
     }
     return savedOrder;
+  }
+
+  // Stock Movements
+  async getStockMovements(productId?: string, page: number = 1, limit: number = 20, search?: string): Promise<{ data: StockMovementEntity[], total: number }> {
+    const query = this.stockMovementRepo.createQueryBuilder('sm').orderBy('sm.createdAt', 'DESC');
+    if (productId) query.where('sm.productId = :productId', { productId });
+    
+    if (search) {
+      const s = `%${search.toLowerCase()}%`;
+      query.andWhere(
+        '(LOWER(sm.productName) LIKE :search OR LOWER(sm.note) LIKE :search OR LOWER(sm.type) LIKE :search)',
+        { search: s }
+      );
+    }
+    
+    const [data, total] = await query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+      
+    return { data, total };
+  }
+
+  async createManualAdjustment(productId: string, newQuantity: number, note: string, performedBy: string): Promise<StockMovementEntity> {
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const prod = await manager.findOne(ProductEntity, {
+        where: { id: productId, isDeleted: false },
+        lock: { mode: 'pessimistic_write' }
+      });
+      if (!prod) throw new BadRequestException('Ürün bulunamadı');
+
+      const oldQty = prod.quantity;
+      const diff = newQuantity - oldQty;
+      
+      prod.quantity = newQuantity;
+      prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
+      const savedProd = await manager.save(ProductEntity, prod);
+
+      const movement = manager.create(StockMovementEntity, {
+        productId: savedProd.id,
+        productName: savedProd.name,
+        type: 'ADJUSTMENT',
+        quantity: diff,
+        previousQuantity: oldQty,
+        newQuantity: newQuantity,
+        note: note || 'Manuel düzeltme',
+        referenceType: 'manual',
+        performedBy
+      });
+      return await manager.save(StockMovementEntity, movement);
+    });
+
+    this.appGateway.server.emit('product_mutated', { type: 'update', product: await this.getProductById(productId) });
+    return saved;
+  }
+
+  // Suppliers
+  async getSuppliers(): Promise<SupplierEntity[]> {
+    return this.supplierRepo.find({ where: { isDeleted: false }, order: { name: 'ASC' } });
+  }
+
+  async getSupplierById(id: string): Promise<SupplierEntity | null> {
+    return this.supplierRepo.findOne({ where: { id, isDeleted: false } });
+  }
+
+  async createSupplier(data: Partial<SupplierEntity>): Promise<SupplierEntity> {
+    if (data.name) {
+      const existing = await this.supplierRepo.findOne({ where: { name: data.name, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu isimde bir tedarikçi zaten mevcut: ${data.name}`);
+      }
+    }
+    if (data.email) {
+      const existing = await this.supplierRepo.findOne({ where: { email: data.email, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu e-posta adresine sahip bir tedarikçi zaten mevcut: ${data.email}`);
+      }
+    }
+    const newSupplier = this.supplierRepo.create(data);
+    const saved = await this.supplierRepo.save(newSupplier);
+    this.appGateway.server.emit('supplier_mutated', { type: 'create', supplier: saved });
+    return saved;
+  }
+
+  async updateSupplier(id: string, updates: Partial<SupplierEntity>): Promise<SupplierEntity | null> {
+    const supplier = await this.getSupplierById(id);
+    if (!supplier) return null;
+
+    if (updates.name && updates.name !== supplier.name) {
+      const existing = await this.supplierRepo.findOne({ where: { name: updates.name, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu isimde bir tedarikçi zaten mevcut: ${updates.name}`);
+      }
+    }
+    if (updates.email && updates.email !== supplier.email) {
+      const existing = await this.supplierRepo.findOne({ where: { email: updates.email, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu e-posta adresine sahip bir tedarikçi zaten mevcut: ${updates.email}`);
+      }
+    }
+    
+    Object.assign(supplier, updates);
+    const saved = await this.supplierRepo.save(supplier);
+    this.appGateway.server.emit('supplier_mutated', { type: 'update', supplier: saved });
+    return saved;
+  }
+
+  async deleteSupplier(id: string): Promise<boolean> {
+    const supplier = await this.getSupplierById(id);
+    if (supplier) {
+      const poRepo = this.dataSource.getRepository(PurchaseOrderEntity);
+      const activePoCount = await poRepo.count({
+        where: [
+          { supplierId: id, status: 'Draft' },
+          { supplierId: id, status: 'Sent' }
+        ]
+      });
+      if (activePoCount > 0) {
+        throw new BadRequestException('Bu tedarikçiye ait aktif satın alma siparişi bulunduğundan silinemez.');
+      }
+
+      // Set linked products' supplierId to null
+      await this.productRepo.update({ supplierId: id }, { supplierId: null as any });
+
+      supplier.isDeleted = true;
+      await this.supplierRepo.save(supplier);
+      this.appGateway.server.emit('supplier_mutated', { type: 'delete', supplierId: id });
+      return true;
+    }
+    return false;
+  }
+
+  // Purchase Orders
+  async getPurchaseOrders(): Promise<PurchaseOrderEntity[]> {
+    return this.dataSource.getRepository(PurchaseOrderEntity).find({ order: { createdAt: 'DESC' } });
+  }
+
+  async getPurchaseOrderById(id: string): Promise<PurchaseOrderEntity | null> {
+    return this.dataSource.getRepository(PurchaseOrderEntity).findOne({ where: { id } });
+  }
+
+  async createPurchaseOrder(data: Partial<PurchaseOrderEntity>): Promise<PurchaseOrderEntity> {
+    const repo = this.dataSource.getRepository(PurchaseOrderEntity);
+    const count = await repo.count();
+    const poNumber = `PO-${1000 + count + 1}`;
+
+    if (!data.supplierId) {
+      throw new BadRequestException('Tedarikçi ID\'si (supplierId) belirtilmelidir.');
+    }
+    const supplier = await this.supplierRepo.findOne({ where: { id: data.supplierId, isDeleted: false } });
+    if (!supplier) {
+      throw new BadRequestException(`Tedarikçi bulunamadı: ID ${data.supplierId}`);
+    }
+    data.supplierName = supplier.name;
+
+    let calculatedTotal = 0;
+    if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+      throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
+    }
+    for (const item of data.items) {
+      if (!item.productId) {
+        throw new BadRequestException('Sipariş kalemi için ürün ID\'si (productId) belirtilmelidir.');
+      }
+      const product = await this.productRepo.findOne({ where: { id: item.productId, isDeleted: false } });
+      if (!product) {
+        throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
+      }
+      item.productName = product.name;
+      if (item.price === undefined || item.price === null || item.price === 0) {
+        item.price = product.price;
+      }
+      calculatedTotal += (item.price || 0) * (item.quantity || 0);
+    }
+    data.totalAmount = parseFloat(calculatedTotal.toFixed(2));
+    
+    const newPo = repo.create({
+      ...data,
+      poNumber,
+      status: 'Draft'
+    });
+    const saved = await repo.save(newPo);
+    this.appGateway.server.emit('purchase_order_mutated', { type: 'create', purchaseOrder: saved });
+    return saved;
+  }
+
+  async updatePurchaseOrderStatus(id: string, status: string): Promise<PurchaseOrderEntity | null> {
+    const saved = await this.dataSource.transaction(async manager => {
+      const po = await manager.findOne(PurchaseOrderEntity, { where: { id }, lock: { mode: 'pessimistic_write' } });
+      if (!po) return null;
+
+      if (po.status !== 'Received' && status === 'Received') {
+        // Stok artışı ve log
+        for (const item of po.items) {
+          const prod = await manager.findOne(ProductEntity, { where: { id: item.productId }, lock: { mode: 'pessimistic_write' } });
+          if (prod) {
+            const oldQty = prod.quantity;
+            prod.quantity += item.quantity;
+            prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
+            await manager.save(ProductEntity, prod);
+
+            await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+              productId: prod.id,
+              productName: prod.name,
+              type: 'IN',
+              quantity: item.quantity,
+              previousQuantity: oldQty,
+              newQuantity: prod.quantity,
+              referenceId: po.poNumber,
+              referenceType: 'purchase_order',
+              note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
+              performedBy: 'System'
+            }));
+            
+            this.appGateway.server.emit('product_mutated', { type: 'update', product: prod });
+          }
+        }
+      }
+      
+      po.status = status;
+      return await manager.save(PurchaseOrderEntity, po);
+    });
+
+    if (saved) {
+      this.appGateway.server.emit('purchase_order_mutated', { type: 'update', purchaseOrder: saved });
+    }
+    return saved;
+  }
+
+  // Categories CRUD
+  async getCategories(): Promise<CategoryEntity[]> {
+    return this.categoryRepo.find({ where: { isDeleted: false }, order: { name: 'ASC' } });
+  }
+
+  async createCategory(data: Partial<CategoryEntity>): Promise<CategoryEntity> {
+    const slug = data.slug || this.slugify(data.name || '');
+    const newCategory = this.categoryRepo.create({
+      ...data,
+      slug
+    });
+    return await this.categoryRepo.save(newCategory);
+  }
+
+  async updateCategory(id: string, updates: Partial<CategoryEntity>): Promise<CategoryEntity | null> {
+    const category = await this.categoryRepo.findOne({ where: { id, isDeleted: false } });
+    if (!category) return null;
+    
+    if (updates.name && !updates.slug) {
+      updates.slug = this.slugify(updates.name);
+    }
+    Object.assign(category, updates);
+    return await this.categoryRepo.save(category);
+  }
+
+  async deleteCategory(id: string): Promise<boolean> {
+    const category = await this.categoryRepo.findOne({ where: { id, isDeleted: false } });
+    if (category) {
+      const productCount = await this.productRepo.count({ where: { category: category.slug, isDeleted: false } });
+      if (productCount > 0) {
+        throw new BadRequestException('Bu kategoriye ait aktif ürünler bulunduğundan silinemez.');
+      }
+      category.isDeleted = true;
+      await this.categoryRepo.save(category);
+      return true;
+    }
+    return false;
+  }
+
+  private slugify(text: string): string {
+    const trMap: Record<string, string> = {
+      'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u',
+      'Ç': 'c', 'Ğ': 'g', 'İ': 'i', 'Ö': 'o', 'Ş': 's', 'Ü': 'u',
+    };
+    for (const key in trMap) {
+      text = text.replace(new RegExp(key, 'g'), trMap[key]);
+    }
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-]+/g, '')
+      .replace(/\-\-+/g, '-');
+  }
+
+  // Reports API aggregation queries
+  async getStockSummary(startDate?: string, endDate?: string) {
+    const query = this.stockMovementRepo.createQueryBuilder('sm');
+    if (startDate) {
+      query.andWhere('sm.createdAt >= :startDate', { startDate: new Date(startDate) });
+    }
+    if (endDate) {
+      query.andWhere('sm.createdAt <= :endDate', { endDate: new Date(endDate) });
+    }
+    
+    const movements = await query.getMany();
+    
+    let totalIn = 0;
+    let totalOut = 0;
+    
+    for (const m of movements) {
+      const q = m.quantity || 0;
+      if (q > 0) {
+        totalIn += q;
+      } else {
+        totalOut += Math.abs(q);
+      }
+    }
+    
+    return {
+      totalIn,
+      totalOut,
+      netChange: totalIn - totalOut
+    };
+  }
+
+  async getProductMovementsReport(startDate?: string, endDate?: string) {
+    const query = this.stockMovementRepo.createQueryBuilder('sm');
+    if (startDate) {
+      query.andWhere('sm.createdAt >= :startDate', { startDate: new Date(startDate) });
+    }
+    if (endDate) {
+      query.andWhere('sm.createdAt <= :endDate', { endDate: new Date(endDate) });
+    }
+    
+    const movements = await query.getMany();
+    const productReports: Record<string, { productId: string, productName: string, totalIn: number, totalOut: number }> = {};
+    
+    for (const m of movements) {
+      const pId = m.productId;
+      if (!pId) continue;
+      if (!productReports[pId]) {
+        productReports[pId] = {
+          productId: pId,
+          productName: m.productName || 'Bilinmeyen Ürün',
+          totalIn: 0,
+          totalOut: 0
+        };
+      }
+      const qty = m.quantity || 0;
+      if (qty > 0) {
+        productReports[pId].totalIn += qty;
+      } else {
+        productReports[pId].totalOut += Math.abs(qty);
+      }
+    }
+    
+    return Object.values(productReports);
+  }
+
+  async getCategoryDistribution() {
+    const products = await this.productRepo.find({ where: { isDeleted: false } });
+    const distribution: Record<string, { category: string, productCount: number, totalStock: number, totalValue: number }> = {};
+    
+    for (const p of products) {
+      const cat = p.category || 'Diğer';
+      if (!distribution[cat]) {
+        distribution[cat] = {
+          category: cat,
+          productCount: 0,
+          totalStock: 0,
+          totalValue: 0
+        };
+      }
+      distribution[cat].productCount += 1;
+      distribution[cat].totalStock += p.quantity || 0;
+      distribution[cat].totalValue += (p.quantity || 0) * (p.price || 0);
+    }
+    return Object.values(distribution);
+  }
+
+  async getTopSelling(days: number = 30) {
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - days);
+    
+    const orders = await this.orderRepo.find();
+    const filteredOrders = orders.filter(o => 
+      o.status === 'Completed' && 
+      new Date(o.date).getTime() >= thresholdDate.getTime()
+    );
+
+    const productSales: Record<string, { productName: string, totalQty: number, totalRevenue: number }> = {};
+
+    for (const order of filteredOrders) {
+      const items = Array.isArray(order.items) ? order.items : [];
+      for (const item of items) {
+        if (!item.productId) continue;
+        if (!productSales[item.productId]) {
+          productSales[item.productId] = {
+            productName: item.productName || 'Bilinmeyen Ürün',
+            totalQty: 0,
+            totalRevenue: 0
+          };
+        }
+        productSales[item.productId].totalQty += item.quantity || 0;
+        productSales[item.productId].totalRevenue += (item.quantity || 0) * (item.price || 0);
+      }
+    }
+
+    return Object.values(productSales)
+      .sort((a, b) => b.totalQty - a.totalQty)
+      .slice(0, 10);
+  }
+
+  async getSupplierSummary() {
+    const pos = await this.dataSource.getRepository(PurchaseOrderEntity).find();
+    const summary: Record<string, { supplierName: string, poCount: number, totalAmount: number }> = {};
+    
+    for (const po of pos) {
+      if (po.status === 'Cancelled') continue;
+      const sId = po.supplierId;
+      if (!summary[sId]) {
+        summary[sId] = {
+          supplierName: po.supplierName || 'Bilinmeyen Tedarikçi',
+          poCount: 0,
+          totalAmount: 0
+        };
+      }
+      summary[sId].poCount += 1;
+      if (po.status === 'Received') {
+        summary[sId].totalAmount += Number(po.totalAmount) || 0;
+      }
+    }
+    return Object.values(summary);
+  }
+
+  async getStockCounts(): Promise<StockCountEntity[]> {
+    return this.dataSource.getRepository(StockCountEntity).find({
+      order: { createdAt: 'DESC' }
+    });
+  }
+
+  async createStockCount(notes?: string, performedBy?: string): Promise<StockCountEntity> {
+    const repo = this.dataSource.getRepository(StockCountEntity);
+    
+    const activeCount = await repo.findOne({ where: { status: 'InProgress' } });
+    if (activeCount) {
+      throw new BadRequestException('Halihazırda devam eden bir sayım seansı bulunmaktadır.');
+    }
+    
+    // Generate countNumber format SC-YYYYMMDD-HHMMSS
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+    const countNumber = `SC-${dateStr}-${timeStr}`;
+
+    // Get all active products
+    const products = await this.productRepo.find({ where: { isDeleted: false } });
+    
+    // Map products to StockCountItem list
+    const items: StockCountItem[] = products.map(p => ({
+      productId: p.id,
+      productName: p.name,
+      sku: p.sku,
+      systemQuantity: p.quantity,
+      countedQuantity: p.quantity, // starts as system quantity
+      difference: 0,
+      unit: p.unit || 'Adet'
+    }));
+
+    const newCount = repo.create({
+      countNumber,
+      status: 'InProgress',
+      items,
+      startedAt: now,
+      performedBy: performedBy || 'Admin',
+      notes: notes || ''
+    });
+
+    const saved = await repo.save(newCount);
+    this.appGateway.server.emit('stock_count_mutated', { type: 'create', stockCount: saved });
+    return saved;
+  }
+
+  async updateStockCount(id: string, items: any[], notes?: string): Promise<StockCountEntity | null> {
+    const repo = this.dataSource.getRepository(StockCountEntity);
+    const count = await repo.findOne({ where: { id, status: 'InProgress' } });
+    if (!count) return null;
+
+    // Map and update difference for each item
+    const updatedItems: StockCountItem[] = items.map(item => {
+      const counted = Number(item.countedQuantity) || 0;
+      const system = Number(item.systemQuantity) || 0;
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.sku,
+        systemQuantity: system,
+        countedQuantity: counted,
+        difference: counted - system,
+        unit: item.unit || 'Adet'
+      };
+    });
+
+    count.items = updatedItems;
+    if (notes !== undefined) {
+      count.notes = notes;
+    }
+
+    const saved = await repo.save(count);
+    this.appGateway.server.emit('stock_count_mutated', { type: 'update', stockCount: saved });
+    return saved;
+  }
+
+  async completeStockCount(id: string, performedBy?: string): Promise<StockCountEntity | null> {
+    const countRepo = this.dataSource.getRepository(StockCountEntity);
+    const count = await countRepo.findOne({ where: { id, status: 'InProgress' } });
+    if (!count) return null;
+
+    // Run within a transaction to perform atomic stock adjustments
+    const completedCount = await this.dataSource.transaction(async (manager) => {
+      // Loop over items and perform adjustments if difference is non-zero
+      for (const item of count.items) {
+        const difference = Number(item.countedQuantity) - Number(item.systemQuantity);
+        if (difference !== 0) {
+          // Lock and load product
+          const product = await manager.findOne(ProductEntity, {
+            where: { id: item.productId, isDeleted: false },
+            lock: { mode: 'pessimistic_write' }
+          });
+          
+          if (product) {
+            const oldQty = product.quantity;
+            product.quantity = item.countedQuantity;
+            product.status = this.calculateStatus(product.quantity, product.minQuantity);
+            const savedProd = await manager.save(ProductEntity, product);
+
+            // Create StockMovement record
+            const movementType = difference > 0 ? 'IN' : 'OUT';
+            const newMovement = manager.create(StockMovementEntity, {
+              productId: product.id,
+              productName: product.name,
+              type: movementType,
+              quantity: Math.abs(difference),
+              previousQuantity: oldQty,
+              newQuantity: item.countedQuantity,
+              referenceId: count.id,
+              referenceType: 'stock_count',
+              note: `Sayım Düzeltmesi (Fark: ${difference > 0 ? '+' : ''}${difference})`,
+              performedBy: performedBy || 'Admin'
+            });
+            await manager.save(StockMovementEntity, newMovement);
+
+            // Broadcast product update event
+            this.appGateway.server.emit('product_mutated', { type: 'update', product: savedProd });
+          }
+        }
+      }
+
+      count.status = 'Completed';
+      count.completedAt = new Date();
+      if (performedBy) {
+        count.performedBy = performedBy;
+      }
+      return await manager.save(StockCountEntity, count);
+    });
+
+    if (completedCount) {
+      this.appGateway.server.emit('stock_count_mutated', { type: 'complete', stockCount: completedCount });
+    }
+    return completedCount;
   }
 }

@@ -7,6 +7,11 @@ import { AiService } from './ai.service';
 import { AppGateway } from './app.gateway';
 import { ProductEntity } from './entities/product.entity';
 import { OrderEntity } from './entities/order.entity';
+import { StockMovementEntity } from './entities/stock-movement.entity';
+import { SupplierEntity } from './entities/supplier.entity';
+import { PurchaseOrderEntity } from './entities/purchase-order.entity';
+import { CategoryEntity } from './entities/category.entity';
+import { StockCountEntity } from './entities/stock-count.entity';
 
 @Module({
   imports: [
@@ -17,10 +22,12 @@ import { OrderEntity } from './entities/order.entity';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'stok_yonetimi',
-      entities: [ProductEntity, OrderEntity],
-      synchronize: true,
+      entities: [ProductEntity, OrderEntity, StockMovementEntity, SupplierEntity, PurchaseOrderEntity, CategoryEntity, StockCountEntity],
+      synchronize: process.env.NODE_ENV !== 'production',
+      migrations: [__dirname + '/migrations/*{.ts,.js}'],
+      migrationsRun: process.env.NODE_ENV === 'production',
     }),
-    TypeOrmModule.forFeature([ProductEntity, OrderEntity]),
+    TypeOrmModule.forFeature([ProductEntity, OrderEntity, StockMovementEntity, SupplierEntity, PurchaseOrderEntity, CategoryEntity, StockCountEntity]),
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || (() => { throw new Error('CRITICAL: JWT_SECRET is missing in environment variables'); })(),

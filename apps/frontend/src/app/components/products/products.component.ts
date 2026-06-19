@@ -102,6 +102,15 @@ import { InventoryService, Product } from '../../inventory.service';
   outline: none;
 }
 
+.form-input::placeholder {
+  color: transparent;
+  transition: color 0.15s ease;
+}
+
+.form-input:focus::placeholder {
+  color: #bbb;
+}
+
 .form-label {
   position: absolute;
   left: 14px;
@@ -224,6 +233,15 @@ import { InventoryService, Product } from '../../inventory.service';
         <p>İşletmenizin stoklarını ve ürün detaylarını buradan yönetin.</p>
       </div>
       <div class="header-actions">
+        <button class="btn btn-outline" (click)="fileInput.click()" title="CSV'den İçe Aktar">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          İçe Aktar
+        </button>
+        <input type="file" #fileInput accept=".csv" style="display: none" (change)="importFromCSV($event)" />
+        <button class="btn btn-outline" (click)="exportToCSV()" title="CSV Olarak İndir">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Dışa Aktar
+        </button>
         <button class="btn btn-outline" (click)="openAddProduct()">+ Yeni Ürün Ekle</button>
         <button class="btn btn-primary" (click)="ui.toggleAiPanel()">
           <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -251,6 +269,10 @@ import { InventoryService, Product } from '../../inventory.service';
         <table>
           <thead>
             <tr>
+              <th style="width: 40px; text-align: center;">
+                <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" class="custom-checkbox" />
+              </th>
+              <th style="width: 50px;">Görsel</th>
               <th>Ürün Adı</th>
               <th>SKU</th>
               <th>Kategori</th>
@@ -263,13 +285,23 @@ import { InventoryService, Product } from '../../inventory.service';
           </thead>
           <tbody>
             @for (p of filteredProducts(); track p.id) {
-              <tr>
+              <tr [class.selected]="isProductSelected(p.id)">
+                <td style="text-align: center;">
+                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" class="custom-checkbox" />
+                </td>
+                <td>
+                  @if (p.imageUrl) {
+                    <img [src]="p.imageUrl" alt="Ürün" style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px;" />
+                  } @else {
+                    <div style="width: 32px; height: 32px; background: #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 10px;">Yok</div>
+                  }
+                </td>
                 <td><strong>{{ p.name }}</strong></td>
                 <td class="mono">{{ p.sku }}</td>
-                <td>{{ p.category }}</td>
+                <td>{{ getCategoryName(p.category) }}</td>
                 <td class="mono">₺{{ p.price }}</td>
-                <td class="mono" style="font-weight:600">{{ p.quantity }}</td>
-                <td class="mono" style="color:var(--text-muted)">{{ p.minQuantity }}</td>
+                <td class="mono" style="font-weight:600">{{ p.quantity }} {{ p.unit || 'Adet' }}</td>
+                <td class="mono" style="color:var(--text-muted)">{{ p.minQuantity }} {{ p.unit || 'Adet' }}</td>
                 <td>
                   <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
                     {{ p.status === 'In stock' ? 'Stokta' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
@@ -286,7 +318,7 @@ import { InventoryService, Product } from '../../inventory.service';
               </tr>
             }
             @if (filteredProducts().length === 0) {
-              <tr><td colspan="8" class="empty-state">Arama kriterlerinize uygun ürün bulunamadı.</td></tr>
+              <tr><td colspan="10" class="empty-state">Arama kriterlerinize uygun ürün bulunamadı.</td></tr>
             }
           </tbody>
         </table>
@@ -315,6 +347,19 @@ import { InventoryService, Product } from '../../inventory.service';
                 <label for="productSku" class="form-label">SKU</label>
                 @if (isFieldInvalid('sku')) { <div class="form-error">⚠ Bu alan zorunludur.</div> }
               </div>
+
+              <!-- Visual Barcode Block -->
+              @if (productForm.get('sku')?.value) {
+                <div class="barcode-container" style="background: #ffffff; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: -4px 0 20px 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                  <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 6px;">Visual Barcode (SKU)</div>
+                  <div style="display: flex; align-items: stretch; justify-content: center; height: 36px; background: #fff; width: 100%; max-width: 200px;">
+                    @for (bar of getBarcodeBars(productForm.get('sku')?.value); track $index) {
+                      <div [style.flex-grow]="bar.width" [style.background-color]="bar.isBar ? '#000000' : 'transparent'" style="height: 100%;"></div>
+                    }
+                  </div>
+                  <div style="font-family: 'Courier New', Courier, monospace; font-size: 11px; font-weight: bold; margin-top: 4px; letter-spacing: 2px; color: #111;">*{{ productForm.get('sku')?.value }}*</div>
+                </div>
+              }
               
               <div class="form-field">
                 <div class="custom-select-wrapper" (click)="toggleCategoryDropdown($event)">
@@ -326,14 +371,38 @@ import { InventoryService, Product } from '../../inventory.service';
                   </div>
                   @if (isCategoryDropdownOpen()) {
                     <div class="custom-select-dropdown" style="z-index: 2000;">
-                      @for (cat of categories; track cat.value) {
-                        <div class="custom-option" (click)="selectCategory(cat.value); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
+                      @for (cat of categories(); track cat.slug) {
+                        <div class="custom-option" (click)="selectCategory(cat.slug); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
                           <span class="opt-name">{{ cat.name }}</span>
                         </div>
                       }
                     </div>
                   }
                   <label class="form-label" style="top: 10px; transform: translateY(0) scale(0.75); color: #666; font-weight: 600; pointer-events: none;">Kategori</label>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <div class="custom-select-wrapper" (click)="toggleSupplierDropdown($event)">
+                  <div class="custom-select-trigger" [class.open]="isSupplierDropdownOpen()" [class.disabled]="isSaveLoading()" style="height: 52px; padding: 18px 14px 6px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px;">
+                    <span class="selected-text" style="font-size: 14px;">
+                      {{ getSupplierName(productForm.get('supplierId')?.value) }}
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                  </div>
+                  @if (isSupplierDropdownOpen()) {
+                    <div class="custom-select-dropdown" style="z-index: 2000;">
+                      <div class="custom-option" (click)="selectSupplier(null); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
+                        <span class="opt-name text-muted">Tedarikçi Seçilmedi</span>
+                      </div>
+                      @for (sup of suppliers(); track sup.id) {
+                        <div class="custom-option" (click)="selectSupplier(sup.id); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
+                          <span class="opt-name">{{ sup.name }}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                  <label class="form-label" style="top: 10px; transform: translateY(0) scale(0.75); color: #666; font-weight: 600; pointer-events: none;">Tedarikçi</label>
                 </div>
               </div>
               
@@ -349,11 +418,29 @@ import { InventoryService, Product } from '../../inventory.service';
                 <label for="productQuantity" class="form-label">Mevcut Stok</label>
                 @if (isFieldInvalid('quantity')) { <div class="form-error">⚠ Geçerli bir değer girin.</div> }
               </div>
+
+              <div class="form-field">
+                <select id="productUnit" formControlName="unit" class="form-input form-select" [class.has-value]="hasValue('unit')" [disabled]="isSaveLoading()">
+                  <option value="Adet">Adet</option>
+                  <option value="Kg">Kg</option>
+                  <option value="Lt">Lt</option>
+                  <option value="Metre">Metre</option>
+                  <option value="Paket">Paket</option>
+                  <option value="Kutu">Kutu</option>
+                </select>
+                <label for="productUnit" class="form-label">Ölçü Birimi</label>
+                @if (isFieldInvalid('unit')) { <div class="form-error">⚠ Birim seçimi zorunludur.</div> }
+              </div>
               
               <div class="form-field">
                 <input id="productMinQuantity" type="number" formControlName="minQuantity" class="form-input" [class.has-value]="hasValue('minQuantity')" min="0" [disabled]="isSaveLoading()" />
                 <label for="productMinQuantity" class="form-label">Kritik Seviye</label>
                 @if (isFieldInvalid('minQuantity')) { <div class="form-error">⚠ Geçerli bir değer girin.</div> }
+              </div>
+
+              <div class="form-field">
+                <input id="productImageUrl" type="text" formControlName="imageUrl" class="form-input" [class.has-value]="hasValue('imageUrl')" [disabled]="isSaveLoading()" />
+                <label for="productImageUrl" class="form-label">Görsel Linki (Opsiyonel)</label>
               </div>
             </div>
             
@@ -391,6 +478,61 @@ import { InventoryService, Product } from '../../inventory.service';
         </div>
       </div>
     }
+
+    <!-- ─── Bulk Actions Bar ─── -->
+    @if (selectedProductIds().length > 0) {
+      <div class="bulk-actions-bar">
+        <div class="bulk-info">
+          <strong>{{ selectedProductIds().length }}</strong> ürün seçildi
+        </div>
+        <div class="bulk-buttons">
+          <div class="bulk-category-select-wrapper">
+            <button class="btn btn-outline-light" (click)="toggleBulkCategoryDropdown($event)">
+              Kategori Değiştir
+            </button>
+            @if (isBulkCategoryDropdownOpen()) {
+              <div class="bulk-category-dropdown">
+                @for (cat of categories(); track cat.slug) {
+                  <button type="button" class="bulk-category-option" (click)="applyBulkCategory(cat.slug)">
+                    {{ cat.name }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+          <button class="btn btn-danger-dark" (click)="promptBulkDelete()">
+            Seçilenleri Sil
+          </button>
+          <button class="btn btn-ghost-light" (click)="clearSelection()">
+            Vazgeç
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ─── Bulk Delete Confirmation Modal ─── -->
+    @if (showBulkDeleteModal()) {
+      <div class="modal-backdrop">
+        <div class="modal-panel modal-panel-sm">
+          <div class="delete-modal-content">
+            <button class="delete-modal-close" (click)="cancelBulkDelete()" [disabled]="isBulkDeleteLoading()">✕</button>
+            <div class="delete-icon">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </div>
+            <h3 class="delete-modal-title">Seçili Ürünleri Sil</h3>
+            <p class="delete-modal-desc">
+              Seçilen <strong>{{ selectedProductIds().length }}</strong> ürünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+            </p>
+          </div>
+          <div class="delete-modal-actions">
+            <button class="btn btn-secondary" (click)="cancelBulkDelete()" [disabled]="isBulkDeleteLoading()">Vazgeç</button>
+            <button class="btn btn-danger" (click)="confirmBulkDelete()" [disabled]="isBulkDeleteLoading()">
+              @if (isBulkDeleteLoading()) { <span class="spinner-sm spinner-light"></span> Siliniyor... } @else { Sil }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `
 })
 export class ProductsComponent {
@@ -399,15 +541,155 @@ export class ProductsComponent {
   inventoryService = inject(InventoryService);
   fb = inject(FormBuilder);
 
-  categories = [
-    { value: 'Accessories', name: 'Aksesuarlar' },
-    { value: 'Audio', name: 'Ses Ekipmanları' },
-    { value: 'Monitors', name: 'Monitörler' },
-    { value: 'Wearables', name: 'Giyilebilir Teknoloji' },
-    { value: 'Furniture', name: 'Ofis Mobilyası' }
-  ];
+  categories = signal<any[]>([]);
 
   isCategoryDropdownOpen = signal(false);
+
+  getBarcodeBars(sku: string): { width: number, isBar: boolean }[] {
+    if (!sku) return [];
+    const bars: { width: number, isBar: boolean }[] = [];
+    
+    // Start guard
+    bars.push({ width: 2, isBar: true });
+    bars.push({ width: 1, isBar: false });
+    bars.push({ width: 1, isBar: true });
+    bars.push({ width: 2, isBar: false });
+    
+    // Hash SKU to generate deterministic bars
+    let hash = 0;
+    for (let i = 0; i < sku.length; i++) {
+      hash = (hash << 5) - hash + sku.charCodeAt(i);
+      hash |= 0;
+    }
+    
+    for (let i = 0; i < sku.length; i++) {
+      const code = sku.charCodeAt(i);
+      const pattern = [
+        (code & 1) ? 2 : 1,
+        (code & 2) ? 1 : 2,
+        (code & 4) ? 2 : 1,
+        (code & 8) ? 1 : 2,
+        (code & 16) ? 2 : 1,
+        (code & 32) ? 1 : 2,
+      ];
+      pattern.forEach((w, index) => {
+        bars.push({ width: w * 1.5, isBar: index % 2 === 0 });
+      });
+      bars.push({ width: 1.5, isBar: false });
+    }
+    
+    // End guard
+    bars.push({ width: 2, isBar: true });
+    bars.push({ width: 1, isBar: false });
+    bars.push({ width: 2, isBar: true });
+    return bars;
+  }
+
+  // Bulk selection & operation states
+  selectedProductIds = signal<string[]>([]);
+  isBulkCategoryDropdownOpen = signal(false);
+  showBulkDeleteModal = signal(false);
+  isBulkDeleteLoading = signal(false);
+
+  isProductSelected(id: string): boolean {
+    return this.selectedProductIds().includes(id);
+  }
+
+  isAllSelected(): boolean {
+    const list = this.filteredProducts();
+    if (list.length === 0) return false;
+    return list.every(p => this.selectedProductIds().includes(p.id));
+  }
+
+  toggleSelectProduct(id: string) {
+    this.selectedProductIds.update(ids => {
+      if (ids.includes(id)) {
+        return ids.filter(x => x !== id);
+      } else {
+        return [...ids, id];
+      }
+    });
+  }
+
+  toggleSelectAll() {
+    const list = this.filteredProducts();
+    if (this.isAllSelected()) {
+      const filteredIds = list.map(p => p.id);
+      this.selectedProductIds.update(ids => ids.filter(id => !filteredIds.includes(id)));
+    } else {
+      const filteredIds = list.map(p => p.id);
+      this.selectedProductIds.update(ids => {
+        const newSet = new Set([...ids, ...filteredIds]);
+        return Array.from(newSet);
+      });
+    }
+  }
+
+  clearSelection() {
+    this.selectedProductIds.set([]);
+    this.isBulkCategoryDropdownOpen.set(false);
+  }
+
+  toggleBulkCategoryDropdown(event: Event) {
+    event.stopPropagation();
+    this.isBulkCategoryDropdownOpen.update(v => !v);
+  }
+
+  applyBulkCategory(categorySlug: string) {
+    const ids = this.selectedProductIds();
+    if (ids.length === 0) return;
+    this.isBulkCategoryDropdownOpen.set(false);
+
+    this.inventoryService.bulkUpdateProducts(ids, { category: categorySlug }).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.state.products.update(list => 
+            list.map(p => ids.includes(p.id) ? { ...p, category: categorySlug } : p)
+          );
+          this.ui.showToast(`${ids.length} ürünün kategorisi güncellendi.`, 'success');
+          this.clearSelection();
+        } else {
+          this.ui.showToast('Kategoriler güncellenirken hata oluştu.', 'error');
+        }
+      },
+      error: () => {
+        this.ui.showToast('Kategoriler güncellenirken hata oluştu.', 'error');
+      }
+    });
+  }
+
+  promptBulkDelete() {
+    this.showBulkDeleteModal.set(true);
+  }
+
+  cancelBulkDelete() {
+    this.showBulkDeleteModal.set(false);
+  }
+
+  confirmBulkDelete() {
+    const ids = this.selectedProductIds();
+    if (ids.length === 0 || this.isBulkDeleteLoading()) return;
+    this.isBulkDeleteLoading.set(true);
+
+    this.inventoryService.bulkDeleteProducts(ids).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.state.products.update(list => list.filter(p => !ids.includes(p.id)));
+          this.ui.showToast(`${ids.length} ürün silindi.`, 'success');
+          this.clearSelection();
+        } else {
+          this.ui.showToast('Ürünler silinirken hata oluştu.', 'error');
+        }
+        this.isBulkDeleteLoading.set(false);
+        this.cancelBulkDelete();
+      },
+      error: () => {
+        this.isBulkDeleteLoading.set(false);
+        this.ui.showToast('Ürünler silinirken hata oluştu.', 'error');
+        this.cancelBulkDelete();
+      }
+    });
+  }
 
   toggleCategoryDropdown(event: Event) {
     event.stopPropagation();
@@ -423,12 +705,51 @@ export class ProductsComponent {
   }
 
   getCategoryName(value: string): string {
-    return this.categories.find(c => c.value === value)?.name || 'Kategori Seçin...';
+    return this.categories().find(c => c.slug === value)?.name || value || 'Kategori Seçin...';
+  }
+
+  loadCategories() {
+    this.inventoryService.getCategories().subscribe({
+      next: (data) => {
+        this.categories.set(data);
+      }
+    });
   }
 
   @HostListener('document:click')
-  closeCategoryDropdown() {
+  closeDropdowns() {
     this.isCategoryDropdownOpen.set(false);
+    this.isSupplierDropdownOpen.set(false);
+    this.isBulkCategoryDropdownOpen.set(false);
+  }
+
+  // Suppliers
+  suppliers = signal<any[]>([]);
+  isSupplierDropdownOpen = signal(false);
+
+  loadSuppliers() {
+    this.inventoryService.getSuppliers().subscribe({
+      next: (data) => this.suppliers.set(data)
+    });
+  }
+
+  toggleSupplierDropdown(event: Event) {
+    event.stopPropagation();
+    if (this.isSaveLoading()) return;
+    this.isCategoryDropdownOpen.set(false);
+    this.isSupplierDropdownOpen.update(v => !v);
+  }
+
+  selectSupplier(id: string | null) {
+    this.productForm.patchValue({ supplierId: id });
+    this.productForm.get('supplierId')?.markAsDirty();
+    this.productForm.get('supplierId')?.markAsTouched();
+    this.isSupplierDropdownOpen.set(false);
+  }
+
+  getSupplierName(id: string | null): string {
+    if (!id) return 'Tedarikçi Seçilmedi';
+    return this.suppliers().find(s => s.id === id)?.name || 'Tedarikçi Seçilmedi';
   }
 
   // Modals & Forms
@@ -439,10 +760,13 @@ export class ProductsComponent {
   productForm: FormGroup = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(3)]],
     sku: ['', [Validators.required, Validators.minLength(2)]],
-    category: ['Accessories', Validators.required],
+    category: ['', Validators.required],
     price: [0, [Validators.required, Validators.min(0)]],
     quantity: [0, [Validators.required, Validators.min(0)]],
-    minQuantity: [5, [Validators.required, Validators.min(0)]]
+    minQuantity: [5, [Validators.required, Validators.min(0)]],
+    unit: ['Adet', Validators.required],
+    supplierId: [null],
+    imageUrl: ['']
   });
 
   showDeleteModal = signal(false);
@@ -462,7 +786,8 @@ export class ProductsComponent {
       list = list.filter(p =>
         p.name.toLowerCase().includes(search) ||
         p.sku.toLowerCase().includes(search) ||
-        p.category.toLowerCase().includes(search)
+        p.category.toLowerCase().includes(search) ||
+        this.getCategoryName(p.category).toLowerCase().includes(search)
       );
     }
     if (statusFilter !== 'all') {
@@ -472,6 +797,8 @@ export class ProductsComponent {
   });
 
   ngOnInit() {
+    this.loadSuppliers();
+    this.loadCategories();
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
@@ -495,8 +822,9 @@ export class ProductsComponent {
   // Form Operations
   openAddProduct() {
     this.editingProductId.set(null);
+    const defaultCat = this.categories().length > 0 ? this.categories()[0].slug : '';
     this.productForm.reset({
-      name: '', sku: '', category: 'Accessories', price: 0, quantity: 0, minQuantity: 5
+      name: '', sku: '', category: defaultCat, price: 0, quantity: 0, minQuantity: 5, unit: 'Adet', supplierId: null, imageUrl: ''
     });
     this.showProductFormModal.set(true);
   }
@@ -509,10 +837,15 @@ export class ProductsComponent {
       category: p.category,
       price: p.price,
       quantity: p.quantity,
-      minQuantity: p.minQuantity
+      minQuantity: p.minQuantity,
+      unit: p.unit || 'Adet',
+      supplierId: p.supplierId,
+      imageUrl: p.imageUrl || ''
     });
     this.showProductFormModal.set(true);
   }
+
+
 
   closeProductForm() {
     this.showProductFormModal.set(false);
@@ -577,7 +910,6 @@ export class ProductsComponent {
     const product = this.productToDelete();
     if (!product || this.isDeleteLoading()) return;
     this.isDeleteLoading.set(true);
-
     this.inventoryService.deleteProduct(product.id).subscribe({
       next: (res) => {
         if (res.success) {
@@ -593,5 +925,113 @@ export class ProductsComponent {
         this.cancelDeleteProduct();
       }
     });
+  }
+
+  // Export to CSV
+  exportToCSV() {
+    const list = this.filteredProducts();
+    if (!list || list.length === 0) {
+      this.ui.showToast('Dışa aktarılacak ürün bulunamadı.', 'error');
+      return;
+    }
+
+    const headers = ['Ürün Adı', 'SKU', 'Kategori', 'Birim Fiyat', 'Mevcut Stok', 'Kritik Seviye', 'Durum', 'Tedarikçi ID'];
+    const rows = list.map(p => [
+      `"${p.name.replace(/"/g, '""')}"`,
+      `"${p.sku}"`,
+      `"${p.category}"`,
+      p.price,
+      p.quantity,
+      p.minQuantity,
+      `"${p.status}"`,
+      `"${p.supplierId || ''}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    
+    // Add BOM for Excel UTF-8 compatibility
+    const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `urunler_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    this.ui.showToast('Ürünler CSV olarak indirildi.', 'success');
+  }
+
+  // Import from CSV
+  importFromCSV(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    
+    const file = input.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+      
+      const lines = text.split('\n').filter(line => line.trim().length > 0);
+      if (lines.length < 2) {
+        this.ui.showToast('Geçersiz veya boş CSV dosyası.', 'error');
+        return;
+      }
+      
+      // Basic CSV parser
+      const parseLine = (line: string) => {
+        const result = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') {
+            inQuotes = !inQuotes;
+          } else if (c === ',' && !inQuotes) {
+            result.push(cur);
+            cur = '';
+          } else {
+            cur += c;
+          }
+        }
+        result.push(cur);
+        return result.map(s => s.trim().replace(/^"|"$/g, ''));
+      };
+
+      const newProducts = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseLine(lines[i]);
+        if (cols.length >= 6) {
+          newProducts.push({
+            name: cols[0],
+            sku: cols[1],
+            category: cols[2],
+            price: parseFloat(cols[3]) || 0,
+            quantity: parseInt(cols[4]) || 0,
+            minQuantity: parseInt(cols[5]) || 0,
+            supplierId: cols[7] || null
+          });
+        }
+      }
+
+      if (newProducts.length > 0) {
+        this.inventoryService.bulkCreateProducts(newProducts).subscribe({
+          next: () => {
+            this.ui.showToast(`${newProducts.length} adet ürün başarıyla içe aktarıldı.`, 'success');
+            this.state.loadData();
+          },
+          error: () => this.ui.showToast('İçe aktarma sırasında bir hata oluştu.', 'error')
+        });
+      } else {
+        this.ui.showToast('Geçerli ürün bulunamadı.', 'error');
+      }
+      
+      input.value = '';
+    };
+    
+    reader.readAsText(file);
   }
 }

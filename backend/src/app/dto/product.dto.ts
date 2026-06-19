@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsInt, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional } from 'class-validator';
 
 export class CreateProductDto {
   @IsString()
@@ -24,6 +24,14 @@ export class CreateProductDto {
   @IsInt({ message: 'Minimum miktar bir tam sayı olmalıdır.' })
   @Min(0, { message: 'Minimum miktar en az 0 olmalıdır.' })
   minQuantity: number;
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  unit?: string;
 }
 
 export class UpdateProductDto {
@@ -50,4 +58,12 @@ export class UpdateProductDto {
   @IsInt()
   @Min(0)
   minQuantity?: number;
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  unit?: string;
 }

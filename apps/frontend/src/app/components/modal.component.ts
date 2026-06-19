@@ -5,45 +5,29 @@ import { CommonModule } from '@angular/common';
   selector: 'app-modal',
   imports: [CommonModule],
   template: `
-    <div
-      *ngIf="isOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto outline-none focus:outline-none"
-    >
+    <div *ngIf="isOpen" class="modal-overlay">
       <!-- Backdrop with blur and fade-in -->
-      <div
-        class="fixed inset-0 bg-primary/20 backdrop-blur-sm transition-opacity duration-300 ease-out"
-        (click)="close()"
-      ></div>
+      <div class="modal-backdrop" (click)="close()"></div>
 
       <!-- Modal panel with smooth scale/fade-in -->
-      <div
-        class="relative w-full max-w-lg mx-auto bg-surface border border-secondary shadow-premium-lg rounded-lg overflow-hidden transform transition-all duration-300 ease-out z-10"
-      >
+      <div class="modal-panel">
         <!-- Header -->
-        <div class="flex items-start justify-between p-5 border-b border-secondary">
-          <h3 class="text-lg font-heading font-semibold text-primary">
-            {{ title }}
-          </h3>
-          <button
-            class="p-1 ml-auto bg-transparent border-0 text-textMuted hover:text-primary float-right text-2xl leading-none font-semibold outline-none focus:outline-none transition-colors duration-200"
-            (click)="close()"
-          >
-            <span class="block text-xl">
-              <!-- Close Icon SVG -->
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </span>
+        <div class="modal-header">
+          <h3 class="modal-title">{{ title }}</h3>
+          <button class="modal-close" (click)="close()">
+            <svg style="width: 18px; height: 18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
         <!-- Content -->
-        <div class="relative p-6 flex-auto max-h-[70vh] overflow-y-auto">
+        <div class="modal-content">
           <ng-content></ng-content>
         </div>
 
         <!-- Footer -->
-        <div class="flex items-center justify-end gap-3 p-4 border-t border-secondary bg-canvas">
+        <div class="modal-footer">
           <ng-content select="[footer]"></ng-content>
         </div>
       </div>
@@ -52,6 +36,86 @@ import { CommonModule } from '@angular/common';
   styles: [`
     :host {
       display: block;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: -1;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .modal-panel {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface, #fff);
+      border: 1px solid var(--secondary, #e5e7eb);
+      border-radius: var(--radius-lg, 10px);
+      box-shadow: var(--shadow-xl, 0 20px 40px -8px rgba(0,0,0,0.1));
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--secondary, #f0f0f0);
+    }
+    .modal-title {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary, #111827);
+      margin: 0;
+    }
+    .modal-close {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--text-muted, #999);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      border-radius: var(--radius-sm, 6px);
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .modal-close:hover {
+      background: var(--canvas, #f5f5f5);
+      color: var(--text-primary, #111827);
+    }
+    .modal-content {
+      padding: 24px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-primary, #111827);
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 24px;
+      border-top: 1px solid var(--secondary, #f0f0f0);
+      background: var(--canvas, #f9fafb);
     }
   `]
 })

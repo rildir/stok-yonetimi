@@ -27,6 +27,10 @@ export interface AiResponseCard {
     isPositive?: boolean;
   }[];
   thinking?: string;
+  action?: {
+    type: string;
+    payload: any;
+  };
 }
 
 @Injectable()
@@ -104,7 +108,9 @@ export class AiService {
 
         const products = await this.dbService.getProducts();
         const orders = await this.dbService.getOrders();
-        const systemPrompt = this.buildSystemPrompt(products, orders, query);
+        const suppliers = await this.dbService.getSuppliers();
+        const categories = await this.dbService.getCategories();
+        const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
         const resultStream = await model.generateContentStream(systemPrompt);
         for await (const chunk of resultStream.stream) {
@@ -113,7 +119,7 @@ export class AiService {
           onChunk(fullText);
         }
         
-        const result = this.safeParseAndValidate(fullText, query);
+        const result = await this.safeParseAndValidate(fullText, query);
         this.logger.log(`[GEMINI STREAM] Başarılı (${Date.now() - startTime}ms)`);
         return result;
       } catch (err: any) {
@@ -126,7 +132,9 @@ export class AiService {
       let fullText = '';
       const products = await this.dbService.getProducts();
       const orders = await this.dbService.getOrders();
-      const systemPrompt = this.buildSystemPrompt(products, orders, query);
+      const suppliers = await this.dbService.getSuppliers();
+      const categories = await this.dbService.getCategories();
+      const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
       const response = await fetch(this.ollamaUrl, {
         method: 'POST',
@@ -166,7 +174,7 @@ export class AiService {
         }
       }
 
-      const result = this.safeParseAndValidate(fullText, query);
+      const result = await this.safeParseAndValidate(fullText, query);
       this.logger.log(`[OLLAMA STREAM] Başarılı (${Date.now() - startTime}ms)`);
       return result;
     } catch (err: any) {
@@ -192,19 +200,23 @@ export class AiService {
 
     const products = await this.dbService.getProducts();
     const orders = await this.dbService.getOrders();
-    const systemPrompt = this.buildSystemPrompt(products, orders, query);
+    const suppliers = await this.dbService.getSuppliers();
+    const categories = await this.dbService.getCategories();
+    const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
     const result = await model.generateContent(systemPrompt);
     const responseText = result.response.text().trim();
 
-    return this.safeParseAndValidate(responseText, query);
+    return await this.safeParseAndValidate(responseText, query);
   }
 
   // ─── Ollama (Yerel LLM) ───────────────────────────────────────
   private async processWithOllama(query: string): Promise<AiResponseCard> {
     const products = await this.dbService.getProducts();
     const orders = await this.dbService.getOrders();
-    const systemPrompt = this.buildSystemPrompt(products, orders, query);
+    const suppliers = await this.dbService.getSuppliers();
+    const categories = await this.dbService.getCategories();
+    const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
     // AbortController ile 60 saniyelik timeout
     const controller = new AbortController();
@@ -228,7 +240,7 @@ export class AiService {
       }
 
       const data = await response.json();
-      return this.safeParseAndValidate(data.response, query);
+      return await this.safeParseAndValidate(data.response, query);
     } catch (err: any) {
       if (err.name === 'AbortError') {
         throw new Error(`Ollama ${this.OLLAMA_TIMEOUT_MS / 1000}s timeout aşıldı.`);
@@ -240,7 +252,7 @@ export class AiService {
   }
 
   // ─── Güvenli JSON Parse + Doğrulama ────────────────────────────
-  private safeParseAndValidate(rawText: string, originalQuery: string): AiResponseCard {
+  private async safeParseAndValidate(rawText: string, originalQuery: string): Promise<AiResponseCard> {
     this.logger.log(`[RAW RESPONSE] ${rawText}`);
     let parsed: any;
 
@@ -257,7 +269,176 @@ export class AiService {
       throw new Error(`Yapay zeka yanıtı JSON olarak ayrıştırılamadı: ${parseErr.message}`);
     }
 
-    return this.validateAiResponse(parsed, originalQuery);
+    const card = this.validateAiResponse(parsed, originalQuery);
+
+    if (parsed.action && typeof parsed.action === 'object' && parsed.action.type) {
+      const actionResult = await this.executeAction(parsed.action);
+      if (actionResult.success) {
+        card.description = `${card.description || ''}\n\n✅ **Sistem İşlemi Başarılı:** ${actionResult.message}`;
+        card.action = { type: parsed.action.type, payload: actionResult.details };
+        if (!card.metrics) card.metrics = [];
+        card.metrics.unshift({
+          label: 'İşlem Durumu',
+          value: 'Başarıyla Tamamlandı',
+          isPositive: true
+        });
+      } else {
+        card.description = `${card.description || ''}\n\n❌ **Sistem İşlemi Başarısız:** ${actionResult.message}`;
+        if (!card.metrics) card.metrics = [];
+        card.metrics.unshift({
+          label: 'İşlem Durumu',
+          value: 'Başarısız',
+          isPositive: false
+        });
+      }
+    }
+
+    return card;
+  }
+
+  private async executeAction(action: { type: string; payload: any }): Promise<{ success: boolean; message: string; details?: any }> {
+    try {
+      this.logger.log(`[ACTION EXECUTION] Executing ${action.type} with payload: ${JSON.stringify(action.payload)}`);
+      
+      switch (action.type) {
+        case 'create_order': {
+          const { productId, quantity, customerName, status } = action.payload;
+          if (!productId) throw new Error('productId alanı zorunludur.');
+          
+          const product = await this.dbService.getProductById(productId);
+          if (!product) throw new Error(`Ürün bulunamadı: ID ${productId}`);
+          
+          const qty = parseInt(quantity, 10) || 1;
+          const order = await this.dbService.createOrder({
+            customerName: customerName || 'Yapay Zeka Müşterisi',
+            status: status || 'Pending',
+            date: new Date().toISOString(),
+            items: [{
+              productId: product.id,
+              productName: product.name,
+              quantity: qty
+            }]
+          });
+          return {
+            success: true,
+            message: `Sipariş başarıyla oluşturuldu! Sipariş No: ${order.orderNumber}`,
+            details: order
+          };
+        }
+        
+        case 'create_purchase_order': {
+          const { supplierId, productId, quantity } = action.payload;
+          if (!supplierId || !productId) throw new Error('supplierId ve productId alanları zorunludur.');
+          
+          const supplier = await this.dbService.getSupplierById(supplierId);
+          if (!supplier) throw new Error(`Tedarikçi bulunamadı: ID ${supplierId}`);
+          
+          const product = await this.dbService.getProductById(productId);
+          if (!product) throw new Error(`Ürün bulunamadı: ID ${productId}`);
+          
+          const qty = parseInt(quantity, 10) || 10;
+          const price = parseFloat((product.price * 0.7).toFixed(2)); // Tedarik fiyatı %70 olsun
+          
+          const po = await this.dbService.createPurchaseOrder({
+            supplierId,
+            supplierName: supplier.name,
+            items: [{
+              productId: product.id,
+              productName: product.name,
+              quantity: qty,
+              price
+            }],
+            totalAmount: parseFloat((price * qty).toFixed(2))
+          });
+          
+          return {
+            success: true,
+            message: `Satın alma siparişi taslağı başarıyla oluşturuldu! Sipariş No: ${po.poNumber}`,
+            details: po
+          };
+        }
+        
+        case 'create_manual_adjustment': {
+          const { productId, newQuantity, note } = action.payload;
+          if (!productId || newQuantity === undefined) throw new Error('productId ve newQuantity alanları zorunludur.');
+          
+          const qty = parseInt(newQuantity, 10);
+          const movement = await this.dbService.createManualAdjustment(productId, qty, note || 'AI Düzeltmesi', 'AI Assistant');
+          return {
+            success: true,
+            message: `Stok miktarı ${qty} olarak düzeltildi.`,
+            details: movement
+          };
+        }
+        
+        case 'create_product': {
+          const { name, sku, category, price, quantity, minQuantity } = action.payload;
+          if (!name || !category || price === undefined) throw new Error('name, category ve price alanları zorunludur.');
+          
+          const newSku = sku || `WC-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+          const prod = await this.dbService.createProduct({
+            name,
+            sku: newSku,
+            category,
+            price: parseFloat(price),
+            quantity: quantity !== undefined ? parseInt(quantity, 10) : 0,
+            minQuantity: minQuantity !== undefined ? parseInt(minQuantity, 10) : 5
+          }, 'AI Assistant');
+          
+          return {
+            success: true,
+            message: `Yeni ürün eklendi: ${prod.name} (SKU: ${prod.sku})`,
+            details: prod
+          };
+        }
+        
+        case 'create_supplier': {
+          const { name, contactName, contactPerson, email, phone, address } = action.payload;
+          if (!name) throw new Error('Tedarikçi adı (name) zorunludur.');
+          
+          const supplier = await this.dbService.createSupplier({
+            name,
+            contactPerson: contactPerson || contactName,
+            email,
+            phone,
+            address
+          });
+          return {
+            success: true,
+            message: `Yeni tedarikçi eklendi: ${supplier.name}`,
+            details: supplier
+          };
+        }
+        
+        case 'create_category': {
+          const { name } = action.payload;
+          if (!name) throw new Error('Kategori adı (name) zorunludur.');
+          
+          const category = await this.dbService.createCategory({ name, slug: name.toLowerCase().replace(/\s+/g, '-') });
+          return {
+            success: true,
+            message: `Yeni kategori eklendi: ${category.name}`,
+            details: category
+          };
+        }
+        
+        case 'create_stock_count': {
+          const { notes } = action.payload;
+          const count = await this.dbService.createStockCount(notes || 'AI Tarafından Başlatılan Sayım', 'AI Assistant');
+          return {
+            success: true,
+            message: `Yeni stok sayımı süreci başlatıldı (ID: ${count.id}).`,
+            details: count
+          };
+        }
+        
+        default:
+          throw new Error(`Bilinmeyen eylem türü: ${action.type}`);
+      }
+    } catch (e: any) {
+      this.logger.error(`[ACTION ERROR] Eylem yürütülemedi: ${e.message}`);
+      return { success: false, message: `Eylem yürütülürken hata oluştu: ${e.message}` };
+    }
   }
 
   private extractThinkingFromDescription(description: string): { description: string, thinking?: string } {
@@ -358,10 +539,46 @@ export class AiService {
   }
 
   // ─── System Prompt Builder ─────────────────────────────────────
-  private buildSystemPrompt(products: any[], orders: any[], query: string): string {
-    // Veri boyutu kontrolü — çok büyükse kırp
-    const trimmedProducts = products.slice(0, this.MAX_PRODUCTS_IN_PROMPT);
-    const trimmedOrders = orders.slice(0, this.MAX_ORDERS_IN_PROMPT);
+  private buildSystemPrompt(products: any[], orders: any[], suppliers: any[], categories: any[], query: string): string {
+    // Veri boyutu kontrolü ve sadece gerekli alanların LLM'e gönderilmesi (imageUrl, system fields vb. hariç)
+    const trimmedProducts = products.slice(0, this.MAX_PRODUCTS_IN_PROMPT).map(p => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      price: p.price,
+      quantity: p.quantity,
+      minQuantity: p.minQuantity,
+      status: p.status
+    }));
+
+    const trimmedOrders = orders.slice(0, this.MAX_ORDERS_IN_PROMPT).map(o => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      customerName: o.customerName,
+      date: o.date,
+      status: o.status,
+      totalAmount: o.totalAmount,
+      items: Array.isArray(o.items) ? o.items.map((item: any) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.price
+      })) : []
+    }));
+
+    const leanSuppliers = suppliers.map(s => ({
+      id: s.id,
+      name: s.name,
+      rating: s.rating,
+      leadTimeDays: s.leadTimeDays
+    }));
+
+    const leanCategories = categories.map(c => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug
+    }));
 
     let dataTrimNote = '';
     if (products.length > this.MAX_PRODUCTS_IN_PROMPT || orders.length > this.MAX_ORDERS_IN_PROMPT) {
@@ -380,6 +597,8 @@ Use this date as the reference point for ALL time-relative queries (e.g., "bugü
 
 Products Database: ${JSON.stringify(trimmedProducts)}
 Orders Database: ${JSON.stringify(trimmedOrders)}
+Suppliers Database: ${JSON.stringify(leanSuppliers)}
+Categories Database: ${JSON.stringify(leanCategories)}
 ${dataTrimNote}
 ══════════════════════════════════════════════════════════
 CRITICAL ANALYSIS RULES (You MUST follow these exactly):
@@ -445,6 +664,24 @@ Calculate: Total Revenue / Number of Completed Orders. Return type='metric'.
 RULE 15 — GENEL DURUM ÖZETİ (Dashboard / "genel durum" / "özet" / "nasıl gidiyor"):
 Calculate ALL of these KPIs: Total Products, Total Orders, Total Revenue, Critical Stock Count, Out of Stock Count, Total Inventory Value, Average Order Value, Top Seller Name, Top Customer Name. Return type='metric' with all values.
 
+RULE 16 — VERİTABANI İŞLEMLERİ (Database Actions / "oluştur", "ekle", "sil", "düzelt", "güncelle"):
+If the user wants to perform a database modification (e.g. creating an order, adding a product, starting a count, deleting a product, etc.), you MUST output an "action" field in the root of your JSON output.
+The "action" object MUST have this exact structure:
+{
+  "type": "create_order" | "create_purchase_order" | "create_manual_adjustment" | "create_product" | "create_supplier" | "create_category" | "create_stock_count",
+  "payload": { ... }
+}
+Supported actions and their required payload fields:
+- "create_order": {"productId": string, "quantity": number, "customerName": string (default "Yapay Zeka Müşterisi"), "status": "Pending" | "Completed"}
+- "create_purchase_order": {"supplierId": string, "productId": string, "quantity": number}
+- "create_manual_adjustment": {"productId": string, "newQuantity": number, "note": string}
+- "create_product": {"name": string, "sku": string (must generate unique SKU like KB-88), "category": string, "price": number, "quantity": number, "minQuantity": number}
+- "create_supplier": {"name": string, "contactName": string, "email": string, "phone": string, "address": string}
+- "create_category": {"name": string}
+- "create_stock_count": {"notes": string}
+
+Do NOT execute the action yourself. The system will automatically execute it and update the final card representation. Make sure your "description" and "title" describe the action that is about to be executed or completed.
+
 ══════════════════════════════════════════════════════════
 OUTPUT FORMAT (Turkish, strictly JSON):
 ══════════════════════════════════════════════════════════
@@ -458,7 +695,8 @@ JSON Schema:
   "chartType?": "bar" | "line" | "pie" | "doughnut",
   "chartData?": { "labels": string[], "datasets": [{ "label": string, "data": number[], "backgroundColor?": string[], "borderColor?": string[] }] },
   "tableData?": { "headers": string[], "rows": any[][] },
-  "metrics?": [{ "label": string, "value": string | number, "change?": string, "isPositive?": boolean }]
+  "metrics?": [{ "label": string, "value": string | number, "change?": string, "isPositive?": boolean }],
+  "action?": { "type": string, "payload": any }
 }
 
 Field descriptions:
@@ -486,6 +724,195 @@ User Question: "${query}"`;
   // ─── Yerel Fallback (AI yokken) ────────────────────────────────
   private async processQueryLocalFallback(query: string): Promise<AiResponseCard> {
     const q = query.toLowerCase().trim();
+
+    // 1. Yeni Sipariş Oluşturma (Sales Order)
+    if (q.includes('sipariş oluştur') || q.includes('sipariş ver') || q.includes('sipariş ekle') || q.includes('yeni sipariş')) {
+      const products = await this.dbService.getProducts();
+      const matchedProduct = products.find(p => q.includes(p.name.toLowerCase()));
+      
+      if (matchedProduct) {
+        let cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
+        let qty = 1;
+        const qtyMatch = cleanQuery.match(/(\d+)\s*(adet|tane)/i) || cleanQuery.match(/(\d+)/);
+        if (qtyMatch) {
+          qty = parseInt(qtyMatch[1], 10);
+        }
+        
+        const actionResult = await this.executeAction({
+          type: 'create_order',
+          payload: {
+            productId: matchedProduct.id,
+            quantity: qty,
+            customerName: 'Yapay Zeka Müşterisi',
+            status: 'Completed'
+          }
+        });
+        
+        const icon = actionResult.success ? '✅' : '❌';
+        const statusText = actionResult.success ? 'Başarılı' : 'Başarısız';
+        
+        return {
+          title: actionResult.success ? 'Sipariş Oluşturuldu (Offline)' : 'İşlem Başarısız (Offline)',
+          type: 'metric',
+          thinking: 'LLM çevrimdışı olduğundan, yerel analiz motoru ürün adı ve miktarı ayıklayıp siparişi oluşturdu.',
+          description: `Sipariş oluşturma işlemi:\n\n${icon} **Sistem İşlemi ${statusText}:** ${actionResult.message}`,
+          metrics: [
+            { label: 'Ürün', value: matchedProduct.name },
+            { label: 'Miktar', value: qty },
+            { label: 'Toplam Tutar', value: `₺${(matchedProduct.price * qty).toFixed(2)}` },
+            { label: 'Durum', value: actionResult.success ? 'Tamamlandı' : 'Hata', isPositive: actionResult.success }
+          ]
+        };
+      }
+    }
+
+    // 2. Stok Sayımı Başlatma (Stock Count)
+    if (q.includes('sayım başlat') || q.includes('yeni sayım') || q.includes('sayım oluştur')) {
+      const actionResult = await this.executeAction({
+        type: 'create_stock_count',
+        payload: { notes: 'Yerel Fallback Tarafından Başlatılan Sayım' }
+      });
+      const icon = actionResult.success ? '✅' : '❌';
+      const statusText = actionResult.success ? 'Başarılı' : 'Başarısız';
+      return {
+        title: actionResult.success ? 'Stok Sayımı Başlatıldı (Offline)' : 'İşlem Başarısız (Offline)',
+        type: 'metric',
+        thinking: 'Yerel kural motoru sayım isteğini yakalayıp yeni bir sayım kartı oluşturdu.',
+        description: `Sayım süreci başlatıldı:\n\n${icon} **Sistem İşlemi ${statusText}:** ${actionResult.message}`,
+        metrics: [
+          { label: 'Durum', value: actionResult.success ? 'Sayım Aktif' : 'Hata', isPositive: actionResult.success },
+          { label: 'Başlatan', value: 'AI Assistant (Offline)' }
+        ]
+      };
+    }
+
+    // 3. Kategori Ekleme
+    if (q.includes('kategori ekle') || q.includes('kategori oluştur') || q.includes('yeni kategori')) {
+      const match = query.match(/(?:yeni kategori ekle|yeni kategori oluştur|kategori ekle|kategori oluştur|yeni kategori)\s*[:\-]?\s*(.+)/i);
+      const catName = match ? match[1].trim() : '';
+      if (catName) {
+        const actionResult = await this.executeAction({
+          type: 'create_category',
+          payload: { name: catName }
+        });
+        const icon = actionResult.success ? '✅' : '❌';
+        const statusText = actionResult.success ? 'Başarılı' : 'Başarısız';
+        return {
+          title: actionResult.success ? 'Kategori Eklendi (Offline)' : 'İşlem Başarısız (Offline)',
+          type: 'metric',
+          thinking: 'Yerel kural motoru yeni kategori ismini ayıklayıp veritabanına ekledi.',
+          description: `Kategori ekleme işlemi:\n\n${icon} **Sistem İşlemi ${statusText}:** ${actionResult.message}`,
+          metrics: [
+            { label: 'Kategori Adı', value: catName },
+            { label: 'Durum', value: actionResult.success ? 'Aktif' : 'Hata', isPositive: actionResult.success }
+          ]
+        };
+      }
+    }
+
+    // 4. Tedarikçi Ekleme
+    if (q.includes('tedarikçi ekle') || q.includes('tedarikçi oluştur') || q.includes('yeni tedarikçi')) {
+      const match = query.match(/(?:yeni tedarikçi ekle|yeni tedarikçi oluştur|tedarikçi ekle|tedarikçi oluştur|yeni tedarikçi)\s*[:\-]?\s*(.+)/i);
+      const supplierName = match ? match[1].trim() : '';
+      if (supplierName) {
+        const actionResult = await this.executeAction({
+          type: 'create_supplier',
+          payload: { name: supplierName }
+        });
+        const icon = actionResult.success ? '✅' : '❌';
+        const statusText = actionResult.success ? 'Başarılı' : 'Başarısız';
+        return {
+          title: actionResult.success ? 'Tedarikçi Eklendi (Offline)' : 'İşlem Başarısız (Offline)',
+          type: 'metric',
+          thinking: 'Yerel kural motoru tedarikçi adını ayıklayıp veritabanına ekledi.',
+          description: `Tedarikçi ekleme işlemi:\n\n${icon} **Sistem İşlemi ${statusText}:** ${actionResult.message}`,
+          metrics: [
+            { label: 'Tedarikçi', value: supplierName },
+            { label: 'Durum', value: actionResult.success ? 'Aktif' : 'Hata', isPositive: actionResult.success }
+          ]
+        };
+      }
+    }
+
+    // 5. Manuel Stok Düzeltme
+    if (q.includes('stok düzelt') || q.includes('stok güncelle') || q.includes('stoğu ayarla') || q.includes('stok ayarla')) {
+      const products = await this.dbService.getProducts();
+      const matchedProduct = products.find(p => q.includes(p.name.toLowerCase()));
+      if (matchedProduct) {
+        let cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
+        let targetQty = 0;
+        const qtyMatch = cleanQuery.match(/(\d+)/);
+        if (qtyMatch) {
+          targetQty = parseInt(qtyMatch[1], 10);
+        }
+        const actionResult = await this.executeAction({
+          type: 'create_manual_adjustment',
+          payload: {
+            productId: matchedProduct.id,
+            newQuantity: targetQty,
+            note: 'Yerel Fallback Manuel Stok Düzeltmesi'
+          }
+        });
+        const icon = actionResult.success ? '✅' : '❌';
+        const statusText = actionResult.success ? 'Başarılı' : 'Başarısız';
+        return {
+          title: actionResult.success ? 'Stok Düzeltildi (Offline)' : 'İşlem Başarısız (Offline)',
+          type: 'metric',
+          thinking: 'Yerel kural motoru ürünü ve hedef stok miktarını tespit edip stok düzeltme kaydını yazdı.',
+          description: `Stok düzeltme işlemi:\n\n${icon} **Sistem İşlemi ${statusText}:** ${actionResult.message}`,
+          metrics: [
+            { label: 'Ürün', value: matchedProduct.name },
+            { label: 'Eski Stok', value: matchedProduct.quantity },
+            { label: 'Yeni Stok', value: targetQty },
+            { label: 'Fark', value: targetQty - matchedProduct.quantity }
+          ]
+        };
+      }
+    }
+
+    // 6. Satın Alma Siparişi / Tedarik Siparişi (Purchase Order)
+    if (q.includes('tedarik siparişi') || q.includes('satın alma siparişi') || q.includes('po oluştur')) {
+      const suppliers = await this.dbService.getSuppliers();
+      const products = await this.dbService.getProducts();
+      
+      const matchedSupplier = suppliers.find(s => q.includes(s.name.toLowerCase()));
+      const matchedProduct = products.find(p => q.includes(p.name.toLowerCase()));
+      
+      if (matchedSupplier && matchedProduct) {
+        let cleanQuery = query.toLowerCase()
+          .replace(matchedProduct.name.toLowerCase(), '')
+          .replace(matchedSupplier.name.toLowerCase(), '');
+        let qty = 10;
+        const qtyMatch = cleanQuery.match(/(\d+)\s*(adet|tane)/i) || cleanQuery.match(/(\d+)/);
+        if (qtyMatch) {
+          qty = parseInt(qtyMatch[1], 10);
+        }
+        
+        const actionResult = await this.executeAction({
+          type: 'create_purchase_order',
+          payload: {
+            supplierId: matchedSupplier.id,
+            productId: matchedProduct.id,
+            quantity: qty
+          }
+        });
+        
+        const icon = actionResult.success ? '✅' : '❌';
+        const statusText = actionResult.success ? 'Başarılı' : 'Başarısız';
+        return {
+          title: actionResult.success ? 'Tedarik Siparişi Oluşturuldu (Offline)' : 'İşlem Başarısız (Offline)',
+          type: 'metric',
+          thinking: 'Yerel kural motoru tedarikçi ve ürün bilgilerini eşleştirerek tedarik siparişi taslağını oluşturdu.',
+          description: `Tedarik siparişi oluşturma işlemi:\n\n${icon} **Sistem İşlemi ${statusText}:** ${actionResult.message}`,
+          metrics: [
+            { label: 'Tedarikçi', value: matchedSupplier.name },
+            { label: 'Ürün', value: matchedProduct.name },
+            { label: 'Miktar', value: qty },
+            { label: 'Durum', value: actionResult.success ? 'Taslak (Draft)' : 'Hata', isPositive: actionResult.success }
+          ]
+        };
+      }
+    }
 
     if (q.includes('en az satan') || q.includes('az satan')) {
       return this.getLeastSellingProducts();

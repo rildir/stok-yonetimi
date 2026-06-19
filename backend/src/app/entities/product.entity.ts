@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, Check } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Check, Index } from 'typeorm';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 
 @Entity('products')
@@ -13,6 +13,7 @@ export class ProductEntity {
   @Column({ unique: true })
   sku: string;
 
+  @Index()
   @Column()
   category: string;
 
@@ -28,6 +29,17 @@ export class ProductEntity {
   @Column()
   status: string;
 
+  @Column({ default: 'Adet' })
+  unit: string;
+
+  @Index()
   @Column({ default: false })
   isDeleted: boolean;
+
+  @Index()
+  @Column({ nullable: true })
+  supplierId: string;
+
+  @Column({ nullable: true })
+  imageUrl: string;
 }

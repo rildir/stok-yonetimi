@@ -6,8 +6,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
-  app.enableCors();
-  
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true,
+  });
   // Enforce DTO validation rules globally
   app.useGlobalPipes(new ValidationPipe({ 
     whitelist: true, 

@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { UiStateService } from '../../services/ui-state.service';
 import { CommonModule } from '@angular/common';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -44,9 +45,8 @@ export class LoginComponent {
     if (this.isLoginLoading()) return;
     this.isLoginLoading.set(true);
 
-    this.http.post<{ token: string }>('http://localhost:3000/api/auth/login', { username: u, password: p }).subscribe({
+    this.http.post<{ token: string }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
       next: (res) => {
-        localStorage.setItem('smart_inventory_token', res.token);
         this.isLoginLoading.set(false);
         this.ui.showToast('Başarıyla giriş yapıldı.', 'success');
         this.router.navigate(['/dashboard']);

@@ -22,6 +22,15 @@ export interface ChatSession {
   timestamp: string;
 }
 
+export interface ConfirmConfig {
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel?: () => void;
+}
+
 @Injectable({ providedIn: 'root' })
 export class UiStateService {
   private inventoryService = inject(InventoryService);
@@ -30,6 +39,19 @@ export class UiStateService {
   isAiPanelOpen = signal(false);
   isAiLoading = signal(false);
   isHistorySidebarOpen = signal(false);
+  confirmConfig = signal<ConfirmConfig | null>(null);
+
+  openConfirm(config: ConfirmConfig) {
+    this.confirmConfig.set(config);
+  }
+
+  closeConfirm() {
+    const config = this.confirmConfig();
+    if (config && config.onCancel) {
+      config.onCancel();
+    }
+    this.confirmConfig.set(null);
+  }
 
   sessions = signal<ChatSession[]>([]);
   activeSessionId = signal<string | null>(null);
@@ -47,6 +69,9 @@ export class UiStateService {
   }
 
   showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+    if (this.toasts().some(t => t.message === message && t.type === type)) {
+      return;
+    }
     const id = Math.random().toString(36).substr(2, 9);
     this.toasts.update(t => [...t, { id, message, type }]);
     setTimeout(() => { this.removeToast(id); }, 3000);
@@ -241,7 +266,7 @@ export class UiStateService {
     this.saveSessions();
   }
 
-  async askQuestion(promptText: string) {
+  async askQuestion(promptText: string, openPanel = true) {
     if (!promptText.trim() || this.isAiLoading()) return;
 
     // Ensure we have an active session
@@ -274,7 +299,9 @@ export class UiStateService {
     this.saveSessions();
 
     this.isAiLoading.set(true);
-    this.isAiPanelOpen.set(true);
+    if (openPanel) {
+      this.isAiPanelOpen.set(true);
+    }
 
     const aiMessageId = Math.random().toString(36).substr(2, 9);
     const streamingCard: AiResponseCard = {
@@ -399,6 +426,56 @@ export class UiStateService {
       this.saveSessions();
       this.showToast('Yapay Zeka servisi ile iletişim kurulamadı.', 'error');
     }
+  }
+
+  // ───── SVG Chart Helpers ─────
+  getBarHeight(val: number, data: number[]): number {
+    const max = Math.max(...data, 1);
+    return (val / max) * 110;
+  }
+  getBarY(val: number, data: number[]): number {
+    return 150 - this.getBarHeight(val, data);
+  }
+  getPieSectors(data: number[]): { d: string; color: string; label: string; value: number }[] {
+    const total = data.reduce((a, b) => a + b, 0);
+    let accumulatedAngle = 0;
+    const colors = ['#111827', '#374151', '#4B5563', '#6B7280', '#9CA3AF'];
+    return data.map((val, idx) => {
+      const percentage = val / (total || 1);
+      const angle = percentage * 360;
+      const startAngle = accumulatedAngle;
+      const endAngle = accumulatedAngle + angle;
+      accumulatedAngle = endAngle;
+      const x1 = 100 + 80 * Math.cos((startAngle - 90) * Math.PI / 180);
+      const y1 = 100 + 80 * Math.sin((startAngle - 90) * Math.PI / 180);
+      const x2 = 100 + 80 * Math.cos((endAngle - 90) * Math.PI / 180);
+      const y2 = 100 + 80 * Math.sin((endAngle - 90) * Math.PI / 180);
+      const largeArc = angle > 180 ? 1 : 0;
+      const d = `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
+      return { d, color: colors[idx % colors.length], label: `Item ${idx}`, value: val };
+    });
+  }
+  getLinePath(data: number[]): string {
+    if (data.length === 0) return '';
+    const max = Math.max(...data, 1);
+    const min = Math.min(...data, 0);
+    const range = max - min || 1;
+    const points = data.map((val, idx) => {
+      const x = (idx / (data.length - 1 || 1)) * 260 + 20;
+      const y = 140 - ((val - min) / range) * 100;
+      return `${x},${y}`;
+    });
+    return `M ${points.join(' L ')}`;
+  }
+  getLinePoints(data: number[]): { x: number; y: number; val: number }[] {
+    const max = Math.max(...data, 1);
+    const min = Math.min(...data, 0);
+    const range = max - min || 1;
+    return data.map((val, idx) => {
+      const x = (idx / (data.length - 1 || 1)) * 260 + 20;
+      const y = 140 - ((val - min) / range) * 100;
+      return { x, y, val };
+    });
   }
 }
 
