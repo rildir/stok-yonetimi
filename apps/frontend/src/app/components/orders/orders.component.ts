@@ -401,7 +401,7 @@ export class OrdersComponent {
   highlightLineIndex = signal<number | null>(null);
 
   // Table Tags Calculation
-  visibleTagsMap = signal<Record<string, number>>({});
+  visibleTagsMap = signal<Record<string, number | undefined>>({});
   private resizeObserver: ResizeObserver | null = null;
 
   ngOnInit() {

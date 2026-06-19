@@ -48,6 +48,7 @@ export class LoginComponent {
     this.http.post<{ token: string }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
       next: (res) => {
         this.isLoginLoading.set(false);
+        localStorage.setItem('smart_inventory_token', res.token);
         this.ui.showToast('Başarıyla giriş yapıldı.', 'success');
         this.router.navigate(['/dashboard']);
       },

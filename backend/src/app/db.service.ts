@@ -86,16 +86,16 @@ export class DbService implements OnModuleInit {
     console.log('[DbService] Database is empty. Seeding initial data...');
 
     const initialProducts: Partial<ProductEntity>[] = [
-      { name: 'Wireless Mouse M320', sku: 'MS-320', category: 'Accessories', price: 29.99, quantity: 45, minQuantity: 10 },
-      { name: 'Mechanical Keyboard K85', sku: 'KB-85', category: 'Accessories', price: 89.99, quantity: 8, minQuantity: 15 },
-      { name: 'UltraWide Monitor 34"', sku: 'MN-34U', category: 'Monitors', price: 449.99, quantity: 0, minQuantity: 5 },
-      { name: 'USB-C Hub 8-in-1', sku: 'HB-81', category: 'Accessories', price: 49.99, quantity: 60, minQuantity: 10 },
-      { name: 'Noise Cancelling Headphones', sku: 'HP-NC4', category: 'Audio', price: 199.99, quantity: 12, minQuantity: 10 },
-      { name: 'Ergonomic Office Chair', sku: 'CH-ERGO', category: 'Furniture', price: 289.99, quantity: 3, minQuantity: 5 },
-      { name: 'Webcam HD 1080p', sku: 'WC-1080', category: 'Accessories', price: 69.99, quantity: 25, minQuantity: 8 },
-      { name: 'Bluetooth Speaker Portable', sku: 'SP-BT5', category: 'Audio', price: 39.99, quantity: 1, minQuantity: 5 },
-      { name: 'Smart Watch Series 5', sku: 'SW-S5', category: 'Wearables', price: 249.99, quantity: 0, minQuantity: 8 },
-      { name: 'Laptop Stand Aluminum', sku: 'LS-ALUM', category: 'Accessories', price: 34.99, quantity: 80, minQuantity: 10 },
+      { name: 'Wireless Mouse M320', sku: 'MS-320', category: 'Accessories', price: 29.99, quantity: 45, minQuantity: 10, warehouses: { 'Merkez Depo': 30, 'Ataşehir Şube': 15 } },
+      { name: 'Mechanical Keyboard K85', sku: 'KB-85', category: 'Accessories', price: 89.99, quantity: 8, minQuantity: 15, warehouses: { 'Merkez Depo': 5, 'Ataşehir Şube': 3 } },
+      { name: 'UltraWide Monitor 34"', sku: 'MN-34U', category: 'Monitors', price: 449.99, quantity: 0, minQuantity: 5, warehouses: { 'Merkez Depo': 0, 'Ataşehir Şube': 0 } },
+      { name: 'USB-C Hub 8-in-1', sku: 'HB-81', category: 'Accessories', price: 49.99, quantity: 60, minQuantity: 10, warehouses: { 'Merkez Depo': 40, 'Ataşehir Şube': 20 } },
+      { name: 'Noise Cancelling Headphones', sku: 'HP-NC4', category: 'Audio', price: 199.99, quantity: 12, minQuantity: 10, warehouses: { 'Merkez Depo': 8, 'Ataşehir Şube': 4 } },
+      { name: 'Ergonomic Office Chair', sku: 'CH-ERGO', category: 'Furniture', price: 289.99, quantity: 3, minQuantity: 5, warehouses: { 'Merkez Depo': 2, 'Ataşehir Şube': 1 } },
+      { name: 'Webcam HD 1080p', sku: 'WC-1080', category: 'Accessories', price: 69.99, quantity: 25, minQuantity: 8, warehouses: { 'Merkez Depo': 15, 'Ataşehir Şube': 10 } },
+      { name: 'Bluetooth Speaker Portable', sku: 'SP-BT5', category: 'Audio', price: 39.99, quantity: 1, minQuantity: 5, warehouses: { 'Merkez Depo': 1, 'Ataşehir Şube': 0 } },
+      { name: 'Smart Watch Series 5', sku: 'SW-S5', category: 'Wearables', price: 249.99, quantity: 0, minQuantity: 8, warehouses: { 'Merkez Depo': 0, 'Ataşehir Şube': 0 } },
+      { name: 'Laptop Stand Aluminum', sku: 'LS-ALUM', category: 'Accessories', price: 34.99, quantity: 80, minQuantity: 10, warehouses: { 'Merkez Depo': 50, 'Ataşehir Şube': 30 } },
     ];
 
     const savedProducts: ProductEntity[] = [];
@@ -1038,5 +1038,163 @@ export class DbService implements OnModuleInit {
       this.appGateway.server.emit('stock_count_mutated', { type: 'complete', stockCount: completedCount });
     }
     return completedCount;
+  }
+
+  // ─── Warehouse Management ────────────────────────────────────
+  async getWarehouses(): Promise<any[]> {
+    const products = await this.productRepo.find({ where: { isDeleted: false } });
+    const warehouseMap: Record<string, { name: string; productCount: number; totalStock: number; totalValue: number }> = {};
+
+    for (const p of products) {
+      const wh = p.warehouses || {};
+      for (const [whName, qty] of Object.entries(wh)) {
+        if (!warehouseMap[whName]) {
+          warehouseMap[whName] = { name: whName, productCount: 0, totalStock: 0, totalValue: 0 };
+        }
+        if (qty > 0) warehouseMap[whName].productCount++;
+        warehouseMap[whName].totalStock += qty;
+        warehouseMap[whName].totalValue += qty * p.price;
+      }
+    }
+
+    // If no warehouse data, return default empty warehouses
+    if (Object.keys(warehouseMap).length === 0) {
+      return [
+        { name: 'Merkez Depo', productCount: 0, totalStock: 0, totalValue: 0 },
+        { name: 'Ataşehir Şube', productCount: 0, totalStock: 0, totalValue: 0 },
+      ];
+    }
+
+    return Object.values(warehouseMap);
+  }
+
+  async transferWarehouseStock(
+    productId: string,
+    fromWarehouse: string,
+    toWarehouse: string,
+    quantity: number,
+    performedBy: string = 'Admin'
+  ): Promise<ProductEntity | null> {
+    return this.dataSource.transaction(async (manager) => {
+      const product = await manager.findOne(ProductEntity, {
+        where: { id: productId, isDeleted: false },
+        lock: { mode: 'pessimistic_write' }
+      });
+      if (!product) return null;
+
+      const warehouses = product.warehouses || {};
+      const fromQty = warehouses[fromWarehouse] || 0;
+      if (fromQty < quantity) {
+        throw new BadRequestException(
+          `${fromWarehouse} deposunda yeterli stok yok. Mevcut: ${fromQty}, İstenen: ${quantity}`
+        );
+      }
+
+      warehouses[fromWarehouse] = fromQty - quantity;
+      warehouses[toWarehouse] = (warehouses[toWarehouse] || 0) + quantity;
+      product.warehouses = warehouses;
+
+      const saved = await manager.save(ProductEntity, product);
+
+      // Create stock movement record for transfer
+      await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+        productId: product.id,
+        productName: product.name,
+        type: 'TRANSFER',
+        quantity,
+        previousQuantity: product.quantity,
+        newQuantity: product.quantity,
+        note: `Depo transferi: ${fromWarehouse} → ${toWarehouse} (${quantity} adet)`,
+        referenceType: 'warehouse_transfer',
+        performedBy
+      }));
+
+      this.appGateway.server.emit('product_mutated', { type: 'update', product: saved });
+      return saved;
+    });
+  }
+
+  // ─── Auto Draft Purchase Orders ──────────────────────────────
+  async autoDraftPurchaseOrders(): Promise<any[]> {
+    const products = await this.productRepo.find({ where: { isDeleted: false } });
+    const lowStockProducts = products.filter(p => p.quantity < p.minQuantity && p.quantity >= 0);
+
+    if (lowStockProducts.length === 0) {
+      return [];
+    }
+
+    // Group by supplier
+    const supplierGroups: Record<string, { supplierId: string; supplierName: string; items: any[] }> = {};
+    const suppliers = await this.supplierRepo.find();
+
+    for (const p of lowStockProducts) {
+      const supplierId = p.supplierId || null;
+      let supplierName = 'Genel Tedarikçi';
+
+      if (supplierId) {
+        const sup = suppliers.find(s => s.id === supplierId);
+        if (sup) supplierName = sup.name;
+      }
+
+      const key = supplierId || '__default__';
+      if (!supplierGroups[key]) {
+        supplierGroups[key] = { supplierId: supplierId || '', supplierName, items: [] };
+      }
+      // Recommended quantity = minQuantity * 2 - quantity (buffer order)
+      const reorderQty = Math.max(p.minQuantity * 2 - p.quantity, p.minQuantity);
+      supplierGroups[key].items.push({
+        productId: p.id,
+        productName: p.name,
+        quantity: reorderQty
+      });
+    }
+
+    // Create PO for each supplier group
+    const poRepo = this.dataSource.getRepository(PurchaseOrderEntity);
+    const createdPOs: any[] = [];
+    const now = new Date();
+
+    for (const group of Object.values(supplierGroups)) {
+      const poNumber = `PO-AUTO-${now.getTime().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      const totalAmount = group.items.reduce((sum: number, item: any) => {
+        const prod = products.find(p => p.id === item.productId);
+        return sum + (prod ? prod.price * item.quantity : 0);
+      }, 0);
+
+      const newPO = poRepo.create({
+        poNumber,
+        supplierId: group.supplierId,
+        supplierName: group.supplierName,
+        status: 'Draft',
+        items: group.items,
+        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        notes: 'AI destekli otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
+        createdAt: now
+      });
+
+      const saved = await poRepo.save(newPO);
+      createdPOs.push(saved);
+    }
+
+    return createdPOs;
+  }
+
+  // ─── AI Forecast Data Helper ─────────────────────────────────
+  async getProductForecastData(productId: string): Promise<any> {
+    const product = await this.productRepo.findOne({ where: { id: productId, isDeleted: false } });
+    if (!product) return null;
+
+    // Get recent stock movements for this product (last 90 days)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const movements = await this.stockMovementRepo
+      .createQueryBuilder('sm')
+      .where('sm.productId = :productId', { productId })
+      .andWhere('sm.createdAt >= :since', { since: ninetyDaysAgo })
+      .orderBy('sm.createdAt', 'ASC')
+      .getMany();
+
+    return { product, movements };
   }
 }

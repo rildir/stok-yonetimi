@@ -14,6 +14,7 @@ export interface Product {
   supplierId?: string;
   imageUrl?: string;
   unit?: string;
+  warehouses?: Record<string, number> | null;
 }
 
 export interface OrderItem {
@@ -229,4 +230,24 @@ export class InventoryService {
   getSupplierSummaryReport(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/reports/supplier-summary`);
   }
+
+  // AI Demand Forecasting
+  getAiForecast(productId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/ai/forecast/${productId}`);
+  }
+
+  // Auto Draft Purchase Orders
+  autoDraftPurchaseOrders(): Observable<{ success: boolean; count: number; orders: any[] }> {
+    return this.http.post<{ success: boolean; count: number; orders: any[] }>(`${this.apiUrl}/purchase-orders/auto-draft`, {});
+  }
+
+  // Warehouse Management
+  getWarehouses(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/warehouses`);
+  }
+
+  transferWarehouseStock(productId: string, fromWarehouse: string, toWarehouse: string, quantity: number): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/warehouses/transfer`, { productId, fromWarehouse, toWarehouse, quantity });
+  }
 }
+

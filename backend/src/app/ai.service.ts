@@ -1187,4 +1187,96 @@ User Question: "${query}"`;
       },
     };
   }
+
+  // ─── AI Demand Forecasting ─────────────────────────────────────
+  async generateProductForecast(product: any, movements: any[]): Promise<any> {
+    const movementSummary = movements.map((m: any) => ({
+      date: m.createdAt,
+      type: m.type,
+      qty: m.quantity,
+    }));
+
+    const prompt = `Sen bir envanter talep tahmin uzmanısın.
+Ürün: ${product.name} (SKU: ${product.sku})
+Mevcut stok: ${product.quantity}, Min limit: ${product.minQuantity}
+Birim fiyat: ₺${product.price}
+
+Son 90 günlük stok hareketleri:
+${JSON.stringify(movementSummary)}
+
+Aşağıdaki JSON formatında yanıt ver:
+{
+  "predictedDemand7Days": <number>,
+  "predictedDemand30Days": <number>,
+  "recommendedReorderQty": <number>,
+  "confidence": <number 0-100>,
+  "trend": "increasing" | "stable" | "decreasing",
+  "insightText": "<kısa analiz açıklaması Türkçe>"
+}`;
+
+    // Try Gemini first
+    if (this.genAI) {
+      try {
+        const model = this.genAI.getGenerativeModel({
+          model: 'gemini-1.5-flash',
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.3 },
+        });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        const parsed = JSON.parse(text);
+        return { source: 'gemini', ...parsed };
+      } catch (err: any) {
+        this.logger.warn(`[FORECAST GEMINI] Başarısız: ${err.message}`);
+      }
+    }
+
+    // Try Ollama
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.OLLAMA_TIMEOUT_MS);
+
+      const response = await fetch(this.ollamaUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.ollamaModel,
+          prompt,
+          stream: false,
+          format: 'json',
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      if (!response.ok) throw new Error(`Ollama HTTP ${response.status}`);
+      const data = await response.json();
+      const parsed = JSON.parse(data.response);
+      return { source: 'ollama', ...parsed };
+    } catch (err: any) {
+      this.logger.warn(`[FORECAST OLLAMA] Başarısız: ${err.message}`);
+    }
+
+    // Fallback: statistical estimation
+    const outMovements = movements.filter((m: any) => m.type === 'OUT');
+    const totalOutQty = outMovements.reduce((s: number, m: any) => s + m.quantity, 0);
+    const daysCovered = movements.length > 0
+      ? Math.max(1, Math.ceil((Date.now() - new Date(movements[0].createdAt).getTime()) / 86400000))
+      : 30;
+
+    const dailyAvg = totalOutQty / daysCovered;
+    const predicted7 = Math.round(dailyAvg * 7);
+    const predicted30 = Math.round(dailyAvg * 30);
+    const reorderQty = Math.max(product.minQuantity * 2 - product.quantity, product.minQuantity);
+
+    return {
+      source: 'statistical',
+      predictedDemand7Days: predicted7,
+      predictedDemand30Days: predicted30,
+      recommendedReorderQty: reorderQty,
+      confidence: movements.length >= 10 ? 65 : movements.length >= 5 ? 45 : 25,
+      trend: dailyAvg > 2 ? 'increasing' : dailyAvg > 0.5 ? 'stable' : 'decreasing',
+      insightText: `Son ${daysCovered} gündeki stok çıkışlarına göre günlük ortalama talep ${dailyAvg.toFixed(1)} adet olarak hesaplandı. ${product.quantity < product.minQuantity ? 'Ürün kritik seviyenin altında, acil sipariş önerilir.' : 'Mevcut stok seviyesi yeterli görünmektedir.'}`,
+    };
+  }
 }
+

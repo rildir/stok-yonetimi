@@ -25,10 +25,23 @@ import { ModalComponent } from '../modal.component';
             </button>
           </div>
           <nav class="nav-list">
+            <!-- GENEL -->
+            @if (!isSidebarCollapsed()) {
+              <div class="nav-group-label">Genel</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
             <a routerLink="/dashboard" routerLinkActive="active" class="nav-btn" title="Panel Özeti">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
               <span class="nav-text">Panel Özeti</span>
             </a>
+
+            <!-- STOK YÖNETİMİ -->
+            @if (!isSidebarCollapsed()) {
+              <div class="nav-group-label">Stok Yönetimi</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
             <a routerLink="/products" routerLinkActive="active" class="nav-btn" title="Ürün Yönetimi">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
               <span class="nav-text">Ürün Yönetimi</span>
@@ -37,27 +50,45 @@ import { ModalComponent } from '../modal.component';
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
               <span class="nav-text">Stok Hareketleri</span>
             </a>
-            <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" title="Tedarikçiler">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-              <span class="nav-text">Tedarikçiler</span>
-            </a>
-            <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" title="Satın Alma">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-              <span class="nav-text">Satın Alma</span>
-            </a>
-            <a routerLink="/orders" routerLinkActive="active" class="nav-btn" title="Sipariş Takibi">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-              <span class="nav-text">Sipariş Takibi</span>
-            </a>
-            <a routerLink="/reports" routerLinkActive="active" class="nav-btn" title="Raporlar">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-              <span class="nav-text">Raporlar</span>
-            </a>
             <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" title="Stok Sayımı">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
               </svg>
               <span class="nav-text">Stok Sayımı</span>
+            </a>
+
+            <!-- OPERASYONLAR -->
+            @if (!isSidebarCollapsed()) {
+              <div class="nav-group-label">Operasyonlar</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
+            <a routerLink="/orders" routerLinkActive="active" class="nav-btn" title="Sipariş Takibi">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+              <span class="nav-text">Sipariş Takibi</span>
+            </a>
+            <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" title="Satın Alma">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+              <span class="nav-text">Satın Alma</span>
+            </a>
+            <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" title="Tedarikçiler">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              <span class="nav-text">Tedarikçiler</span>
+            </a>
+
+            <!-- SİSTEM -->
+            @if (!isSidebarCollapsed()) {
+              <div class="nav-group-label">Analiz & Sistem</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
+            <a routerLink="/reports" routerLinkActive="active" class="nav-btn" title="Raporlar">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <span class="nav-text">Raporlar</span>
+            </a>
+            <a routerLink="/billing" routerLinkActive="active" class="nav-btn" title="Abonelik & Fatura">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+              <span class="nav-text">Abonelik & Fatura</span>
             </a>
             <a routerLink="/settings" routerLinkActive="active" class="nav-btn" title="Ayarlar">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -70,9 +101,19 @@ import { ModalComponent } from '../modal.component';
       <div class="main-layout-wrapper">
         <header class="top-navbar">
           <div class="navbar-left">
-            <span class="navbar-title">{{ getActivePageTitle() }}</span>
+            <div class="breadcrumbs">
+              <span class="breadcrumb-cat">{{ getBreadcrumbs().category }}</span>
+              <span class="breadcrumb-separator">/</span>
+              <span class="breadcrumb-page">{{ getBreadcrumbs().page }}</span>
+            </div>
           </div>
           <div class="navbar-right">
+            <!-- Yapay Zeka Asistanı Navbar Tetikleyici -->
+            <button class="navbar-ai-btn" (click)="ui.toggleAiPanel()" title="Yapay Zeka Asistanı">
+              <span class="navbar-ai-icon">✦</span>
+              <span>Asistan</span>
+            </button>
+
             <div class="system-status">
               <span class="status-dot"></span> <span>Sistem Çevrimiçi</span>
             </div>
@@ -162,67 +203,94 @@ import { ModalComponent } from '../modal.component';
         </main>
       </div>
 
+      <!-- Global Yapay Zeka Floating Action Button (FAB) -->
+      <button class="global-ai-fab" (click)="ui.toggleAiPanel()" [class.active]="ui.isAiPanelOpen()" title="Yapay Zeka Asistanı">
+        <span class="fab-icon">✦</span>
+      </button>
+
       @if (ui.isAiPanelOpen()) {
         <div class="ai-panel-backdrop" (click)="ui.toggleAiPanel()"></div>
       }
-      <aside class="ai-panel" [class.open]="ui.isAiPanelOpen()" [class.expanded]="ui.isHistorySidebarOpen()">
+      <aside class="ai-panel" [class.open]="ui.isAiPanelOpen()" [class.expanded]="ui.subscription().plan === 'ultra' && ui.isHistorySidebarOpen()">
         <!-- ─── AI History Sidebar (left column) ─── -->
-        <div class="ai-history-sidebar">
-          <div class="sidebar-action-header">
-            <h4>Sohbet Geçmişi</h4>
-            <button class="new-chat-btn" (click)="ui.createSession()" title="Yeni Sohbet Başlat">
-              <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-              Yeni Sohbet
-            </button>
-          </div>
-          <div class="history-sessions-list">
-            @for (s of ui.sessions(); track s.id) {
-              <div class="history-item" [class.active]="s.id === ui.activeSessionId()" (click)="ui.selectSession(s.id)">
-                <svg class="history-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                </svg>
-                <div class="history-details">
-                  @if (editingSessionId() === s.id) {
-                    <input type="text" class="edit-title-input" [(ngModel)]="editingTitle" (blur)="saveTitle(s.id)" (keyup.enter)="saveTitle(s.id)" (click)="$event.stopPropagation()" />
-                  } @else {
-                    <span class="session-title">{{ s.title }}</span>
-                    <span class="session-time">{{ s.timestamp | date:'dd.MM.yyyy HH:mm' }}</span>
-                  }
+        @if (ui.subscription().plan === 'ultra') {
+          <div class="ai-history-sidebar">
+            <div class="sidebar-action-header">
+              <h4>Sohbet Geçmişi</h4>
+              <button class="new-chat-btn" (click)="ui.createSession()" title="Yeni Sohbet Başlat">
+                <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Yeni Sohbet
+              </button>
+            </div>
+            <div class="history-sessions-list">
+              @for (s of ui.sessions(); track s.id) {
+                <div class="history-item" [class.active]="s.id === ui.activeSessionId()" (click)="ui.selectSession(s.id)">
+                  <svg class="history-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                  </svg>
+                  <div class="history-details">
+                    @if (editingSessionId() === s.id) {
+                      <input type="text" class="edit-title-input" [(ngModel)]="editingTitle" (blur)="saveTitle(s.id)" (keyup.enter)="saveTitle(s.id)" (click)="$event.stopPropagation()" />
+                    } @else {
+                      <span class="session-title">{{ s.title }}</span>
+                      <span class="session-time">{{ s.timestamp | date:'dd.MM.yyyy HH:mm' }}</span>
+                    }
+                  </div>
+                  <div class="history-actions-row" (click)="$event.stopPropagation()">
+                    @if (editingSessionId() !== s.id) {
+                      <button class="edit-session-btn" (click)="startEdit($event, s.id, s.title)" title="Düzenle">
+                        <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                      </button>
+                      <button class="delete-session-btn" (click)="ui.deleteSession(s.id)" title="Sil">
+                        <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    }
+                  </div>
                 </div>
-                <div class="history-actions-row" (click)="$event.stopPropagation()">
-                  @if (editingSessionId() !== s.id) {
-                    <button class="edit-session-btn" (click)="startEdit($event, s.id, s.title)" title="Düzenle">
-                      <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                      </svg>
-                    </button>
-                    <button class="delete-session-btn" (click)="ui.deleteSession(s.id)" title="Sil">
-                      <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                  }
-                </div>
-              </div>
-            }
+              }
+            </div>
           </div>
-        </div>
+        }
 
         <!-- ─── AI Chat Container (right column) ─── -->
         <div class="ai-chat-container">
+          @if (ui.subscription().plan !== 'ultra') {
+            <div class="ai-locked-overlay">
+              <div class="lock-card">
+                <div class="lock-icon">
+                  <svg style="width:20px;height:20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                </div>
+                <h3>Yapay Zeka Asistanı</h3>
+                <p class="lock-desc">Akıllı analizler, kritik stok tahminleri ve grafiksel raporlar için hemen Ultra Plan'a yükseltin.</p>
+                <button class="billing-route-btn" routerLink="/billing" (click)="ui.isAiPanelOpen.set(false)">
+                  Ultra Plan'a Yükselt
+                </button>
+              </div>
+            </div>
+          }
           <div class="ai-panel-header">
             <div class="ai-panel-title">
-              <button class="toggle-history-btn" (click)="ui.toggleHistorySidebar()" [class.active]="ui.isHistorySidebarOpen()" title="Sohbet Geçmişi">
-                <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              </button>
+              @if (ui.subscription().plan === 'ultra') {
+                <button class="toggle-history-btn" (click)="ui.toggleHistorySidebar()" [class.active]="ui.isHistorySidebarOpen()" title="Sohbet Geçmişi">
+                  <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </button>
+              }
               <img src="/assets/image/f8ba49b9-052e-4780-b96d-411004b4884b.jpg" alt="AI Logo" style="width:22px;height:22px;object-fit:contain;border-radius:4px;"/>
               <div>
-                <h3>{{ ui.activeSession()?.title || 'Yapay Zeka Asistanı' }}</h3>
+                <h3>{{ ui.subscription().plan === 'ultra' ? (ui.activeSession()?.title || 'Yapay Zeka Asistanı') : 'Yapay Zeka Asistanı' }}</h3>
                 <span class="ai-badge"><span class="pulse-dot"></span> Gemma 3.5 Aktif</span>
               </div>
             </div>
             <div class="header-right-actions">
-              <button class="new-chat-icon-btn" (click)="ui.createSession()" title="Yeni Sohbet Başlat">
-                <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-              </button>
+              @if (ui.subscription().plan === 'ultra') {
+                <button class="new-chat-icon-btn" (click)="ui.createSession()" title="Yeni Sohbet Başlat">
+                  <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                </button>
+              }
               <button class="close-panel-btn" (click)="ui.toggleAiPanel()">
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
@@ -230,7 +298,66 @@ import { ModalComponent } from '../modal.component';
           </div>
 
           <div class="ai-cards-body" #chatBody>
-            @for (msg of ui.activeMessages(); track msg.id; let isLast = $last) {
+            @if (ui.subscription().plan !== 'ultra') {
+              <!-- Illustrative Mock Thread to showcase AI value behind the overlay -->
+              <div class="chat-bubble-wrapper user">
+                <div class="chat-bubble">
+                  <p>Kritik seviyedeki stoklarımı analiz et ve ne sipariş vermem gerektiğini söyle.</p>
+                  <span class="msg-time">10:42</span>
+                </div>
+              </div>
+              <div class="chat-bubble-wrapper ai">
+                <div class="ai-avatar">
+                  <img src="/assets/image/f8ba49b9-052e-4780-b96d-411004b4884b.jpg" alt="AI"/>
+                </div>
+                <div class="answer-card">
+                  <div class="answer-card-header">
+                    <h4>Kritik Stok Analizi & Sipariş Önerileri</h4>
+                    <span class="time">10:42</span>
+                  </div>
+                  
+                  <div class="thinking-process-block">
+                    <div class="thinking-process-header">
+                      <svg class="thinking-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                      </svg>
+                      <span>Analiz Hazırlığı & Düşünme Süreci</span>
+                    </div>
+                    <div class="thinking-process-content">Veritabanındaki ürünler taranıyor. Mevcut miktar (quantity) <= kritik eşik (minQuantity) olan ürünler filtreleniyor. 2 kritik stoklu ürün bulundu.</div>
+                  </div>
+
+                  <p class="desc">Sistemde stok miktarı kritik seviyenin altına düşmüş veya tükenmiş 2 adet ürün tespit edilmiştir:</p>
+                  
+                  <div class="answer-table-wrapper">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Ürün Adı</th>
+                          <th>Mevcut Stok</th>
+                          <th>Min Stok</th>
+                          <th>Önerilen Sipariş</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Dell UltraSharp 27</td>
+                          <td>0 adet</td>
+                          <td>5 adet</td>
+                          <td>+10 adet (PO-1001 yolda)</td>
+                        </tr>
+                        <tr>
+                          <td>Ergonomik Ofis Koltuğu</td>
+                          <td>3 adet</td>
+                          <td>5 adet</td>
+                          <td>+7 adet</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              @for (msg of ui.activeMessages(); track msg.id; let isLast = $last) {
               @if (msg.sender === 'user') {
                 <div class="chat-bubble-wrapper user">
                   <div class="chat-bubble">
@@ -402,6 +529,7 @@ import { ModalComponent } from '../modal.component';
                 </div>
               }
             }
+            }
             
             @if (ui.isAiThinking()) {
               <div class="chat-bubble-wrapper ai loading-wrapper">
@@ -523,8 +651,24 @@ export class LayoutComponent {
     if (url.includes('/orders')) return 'Sipariş Takibi';
     if (url.includes('/reports')) return 'Raporlar & Analiz';
     if (url.includes('/stock-count')) return 'Stok Sayımı';
+    if (url.includes('/billing')) return 'Abonelik & Fatura';
     if (url.includes('/settings')) return 'Ayarlar';
     return 'Smart Inventory';
+  }
+
+  getBreadcrumbs(): { category: string; page: string } {
+    const url = this.router.url;
+    if (url.includes('/dashboard')) return { category: 'Genel', page: 'Panel Özeti' };
+    if (url.includes('/products')) return { category: 'Stok Yönetimi', page: 'Ürün Yönetimi' };
+    if (url.includes('/stock-movements')) return { category: 'Stok Yönetimi', page: 'Stok Hareketleri' };
+    if (url.includes('/stock-count')) return { category: 'Stok Yönetimi', page: 'Stok Sayımı' };
+    if (url.includes('/orders')) return { category: 'Operasyonlar', page: 'Sipariş Takibi' };
+    if (url.includes('/purchase-orders')) return { category: 'Operasyonlar', page: 'Satın Alma' };
+    if (url.includes('/suppliers')) return { category: 'Operasyonlar', page: 'Tedarikçiler' };
+    if (url.includes('/reports')) return { category: 'Analiz & Sistem', page: 'Raporlar' };
+    if (url.includes('/billing')) return { category: 'Analiz & Sistem', page: 'Abonelik & Fatura' };
+    if (url.includes('/settings')) return { category: 'Analiz & Sistem', page: 'Ayarlar' };
+    return { category: 'Sistem', page: 'Panel' };
   }
 
   editingSessionId = signal<string | null>(null);

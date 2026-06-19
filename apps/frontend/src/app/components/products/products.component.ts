@@ -1,14 +1,16 @@
 import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
+import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Product } from '../../inventory.service';
+import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
+import { ModalComponent } from '../modal.component';
 
 @Component({
   selector: 'app-products',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, ModalComponent],
   styles: [`
 /* OVERLAY */
 .drawer-overlay {
@@ -225,6 +227,76 @@ import { InventoryService, Product } from '../../inventory.service';
 @media (max-width: 768px) {
   .drawer-panel { width: 100vw; }
 }
+
+/* WAREHOUSE TOOLTIP */
+.warehouse-tooltip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: var(--bg-overlay, #2a2a2a);
+  border: 1px solid var(--border-default, #383838);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: tooltipIn 0.15s ease;
+}
+@keyframes tooltipIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.wh-tooltip-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #6b6b6b);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-default, #383838);
+}
+.wh-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text-primary, #ededed);
+}
+.wh-tooltip-row strong {
+  font-family: var(--font-mono, monospace);
+  color: var(--brand, #3ecf8e);
+}
+
+/* SCAN BUTTON */
+.btn-scan {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* TRANSFER BUTTON */
+.transfer-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+  margin-right: 0.25rem;
+}
+.transfer-btn:hover {
+  color: var(--brand, #3ecf8e);
+  background: rgba(62, 207, 142, 0.08);
+}
+.transfer-btn svg {
+  width: 16px;
+  height: 16px;
+}
   `],
   template: `
     <header class="page-header">
@@ -242,6 +314,10 @@ import { InventoryService, Product } from '../../inventory.service';
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Dışa Aktar
         </button>
+        <button class="btn btn-outline" (click)="printProducts()" title="Yazdır / PDF">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Yazdır
+        </button>
         <button class="btn btn-outline" (click)="openAddProduct()">+ Yeni Ürün Ekle</button>
         <button class="btn btn-primary" (click)="ui.toggleAiPanel()">
           <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -256,6 +332,10 @@ import { InventoryService, Product } from '../../inventory.service';
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         <input type="text" placeholder="Ürün adı, SKU veya kategori ara..." [value]="productSearch()" (input)="onSearchInput($event)"/>
       </div>
+      <button class="btn btn-outline btn-scan" (click)="openScanner()" title="Barkod Tara">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+        Tara
+      </button>
       <div class="filter-pills">
         <button class="filter-pill" [class.active]="productFilterStatus() === 'all'" (click)="productFilterStatus.set('all')">Tümü</button>
         <button class="filter-pill" [class.active]="productFilterStatus() === 'In stock'" (click)="productFilterStatus.set('In stock')">Stokta</button>
@@ -300,7 +380,20 @@ import { InventoryService, Product } from '../../inventory.service';
                 <td class="mono">{{ p.sku }}</td>
                 <td>{{ getCategoryName(p.category) }}</td>
                 <td class="mono">₺{{ p.price }}</td>
-                <td class="mono" style="font-weight:600">{{ p.quantity }} {{ p.unit || 'Adet' }}</td>
+                <td class="mono" style="font-weight:600; position: relative;" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
+                  {{ p.quantity }} {{ p.unit || 'Adet' }}
+                  @if (p.warehouses && hoveredProductId() === p.id) {
+                    <div class="warehouse-tooltip">
+                      <div class="wh-tooltip-title">Depo Dağılımı</div>
+                      @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
+                        <div class="wh-tooltip-row">
+                          <span>{{ wh.name }}</span>
+                          <strong>{{ wh.qty }}</strong>
+                        </div>
+                      }
+                    </div>
+                  }
+                </td>
                 <td class="mono" style="color:var(--text-muted)">{{ p.minQuantity }} {{ p.unit || 'Adet' }}</td>
                 <td>
                   <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
@@ -308,6 +401,9 @@ import { InventoryService, Product } from '../../inventory.service';
                   </span>
                 </td>
                 <td class="td-actions">
+                  <button class="transfer-btn" (click)="openTransferModal(p)" title="Depolar Arası Transfer">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                  </button>
                   <button class="edit-btn" (click)="openEditProduct(p)" title="Düzenle">
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                   </button>
@@ -533,6 +629,74 @@ import { InventoryService, Product } from '../../inventory.service';
         </div>
       </div>
     }
+
+    <!-- Barcode Scanner Modal -->
+    @if (showScanner()) {
+      <app-barcode-scanner
+        [products]="state.products()"
+        (scanResult)="onBarcodeScanned($event)"
+        (closeScanner)="showScanner.set(false)"
+      />
+    }
+
+    <!-- ─── Warehouse Stock Transfer Modal ─── -->
+    <app-modal [isOpen]="isTransferModalOpen()" title="Depolar Arası Stok Transferi" (onClose)="closeTransferModal()">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <p style="font-size: 13px; color: var(--text-muted, #6b7280);">
+          Seçilen ürün: <strong style="color: var(--text-primary);">{{ selectedProductForTransfer()?.name }}</strong> (SKU: {{ selectedProductForTransfer()?.sku }})
+        </p>
+
+        <!-- Kaynak Depo Seçimi -->
+        <div class="form-field-standalone" style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: left;">Kaynak Depo</label>
+          <select [(ngModel)]="transferFromWarehouse" (change)="onTransferFromWarehouseChange()" style="width: 100%; padding: 10px; border: 1.5px solid var(--secondary, #e5e7eb); border-radius: 8px; background: var(--surface, #fff); color: var(--text-primary); outline: none;">
+            <option value="" disabled selected>Depo Seçin</option>
+            @for (wh of availableFromWarehouses(); track wh.name) {
+              <option [value]="wh.name">{{ wh.name }} (Mevcut: {{ wh.qty }})</option>
+            }
+          </select>
+        </div>
+
+        <!-- Hedef Depo Seçimi -->
+        <div class="form-field-standalone" style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: left;">Hedef Depo</label>
+          <select [(ngModel)]="transferToWarehouse" style="width: 100%; padding: 10px; border: 1.5px solid var(--secondary, #e5e7eb); border-radius: 8px; background: var(--surface, #fff); color: var(--text-primary); outline: none;">
+            <option value="" disabled selected>Depo Seçin</option>
+            @for (wh of availableToWarehouses(); track wh) {
+              <option [value]="wh">{{ wh }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Miktar Girişi -->
+        <div class="form-field-standalone" style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: left;">Transfer Edilecek Miktar</label>
+          <input type="number" [(ngModel)]="transferQuantity" min="1" [max]="maxTransferQuantity()" style="width: 100%; padding: 10px; border: 1.5px solid var(--secondary, #e5e7eb); border-radius: 8px; background: var(--surface, #fff); color: var(--text-primary); outline: none;" />
+          @if (maxTransferQuantity() > 0) {
+            <span style="font-size: 11px; color: var(--text-muted);">Maksimum transfer edilebilir: {{ maxTransferQuantity() }}</span>
+          }
+        </div>
+
+        <!-- Hata ve Bilgi Mesajı -->
+        @if (transferError()) {
+          <div style="font-size: 12px; color: #dc2626; padding: 10px; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.15); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
+            <span>⚠ {{ transferError() }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- Modal Footer Action Buttons -->
+      <div footer style="display: flex; gap: 8px; justify-content: flex-end; width: 100%;">
+        <button class="btn btn-outline" (click)="closeTransferModal()" [disabled]="isTransferLoading()">Vazgeç</button>
+        <button class="btn btn-primary" (click)="executeTransfer()" [disabled]="isTransferLoading() || !isTransferValid()">
+          @if (isTransferLoading()) {
+            Transfer Ediliyor...
+          } @else {
+            Transferi Tamamla
+          }
+        </button>
+      </div>
+    </app-modal>
   `
 })
 export class ProductsComponent {
@@ -544,6 +708,43 @@ export class ProductsComponent {
   categories = signal<any[]>([]);
 
   isCategoryDropdownOpen = signal(false);
+
+  // Scanner & Warehouse tooltip
+  showScanner = signal(false);
+  hoveredProductId = signal<string | null>(null);
+
+  // Transfer warehouse stock states
+  isTransferModalOpen = signal(false);
+  selectedProductForTransfer = signal<Product | null>(null);
+  transferFromWarehouse = '';
+  transferToWarehouse = '';
+  transferQuantity = 1;
+  transferError = signal<string | null>(null);
+  isTransferLoading = signal(false);
+
+  availableFromWarehouses = computed(() => {
+    const prod = this.selectedProductForTransfer();
+    if (!prod || !prod.warehouses) return [];
+    return Object.entries(prod.warehouses)
+      .map(([name, qty]) => ({ name, qty: qty as number }))
+      .filter(w => w.qty > 0);
+  });
+
+  availableToWarehouses = computed(() => {
+    const prod = this.selectedProductForTransfer();
+    if (!prod || !prod.warehouses) return [];
+    const defaultWarehouses = ['Merkez Depo', 'Ataşehir Şube'];
+    const currentKeys = Object.keys(prod.warehouses);
+    const allUniqueWarehouses = Array.from(new Set([...defaultWarehouses, ...currentKeys]));
+    
+    return allUniqueWarehouses.filter(w => w !== this.transferFromWarehouse);
+  });
+
+  maxTransferQuantity = computed(() => {
+    const prod = this.selectedProductForTransfer();
+    if (!prod || !prod.warehouses || !this.transferFromWarehouse) return 0;
+    return (prod.warehouses[this.transferFromWarehouse] as number) || 0;
+  });
 
   getBarcodeBars(sku: string): { width: number, isBar: boolean }[] {
     if (!sku) return [];
@@ -1033,5 +1234,159 @@ export class ProductsComponent {
     };
     
     reader.readAsText(file);
+  }
+
+  // ─── Barcode Scanner ─────────────────────────────────────────
+  openScanner() {
+    this.showScanner.set(true);
+  }
+
+  onBarcodeScanned(sku: string) {
+    this.showScanner.set(false);
+    this.productSearch.set(sku);
+    // Check if the scanned product exists
+    const found = this.state.products().find(p => p.sku === sku);
+    if (found) {
+      this.ui.showToast(`Ürün bulundu: ${found.name} (${sku})`, 'success');
+    } else {
+      this.ui.showToast(`"${sku}" SKU ile ürün bulunamadı.`, 'error');
+    }
+  }
+
+  // ─── Warehouse Tooltip ─────────────────────────────────────────
+  getWarehouseEntries(warehouses: Record<string, number> | null): { name: string; qty: number }[] {
+    if (!warehouses) return [];
+    return Object.entries(warehouses).map(([name, qty]) => ({ name, qty }));
+  }
+
+  // ─── Print / PDF ─────────────────────────────────────────────
+  printProducts() {
+    const list = this.filteredProducts();
+    if (!list || list.length === 0) {
+      this.ui.showToast('Yazdırılacak ürün bulunamadı.', 'error');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      this.ui.showToast('Pop-up engelleyici aktif. Lütfen izin verin.', 'error');
+      return;
+    }
+
+    const rows = list.map(p => `
+      <tr>
+        <td>${p.name}</td>
+        <td style="font-family: monospace;">${p.sku}</td>
+        <td>${this.getCategoryName(p.category)}</td>
+        <td style="text-align: right;">₺${p.price.toFixed(2)}</td>
+        <td style="text-align: right; font-weight: 600;">${p.quantity} ${p.unit || 'Adet'}</td>
+        <td style="text-align: right;">${p.minQuantity}</td>
+        <td>${p.status === 'In stock' ? 'Stokta' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi'}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Smart Inventory - Ürün Listesi</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Inter', system-ui, sans-serif; padding: 32px; color: #1a1a1a; }
+          h1 { font-size: 18px; margin-bottom: 4px; }
+          .subtitle { font-size: 12px; color: #666; margin-bottom: 24px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #f5f5f5; text-align: left; padding: 8px 12px; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; border-bottom: 2px solid #e0e0e0; }
+          td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+          tr:nth-child(even) { background: #fafafa; }
+          @media print { body { padding: 12px; } }
+        </style>
+      </head>
+      <body>
+        <h1>Smart Inventory — Ürün Listesi</h1>
+        <p class="subtitle">Yazdırma Tarihi: ${new Date().toLocaleString('tr-TR')} | Toplam: ${list.length} ürün</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Ürün Adı</th>
+              <th>SKU</th>
+              <th>Kategori</th>
+              <th style="text-align:right">Birim Fiyat</th>
+              <th style="text-align:right">Stok</th>
+              <th style="text-align:right">Min. Limit</th>
+              <th>Durum</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.print();
+    }, 300);
+  }
+
+  onTransferFromWarehouseChange() {
+    this.transferQuantity = 1;
+    this.transferToWarehouse = '';
+  }
+
+  isTransferValid(): boolean {
+    const maxQty = this.maxTransferQuantity();
+    return !!this.transferFromWarehouse && 
+           !!this.transferToWarehouse && 
+           this.transferQuantity > 0 && 
+           this.transferQuantity <= maxQty;
+  }
+
+  openTransferModal(product: Product) {
+    this.selectedProductForTransfer.set(product);
+    this.transferFromWarehouse = '';
+    this.transferToWarehouse = '';
+    this.transferQuantity = 1;
+    this.transferError.set(null);
+    this.isTransferModalOpen.set(true);
+  }
+
+  closeTransferModal() {
+    this.isTransferModalOpen.set(false);
+    this.selectedProductForTransfer.set(null);
+    this.transferFromWarehouse = '';
+    this.transferToWarehouse = '';
+    this.transferQuantity = 1;
+    this.transferError.set(null);
+  }
+
+  executeTransfer() {
+    const prod = this.selectedProductForTransfer();
+    if (!prod || !this.isTransferValid()) return;
+
+    this.isTransferLoading.set(true);
+    this.transferError.set(null);
+
+    this.inventoryService.transferWarehouseStock(
+      prod.id,
+      this.transferFromWarehouse,
+      this.transferToWarehouse,
+      this.transferQuantity
+    ).subscribe({
+      next: (res) => {
+        this.isTransferLoading.set(false);
+        if (res && res.success) {
+          this.state.loadData();
+          this.ui.showToast('Stok transferi başarıyla tamamlandı.', 'success');
+          this.closeTransferModal();
+        } else {
+          this.transferError.set('Stok transferi gerçekleştirilemedi.');
+        }
+      },
+      error: (err) => {
+        this.isTransferLoading.set(false);
+        this.transferError.set(err.error?.message || 'Transfer sırasında bir hata oluştu.');
+      }
+    });
   }
 }

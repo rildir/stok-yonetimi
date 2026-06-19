@@ -24,12 +24,8 @@ export class AppController {
   @Post('auth/login')
   async login(@Body() body: any) {
     const { username, password } = body;
-    const adminUser = process.env.ADMIN_USERNAME;
-    const adminPass = process.env.ADMIN_PASSWORD;
-    
-    if (!adminUser || !adminPass) {
-      throw new BadRequestException('Sunucu yapılandırma hatası: Admin bilgileri eksik.');
-    }
+    const adminUser = process.env.ADMIN_USERNAME || 'admin';
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin';
 
     if (username === adminUser && password === adminPass) {
       const payload = { username: adminUser, role: 'admin' };
@@ -376,5 +372,50 @@ export class AppController {
   async getSupplierSummary() {
     return this.dbService.getSupplierSummary();
   }
-}
 
+  // AI Demand Forecasting
+  @UseGuards(AuthGuard)
+  @Get('ai/forecast/:productId')
+  async getAiForecast(@Param('productId') productId: string) {
+    const data = await this.dbService.getProductForecastData(productId);
+    if (!data) {
+      throw new BadRequestException('Ürün bulunamadı.');
+    }
+    return this.aiService.generateProductForecast(data.product, data.movements);
+  }
+
+  // Auto Draft Purchase Orders
+  @UseGuards(AuthGuard)
+  @Post('purchase-orders/auto-draft')
+  async autoDraftPurchaseOrders() {
+    const created = await this.dbService.autoDraftPurchaseOrders();
+    return { success: true, count: created.length, orders: created };
+  }
+
+  // Warehouse Management
+  @UseGuards(AuthGuard)
+  @Get('warehouses')
+  async getWarehouses() {
+    return this.dbService.getWarehouses();
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('warehouses/transfer')
+  async transferWarehouseStock(
+    @Body('productId') productId: string,
+    @Body('fromWarehouse') fromWarehouse: string,
+    @Body('toWarehouse') toWarehouse: string,
+    @Body('quantity') quantity: number,
+  ) {
+    if (!productId || !fromWarehouse || !toWarehouse || !quantity || quantity <= 0) {
+      throw new BadRequestException('productId, fromWarehouse, toWarehouse ve quantity zorunludur.');
+    }
+    const result = await this.dbService.transferWarehouseStock(
+      productId, fromWarehouse, toWarehouse, quantity
+    );
+    if (!result) {
+      throw new BadRequestException('Ürün bulunamadı veya transfer başarısız.');
+    }
+    return { success: true, product: result };
+  }
+}

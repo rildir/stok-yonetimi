@@ -64,7 +64,60 @@ export class UiStateService {
     return this.activeSession()?.messages || [];
   });
 
+  subscription = signal<{ plan: 'free' | 'standard' | 'professional' | 'ultra'; expiresAt: string | null; aiQueriesUsed: number; aiQueriesLimit: number }>({ plan: 'standard', expiresAt: new Date(Date.now() + 30*24*60*60*1000).toISOString(), aiQueriesUsed: 0, aiQueriesLimit: 0 });
+
+  loadSubscription() {
+    try {
+      const saved = localStorage.getItem('smart_inventory_subscription');
+      if (saved) {
+        this.subscription.set(JSON.parse(saved));
+        return;
+      }
+    } catch (e) {
+      console.error('Error loading subscription', e);
+    }
+    this.subscription.set({ plan: 'standard', expiresAt: new Date(Date.now() + 30*24*60*60*1000).toISOString(), aiQueriesUsed: 0, aiQueriesLimit: 0 });
+  }
+
+  saveSubscription() {
+    try {
+      localStorage.setItem('smart_inventory_subscription', JSON.stringify(this.subscription()));
+    } catch (e) {
+      console.error('Error saving subscription', e);
+    }
+  }
+
+  purchasePlan(plan: 'standard' | 'professional' | 'ultra') {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+    this.subscription.set({
+      plan,
+      expiresAt: expiresAt.toISOString(),
+      aiQueriesUsed: 0,
+      aiQueriesLimit: plan === 'ultra' ? 9999 : 0
+    });
+    this.saveSubscription();
+    this.showToast(`${plan === 'standard' ? 'Standart' : plan === 'professional' ? 'Profesyonel' : 'Ultra'} plana başarıyla geçiş yapıldı!`, 'success');
+  }
+
+  cancelSubscription() {
+    this.subscription.set({ plan: 'standard', expiresAt: new Date(Date.now() + 30*24*60*60*1000).toISOString(), aiQueriesUsed: 0, aiQueriesLimit: 0 });
+    this.saveSubscription();
+    this.showToast('Aboneliğiniz sonlandırıldı. Standart plana geri dönüldü.', 'info');
+  }
+
+  incrementAiQueryCount() {
+    const sub = this.subscription();
+    if (!sub) return;
+    this.subscription.set({
+      ...sub,
+      aiQueriesUsed: sub.aiQueriesUsed + 1
+    });
+    this.saveSubscription();
+  }
+
   constructor() {
+    this.loadSubscription();
     this.loadSessions();
   }
 
@@ -268,6 +321,24 @@ export class UiStateService {
 
   async askQuestion(promptText: string, openPanel = true) {
     if (!promptText.trim() || this.isAiLoading()) return;
+
+    const sub = this.subscription();
+    if (!sub || sub.plan !== 'ultra') {
+      this.showToast('Yapay Zeka Asistanı yalnızca Ultra Pakette mevcuttur. Lütfen paketinizi Ultra Plana yükseltin.', 'error');
+      if (openPanel) {
+        this.isAiPanelOpen.set(true);
+      }
+      return;
+    }
+    if (sub.aiQueriesUsed >= sub.aiQueriesLimit) {
+      this.showToast('Aylık yapay zeka kullanım limitinize ulaştınız.', 'error');
+      if (openPanel) {
+        this.isAiPanelOpen.set(true);
+      }
+      return;
+    }
+
+    this.incrementAiQueryCount();
 
     // Ensure we have an active session
     let currentSessionId = this.activeSessionId();

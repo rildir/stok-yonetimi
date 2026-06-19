@@ -151,6 +151,75 @@ import { Chart } from 'chart.js/auto';
         </div>
 
       </div>
+
+      <!-- AI Demand Forecasting Section -->
+      <div class="forecast-section">
+        <div class="report-chart-card" style="grid-column: 1 / -1;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <div>
+              <h3 class="card-title" style="display: flex; align-items: center; gap: 8px;">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: var(--brand, #3ecf8e);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                Talep Tahmini & AI Öngörü
+              </h3>
+              <p class="card-subtitle">Seçtiğiniz ürün için yapay zeka destekli talep analizi ve stok projeksiyonu.</p>
+            </div>
+            <div class="forecast-select">
+              <select class="form-input form-select" style="height: 40px; padding: 0 36px 0 12px; font-size: 13px; min-width: 250px;" (change)="onForecastProductChange($event)">
+                <option value="">Ürün Seçin...</option>
+                @for (p of allProducts(); track p.id) {
+                  <option [value]="p.id">{{ p.name }} ({{ p.sku }})</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          @if (forecastLoading()) {
+            <div class="loading-state" style="padding: 3rem 0;">AI modeli analiz yapıyor...</div>
+          } @else if (forecastData()) {
+            <div class="forecast-grid">
+              <div class="forecast-metric">
+                <span class="fm-label">7 Günlük Tahmini Talep</span>
+                <h2 class="fm-value">{{ forecastData().predictedDemand7Days }} Adet</h2>
+              </div>
+              <div class="forecast-metric">
+                <span class="fm-label">30 Günlük Tahmini Talep</span>
+                <h2 class="fm-value">{{ forecastData().predictedDemand30Days }} Adet</h2>
+              </div>
+              <div class="forecast-metric">
+                <span class="fm-label">Önerilen Sipariş Miktarı</span>
+                <h2 class="fm-value" style="color: var(--brand, #3ecf8e);">{{ forecastData().recommendedReorderQty }} Adet</h2>
+              </div>
+              <div class="forecast-metric">
+                <span class="fm-label">Güvenilirlik</span>
+                <h2 class="fm-value">
+                  %{{ forecastData().confidence }}
+                  <span class="confidence-badge" [class.high]="forecastData().confidence >= 60" [class.medium]="forecastData().confidence >= 40 && forecastData().confidence < 60" [class.low]="forecastData().confidence < 40">
+                    {{ forecastData().confidence >= 60 ? 'Yüksek' : forecastData().confidence >= 40 ? 'Orta' : 'Düşük' }}
+                  </span>
+                </h2>
+              </div>
+            </div>
+
+            <div class="forecast-insight">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="flex-shrink: 0;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>{{ forecastData().insightText }}</span>
+            </div>
+
+            <div class="chart-container" style="height: 200px; margin-top: 1rem;">
+              <canvas #forecastChart></canvas>
+            </div>
+
+            <div class="forecast-source" style="margin-top: 8px; text-align: right; font-size: 11px; color: var(--text-muted, #6b6b6b);">
+              Kaynak: {{ forecastData().source === 'gemini' ? 'Gemini AI' : forecastData().source === 'ollama' ? 'Ollama (Yerel)' : 'İstatistiksel Model' }}
+            </div>
+          } @else {
+            <div class="empty-state" style="padding: 3rem 0; color: var(--text-muted, #6b6b6b);">
+              <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-bottom: 8px; opacity: 0.4;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <p>Talep tahmini görmek için yukarıdan bir ürün seçin.</p>
+            </div>
+          }
+        </div>
+      </div>
     }
   `,
   styles: [`
@@ -214,6 +283,65 @@ import { Chart } from 'chart.js/auto';
         grid-template-columns: 1fr !important;
       }
     }
+
+    /* Forecast Section */
+    .forecast-section {
+      margin-top: 1.5rem;
+    }
+    .forecast-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    .forecast-metric {
+      background: var(--bg-hover, rgba(62, 207, 142, 0.04));
+      border: 1px solid var(--border-default, #2a2a2a);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+    .fm-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted, #6b6b6b);
+    }
+    .fm-value {
+      font-family: var(--font-mono, monospace);
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0.3rem 0 0 0;
+      color: var(--text-primary, #ededed);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .confidence-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .confidence-badge.high { background: rgba(62, 207, 142, 0.15); color: #3ecf8e; }
+    .confidence-badge.medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .confidence-badge.low { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .forecast-insight {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 1rem;
+      padding: 12px 16px;
+      background: var(--bg-hover, rgba(62, 207, 142, 0.06));
+      border: 1px solid var(--border-default, #2a2a2a);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: var(--text-secondary, #a1a1a1);
+      line-height: 1.5;
+    }
+    @media (max-width: 768px) {
+      .forecast-grid { grid-template-columns: repeat(2, 1fr); }
+    }
   `]
 })
 export class ReportsComponent implements OnInit, AfterViewInit {
@@ -222,9 +350,17 @@ export class ReportsComponent implements OnInit, AfterViewInit {
 
   @ViewChild('catChart') catCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('topChart') topCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('forecastChart') forecastCanvas!: ElementRef<HTMLCanvasElement>;
 
   catChartInstance: any = null;
   topChartInstance: any = null;
+  forecastChartInstance: any = null;
+
+  // Forecast
+  allProducts = signal<any[]>([]);
+  forecastLoading = signal(false);
+  forecastData = signal<any>(null);
+  selectedForecastProductId = signal<string | null>(null);
 
   isLoading = signal(true);
   
@@ -243,6 +379,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
   ngOnInit() {
     this.loadCategories();
     this.loadReports();
+    this.loadAllProducts();
   }
 
   ngAfterViewInit() {
@@ -401,5 +538,114 @@ export class ReportsComponent implements OnInit, AfterViewInit {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  // ─── Forecast ─────────────────────────────────────────────────
+  loadAllProducts() {
+    this.inventoryService.getProducts().subscribe({
+      next: (products) => this.allProducts.set(products),
+    });
+  }
+
+  onForecastProductChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const productId = select.value;
+    if (!productId) {
+      this.forecastData.set(null);
+      this.selectedForecastProductId.set(null);
+      return;
+    }
+    this.selectedForecastProductId.set(productId);
+    this.loadForecast(productId);
+  }
+
+  loadForecast(productId: string) {
+    this.forecastLoading.set(true);
+    this.forecastData.set(null);
+
+    this.inventoryService.getAiForecast(productId).subscribe({
+      next: (data) => {
+        this.forecastData.set(data);
+        this.forecastLoading.set(false);
+        setTimeout(() => this.renderForecastChart(data), 50);
+      },
+      error: () => {
+        this.forecastLoading.set(false);
+        this.ui.showToast('Talep tahmini yüklenemedi.', 'error');
+      }
+    });
+  }
+
+  renderForecastChart(data: any) {
+    if (this.forecastChartInstance) this.forecastChartInstance.destroy();
+    if (!this.forecastCanvas) return;
+
+    const ctx = this.forecastCanvas.nativeElement.getContext('2d');
+    if (!ctx) return;
+
+    // Generate a simple projection chart: current stock declining over 30 days
+    const product = this.allProducts().find(p => p.id === this.selectedForecastProductId());
+    const currentStock = product ? product.quantity : 0;
+    const dailyDemand = data.predictedDemand30Days / 30;
+
+    const labels: string[] = [];
+    const stockProjection: number[] = [];
+    const minLine: number[] = [];
+
+    for (let day = 0; day <= 30; day += 3) {
+      labels.push(day === 0 ? 'Bugün' : `${day}. gün`);
+      stockProjection.push(Math.max(0, Math.round(currentStock - dailyDemand * day)));
+      minLine.push(product ? product.minQuantity : 0);
+    }
+
+    this.forecastChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Tahmini Stok',
+            data: stockProjection,
+            borderColor: '#3ecf8e',
+            backgroundColor: 'rgba(62, 207, 142, 0.1)',
+            fill: true,
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#3ecf8e',
+          },
+          {
+            label: 'Kritik Seviye',
+            data: minLine,
+            borderColor: '#ef4444',
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 10, font: { family: 'Inter', size: 11 } },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            ticks: { font: { family: 'Inter' }, color: '#6b6b6b' },
+          },
+          x: {
+            grid: { display: false },
+            ticks: { font: { family: 'Inter', size: 10 }, color: '#6b6b6b' },
+          },
+        },
+      },
+    });
   }
 }

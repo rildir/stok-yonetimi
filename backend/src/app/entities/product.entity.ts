@@ -42,4 +42,7 @@ export class ProductEntity {
 
   @Column({ nullable: true })
   imageUrl: string;
+
+  @Column('json', { nullable: true })
+  warehouses: Record<string, number> | null;
 }

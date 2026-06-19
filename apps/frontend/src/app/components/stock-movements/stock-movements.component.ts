@@ -75,8 +75,12 @@ import { ToastComponent } from '../shared/toast/toast.component';
                   <td>{{ m.previousQuantity }}</td>
                   <td style="font-weight: 600;">{{ m.newQuantity }}</td>
                   <td>
-                    <div class="text-xs text-muted">{{ m.note }}</div>
-                    @if (m.referenceId) { <div class="text-xs">{{ m.referenceType }}: {{ m.referenceId }}</div> }
+                    <div class="text-xs text-muted" style="margin-bottom: 2px;">{{ m.note }}</div>
+                    @if (m.referenceId) {
+                      <span class="badge" style="font-size: 10px; font-family: var(--font-mono); font-weight: 500; background: rgba(107, 114, 128, 0.08); color: #4b5563; border: 1px solid rgba(107, 114, 128, 0.15); padding: 1px 5px; border-radius: 4px; display: inline-block;">
+                        {{ formatReference(m.referenceType, m.referenceId) }}
+                      </span>
+                    }
                   </td>
                   <td>{{ m.performedBy }}</td>
                 </tr>
@@ -381,6 +385,29 @@ export class StockMovementsComponent implements OnInit {
         this.ui.showToast(errMsg, 'error');
       }
     });
+  }
+
+  formatReference(type: string | null, id: string | null): string {
+    if (!type || !id) return '';
+    let label = '';
+    switch (type.toUpperCase()) {
+      case 'ORDER':
+        label = 'Sipariş';
+        break;
+      case 'PURCHASE_ORDER':
+        label = 'Satın Alma';
+        break;
+      case 'STOCK_COUNT':
+        label = 'Stok Sayımı';
+        break;
+      case 'ADJUSTMENT':
+        label = 'Düzeltme';
+        break;
+      default:
+        label = type;
+    }
+    const shortId = id.length > 8 ? id.substring(0, 8) : id;
+    return `${label} Ref: #${shortId}`;
   }
 
   getTypeName(type: string) {

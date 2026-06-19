@@ -17,6 +17,14 @@ import { ToastComponent } from '../shared/toast/toast.component';
         <p>Tedarikçilere verilen siparişler ve stok kabulleri.</p>
       </div>
       <div class="header-actions">
+        <button class="btn btn-outline" (click)="autoDraft()" [disabled]="isAutoDrafting()" title="Stok seviyesi düşük ürünler için otomatik sipariş taslağı oluştur">
+          @if (isAutoDrafting()) {
+            <span class="spinner-sm"></span> Analiz ediliyor...
+          } @else {
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Otomatik Sipariş Taslağı
+          }
+        </button>
         <button class="btn btn-primary" (click)="openDrawer()">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           Yeni Sipariş
@@ -330,6 +338,7 @@ export class PurchaseOrdersComponent implements OnInit {
   isLoading = signal(true);
   isDrawerOpen = signal(false);
   isSaving = signal(false);
+  isAutoDrafting = signal(false);
   detailOrder = signal<any>(null);
 
   // Filter Signals
@@ -583,5 +592,26 @@ export class PurchaseOrdersComponent implements OnInit {
       case 'Cancelled': return 'badge-outstock';
       default: return '';
     }
+  }
+
+  autoDraft() {
+    if (this.isAutoDrafting()) return;
+    this.isAutoDrafting.set(true);
+
+    this.inventory.autoDraftPurchaseOrders().subscribe({
+      next: (res) => {
+        this.isAutoDrafting.set(false);
+        if (res.count > 0) {
+          this.loadData();
+          this.ui.showToast(`${res.count} adet otomatik sipariş taslağı oluşturuldu.`, 'success');
+        } else {
+          this.ui.showToast('Tüm ürünler yeterli stok seviyesinde. Sipariş taslağı gerekmedi.', 'success');
+        }
+      },
+      error: () => {
+        this.isAutoDrafting.set(false);
+        this.ui.showToast('Otomatik sipariş taslağı oluşturulamadı.', 'error');
+      }
+    });
   }
 }
