@@ -119,6 +119,10 @@ export class InventoryService {
     return this.http.put<Order>(`${this.apiUrl}/orders/${id}/status`, { status });
   }
 
+  deleteOrder(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/orders/${id}`);
+  }
+
   // AI Assistant
   askAi(prompt: string): Observable<AiResponseCard> {
     return this.http.post<AiResponseCard>(`${this.apiUrl}/ai/query`, { prompt });
@@ -164,6 +168,14 @@ export class InventoryService {
 
   updatePurchaseOrderStatus(id: string, status: string): Observable<any> {
     return this.http.put<any>(`${this.apiUrl}/purchase-orders/${id}/status`, { status });
+  }
+
+  updatePurchaseOrder(id: string, data: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/purchase-orders/${id}`, data);
+  }
+
+  deletePurchaseOrder(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/purchase-orders/${id}`);
   }
 
   // Categories
@@ -244,6 +256,18 @@ export class InventoryService {
   // Warehouse Management
   getWarehouses(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/warehouses`);
+  }
+
+  createWarehouse(data: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/warehouses`, data);
+  }
+
+  updateWarehouse(id: string, data: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/warehouses/${id}`, data);
+  }
+
+  deleteWarehouse(id: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/warehouses/${id}`);
   }
 
   transferWarehouseStock(productId: string, fromWarehouse: string, toWarehouse: string, quantity: number): Observable<any> {

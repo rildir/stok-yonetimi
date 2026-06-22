@@ -1,8 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, Check, Index } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Check, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 
 @Entity('products')
-@Check('"quantity" >= 0')
+@Check('quantity >= 0')
 export class ProductEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -45,4 +45,10 @@ export class ProductEntity {
 
   @Column('json', { nullable: true })
   warehouses: Record<string, number> | null;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

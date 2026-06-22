@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import * as crypto from 'crypto';
 import { ProductEntity } from './entities/product.entity';
 import { OrderEntity } from './entities/order.entity';
 import { StockMovementEntity } from './entities/stock-movement.entity';
@@ -8,6 +9,8 @@ import { SupplierEntity } from './entities/supplier.entity';
 import { PurchaseOrderEntity } from './entities/purchase-order.entity';
 import { CategoryEntity } from './entities/category.entity';
 import { StockCountEntity, StockCountItem } from './entities/stock-count.entity';
+import { WarehouseEntity } from './entities/warehouse.entity';
+import { UserEntity } from './entities/user.entity';
 import { AppGateway } from './app.gateway';
 
 export interface Product {
@@ -55,6 +58,10 @@ export class DbService implements OnModuleInit {
     private readonly supplierRepo: Repository<SupplierEntity>,
     @InjectRepository(CategoryEntity)
     private readonly categoryRepo: Repository<CategoryEntity>,
+    @InjectRepository(WarehouseEntity)
+    private readonly warehouseRepo: Repository<WarehouseEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -64,6 +71,44 @@ export class DbService implements OnModuleInit {
   }
 
   private async seedMockDataIfEmpty() {
+    // Seed Users
+    const userCount = await this.userRepo.count();
+    if (userCount === 0) {
+      console.log('[DbService] Users table is empty. Seeding initial users...');
+      const initialUsers = [
+        {
+          username: 'admin',
+          password: this.hashPassword('admin'),
+          role: 'admin',
+          fullName: 'Ahmet Ildır',
+          email: 'admin@sirket.com',
+          department: 'Sistem Yönetimi',
+          tokenVersion: 0
+        },
+        {
+          username: 'manager',
+          password: this.hashPassword('manager123'),
+          role: 'manager',
+          fullName: 'Yönetici Demo',
+          email: 'manager@sirket.com',
+          department: 'Stok Yönetimi',
+          tokenVersion: 0
+        },
+        {
+          username: 'viewer',
+          password: this.hashPassword('viewer123'),
+          role: 'viewer',
+          fullName: 'Gözlemci Demo',
+          email: 'viewer@sirket.com',
+          department: 'Gözlem Ekibi',
+          tokenVersion: 0
+        }
+      ];
+      for (const u of initialUsers) {
+        await this.userRepo.save(this.userRepo.create(u));
+      }
+    }
+
     // Seed Categories
     const categoryCount = await this.categoryRepo.count();
     if (categoryCount === 0) {
@@ -77,6 +122,19 @@ export class DbService implements OnModuleInit {
       ];
       for (const cat of initialCategories) {
         await this.categoryRepo.save(this.categoryRepo.create(cat));
+      }
+    }
+
+    // Seed Warehouses
+    const warehouseCount = await this.warehouseRepo.count();
+    if (warehouseCount === 0) {
+      console.log('[DbService] Warehouses table is empty. Seeding initial warehouses...');
+      const initialWarehouses = [
+        { name: 'Merkez Depo', code: 'WH-001', address: 'İstanbul Merkez' },
+        { name: 'Ataşehir Şube', code: 'WH-002', address: 'Ataşehir, İstanbul' }
+      ];
+      for (const wh of initialWarehouses) {
+        await this.warehouseRepo.save(this.warehouseRepo.create(wh));
       }
     }
 
@@ -154,12 +212,37 @@ export class DbService implements OnModuleInit {
   }
 
   async createProduct(data: Partial<ProductEntity>, performedBy: string = 'System'): Promise<ProductEntity> {
-    const newProd = this.productRepo.create({
-      ...data,
-      status: this.calculateStatus(data.quantity || 0, data.minQuantity || 5)
-    });
-    
     return await this.dataSource.transaction(async manager => {
+      // Validate category slug exists in db
+      if (data.category) {
+        const categoryExists = await manager.findOne(CategoryEntity, { where: { slug: data.category, isDeleted: false } });
+        if (!categoryExists) {
+          throw new BadRequestException(`Geçersiz kategori: ${data.category}`);
+        }
+      }
+
+      // Validate supplier exists in db
+      if (data.supplierId) {
+        const supplierExists = await manager.findOne(SupplierEntity, { where: { id: data.supplierId, isDeleted: false } });
+        if (!supplierExists) {
+          throw new BadRequestException(`Geçersiz tedarikçi: ID ${data.supplierId}`);
+        }
+      }
+
+      let warehouses = data.warehouses || {};
+      if ((data.quantity || 0) > 0 && Object.keys(warehouses).length === 0) {
+        const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+        if (activeWarehouses.length > 0) {
+          warehouses = { [activeWarehouses[0].name]: data.quantity || 0 };
+        }
+      }
+
+      const newProd = manager.create(ProductEntity, {
+        ...data,
+        warehouses,
+        status: this.calculateStatus(data.quantity || 0, data.minQuantity || 5)
+      });
+
       const savedProd = await manager.save(ProductEntity, newProd);
       
       if (savedProd.quantity > 0) {
@@ -207,9 +290,34 @@ export class DbService implements OnModuleInit {
     const savedProducts: ProductEntity[] = [];
     
     await this.dataSource.transaction(async manager => {
+      const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+      const defaultWarehouseName = activeWarehouses.length > 0 ? activeWarehouses[0].name : null;
+
       for (const data of products) {
+        // Validate category slug exists in db
+        if (data.category) {
+          const categoryExists = await manager.findOne(CategoryEntity, { where: { slug: data.category, isDeleted: false } });
+          if (!categoryExists) {
+            throw new BadRequestException(`Geçersiz kategori: ${data.category}`);
+          }
+        }
+
+        // Validate supplier exists in db
+        if (data.supplierId) {
+          const supplierExists = await manager.findOne(SupplierEntity, { where: { id: data.supplierId, isDeleted: false } });
+          if (!supplierExists) {
+            throw new BadRequestException(`Geçersiz tedarikçi: ID ${data.supplierId}`);
+          }
+        }
+
+        let warehouses = data.warehouses || {};
+        if ((data.quantity || 0) > 0 && Object.keys(warehouses).length === 0 && defaultWarehouseName) {
+          warehouses = { [defaultWarehouseName]: data.quantity || 0 };
+        }
+
         const newProd = manager.create(ProductEntity, {
           ...data,
+          warehouses,
           status: this.calculateStatus(data.quantity || 0, data.minQuantity || 5)
         });
         
@@ -239,7 +347,7 @@ export class DbService implements OnModuleInit {
     return savedProducts;
   }
 
-  async updateProduct(id: string, updates: Partial<Omit<Product, 'id' | 'status' | 'isDeleted'>>): Promise<ProductEntity | null> {
+  async updateProduct(id: string, updates: Partial<ProductEntity>, performedBy: string = 'System'): Promise<ProductEntity | null> {
     const saved = await this.dataSource.transaction(async (manager) => {
       const current = await manager.findOne(ProductEntity, {
         where: { id, isDeleted: false },
@@ -247,9 +355,36 @@ export class DbService implements OnModuleInit {
       });
       if (!current) return null;
 
+      // Validate category slug exists in db if updated
+      if (updates.category) {
+        const categoryExists = await manager.findOne(CategoryEntity, { where: { slug: updates.category, isDeleted: false } });
+        if (!categoryExists) {
+          throw new BadRequestException(`Geçersiz kategori: ${updates.category}`);
+        }
+      }
+
+      // Validate supplier exists in db if updated
+      if (updates.supplierId) {
+        const supplierExists = await manager.findOne(SupplierEntity, { where: { id: updates.supplierId, isDeleted: false } });
+        if (!supplierExists) {
+          throw new BadRequestException(`Geçersiz tedarikçi: ID ${updates.supplierId}`);
+        }
+      }
+
       const updatedQty = updates.quantity !== undefined ? updates.quantity : current.quantity;
       const updatedMin = updates.minQuantity !== undefined ? updates.minQuantity : current.minQuantity;
       const status = this.calculateStatus(updatedQty, updatedMin);
+
+      if (updates.quantity !== undefined && updates.quantity !== current.quantity && !updates.warehouses) {
+        const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+        const activeNames = activeWarehouses.map(w => w.name);
+        const diff = updates.quantity - current.quantity;
+        if (diff > 0) {
+          current.warehouses = this.addStockToWarehouses(current.warehouses, diff, activeNames);
+        } else if (diff < 0) {
+          current.warehouses = this.deductStockFromWarehouses(current.warehouses, Math.abs(diff), activeNames);
+        }
+      }
 
       const oldQuantity = current.quantity;
       Object.assign(current, updates, { status });
@@ -265,7 +400,7 @@ export class DbService implements OnModuleInit {
           previousQuantity: oldQuantity,
           newQuantity: updates.quantity,
           note: 'Stock update',
-          performedBy: 'System',
+          performedBy,
           referenceType: 'manual'
         }));
       }
@@ -322,17 +457,43 @@ export class DbService implements OnModuleInit {
     return this.orderRepo.findOne({ where: { id } });
   }
 
-  async createOrder(order: Omit<Order, 'id' | 'orderNumber' | 'totalAmount' | 'items'> & { items: Omit<OrderItem, 'price'>[] }): Promise<OrderEntity> {
+  async createOrder(order: Omit<Order, 'id' | 'orderNumber' | 'totalAmount' | 'items'> & { items: Omit<OrderItem, 'price'>[] }, performedBy: string = 'System'): Promise<OrderEntity> {
+    if (order.status === 'Cancelled') {
+      throw new BadRequestException('Yeni bir sipariş "İptal Edildi" (Cancelled) durumuyla oluşturulamaz.');
+    }
     const productsToEmit: ProductEntity[] = [];
     const savedOrder = await this.dataSource.transaction(async (manager) => {
-      // 1. Generate orderNumber safely
-      const orderNumber = `ORD-${Date.now()}`;
+      // 1. Generate orderNumber safely with retry loop to prevent collisions
+      let orderNumber = '';
+      let attempts = 0;
+      const maxAttempts = 5;
+      while (attempts < maxAttempts) {
+        orderNumber = `ORD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const existing = await manager.findOne(OrderEntity, { where: { orderNumber } });
+        if (!existing) break;
+        attempts++;
+      }
+      if (attempts === maxAttempts) {
+        throw new BadRequestException('Benzersiz sipariş numarası üretilemedi, lütfen tekrar deneyin.');
+      }
 
       // 2. Verify stocks and subtract them within the transaction
       let totalAmount = 0;
       const items: OrderItem[] = [];
 
+      // Merge items with duplicate productId (Bulgu #17)
+      const mergedItemsMap = new Map<string, Omit<OrderItem, 'price'>>();
       for (const item of order.items) {
+        if (mergedItemsMap.has(item.productId)) {
+          const existing = mergedItemsMap.get(item.productId)!;
+          existing.quantity += item.quantity;
+        } else {
+          mergedItemsMap.set(item.productId, { ...item });
+        }
+      }
+      const orderItems = Array.from(mergedItemsMap.values());
+
+      for (const item of orderItems) {
         // Find product with pessimistic write lock to block concurrent updates
         const prod = await manager.findOne(ProductEntity, {
           where: { id: item.productId, isDeleted: false },
@@ -349,6 +510,11 @@ export class DbService implements OnModuleInit {
         // Subtract stock if completed or pending
         if (order.status === 'Completed' || order.status === 'Pending') {
           const oldQty = prod.quantity;
+          
+          const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+          const activeNames = activeWarehouses.map(w => w.name);
+          prod.warehouses = this.deductStockFromWarehouses(prod.warehouses, item.quantity, activeNames);
+
           prod.quantity -= item.quantity;
           prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
           const savedProd = await manager.save(ProductEntity, prod);
@@ -364,7 +530,7 @@ export class DbService implements OnModuleInit {
             referenceId: orderNumber,
             referenceType: 'order',
             note: `Sipariş oluşturuldu: ${orderNumber}`,
-            performedBy: 'System'
+            performedBy
           }));
         }
 
@@ -396,7 +562,7 @@ export class DbService implements OnModuleInit {
     return savedOrder;
   }
 
-  async updateOrderStatus(id: string, status: 'Completed' | 'Pending' | 'Cancelled' | string): Promise<OrderEntity | null> {
+  async updateOrderStatus(id: string, status: 'Completed' | 'Pending' | 'Cancelled' | string, performedBy: string = 'System'): Promise<OrderEntity | null> {
     const productsToEmit: ProductEntity[] = [];
     const savedOrder = await this.dataSource.transaction(async (manager) => {
       // Find the order and lock it
@@ -409,33 +575,11 @@ export class DbService implements OnModuleInit {
       const oldStatus = order.status;
       if (oldStatus === status) return order;
 
-      if (oldStatus === 'Cancelled' && (status === 'Pending' || status === 'Completed')) {
-        for (const item of order.items) {
-          const prod = await manager.findOne(ProductEntity, {
-            where: { id: item.productId },
-            lock: { mode: 'pessimistic_write' }
-          });
-          if (!prod) throw new BadRequestException(`Ürün artık mevcut değil: ${item.productName}`);
-          if (prod.quantity < item.quantity) throw new BadRequestException(`Yetersiz stok: ${prod.name} (Mevcut: ${prod.quantity})`);
-          const oldQty = prod.quantity;
-          prod.quantity -= item.quantity;
-          prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
-          const savedProd = await manager.save(ProductEntity, prod);
-          productsToEmit.push(savedProd);
-
-          await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
-            productId: savedProd.id,
-            productName: savedProd.name,
-            type: 'ORDER',
-            quantity: -item.quantity,
-            previousQuantity: oldQty,
-            newQuantity: prod.quantity,
-            referenceId: order.orderNumber,
-            referenceType: 'order',
-            note: `Sipariş iptalden geri alındı: ${order.orderNumber}`,
-            performedBy: 'System'
-          }));
-        }
+      if (oldStatus === 'Cancelled') {
+        throw new BadRequestException('İptal edilmiş bir siparişin durumu değiştirilemez.');
+      }
+      if (oldStatus === 'Completed' && status === 'Pending') {
+        throw new BadRequestException('Tamamlanmış bir sipariş tekrar "Beklemede" (Pending) durumuna alınamaz.');
       }
 
       if (status === 'Cancelled' && (oldStatus === 'Pending' || oldStatus === 'Completed')) {
@@ -446,6 +590,11 @@ export class DbService implements OnModuleInit {
           });
           if (prod) {
             const oldQty = prod.quantity;
+
+            const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+            const activeNames = activeWarehouses.map(w => w.name);
+            prod.warehouses = this.addStockToWarehouses(prod.warehouses, item.quantity, activeNames);
+
             prod.quantity += item.quantity;
             prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
             const savedProd = await manager.save(ProductEntity, prod);
@@ -461,7 +610,7 @@ export class DbService implements OnModuleInit {
               referenceId: order.orderNumber,
               referenceType: 'order',
               note: `Sipariş iptal edildi: ${order.orderNumber}`,
-              performedBy: 'System'
+              performedBy
             }));
           }
         }
@@ -478,6 +627,19 @@ export class DbService implements OnModuleInit {
       }
     }
     return savedOrder;
+  }
+
+  async deleteOrder(id: string): Promise<boolean> {
+    const order = await this.orderRepo.findOne({ where: { id } });
+    if (order) {
+      if (order.status !== 'Cancelled') {
+        throw new BadRequestException('Sadece iptal edilmiş siparişler silinebilir.');
+      }
+      await this.orderRepo.softRemove(order);
+      this.appGateway.server.emit('order_mutated', { type: 'delete', orderId: id });
+      return true;
+    }
+    return false;
   }
 
   // Stock Movements
@@ -512,6 +674,16 @@ export class DbService implements OnModuleInit {
       const oldQty = prod.quantity;
       const diff = newQuantity - oldQty;
       
+      if (diff !== 0) {
+        const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+        const activeNames = activeWarehouses.map(w => w.name);
+        if (diff > 0) {
+          prod.warehouses = this.addStockToWarehouses(prod.warehouses, diff, activeNames);
+        } else {
+          prod.warehouses = this.deductStockFromWarehouses(prod.warehouses, Math.abs(diff), activeNames);
+        }
+      }
+
       prod.quantity = newQuantity;
       prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
       const savedProd = await manager.save(ProductEntity, prod);
@@ -620,60 +792,88 @@ export class DbService implements OnModuleInit {
   }
 
   async createPurchaseOrder(data: Partial<PurchaseOrderEntity>): Promise<PurchaseOrderEntity> {
-    const repo = this.dataSource.getRepository(PurchaseOrderEntity);
-    const count = await repo.count();
-    const poNumber = `PO-${1000 + count + 1}`;
+    return await this.dataSource.transaction(async manager => {
+      const repo = manager.getRepository(PurchaseOrderEntity);
 
-    if (!data.supplierId) {
-      throw new BadRequestException('Tedarikçi ID\'si (supplierId) belirtilmelidir.');
-    }
-    const supplier = await this.supplierRepo.findOne({ where: { id: data.supplierId, isDeleted: false } });
-    if (!supplier) {
-      throw new BadRequestException(`Tedarikçi bulunamadı: ID ${data.supplierId}`);
-    }
-    data.supplierName = supplier.name;
+      let poNumber = '';
+      let attempts = 0;
+      const maxAttempts = 5;
+      while (attempts < maxAttempts) {
+        poNumber = `PO-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const existing = await repo.findOne({ where: { poNumber } });
+        if (!existing) break;
+        attempts++;
+      }
+      if (attempts === maxAttempts) {
+        throw new BadRequestException('Benzersiz satın alma sipariş numarası üretilemedi, lütfen tekrar deneyin.');
+      }
 
-    let calculatedTotal = 0;
-    if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
-      throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
-    }
-    for (const item of data.items) {
-      if (!item.productId) {
-        throw new BadRequestException('Sipariş kalemi için ürün ID\'si (productId) belirtilmelidir.');
+      if (!data.supplierId) {
+        throw new BadRequestException('Tedarikçi ID\'si (supplierId) belirtilmelidir.');
       }
-      const product = await this.productRepo.findOne({ where: { id: item.productId, isDeleted: false } });
-      if (!product) {
-        throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
+      const supplier = await manager.findOne(SupplierEntity, { where: { id: data.supplierId, isDeleted: false } });
+      if (!supplier) {
+        throw new BadRequestException(`Tedarikçi bulunamadı: ID ${data.supplierId}`);
       }
-      item.productName = product.name;
-      if (item.price === undefined || item.price === null || item.price === 0) {
-        item.price = product.price;
+      data.supplierName = supplier.name;
+
+      let calculatedTotal = 0;
+      if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+        throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
       }
-      calculatedTotal += (item.price || 0) * (item.quantity || 0);
-    }
-    data.totalAmount = parseFloat(calculatedTotal.toFixed(2));
-    
-    const newPo = repo.create({
-      ...data,
-      poNumber,
-      status: 'Draft'
+      for (const item of data.items) {
+        if (!item.productId) {
+          throw new BadRequestException('Sipariş kalemi için ürün ID\'si (productId) belirtilmelidir.');
+        }
+        const product = await manager.findOne(ProductEntity, { where: { id: item.productId, isDeleted: false } });
+        if (!product) {
+          throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
+        }
+        item.productName = product.name;
+        if (item.price === undefined || item.price === null || item.price === 0) {
+          item.price = product.price;
+        }
+        calculatedTotal += (item.price || 0) * (item.quantity || 0);
+      }
+      data.totalAmount = parseFloat(calculatedTotal.toFixed(2));
+      
+      const newPo = repo.create({
+        ...data,
+        poNumber,
+        status: 'Draft'
+      });
+      const saved = await repo.save(newPo);
+      this.appGateway.server.emit('purchase_order_mutated', { type: 'create', purchaseOrder: saved });
+      return saved;
     });
-    const saved = await repo.save(newPo);
-    this.appGateway.server.emit('purchase_order_mutated', { type: 'create', purchaseOrder: saved });
-    return saved;
   }
 
-  async updatePurchaseOrderStatus(id: string, status: string): Promise<PurchaseOrderEntity | null> {
+  async updatePurchaseOrderStatus(id: string, status: string, performedBy: string = 'System'): Promise<PurchaseOrderEntity | null> {
     const saved = await this.dataSource.transaction(async manager => {
       const po = await manager.findOne(PurchaseOrderEntity, { where: { id }, lock: { mode: 'pessimistic_write' } });
       if (!po) return null;
 
-      if (po.status !== 'Received' && status === 'Received') {
+      const oldStatus = po.status;
+      if (oldStatus === status) return po;
+
+      if (oldStatus === 'Received') {
+        throw new BadRequestException('Teslim alınmış bir satın alma siparişinin durumu değiştirilemez.');
+      }
+      if (oldStatus === 'Cancelled') {
+        throw new BadRequestException('İptal edilmiş bir satın alma siparişinin durumu değiştirilemez.');
+      }
+
+      if (oldStatus !== 'Received' && status === 'Received') {
         // Stok artışı ve log
         for (const item of po.items) {
           const prod = await manager.findOne(ProductEntity, { where: { id: item.productId }, lock: { mode: 'pessimistic_write' } });
           if (prod) {
             const oldQty = prod.quantity;
+
+            const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+            const activeNames = activeWarehouses.map(w => w.name);
+            prod.warehouses = this.addStockToWarehouses(prod.warehouses, item.quantity, activeNames);
+
             prod.quantity += item.quantity;
             prod.status = this.calculateStatus(prod.quantity, prod.minQuantity);
             await manager.save(ProductEntity, prod);
@@ -688,7 +888,7 @@ export class DbService implements OnModuleInit {
               referenceId: po.poNumber,
               referenceType: 'purchase_order',
               note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
-              performedBy: 'System'
+              performedBy
             }));
             
             this.appGateway.server.emit('product_mutated', { type: 'update', product: prod });
@@ -706,6 +906,67 @@ export class DbService implements OnModuleInit {
     return saved;
   }
 
+  async updatePurchaseOrder(id: string, updates: Partial<PurchaseOrderEntity>): Promise<PurchaseOrderEntity | null> {
+    const repo = this.dataSource.getRepository(PurchaseOrderEntity);
+    const po = await repo.findOne({ where: { id } });
+    if (!po) return null;
+    if (po.status !== 'Draft') {
+      throw new BadRequestException('Sadece "Taslak" (Draft) durumundaki satın alma siparişleri güncellenebilir.');
+    }
+
+    if (updates.supplierId && updates.supplierId !== po.supplierId) {
+      const supplier = await this.supplierRepo.findOne({ where: { id: updates.supplierId, isDeleted: false } });
+      if (!supplier) {
+        throw new BadRequestException(`Tedarikçi bulunamadı: ID ${updates.supplierId}`);
+      }
+      po.supplierId = updates.supplierId;
+      po.supplierName = supplier.name;
+    }
+
+    if (updates.items) {
+      if (!Array.isArray(updates.items) || updates.items.length === 0) {
+        throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
+      }
+      let calculatedTotal = 0;
+      for (const item of updates.items) {
+        if (!item.productId) {
+          throw new BadRequestException('Sipariş kalemi için ürün ID\'si (productId) belirtilmelidir.');
+        }
+        const product = await this.productRepo.findOne({ where: { id: item.productId, isDeleted: false } });
+        if (!product) {
+          throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
+        }
+        item.productName = product.name;
+        if (item.price === undefined || item.price === null || item.price === 0) {
+          item.price = product.price;
+        }
+        calculatedTotal += (item.price || 0) * (item.quantity || 0);
+      }
+      po.items = updates.items;
+      po.totalAmount = parseFloat(calculatedTotal.toFixed(2));
+    }
+
+    if (updates.notes !== undefined) {
+      po.notes = updates.notes;
+    }
+
+    const saved = await repo.save(po);
+    this.appGateway.server.emit('purchase_order_mutated', { type: 'update', purchaseOrder: saved });
+    return saved;
+  }
+
+  async deletePurchaseOrder(id: string): Promise<boolean> {
+    const repo = this.dataSource.getRepository(PurchaseOrderEntity);
+    const po = await repo.findOne({ where: { id } });
+    if (!po) return false;
+    if (po.status !== 'Draft') {
+      throw new BadRequestException('Sadece "Taslak" (Draft) durumundaki satın alma siparişleri silinebilir.');
+    }
+    await repo.remove(po);
+    this.appGateway.server.emit('purchase_order_mutated', { type: 'delete', purchaseOrderId: id });
+    return true;
+  }
+
   // Categories CRUD
   async getCategories(): Promise<CategoryEntity[]> {
     return this.categoryRepo.find({ where: { isDeleted: false }, order: { name: 'ASC' } });
@@ -713,6 +974,10 @@ export class DbService implements OnModuleInit {
 
   async createCategory(data: Partial<CategoryEntity>): Promise<CategoryEntity> {
     const slug = data.slug || this.slugify(data.name || '');
+    const existing = await this.categoryRepo.findOne({ where: { slug, isDeleted: false } });
+    if (existing) {
+      throw new BadRequestException('Bu kategori slug bilgisi zaten kullanımda.');
+    }
     const newCategory = this.categoryRepo.create({
       ...data,
       slug
@@ -724,9 +989,19 @@ export class DbService implements OnModuleInit {
     const category = await this.categoryRepo.findOne({ where: { id, isDeleted: false } });
     if (!category) return null;
     
-    if (updates.name && !updates.slug) {
-      updates.slug = this.slugify(updates.name);
+    let targetSlug = updates.slug;
+    if (updates.name && !targetSlug) {
+      targetSlug = this.slugify(updates.name);
     }
+
+    if (targetSlug && targetSlug !== category.slug) {
+      const existing = await this.categoryRepo.findOne({ where: { slug: targetSlug, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException('Bu kategori slug bilgisi zaten kullanımda.');
+      }
+      updates.slug = targetSlug;
+    }
+
     Object.assign(category, updates);
     return await this.categoryRepo.save(category);
   }
@@ -760,6 +1035,46 @@ export class DbService implements OnModuleInit {
       .replace(/\s+/g, '-')
       .replace(/[^\w\-]+/g, '')
       .replace(/\-\-+/g, '-');
+  }
+
+  private deductStockFromWarehouses(
+    warehouses: Record<string, number> | null,
+    quantityToSubtract: number,
+    activeWarehouseNames: string[]
+  ): Record<string, number> {
+    const wh = { ...(warehouses || {}) };
+    let remaining = quantityToSubtract;
+
+    for (const name of activeWarehouseNames) {
+      if (remaining <= 0) break;
+      const currentQty = wh[name] || 0;
+      if (currentQty > 0) {
+        const toSubtract = Math.min(currentQty, remaining);
+        wh[name] = currentQty - toSubtract;
+        remaining -= toSubtract;
+      }
+    }
+
+    if (remaining > 0 && activeWarehouseNames.length > 0) {
+      const firstWhName = activeWarehouseNames[0];
+      const currentQty = wh[firstWhName] || 0;
+      wh[firstWhName] = currentQty - remaining;
+    }
+
+    return wh;
+  }
+
+  private addStockToWarehouses(
+    warehouses: Record<string, number> | null,
+    quantityToAdd: number,
+    activeWarehouseNames: string[]
+  ): Record<string, number> {
+    const wh = { ...(warehouses || {}) };
+    if (activeWarehouseNames.length > 0) {
+      const firstWhName = activeWarehouseNames[0];
+      wh[firstWhName] = (wh[firstWhName] || 0) + quantityToAdd;
+    }
+    return wh;
   }
 
   // Reports API aggregation queries
@@ -942,7 +1257,7 @@ export class DbService implements OnModuleInit {
       status: 'InProgress',
       items,
       startedAt: now,
-      performedBy: performedBy || 'Admin',
+      performedBy: performedBy || 'System',
       notes: notes || ''
     });
 
@@ -990,16 +1305,29 @@ export class DbService implements OnModuleInit {
     const completedCount = await this.dataSource.transaction(async (manager) => {
       // Loop over items and perform adjustments if difference is non-zero
       for (const item of count.items) {
-        const difference = Number(item.countedQuantity) - Number(item.systemQuantity);
-        if (difference !== 0) {
-          // Lock and load product
-          const product = await manager.findOne(ProductEntity, {
-            where: { id: item.productId, isDeleted: false },
-            lock: { mode: 'pessimistic_write' }
-          });
+        // Lock and load product
+        const product = await manager.findOne(ProductEntity, {
+          where: { id: item.productId, isDeleted: false },
+          lock: { mode: 'pessimistic_write' }
+        });
+        
+        if (product) {
+          const oldQty = product.quantity;
+          const difference = Number(item.countedQuantity) - oldQty;
           
-          if (product) {
-            const oldQty = product.quantity;
+          // Update item's systemQuantity and difference to reflect reality at completion
+          item.systemQuantity = oldQty;
+          item.difference = difference;
+
+          if (difference !== 0) {
+            const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+            const activeNames = activeWarehouses.map(w => w.name);
+            if (difference > 0) {
+              product.warehouses = this.addStockToWarehouses(product.warehouses, difference, activeNames);
+            } else {
+              product.warehouses = this.deductStockFromWarehouses(product.warehouses, Math.abs(difference), activeNames);
+            }
+
             product.quantity = item.countedQuantity;
             product.status = this.calculateStatus(product.quantity, product.minQuantity);
             const savedProd = await manager.save(ProductEntity, product);
@@ -1016,7 +1344,7 @@ export class DbService implements OnModuleInit {
               referenceId: count.id,
               referenceType: 'stock_count',
               note: `Sayım Düzeltmesi (Fark: ${difference > 0 ? '+' : ''}${difference})`,
-              performedBy: performedBy || 'Admin'
+              performedBy: performedBy || 'System'
             });
             await manager.save(StockMovementEntity, newMovement);
 
@@ -1042,30 +1370,94 @@ export class DbService implements OnModuleInit {
 
   // ─── Warehouse Management ────────────────────────────────────
   async getWarehouses(): Promise<any[]> {
+    const activeWarehouses = await this.warehouseRepo.find({ where: { isDeleted: false } });
     const products = await this.productRepo.find({ where: { isDeleted: false } });
-    const warehouseMap: Record<string, { name: string; productCount: number; totalStock: number; totalValue: number }> = {};
+    const warehouseMap: Record<string, { id: string; name: string; code: string; address?: string; productCount: number; totalStock: number; totalValue: number }> = {};
+
+    for (const wh of activeWarehouses) {
+      warehouseMap[wh.name] = {
+        id: wh.id,
+        name: wh.name,
+        code: wh.code,
+        address: wh.address,
+        productCount: 0,
+        totalStock: 0,
+        totalValue: 0
+      };
+    }
 
     for (const p of products) {
       const wh = p.warehouses || {};
       for (const [whName, qty] of Object.entries(wh)) {
-        if (!warehouseMap[whName]) {
-          warehouseMap[whName] = { name: whName, productCount: 0, totalStock: 0, totalValue: 0 };
+        if (warehouseMap[whName]) {
+          if (qty > 0) warehouseMap[whName].productCount++;
+          warehouseMap[whName].totalStock += qty;
+          warehouseMap[whName].totalValue += qty * p.price;
         }
-        if (qty > 0) warehouseMap[whName].productCount++;
-        warehouseMap[whName].totalStock += qty;
-        warehouseMap[whName].totalValue += qty * p.price;
       }
     }
 
-    // If no warehouse data, return default empty warehouses
-    if (Object.keys(warehouseMap).length === 0) {
-      return [
-        { name: 'Merkez Depo', productCount: 0, totalStock: 0, totalValue: 0 },
-        { name: 'Ataşehir Şube', productCount: 0, totalStock: 0, totalValue: 0 },
-      ];
-    }
-
     return Object.values(warehouseMap);
+  }
+
+  async createWarehouse(data: Partial<WarehouseEntity>): Promise<WarehouseEntity> {
+    if (data.name) {
+      const existing = await this.warehouseRepo.findOne({ where: { name: data.name, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu isimde bir depo zaten mevcut: ${data.name}`);
+      }
+    }
+    if (data.code) {
+      const existing = await this.warehouseRepo.findOne({ where: { code: data.code, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu kodda bir depo zaten mevcut: ${data.code}`);
+      }
+    }
+    const newWarehouse = this.warehouseRepo.create(data);
+    const saved = await this.warehouseRepo.save(newWarehouse);
+    this.appGateway.server.emit('warehouse_mutated', { type: 'create', warehouse: saved });
+    return saved;
+  }
+
+  async updateWarehouse(id: string, updates: Partial<WarehouseEntity>): Promise<WarehouseEntity | null> {
+    const warehouse = await this.warehouseRepo.findOne({ where: { id, isDeleted: false } });
+    if (!warehouse) return null;
+
+    if (updates.name && updates.name !== warehouse.name) {
+      const existing = await this.warehouseRepo.findOne({ where: { name: updates.name, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu isimde bir depo zaten mevcut: ${updates.name}`);
+      }
+    }
+    if (updates.code && updates.code !== warehouse.code) {
+      const existing = await this.warehouseRepo.findOne({ where: { code: updates.code, isDeleted: false } });
+      if (existing) {
+        throw new BadRequestException(`Bu kodda bir depo zaten mevcut: ${updates.code}`);
+      }
+    }
+    
+    Object.assign(warehouse, updates);
+    const saved = await this.warehouseRepo.save(warehouse);
+    this.appGateway.server.emit('warehouse_mutated', { type: 'update', warehouse: saved });
+    return saved;
+  }
+
+  async deleteWarehouse(id: string): Promise<boolean> {
+    const warehouse = await this.warehouseRepo.findOne({ where: { id, isDeleted: false } });
+    if (warehouse) {
+      const activeProducts = await this.productRepo.find({ where: { isDeleted: false } });
+      for (const p of activeProducts) {
+        const qty = p.warehouses?.[warehouse.name] || 0;
+        if (qty > 0) {
+          throw new BadRequestException(`Bu depoda aktif stok bulunduğundan silinemez. Ürün: ${p.name} (${qty} adet)`);
+        }
+      }
+      warehouse.isDeleted = true;
+      await this.warehouseRepo.save(warehouse);
+      this.appGateway.server.emit('warehouse_mutated', { type: 'delete', warehouseId: id });
+      return true;
+    }
+    return false;
   }
 
   async transferWarehouseStock(
@@ -1073,7 +1465,7 @@ export class DbService implements OnModuleInit {
     fromWarehouse: string,
     toWarehouse: string,
     quantity: number,
-    performedBy: string = 'Admin'
+    performedBy: string = 'System'
   ): Promise<ProductEntity | null> {
     return this.dataSource.transaction(async (manager) => {
       const product = await manager.findOne(ProductEntity, {
@@ -1117,7 +1509,7 @@ export class DbService implements OnModuleInit {
   // ─── Auto Draft Purchase Orders ──────────────────────────────
   async autoDraftPurchaseOrders(): Promise<any[]> {
     const products = await this.productRepo.find({ where: { isDeleted: false } });
-    const lowStockProducts = products.filter(p => p.quantity < p.minQuantity && p.quantity >= 0);
+    const lowStockProducts = products.filter(p => p.quantity < p.minQuantity && p.quantity >= 0 && p.supplierId);
 
     if (lowStockProducts.length === 0) {
       return [];
@@ -1196,5 +1588,148 @@ export class DbService implements OnModuleInit {
       .getMany();
 
     return { product, movements };
+  }
+
+  // ─── User Management Helpers ──────────────────────────────────
+  hashPassword(password: string): string {
+    return crypto.createHash('sha256').update(password).digest('hex');
+  }
+
+  async getUserByUsername(username: string): Promise<UserEntity | null> {
+    return this.userRepo.findOne({ where: { username } });
+  }
+
+  async updateUserProfile(username: string, updates: Partial<UserEntity>): Promise<UserEntity> {
+    const user = await this.getUserByUsername(username);
+    if (!user) {
+      throw new BadRequestException('Kullanıcı bulunamadı.');
+    }
+    if (updates.fullName !== undefined) user.fullName = updates.fullName;
+    if (updates.email !== undefined) user.email = updates.email;
+    if (updates.department !== undefined) user.department = updates.department;
+    if (updates.avatar !== undefined) user.avatar = updates.avatar;
+
+    const saved = await this.userRepo.save(user);
+    delete (saved as any).password;
+    return saved;
+  }
+
+  async updateUserPassword(username: string, newPasswordPlain: string): Promise<void> {
+    const user = await this.getUserByUsername(username);
+    if (!user) {
+      throw new BadRequestException('Kullanıcı bulunamadı.');
+    }
+    user.password = this.hashPassword(newPasswordPlain);
+    user.tokenVersion++;
+    await this.userRepo.save(user);
+  }
+
+  async terminateUserSessions(username: string): Promise<void> {
+    const user = await this.getUserByUsername(username);
+    if (!user) {
+      throw new BadRequestException('Kullanıcı bulunamadı.');
+    }
+    user.tokenVersion++;
+    await this.userRepo.save(user);
+  }
+
+  async getAllUsers(): Promise<UserEntity[]> {
+    const users = await this.userRepo.find({ order: { fullName: 'ASC' } });
+    return users.map(u => {
+      delete (u as any).password;
+      return u;
+    });
+  }
+
+  async createUser(adminUsername: string, data: any): Promise<UserEntity> {
+    const admin = await this.getUserByUsername(adminUsername);
+    if (!admin) {
+      throw new BadRequestException('Yönetici bulunamadı.');
+    }
+
+    const currentCount = await this.userRepo.count();
+    const plan = admin.subscriptionPlan || 'standard';
+
+    let limit = 1;
+    if (plan === 'professional') limit = 5;
+    else if (plan === 'ultra') limit = 999999;
+    else if (plan === 'none') limit = 0;
+
+    if (currentCount >= limit) {
+      const planName = plan === 'standard' ? 'Standart' : plan === 'professional' ? 'Profesyonel' : 'Ultra';
+      throw new BadRequestException(
+        `Mevcut planınız (${planName}) en fazla ${limit} kullanıcıya izin vermektedir. ` +
+        `Yeni kullanıcı eklemek için lütfen planınızı yükseltin.`
+      );
+    }
+
+    const existing = await this.userRepo.findOne({ where: { username: data.username } });
+    if (existing) {
+      throw new BadRequestException(`"${data.username}" kullanıcı adı zaten kullanımda.`);
+    }
+
+    const newUser = this.userRepo.create({
+      username: data.username,
+      password: this.hashPassword(data.password || '123456'),
+      role: data.role || 'viewer',
+      fullName: data.fullName,
+      email: data.email,
+      department: data.department || '',
+      subscriptionPlan: 'standard',
+      tokenVersion: 0
+    });
+
+    const saved = await this.userRepo.save(newUser);
+    delete (saved as any).password;
+    return saved;
+  }
+
+  async updateUser(id: string, updates: any): Promise<UserEntity> {
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) {
+      throw new BadRequestException('Kullanıcı bulunamadı.');
+    }
+
+    if (updates.fullName !== undefined) user.fullName = updates.fullName;
+    if (updates.email !== undefined) user.email = updates.email;
+    if (updates.department !== undefined) user.department = updates.department;
+    if (updates.role !== undefined) user.role = updates.role;
+    
+    if (updates.password) {
+      user.password = this.hashPassword(updates.password);
+      user.tokenVersion++;
+    }
+
+    const saved = await this.userRepo.save(user);
+    delete (saved as any).password;
+    return saved;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) return false;
+    
+    if (user.role === 'admin') {
+      throw new BadRequestException('Ana yönetici hesabı silinemez.');
+    }
+
+    await this.userRepo.remove(user);
+    return true;
+  }
+
+  async updateSubscription(username: string, plan: string): Promise<void> {
+    const user = await this.getUserByUsername(username);
+    if (!user) {
+      throw new BadRequestException('Kullanıcı bulunamadı.');
+    }
+    user.subscriptionPlan = plan;
+    if (plan === 'none') {
+      user.subscriptionExpiresAt = null as any;
+    } else {
+      const expires = new Date();
+      expires.setDate(expires.getDate() + 30);
+      user.subscriptionExpiresAt = expires;
+    }
+    await this.userRepo.save(user);
   }
 }

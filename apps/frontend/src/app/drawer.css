@@ -79,7 +79,7 @@
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   background: #fff;
 }
 
@@ -88,7 +88,7 @@
   flex-shrink: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid #f0f0f0;
   background: #fff;
@@ -98,77 +98,76 @@
   grid-template-columns: 1fr;
 }
 
-/* FORM FIELDS & FLOATING LABELS */
+/* FORM FIELDS & FLOATING LABELS - Refactored to match Amazon Checkout Modal */
 .form-field {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   width: 100%;
 }
 
 .form-input {
+  order: 2;
   width: 100%;
   box-sizing: border-box;
-  height: 52px;
-  padding: 18px 14px 6px 14px;
-  border: 1.5px solid #e0e0e0;
-  border-radius: 8px;
+  height: 38px;
+  padding: 0.5rem;
+  border: 1px solid #888C8C;
+  border-radius: 4px;
   font-family: var(--font-body);
-  font-size: 14px;
-  color: #1a1a1a;
+  font-size: 0.85rem;
+  color: #0F1111;
   background: #fff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   outline: none;
 }
 
 .form-input::placeholder {
-  color: transparent;
-  transition: color 0.15s ease;
-}
-
-.form-input:focus::placeholder {
-  color: #bbb;
+  color: #a6a6a6;
 }
 
 /* Textarea customized for heights */
 textarea.form-input {
   height: auto;
   min-height: 80px;
-  padding-top: 20px;
+  padding: 0.5rem;
   resize: vertical;
 }
 
 .form-label {
-  position: absolute;
-  left: 14px;
-  top: 26px;
-  transform: translateY(-50%);
+  order: 1;
+  position: static;
+  transform: none !important;
   font-family: var(--font-heading);
-  font-size: 14px;
-  color: #999;
-  pointer-events: none;
-  transition: transform 0.18s ease, top 0.18s ease, font-size 0.18s ease, color 0.18s ease;
-  transform-origin: left top;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0F1111;
+  pointer-events: auto;
+  transition: none;
   background: transparent;
+  text-align: left;
 }
 
-/* Float label when focused or has value */
+/* Reset and disable floating label visual transformations */
 .form-input:focus ~ .form-label,
-.form-input.has-value ~ .form-label {
-  top: 10px;
-  transform: translateY(0) scale(0.75);
-  color: #666;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+.form-input.has-value ~ .form-label,
+.form-select:focus ~ .form-label,
+.form-select.has-value ~ .form-label,
+select.form-input:focus ~ .form-label,
+select.form-input.has-value ~ .form-label {
+  position: static;
+  top: auto;
+  transform: none !important;
+  color: #0F1111;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 /* Focus borders */
 .form-input:focus {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
-}
-
-/* Dark label on focus */
-.form-input:focus ~ .form-label {
-  color: #1a1a1a;
+  border-color: #e77600;
+  box-shadow: 0 0 3px 2px rgba(228, 121, 17, 0.5);
 }
 
 /* Invalid state */
@@ -182,51 +181,90 @@ textarea.form-input {
 
 /* Invalid and focused reset */
 .form-input.ng-invalid.ng-touched:focus {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  border-color: #e77600;
+  box-shadow: 0 0 3px 2px rgba(228, 121, 17, 0.5);
 }
 .form-input.ng-invalid.ng-touched:focus ~ .form-label {
-  color: #1a1a1a;
+  color: #0F1111;
 }
 
 /* SELECT FIELDS */
-.form-select {
+.form-select, select.form-input {
+  order: 2;
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+  border: 1px solid #888C8C;
+  border-radius: 4px;
+  padding: 0.5rem 36px 0.5rem 0.5rem;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  outline: none;
+  background-color: #F0F2F2;
+  color: #0F1111;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(213,217,217,.15);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230F1111' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
-  padding-right: 36px;
-  cursor: pointer;
 }
 
-.form-select:focus ~ .form-label,
-.form-select.has-value ~ .form-label {
-  top: 10px;
-  transform: translateY(0) scale(0.75);
-  color: #666;
-  font-weight: 600;
+.form-select:hover, select.form-input:hover {
+  background-color: #E3E6E6;
 }
 
-/* SELECT VAL (backward compatibility if needed) */
-select.form-input {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  padding-right: 36px;
-  cursor: pointer;
+.form-select:focus, select.form-input:focus {
+  border-color: #e77600;
+  box-shadow: 0 0 3px 2px rgba(228, 121, 17, 0.5);
+}
+
+/* Custom dropdown triggers inside drawers override to match selects */
+.drawer-body .custom-select-trigger {
+  order: 2;
+  height: 38px !important;
+  padding: 0.5rem 36px 0.5rem 0.5rem !important;
+  border: 1px solid #888C8C !important;
+  border-radius: 4px !important;
+  background-color: #F0F2F2 !important;
+  color: #0F1111 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  box-shadow: 0 2px 5px rgba(213,217,217,.15) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease !important;
+  font-size: 0.85rem !important;
+  box-sizing: border-box !important;
+}
+
+.drawer-body .custom-select-trigger:hover {
+  background-color: #E3E6E6 !important;
+}
+
+.drawer-body .custom-select-trigger.open,
+.drawer-body .custom-select-trigger:focus {
+  border-color: #e77600 !important;
+  box-shadow: 0 0 3px 2px rgba(228, 121, 17, 0.5) !important;
 }
 
 /* PREFIX FOR CURRENCY/ICONS */
 .form-input--prefix { padding-left: 28px; }
 
+.custom-select-wrapper {
+  order: 2;
+  width: 100%;
+}
+
 .form-prefix {
   position: absolute;
-  left: 14px;
+  left: 12px;
   bottom: 10px;
-  font-size: 14px;
-  color: #999;
+  font-size: 0.85rem;
+  color: #565959;
   pointer-events: none;
+  z-index: 5;
   transition: opacity 0.18s ease;
 }
 
@@ -240,10 +278,53 @@ select.form-input {
 }
 
 .form-error {
+  order: 3;
   font-family: var(--font-heading);
   font-size: 12px;
   color: #e53e3e;
   margin-top: 4px;
+}
+
+/* DRAWER FOOTER BUTTONS - Match Amazon card modal actions */
+.drawer-footer .btn {
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.drawer-footer .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.drawer-footer .btn-primary {
+  background: #FFD814;
+  border: 1px solid #FCD200;
+  color: #0F1111;
+  box-shadow: 0 2px 5px rgba(213,217,217,.5);
+}
+
+.drawer-footer .btn-primary:hover:not(:disabled) {
+  background: #F7CA00;
+}
+
+.drawer-footer .btn-secondary {
+  background: #F0F2F2;
+  border: 1px solid #D5D9D9;
+  color: #0F1111;
+  box-shadow: 0 2px 5px rgba(213,217,217,.2);
+}
+
+.drawer-footer .btn-secondary:hover:not(:disabled) {
+  background: #E3E6E6;
 }
 
 /* RESPONSIVE DESIGN */

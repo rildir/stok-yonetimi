@@ -40,7 +40,7 @@
   height: 32px;
   border-radius: 6px;
   background-color: var(--primary);
-  color: white;
+  color: #0F1111;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -94,7 +94,7 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-muted);
+  color: #E6E6E6;
   font-family: var(--font-body);
   font-size: 0.85rem;
   font-weight: 500;
@@ -111,13 +111,13 @@
 }
 
 .nav-btn:hover {
-  background-color: var(--canvas);
-  color: var(--primary);
+  background-color: #37475A;
+  color: #FFFFFF;
 }
 
 .nav-btn.active {
   background-color: var(--primary);
-  color: white;
+  color: #0F1111;
 }
 
 .nav-btn svg,
@@ -179,8 +179,8 @@
   margin-left: auto;
 }
 .toggle-sidebar-btn:hover {
-  background: var(--canvas);
-  color: var(--primary);
+  background: #37475A;
+  color: #FFFFFF;
 }
 
 /* Collapsed State Styles */
@@ -272,53 +272,58 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.55rem 1rem;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-family: var(--font-heading);
+  padding: 0.55rem 1.25rem;
+  border: 1px solid #D5D9D9;
+  border-radius: 20px; /* Amazon style pill-shaped rounded buttons */
+  font-family: var(--font-body);
   font-weight: 500;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  background-color: #FFFFFF;
+  color: #0F1111;
+  box-shadow: 0 2px 5px 0 rgba(213,217,217,.5);
 }
 
 .btn-primary {
-  background-color: var(--primary);
-  color: white;
-  border-color: var(--primary);
+  background-color: var(--primary); /* Gold/Yellow */
+  color: #0F1111;
+  border-color: #FCD200;
 }
 .btn-primary:hover {
-  background-color: var(--primary-hover);
+  background-color: var(--primary-hover); /* Deeper yellow */
+  border-color: #F2C200;
 }
 
 .btn-outline {
-  background-color: transparent;
-  color: var(--primary);
-  border-color: var(--secondary);
+  background-color: #FFFFFF;
+  color: #0F1111;
+  border-color: #D5D9D9;
 }
 .btn-outline:hover {
-  background-color: var(--canvas);
-  border-color: #d1d5db;
+  background-color: #F7FAFA;
+  border-color: #D5D9D9;
 }
 
 .btn-secondary {
-  background-color: var(--canvas);
-  color: var(--text-primary);
-  border-color: var(--secondary);
+  background-color: #F0F2F2;
+  color: #0F1111;
+  border-color: #D5D9D9;
 }
 .btn-secondary:hover {
-  background-color: var(--secondary);
+  background-color: #E3E6E6;
+  border-color: #D5D9D9;
 }
 
 .btn-sm {
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem 0.85rem;
   font-size: 0.75rem;
 }
 
 .btn-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 /* ─── Stats Cards ─── */
@@ -599,14 +604,14 @@ table {
 }
 
 th {
-  background: var(--canvas);
+  background: #F7FAFA;
   padding: 0.8rem 1.25rem;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--secondary);
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #565959;
+  border-bottom: 2px solid #D5D9D9;
   white-space: nowrap;
 }
 
@@ -631,7 +636,7 @@ tbody tr:hover td {
 
 td strong {
   font-weight: 600;
-  color: var(--primary);
+  color: inherit;
 }
 
 .order-items-cell {
@@ -1653,7 +1658,7 @@ td strong {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--primary);
+  color: var(--text-muted);
 }
 
 .form-group input,
@@ -1671,8 +1676,8 @@ td strong {
 
 .form-group input:focus,
 .form-group select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.05);
+  border-color: #e77600;
+  box-shadow: 0 0 3px 2px rgba(228, 121, 17, 0.5);
 }
 
 .has-error input,
@@ -1798,7 +1803,7 @@ td strong {
   display: block;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text-muted);
   margin-bottom: 0.4rem;
 }
 
@@ -1810,14 +1815,14 @@ td strong {
   font-size: 0.85rem;
   transition: all 0.2s;
   background: var(--surface);
-  color: var(--primary);
+  color: var(--text-primary);
   box-sizing: border-box;
 }
 
 .login-form .form-group input:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.1);
+  border-color: #e77600;
+  box-shadow: 0 0 3px 2px rgba(228, 121, 17, 0.5);
 }
 
 .login-actions {
@@ -2368,7 +2373,7 @@ select:disabled {
 .detail-item-name {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text-primary);
 }
 
 .detail-item-calc {
@@ -2381,7 +2386,7 @@ select:disabled {
   font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text-primary);
 }
 
 .detail-grand-total {
@@ -2390,20 +2395,20 @@ select:disabled {
   align-items: center;
   padding-top: 1rem;
   margin-top: 0.5rem;
-  border-top: 1px solid var(--primary);
+  border-top: 1px solid var(--secondary);
 }
 
 .detail-grand-label {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--text-primary);
 }
 
 .detail-grand-value {
   font-family: var(--font-mono);
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--primary);
+  color: #B12704;
 }
 
 .detail-drawer-footer {
@@ -5600,3 +5605,480 @@ tr.selected td {
 .lock-overlay-pill:hover .lock-arrow-icon {
   transform: translateX(3px);
 }
+
+/* ─── Subscription Lockout Styles ─── */
+.nav-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+  pointer-events: none;
+  background-color: transparent !important;
+}
+
+.nav-btn.disabled:hover {
+  background: transparent !important;
+  color: var(--text-muted) !important;
+}
+
+.subscription-expired-blocking {
+  animation: fadeIn 0.3s ease-out;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+}
+
+/* ─── Lockout Screen & Card ─── */
+.lockout-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 120px);
+  padding: 2rem;
+  background-color: var(--canvas);
+  animation: fadeIn 0.4s ease;
+}
+
+.lockout-card {
+  background: var(--surface);
+  border: 1px solid var(--secondary);
+  border-radius: 12px;
+  box-shadow: var(--shadow-xl);
+  padding: 3rem;
+  max-width: 480px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lockout-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.05);
+  color: var(--status-outstock);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.1);
+  margin-bottom: 0.5rem;
+}
+
+.lockout-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.lockout-card h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.lockout-card p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.lockout-actions {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.lockout-actions .btn {
+  flex: 1;
+  max-width: 160px;
+}
+
+/* ─── Print Styles for Invoices ─── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area, .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ─── Amazon Style Payment Wallet & Checkout Form ─── */
+.amazon-wallet-pane {
+  background-color: var(--canvas);
+}
+
+.amazon-wallet-card {
+  background: var(--surface);
+  border: 1px solid var(--secondary);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.amazon-title {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.amazon-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.amazon-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.amazon-card-row {
+  border: 1px solid #D5D9D9;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #FFF;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.amazon-card-row:hover {
+  border-color: #888C8C;
+}
+
+.amazon-card-row.selected {
+  border-color: #e77600;
+  box-shadow: 0 0 4px rgba(231, 118, 0, 0.2);
+}
+
+.amazon-row-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.amazon-radio-wrapper {
+  padding-top: 2px;
+}
+
+.amazon-custom-radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #888C8C;
+  display: inline-block;
+  position: relative;
+  background: #fff;
+  transition: border-color 0.15s ease;
+}
+
+.amazon-custom-radio.checked {
+  border-color: #e77600;
+}
+
+.amazon-custom-radio.checked::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e77600;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.amazon-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.amazon-card-brand-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--font-mono);
+}
+
+.brand-badge.visa {
+  background-color: #1A1F71;
+}
+
+.brand-badge.master {
+  background-color: #EB001B;
+}
+
+.card-digits {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0F1111;
+}
+
+.amazon-card-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.amazon-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #F0F2F2;
+  padding-top: 0.5rem;
+}
+
+.amazon-link-btn {
+  background: none;
+  border: none;
+  color: #007185;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.amazon-link-btn:hover {
+  color: #c45500;
+  text-decoration: underline;
+}
+
+.amazon-link-btn.danger {
+  color: #B12704;
+}
+
+.amazon-link-btn.danger:hover {
+  color: #DC2626;
+}
+
+.amazon-actions-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Amazon Yellow Button style */
+.btn-amazon-primary {
+  background: #FFD814;
+  border: 1px solid #FCD200;
+  border-radius: 8px;
+  color: #0F1111;
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  box-shadow: 0 2px 5px rgba(213,217,217,.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.btn-amazon-primary:hover {
+  background: #F7CA00;
+}
+
+.btn-amazon-secondary {
+  background: #F0F2F2;
+  border: 1px solid #D5D9D9;
+  border-radius: 8px;
+  color: #0F1111;
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  box-shadow: 0 2px 5px rgba(213,217,217,.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.btn-amazon-secondary:hover {
+  background: #E3E6E6;
+}
+
+.btn-amazon-danger-outline {
+  background: transparent;
+  border: 1px solid #D5D9D9;
+  border-radius: 8px;
+  color: #B12704;
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: center;
+}
+
+.btn-amazon-danger-outline:hover {
+  background: rgba(177, 39, 4, 0.05);
+  border-color: #B12704;
+}
+
+.amazon-empty-state {
+  border: 1px dashed #D5D9D9;
+  border-radius: 8px;
+  padding: 2rem 1rem;
+  text-align: center;
+  background: rgba(0,0,0,0.01);
+}
+
+.amazon-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.amazon-empty-state h4 {
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.amazon-empty-state p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Amazon Checkout Form and Selects */
+.amazon-checkout-modal {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+}
+
+.amazon-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.amazon-form-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0F1111;
+  text-align: left;
+}
+
+.amazon-form-input {
+  border: 1px solid #888C8C;
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  outline: none;
+  background: #FFF;
+  color: #0F1111;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+}
+
+.amazon-form-input:focus, .amazon-form-select:focus {
+  border-color: #e77600;
+  box-shadow: 0 0 3px 2px rgba(228, 121, 17, 0.5);
+}
+
+.amazon-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.amazon-expiry-dropdowns {
+  display: flex;
+  gap: 8px;
+}
+
+.amazon-form-select {
+  border: 1px solid #888C8C;
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  outline: none;
+  background: #F0F2F2;
+  color: #0F1111;
+  flex: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(213,217,217,.15);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.amazon-form-select:hover {
+  background: #E3E6E6;
+}
+
+.amazon-checkout-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 1rem;
+  justify-content: flex-end;
+}
+
+.amazon-checkout-actions button {
+  width: auto;
+  min-width: 100px;
+}
+
+.amazon-payment-method-row {
+  border: 1px solid #D5D9D9;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: #FFF;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.amazon-payment-method-row.selected {
+  border-color: #e77600;
+}
+
+
+
+

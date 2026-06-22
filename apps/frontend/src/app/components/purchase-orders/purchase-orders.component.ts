@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormArray, FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
 import { AppStateService } from '../../services/app-state.service';
@@ -10,6 +11,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
   selector: 'app-purchase-orders',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent],
+  styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
       <div>
@@ -57,66 +59,108 @@ import { ToastComponent } from '../shared/toast/toast.component';
       </div>
     </div>
 
-    <div class="table-card">
-      @if (isLoading()) {
-        <div class="loading-state">Yükleniyor...</div>
-      } @else if (filteredOrders().length === 0) {
-        <div class="empty-state">
-          <p>Arama kriterlerine uygun satın alma siparişi bulunamadı.</p>
-          <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">Sipariş Oluştur</button>
-        </div>
-      } @else {
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>PO Numarası</th>
-                <th>Tarih</th>
-                <th>Tedarikçi</th>
-                <th>Durum</th>
-                <th style="text-align: right;">Toplam Tutar</th>
-                <th class="th-actions">İşlemler</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (o of filteredOrders(); track o.id) {
-                <tr style="cursor: pointer;" (click)="openDetailDrawer(o)">
-                  <td><strong>{{ o.poNumber }}</strong></td>
-                  <td class="mono">{{ o.createdAt | date:'dd.MM.yyyy' }}</td>
-                  <td>{{ o.supplierName }}</td>
-                  <td>
-                    <span class="badge" [ngClass]="getBadgeClass(o.status)">{{ getStatusName(o.status) }}</span>
-                  </td>
-                  <td class="mono" style="text-align: right; font-weight: 600;">₺{{ o.totalAmount | number:'1.2-2' }}</td>
-                  <td class="td-actions" (click)="$event.stopPropagation()">
-                    @if (o.status === 'Draft' || o.status === 'Sent') {
-                      @if (o.status === 'Draft') {
-                        <button class="edit-btn" style="color: var(--status-lowstock)" (click)="sendPurchaseOrder(o)" title="Siparişi Gönder">
-                          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                        </button>
-                      }
-                      <button class="edit-btn" style="color: var(--status-instock)" (click)="receivePurchaseOrder(o)" title="Teslim Al (Stoğa Ekle)">
-                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                      </button>
-                      <button class="delete-btn" (click)="cancelPurchaseOrder(o)" title="Siparişi İptal Et">
-                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                      </button>
+    @if (isLoading()) {
+      <div class="loading-state" style="padding: 3rem; text-align: center; color: #565959;">Yükleniyor...</div>
+    } @else if (filteredOrders().length === 0) {
+      <div class="empty-state" style="padding: 3rem; text-align: center; border: 1px dashed #D5D9D9; border-radius: 8px; background: #FFFFFF; width: 100%;">
+        <p style="font-size: 15px; color: #565959; margin-bottom: 16px;">Arama kriterlerine uygun satın alma siparişi bulunamadı.</p>
+        <button class="btn btn-outline" (click)="openDrawer()">Sipariş Oluştur</button>
+      </div>
+    } @else {
+      <!-- Result Cards Stack (Amazon "Siparişlerim" layout) -->
+      <div style="display: flex; flex-direction: column; gap: 1.25rem; width: 100%;">
+        @for (o of filteredOrders(); track o.id) {
+          <div class="amazon-order-card" style="border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFFFFF; font-size: 13px;">
+            <!-- Header Bar (Light Grey background) -->
+            <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
+              <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
+                <div>
+                  <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Sipariş Tarihi</div>
+                  <div style="color: #0F1111; font-weight: 500;">{{ o.createdAt | date:'dd.MM.yyyy' }}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Toplam Tutar</div>
+                  <div style="color: #B12704; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount | number:'1.2-2' }}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Tedarikçi</div>
+                  <div style="color: #0F1111; font-weight: 500;">{{ o.supplierName }}</div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; color: #0F1111;">PO No: #{{ o.poNumber }}</div>
+                <div>
+                  <a href="#" (click)="openDetailDrawer(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">Sipariş Detayları</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Body (White background) -->
+            <div class="order-card-body" style="padding: 16px 18px; display: flex; justify-content: space-between; align-items: start; gap: 1.5rem; flex-wrap: wrap;">
+              <!-- Left: Items list -->
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 250px;">
+                <h4 style="margin: 0; font-size: 14px; font-weight: bold; color: #0F1111; display: flex; align-items: center; gap: 8px;">
+                  <!-- Status badge -->
+                  <span class="badge" [class.badge-instock]="o.status === 'Received'" [class.badge-lowstock]="o.status === 'Draft' || o.status === 'Sent'" [class.badge-outstock]="o.status === 'Cancelled'">
+                    {{ getStatusName(o.status) }}
+                  </span>
+                </h4>
+                
+                <!-- Item detail rows -->
+                <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+                  @for (item of o.items; track item.productId) {
+                    <div style="display: flex; justify-content: space-between; width: 100%; max-width: 450px; font-size: 13px;">
+                      <span style="color: #007185; font-weight: 500;">{{ item.productName }}</span>
+                      <span style="color: #565959;">{{ item.quantity }} adet</span>
+                    </div>
+                  }
+                </div>
+
+                <!-- Notes/Expected date -->
+                @if (o.expectedDate || o.notes) {
+                  <div style="margin-top: 10px; font-size: 12px; color: #565959; background: #F7FAFA; border: 1px solid #D5D9D9; border-radius: 4px; padding: 6px 12px; display: inline-block; max-width: 450px;">
+                    @if (o.expectedDate) {
+                      📅 Beklenen Tarih: <strong>{{ o.expectedDate | date:'dd.MM.yyyy' }}</strong>
                     }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </div>
+                    @if (o.expectedDate && o.notes) { <span style="margin: 0 8px;">|</span> }
+                    @if (o.notes) {
+                      📝 Notlar: <em>{{ o.notes }}</em>
+                    }
+                  </div>
+                }
+              </div>
+
+              <!-- Right: Actions buttons -->
+              <div style="display: flex; flex-direction: column; gap: 8px; width: 160px; flex-shrink: 0;" (click)="$event.stopPropagation()">
+                @if (o.status === 'Draft' || o.status === 'Sent') {
+                  @if (o.status === 'Draft') {
+                    <button class="btn btn-primary btn-sm" (click)="sendPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
+                      Gönder
+                    </button>
+                    <button class="btn btn-secondary btn-sm" (click)="editPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
+                      Düzenle
+                    </button>
+                  }
+                  <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)" style="width: 100%; border-radius: 20px; background-color: #007185; color: #fff; border-color: #005a6a;">
+                    Teslim Al
+                  </button>
+                  <button class="btn btn-secondary btn-sm" (click)="o.status === 'Draft' ? deletePurchaseOrder(o) : cancelPurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
+                    {{ o.status === 'Draft' ? 'Sil' : 'İptal Et' }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
 
     <!-- New Order Drawer -->
     @if (isDrawerOpen()) {
       <div class="drawer-overlay" (click)="closeDrawer()">
         <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">Yeni Satın Alma Siparişi</span>
+            <span class="drawer-title">{{ editingPoId() ? 'Satın Alma Siparişini Düzenle' : 'Yeni Satın Alma Siparişi' }}</span>
             <button class="drawer-close" (click)="closeDrawer()">×</button>
           </div>
 
@@ -178,7 +222,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeDrawer()">Vazgeç</button>
               <button type="submit" class="btn btn-primary" [disabled]="poForm.invalid || itemsArray.length === 0 || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Oluşturuluyor... } @else { Oluştur }
+                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { {{ editingPoId() ? 'Güncelle' : 'Oluştur' }} }
               </button>
             </div>
           </form>
@@ -251,9 +295,12 @@ import { ToastComponent } from '../shared/toast/toast.component';
           <div class="drawer-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
             <button class="btn btn-secondary" (click)="closeDetailDrawer()">Kapat</button>
             @if (detailOrder().status === 'Draft' || detailOrder().status === 'Sent') {
-              <button class="btn btn-danger" (click)="cancelPurchaseOrder(detailOrder())">İptal Et</button>
               @if (detailOrder().status === 'Draft') {
+                <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">Sil</button>
+                <button class="btn btn-outline" (click)="editPurchaseOrder(detailOrder())">Düzenle</button>
                 <button class="btn btn-outline" (click)="sendPurchaseOrder(detailOrder())" style="border-color: var(--status-lowstock); color: var(--status-lowstock)">Gönder</button>
+              } @else {
+                <button class="btn btn-danger" (click)="cancelPurchaseOrder(detailOrder())">İptal Et</button>
               }
               <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">Teslim Al</button>
             }
@@ -332,6 +379,8 @@ export class PurchaseOrdersComponent implements OnInit {
   state = inject(AppStateService);
   ui = inject(UiStateService);
   fb = inject(FormBuilder);
+  route = inject(ActivatedRoute);
+  router = inject(Router);
 
   orders = signal<any[]>([]);
   suppliers = signal<any[]>([]);
@@ -340,6 +389,7 @@ export class PurchaseOrdersComponent implements OnInit {
   isSaving = signal(false);
   isAutoDrafting = signal(false);
   detailOrder = signal<any>(null);
+  editingPoId = signal<string | null>(null);
 
   // Filter Signals
   poSearch = signal('');
@@ -401,6 +451,18 @@ export class PurchaseOrdersComponent implements OnInit {
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
+    this.route.queryParams.subscribe(params => {
+      this.poSearch.set(params['q'] || '');
+      if (params['open'] === 'new') {
+        this.openDrawer();
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { open: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
+      }
+    });
   }
 
   loadData() {
@@ -434,6 +496,7 @@ export class PurchaseOrdersComponent implements OnInit {
 
   closeDrawer() {
     this.isDrawerOpen.set(false);
+    this.editingPoId.set(null);
   }
 
   openDetailDrawer(order: any) {
@@ -472,8 +535,22 @@ export class PurchaseOrdersComponent implements OnInit {
     this.isSaving.set(true);
     const data = this.poForm.value;
     
+    // Merge duplicate items by summing their quantities
+    const mergedMap = new Map<string, number>();
+    data.items.forEach((it: any) => {
+      const existingQty = mergedMap.get(it.productId) || 0;
+      mergedMap.set(it.productId, existingQty + Number(it.quantity));
+    });
+    
+    const mergedItems = Array.from(mergedMap.entries()).map(([productId, quantity]) => {
+      return {
+        productId,
+        quantity
+      };
+    });
+
     // Add product names to items
-    const items = data.items.map((it: any) => {
+    const items = mergedItems.map((it: any) => {
       const p = this.state.products().find(x => x.id === it.productId);
       return {
         ...it,
@@ -483,16 +560,59 @@ export class PurchaseOrdersComponent implements OnInit {
 
     data.items = items;
 
-    this.inventory.createPurchaseOrder(data).subscribe({
+    const request$ = this.editingPoId()
+      ? this.inventory.updatePurchaseOrder(this.editingPoId()!, data)
+      : this.inventory.createPurchaseOrder(data);
+
+    request$.subscribe({
       next: () => {
         this.isSaving.set(false);
         this.closeDrawer();
         this.loadData();
-        this.ui.showToast('Satın alma siparişi başarıyla oluşturuldu.', 'success');
+        this.ui.showToast(this.editingPoId() ? 'Satın alma siparişi başarıyla güncellendi.' : 'Satın alma siparişi başarıyla oluşturuldu.', 'success');
+        this.editingPoId.set(null);
       },
-      error: () => {
+      error: (err) => {
         this.isSaving.set(false);
-        this.ui.showToast('Satın alma siparişi oluşturulamadı.', 'error');
+        this.ui.showToast(err.error?.message || (this.editingPoId() ? 'Satın alma siparişi güncellenemedi.' : 'Satın alma siparişi oluşturulamadı.'), 'error');
+      }
+    });
+  }
+
+  editPurchaseOrder(order: any) {
+    this.editingPoId.set(order.id);
+    this.poForm.reset({
+      supplierId: order.supplierId,
+      supplierName: order.supplierName,
+      expectedDate: order.expectedDate ? order.expectedDate.slice(0, 10) : '',
+      notes: order.notes || ''
+    });
+    this.itemsArray.clear();
+    order.items.forEach((it: any) => {
+      this.itemsArray.push(this.fb.group({
+        productId: [it.productId, Validators.required],
+        quantity: [it.quantity, [Validators.required, Validators.min(1)]]
+      }));
+    });
+    this.closeDetailDrawer();
+    this.isDrawerOpen.set(true);
+  }
+
+  deletePurchaseOrder(order: any) {
+    this.ui.openConfirm({
+      title: 'Siparişi Sil',
+      message: `${order.poNumber} numaralı satın alma siparişini silmek istediğinize emin misiniz?`,
+      onConfirm: () => {
+        this.inventory.deletePurchaseOrder(order.id).subscribe({
+          next: () => {
+            this.closeDetailDrawer();
+            this.loadData();
+            this.ui.showToast('Satın alma siparişi silindi.', 'success');
+          },
+          error: (err) => {
+            this.ui.showToast(err.error?.message || 'İşlem gerçekleştirilemedi.', 'error');
+          }
+        });
       }
     });
   }

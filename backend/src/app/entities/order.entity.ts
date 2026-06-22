@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Index, DeleteDateColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 
 @Entity('orders')
@@ -31,4 +31,13 @@ export class OrderEntity {
 
   @Column({ nullable: true })
   trackingNumber?: string;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt?: Date;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

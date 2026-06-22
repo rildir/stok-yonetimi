@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
@@ -9,6 +10,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
   selector: 'app-suppliers',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent],
+  styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
       <div>
@@ -31,7 +33,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
       </div>
     </div>
 
-    <div class="table-card">
+    <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
       @if (isLoading()) {
         <div class="loading-state">Yükleniyor...</div>
       } @else if (suppliers().length === 0) {
@@ -120,17 +122,16 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 <input id="supplierPhone" type="tel" formControlName="phone" class="form-input" [class.has-value]="hasValue('phone')" [disabled]="isSaving()" />
                 <label for="supplierPhone" class="form-label">Telefon Numarası</label>
               </div>
-
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 0;">
                 <div class="form-field" style="margin-bottom: 0;">
-                  <select id="supplierRating" formControlName="rating" class="form-input has-value" [disabled]="isSaving()" style="padding: 18px 14px 6px 14px; height: 52px;">
+                  <select id="supplierRating" formControlName="rating" class="form-input has-value" [disabled]="isSaving()">
                     <option [value]="5">⭐⭐⭐⭐⭐ (5 Yıldız)</option>
                     <option [value]="4">⭐⭐⭐⭐ (4 Yıldız)</option>
                     <option [value]="3">⭐⭐⭐ (3 Yıldız)</option>
                     <option [value]="2">⭐⭐ (2 Yıldız)</option>
                     <option [value]="1">⭐ (1 Yıldız)</option>
                   </select>
-                  <label for="supplierRating" class="form-label" style="top: 10px; transform: translateY(0) scale(0.75); color: #666; font-weight: 600;">Tedarikçi Puanı</label>
+                  <label for="supplierRating" class="form-label">Tedarikçi Puanı</label>
                 </div>
 
                 <div class="form-field" style="margin-bottom: 0;">
@@ -193,6 +194,8 @@ export class SuppliersComponent implements OnInit {
   inventory = inject(InventoryService);
   ui = inject(UiStateService);
   fb = inject(FormBuilder);
+  route = inject(ActivatedRoute);
+  router = inject(Router);
 
   suppliers = signal<any[]>([]);
   isLoading = signal(true);
@@ -238,6 +241,18 @@ export class SuppliersComponent implements OnInit {
 
   ngOnInit() {
     this.loadSuppliers();
+    this.route.queryParams.subscribe(params => {
+      this.searchQuery.set(params['q'] || '');
+      if (params['open'] === 'new') {
+        this.openDrawer();
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { open: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
+      }
+    });
   }
 
   loadSuppliers() {

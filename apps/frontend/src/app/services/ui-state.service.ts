@@ -1,4 +1,4 @@
-import { Injectable, signal, inject, computed } from '@angular/core';
+import { Injectable, signal, inject, computed, effect } from '@angular/core';
 import { InventoryService, AiResponseCard } from '../inventory.service';
 
 export interface Toast {
@@ -40,6 +40,7 @@ export class UiStateService {
   isAiLoading = signal(false);
   isHistorySidebarOpen = signal(false);
   confirmConfig = signal<ConfirmConfig | null>(null);
+  userProfile = signal<any>(null);
 
   openConfirm(config: ConfirmConfig) {
     this.confirmConfig.set(config);
@@ -64,7 +65,7 @@ export class UiStateService {
     return this.activeSession()?.messages || [];
   });
 
-  subscription = signal<{ plan: 'free' | 'standard' | 'professional' | 'ultra'; expiresAt: string | null; aiQueriesUsed: number; aiQueriesLimit: number }>({ plan: 'standard', expiresAt: new Date(Date.now() + 30*24*60*60*1000).toISOString(), aiQueriesUsed: 0, aiQueriesLimit: 0 });
+  subscription = signal<{ plan: 'free' | 'standard' | 'professional' | 'ultra' | 'none'; expiresAt: string | null; aiQueriesUsed: number; aiQueriesLimit: number }>({ plan: 'standard', expiresAt: new Date(Date.now() + 30*24*60*60*1000).toISOString(), aiQueriesUsed: 0, aiQueriesLimit: 0 });
 
   loadSubscription() {
     try {
@@ -97,13 +98,63 @@ export class UiStateService {
       aiQueriesLimit: plan === 'ultra' ? 9999 : 0
     });
     this.saveSubscription();
+
+    // Sync to backend DB
+    const token = localStorage.getItem('smart_inventory_token');
+    if (token) {
+      fetch('http://localhost:3000/api/user/subscription', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan })
+      }).then(res => {
+        if (res.ok) {
+          const profile = this.userProfile();
+          if (profile) {
+            this.userProfile.set({
+              ...profile,
+              subscriptionPlan: plan,
+              subscriptionExpiresAt: expiresAt.toISOString()
+            });
+          }
+        }
+      }).catch(err => console.error('Subscription sync failed', err));
+    }
+
     this.showToast(`${plan === 'standard' ? 'Standart' : plan === 'professional' ? 'Profesyonel' : 'Ultra'} plana başarıyla geçiş yapıldı!`, 'success');
   }
 
   cancelSubscription() {
-    this.subscription.set({ plan: 'standard', expiresAt: new Date(Date.now() + 30*24*60*60*1000).toISOString(), aiQueriesUsed: 0, aiQueriesLimit: 0 });
+    this.subscription.set({ plan: 'none', expiresAt: null, aiQueriesUsed: 0, aiQueriesLimit: 0 });
     this.saveSubscription();
-    this.showToast('Aboneliğiniz sonlandırıldı. Standart plana geri dönüldü.', 'info');
+
+    // Sync to backend DB
+    const token = localStorage.getItem('smart_inventory_token');
+    if (token) {
+      fetch('http://localhost:3000/api/user/subscription', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan: 'none' })
+      }).then(res => {
+        if (res.ok) {
+          const profile = this.userProfile();
+          if (profile) {
+            this.userProfile.set({
+              ...profile,
+              subscriptionPlan: 'none',
+              subscriptionExpiresAt: null
+            });
+          }
+        }
+      }).catch(err => console.error('Subscription cancel sync failed', err));
+    }
+
+    this.showToast('Aboneliğiniz sonlandırıldı.', 'info');
   }
 
   incrementAiQueryCount() {
@@ -119,6 +170,23 @@ export class UiStateService {
   constructor() {
     this.loadSubscription();
     this.loadSessions();
+
+    // Auto sync subscription signal when userProfile is loaded/updated
+    effect(() => {
+      const profile = this.userProfile();
+      if (profile && profile.subscriptionPlan) {
+        const currentSub = this.subscription();
+        if (currentSub.plan !== profile.subscriptionPlan) {
+          this.subscription.set({
+            plan: profile.subscriptionPlan,
+            expiresAt: profile.subscriptionExpiresAt,
+            aiQueriesUsed: currentSub.aiQueriesUsed,
+            aiQueriesLimit: profile.subscriptionPlan === 'ultra' ? 9999 : 0
+          });
+          localStorage.setItem('smart_inventory_subscription', JSON.stringify(this.subscription()));
+        }
+      }
+    });
   }
 
   showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {

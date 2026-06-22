@@ -1,6 +1,7 @@
 import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Product } from '../../inventory.service';
@@ -11,221 +12,34 @@ import { ModalComponent } from '../modal.component';
   selector: 'app-products',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, ModalComponent],
+  styleUrls: ['../../drawer.css'],
   styles: [`
-/* OVERLAY */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 1000;
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* PANEL — sağda sabit, tam yükseklik */
-.drawer-panel {
-  position: relative;
-  width: 420px;
-  height: 100vh;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
-  animation: slideIn 0.25s ease;
-}
-
-@keyframes slideIn {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
-}
-
-/* HEADER */
-.drawer-header {
+/* SCAN BUTTON */
+.btn-scan {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid #f0f0f0;
-  flex-shrink: 0;
+  gap: 4px;
 }
 
-.drawer-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-.drawer-close {
-  width: 28px;
-  height: 28px;
+/* TRANSFER BUTTON */
+.transfer-btn {
+  background: none;
   border: none;
-  background: transparent;
-  border-radius: 6px;
-  font-size: 20px;
-  color: #999;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  color: var(--text-muted);
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+  margin-right: 0.25rem;
 }
-.drawer-close:hover {
-  background: #f5f5f5;
-  color: #1a1a1a;
+.transfer-btn:hover {
+  color: var(--brand, #3ecf8e);
+  background: rgba(62, 207, 142, 0.08);
 }
-
-/* BODY */
-/* FORM GRUPLARI & FLOATING LABELS */
-.drawer-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.form-field {
-  position: relative;
-  width: 100%;
-}
-
-.form-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 52px;
-  padding: 18px 14px 6px 14px;
-  border: 1.5px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #1a1a1a;
-  background: #fff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  outline: none;
-}
-
-.form-input::placeholder {
-  color: transparent;
-  transition: color 0.15s ease;
-}
-
-.form-input:focus::placeholder {
-  color: #bbb;
-}
-
-.form-label {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 14px;
-  color: #999;
-  pointer-events: none;
-  transition: all 0.18s ease;
-  transform-origin: left top;
-  background: transparent;
-}
-
-/* Dolu veya focus durumunda label yukarı kayar */
-.form-input:focus ~ .form-label,
-.form-input.has-value ~ .form-label {
-  top: 10px;
-  transform: translateY(0) scale(0.75);
-  color: #666;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-}
-
-/* Focus border */
-.form-input:focus {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
-}
-
-/* Focus'ta label siyah */
-.form-input:focus ~ .form-label {
-  color: #1a1a1a;
-}
-
-/* Hata durumu - blur sonrası (focus değilken) */
-.form-input.ng-invalid.ng-touched:not(:focus) {
-  border-color: #e53e3e;
-  box-shadow: none;
-}
-.form-input.ng-invalid.ng-touched:not(:focus) ~ .form-label {
-  color: #e53e3e;
-}
-
-/* Hatalı alana focus gelince tekrar siyah */
-.form-input.ng-invalid.ng-touched:focus {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
-}
-.form-input.ng-invalid.ng-touched:focus ~ .form-label {
-  color: #1a1a1a;
-}
-
-/* SELECT ALANI */
-.form-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  padding-right: 36px;
-  cursor: pointer;
-}
-
-.form-select:valid ~ .form-label {
-  top: 10px;
-  transform: translateY(0) scale(0.75);
-  color: #666;
-  font-weight: 600;
-}
-
-/* BİRİM FİYAT PREFIX */
-.form-input--prefix { padding-left: 28px; }
-
-.form-prefix {
-  position: absolute;
-  left: 14px;
-  bottom: 10px;
-  font-size: 14px;
-  color: #999;
-  pointer-events: none;
-  transition: opacity 0.18s ease;
-}
-
-.form-input--prefix.has-value ~ .form-prefix,
-.form-input--prefix:focus ~ .form-prefix {
-  opacity: 1;
-}
-
-.form-input--prefix:not(.has-value):not(:focus) ~ .form-prefix {
-  opacity: 0;
-}
-
-/* FOOTER */
-.drawer-footer {
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 16px 24px;
-  border-top: 1px solid #f0f0f0;
-  background: #fff;
-}
-
-
-
-.form-error {
-  font-size: 12px;
-  color: #e53e3e;
-  margin-top: 4px;
-}
-
-/* MOBİL */
-@media (max-width: 768px) {
-  .drawer-panel { width: 100vw; }
+.transfer-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* WAREHOUSE TOOLTIP */
@@ -269,34 +83,6 @@ import { ModalComponent } from '../modal.component';
   font-family: var(--font-mono, monospace);
   color: var(--brand, #3ecf8e);
 }
-
-/* SCAN BUTTON */
-.btn-scan {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* TRANSFER BUTTON */
-.transfer-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0.25rem;
-  border-radius: 4px;
-  transition: all 0.15s;
-  margin-right: 0.25rem;
-}
-.transfer-btn:hover {
-  color: var(--brand, #3ecf8e);
-  background: rgba(62, 207, 142, 0.08);
-}
-.transfer-btn svg {
-  width: 16px;
-  height: 16px;
-}
   `],
   template: `
     <header class="page-header">
@@ -327,104 +113,180 @@ import { ModalComponent } from '../modal.component';
     </header>
 
     <!-- Search & Filter Bar -->
-    <div class="filter-bar">
-      <div class="search-box">
+    <div class="filter-bar" style="background-color: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 4px; padding: 12px; margin-bottom: 1rem;">
+      <div class="search-box" style="flex: 1;">
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         <input type="text" placeholder="Ürün adı, SKU veya kategori ara..." [value]="productSearch()" (input)="onSearchInput($event)"/>
       </div>
-      <button class="btn btn-outline btn-scan" (click)="openScanner()" title="Barkod Tara">
+      <button class="btn btn-outline btn-scan" (click)="openScanner()" title="Barkod Tara" style="border-radius: 20px; height: 38px;">
         <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
         Tara
       </button>
-      <div class="filter-pills">
-        <button class="filter-pill" [class.active]="productFilterStatus() === 'all'" (click)="productFilterStatus.set('all')">Tümü</button>
-        <button class="filter-pill" [class.active]="productFilterStatus() === 'In stock'" (click)="productFilterStatus.set('In stock')">Stokta</button>
-        <button class="filter-pill" [class.active]="productFilterStatus() === 'Low stock'" (click)="productFilterStatus.set('Low stock')">Azalıyor</button>
-        <button class="filter-pill" [class.active]="productFilterStatus() === 'Out of stock'" (click)="productFilterStatus.set('Out of stock')">Tükendi</button>
-      </div>
     </div>
 
-    <div class="table-card">
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 40px; text-align: center;">
-                <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" class="custom-checkbox" />
-              </th>
-              <th style="width: 50px;">Görsel</th>
-              <th>Ürün Adı</th>
-              <th>SKU</th>
-              <th>Kategori</th>
-              <th>Birim Fiyat</th>
-              <th>Mevcut Stok</th>
-              <th>Min. Limit</th>
-              <th>Durum</th>
-              <th class="th-actions">Aksiyon</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (p of filteredProducts(); track p.id) {
-              <tr [class.selected]="isProductSelected(p.id)">
-                <td style="text-align: center;">
-                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" class="custom-checkbox" />
-                </td>
-                <td>
-                  @if (p.imageUrl) {
-                    <img [src]="p.imageUrl" alt="Ürün" style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px;" />
-                  } @else {
-                    <div style="width: 32px; height: 32px; background: #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 10px;">Yok</div>
-                  }
-                </td>
-                <td><strong>{{ p.name }}</strong></td>
-                <td class="mono">{{ p.sku }}</td>
-                <td>{{ getCategoryName(p.category) }}</td>
-                <td class="mono">₺{{ p.price }}</td>
-                <td class="mono" style="font-weight:600; position: relative;" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
-                  {{ p.quantity }} {{ p.unit || 'Adet' }}
-                  @if (p.warehouses && hoveredProductId() === p.id) {
-                    <div class="warehouse-tooltip">
-                      <div class="wh-tooltip-title">Depo Dağılımı</div>
-                      @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
-                        <div class="wh-tooltip-row">
-                          <span>{{ wh.name }}</span>
-                          <strong>{{ wh.qty }}</strong>
-                        </div>
-                      }
-                    </div>
-                  }
-                </td>
-                <td class="mono" style="color:var(--text-muted)">{{ p.minQuantity }} {{ p.unit || 'Adet' }}</td>
-                <td>
+    <!-- Amazon Style Two-Column Layout -->
+    <div class="amazon-search-layout" style="display: flex; gap: 1.5rem; align-items: start; width: 100%;">
+      <!-- Left Refiner Sidebar -->
+      <aside class="amazon-refiner" style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1.25rem; background: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px;">
+        <!-- Category refinement -->
+        <div>
+          <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Kategoriler</h4>
+          <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
+            <li>
+              <a href="#" (click)="productSearch.set(''); $event.preventDefault()" [style.fontWeight]="!productSearch() ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">Tüm Kategoriler</a>
+            </li>
+            @for (cat of categories(); track cat.id) {
+              <li>
+                <a href="#" (click)="productSearch.set(cat.name); $event.preventDefault()" [style.fontWeight]="productSearch() === cat.name ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">{{ cat.name }}</a>
+              </li>
+            }
+          </ul>
+        </div>
+        
+        <!-- Stock status refinement -->
+        <div>
+          <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Stok Durumu</h4>
+          <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
+            @for (st of [{id:'all', label:'Tümü'}, {id:'In stock', label:'Stokta Var'}, {id:'Low stock', label:'Azalıyor'}, {id:'Out of stock', label:'Tükendi'}]; track st.id) {
+              <li>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #0F1111; font-size: 13px;">
+                  <input type="radio" name="stockFilter" [checked]="productFilterStatus() === st.id" (change)="productFilterStatus.set($any(st.id))" style="cursor: pointer;" />
+                  <span>{{ st.label }}</span>
+                </label>
+              </li>
+            }
+          </ul>
+        </div>
+
+        <!-- Rating Refinement (Amazon style) -->
+        <div>
+          <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Müşteri Puanı</h4>
+          <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px; color: #007185;">
+            <li><a href="#" (click)="$event.preventDefault()" style="text-decoration:none; color:inherit;">⭐⭐⭐⭐⭐ (5 Yıldız)</a></li>
+            <li><a href="#" (click)="$event.preventDefault()" style="text-decoration:none; color:inherit;">⭐⭐⭐⭐☆ ve üzeri</a></li>
+            <li><a href="#" (click)="$event.preventDefault()" style="text-decoration:none; color:inherit;">⭐⭐⭐☆☆ ve üzeri</a></li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Right Main Content Panel (Amazon search result list) -->
+      <div class="amazon-results-main" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
+        <!-- Header with item count and sorting selection -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 8px; padding: 12px 16px;">
+          <div style="font-size: 14px; color: #565959;">
+            En çok eşleşen <strong>{{ filteredProducts().length }} sonuç</strong> gösteriliyor
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <!-- Select all checkbox -->
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: #007185;">
+              <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" style="cursor: pointer;" />
+              <span>Tümünü Seç</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Result Cards Stack -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          @for (p of filteredProducts(); track p.id) {
+            <div class="amazon-search-result-card" [class.selected]="isProductSelected(p.id)" style="display: flex; border: 1px solid #D5D9D9; border-radius: 8px; background: #FFFFFF; overflow: visible; position: relative; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
+              <!-- Checkbox on card -->
+              <div style="padding: 1rem 0.5rem 1rem 1rem; display: flex; align-items: center; justify-content: center;">
+                <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 16px; height: 16px;" />
+              </div>
+              
+              <!-- Product Image on Left -->
+              <div style="width: 130px; height: 130px; padding: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #FAFAFA; border-right: 1px solid #F0F2F2;">
+                @if (p.imageUrl) {
+                  <img [src]="p.imageUrl" alt="Ürün" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                } @else {
+                  <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #888; font-size: 11px; background: #EEE; border-radius: 4px;">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity: 0.5; margin-bottom: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    Görsel Yok
+                  </div>
+                }
+              </div>
+
+              <!-- Product Details in Center -->
+              <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
+                <div>
+                  <h3 style="font-size: 15px; font-weight: bold; margin: 0; line-height: 1.3;">
+                    <a href="#" (click)="$event.preventDefault(); openEditProduct(p)" style="color: #007185; text-decoration: none;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">
+                      {{ p.name }}
+                    </a>
+                  </h3>
+                  <div style="font-size: 12px; color: #565959; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 10px;">
+                    <span>SKU: <strong style="font-family: var(--font-mono); color: #0F1111;">{{ p.sku }}</strong></span>
+                    <span>•</span>
+                    <span>Kategori: <strong>{{ getCategoryName(p.category) }}</strong></span>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center; position: relative;">
+                  <!-- Stock indicator -->
                   <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
-                    {{ p.status === 'In stock' ? 'Stokta' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
+                    {{ p.status === 'In stock' ? 'Stokta Var' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
                   </span>
-                </td>
-                <td class="td-actions">
-                  <button class="transfer-btn" (click)="openTransferModal(p)" title="Depolar Arası Transfer">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                  
+                  <span style="font-size: 12px; color: #0F1111; font-weight: 500;" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
+                    Mevcut: <strong>{{ p.quantity }} {{ p.unit || 'Adet' }}</strong> (Kritik: {{ p.minQuantity }})
+                    @if (p.warehouses && hoveredProductId() === p.id) {
+                      <div class="warehouse-tooltip" style="display:block; position: absolute; bottom: 25px; left: 50px;">
+                        <div class="wh-tooltip-title">Depo Dağılımı</div>
+                        @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
+                          <div class="wh-tooltip-row">
+                            <span>{{ wh.name }}</span>
+                            <strong>{{ wh.qty }}</strong>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </span>
+                </div>
+              </div>
+
+              <!-- Product Price and Actions on Right -->
+              <div style="width: 180px; padding: 16px; border-left: 1px solid #F0F2F2; display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; gap: 12px; text-align: right; background: #FAFAFA;">
+                <div>
+                  <div style="font-size: 11px; color: #565959;">Birim Fiyat</div>
+                  <div style="font-size: 20px; font-weight: bold; color: #B12704; font-family: var(--font-mono);">
+                    ₺{{ p.price }}
+                  </div>
+                  @if (p.status === 'Low stock') {
+                    <div style="font-size: 11px; color: #B12704; font-weight: bold; margin-top: 4px;">Sadece {{ p.quantity }} Adet Kaldı!</div>
+                  }
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  <button class="btn btn-primary btn-sm" (click)="openEditProduct(p)" style="width: 100%; border-radius: 20px;">
+                    Düzenle
                   </button>
-                  <button class="edit-btn" (click)="openEditProduct(p)" title="Düzenle">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                  </button>
-                  <button class="delete-btn" (click)="promptDeleteProduct(p)" title="Sil">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                  </button>
-                </td>
-              </tr>
-            }
-            @if (filteredProducts().length === 0) {
-              <tr><td colspan="10" class="empty-state">Arama kriterlerinize uygun ürün bulunamadı.</td></tr>
-            }
-          </tbody>
-        </table>
+                  <div style="display: flex; gap: 4px;">
+                    <button class="btn btn-outline btn-sm" (click)="openTransferModal(p)" title="Depolar Arası Transfer" style="flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;">
+                      Transfer
+                    </button>
+                    <button class="btn btn-secondary btn-sm" (click)="promptDeleteProduct(p)" title="Sil" style="color: #B12704; flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;">
+                      Sil
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+          
+          @if (filteredProducts().length === 0) {
+            <div class="empty-state" style="padding: 3rem; text-align: center; border: 1px dashed #D5D9D9; border-radius: 8px; background: #FFFFFF;">
+              <p style="font-size: 15px; color: #565959;">Arama kriterlerinize uygun ürün bulunamadı.</p>
+              <button class="btn btn-primary" (click)="openAddProduct()" style="margin-top: 12px;">Yeni Ürün Ekle</button>
+            </div>
+          }
+        </div>
       </div>
     </div>
 
     <!-- ─── Product Drawer ─── -->
     @if (showProductFormModal()) {
       <div class="drawer-overlay" (click)="closeProductForm()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" (click)="$event.stopPropagation(); closeDropdowns()">
           <div class="drawer-header">
             <span class="drawer-title">{{ editingProductId() ? 'Ürün Düzenle' : 'Yeni Ürün Ekle' }}</span>
             <button class="drawer-close" (click)="closeProductForm()">×</button>
@@ -446,7 +308,7 @@ import { ModalComponent } from '../modal.component';
 
               <!-- Visual Barcode Block -->
               @if (productForm.get('sku')?.value) {
-                <div class="barcode-container" style="background: #ffffff; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: -4px 0 20px 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div class="barcode-container" style="background: #ffffff; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                   <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 6px;">Visual Barcode (SKU)</div>
                   <div style="display: flex; align-items: stretch; justify-content: center; height: 36px; background: #fff; width: 100%; max-width: 200px;">
                     @for (bar of getBarcodeBars(productForm.get('sku')?.value); track $index) {
@@ -456,11 +318,10 @@ import { ModalComponent } from '../modal.component';
                   <div style="font-family: 'Courier New', Courier, monospace; font-size: 11px; font-weight: bold; margin-top: 4px; letter-spacing: 2px; color: #111;">*{{ productForm.get('sku')?.value }}*</div>
                 </div>
               }
-              
               <div class="form-field">
                 <div class="custom-select-wrapper" (click)="toggleCategoryDropdown($event)">
-                  <div class="custom-select-trigger" [class.open]="isCategoryDropdownOpen()" [class.disabled]="isSaveLoading()" style="height: 52px; padding: 18px 14px 6px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px;">
-                    <span class="selected-text" style="font-size: 14px;">
+                  <div class="custom-select-trigger" [class.open]="isCategoryDropdownOpen()" [class.disabled]="isSaveLoading()">
+                    <span class="selected-text">
                       {{ getCategoryName(productForm.get('category')?.value) }}
                     </span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -474,14 +335,14 @@ import { ModalComponent } from '../modal.component';
                       }
                     </div>
                   }
-                  <label class="form-label" style="top: 10px; transform: translateY(0) scale(0.75); color: #666; font-weight: 600; pointer-events: none;">Kategori</label>
                 </div>
+                <label class="form-label">Kategori</label>
               </div>
 
               <div class="form-field">
                 <div class="custom-select-wrapper" (click)="toggleSupplierDropdown($event)">
-                  <div class="custom-select-trigger" [class.open]="isSupplierDropdownOpen()" [class.disabled]="isSaveLoading()" style="height: 52px; padding: 18px 14px 6px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px;">
-                    <span class="selected-text" style="font-size: 14px;">
+                  <div class="custom-select-trigger" [class.open]="isSupplierDropdownOpen()" [class.disabled]="isSaveLoading()">
+                    <span class="selected-text">
                       {{ getSupplierName(productForm.get('supplierId')?.value) }}
                     </span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -498,10 +359,10 @@ import { ModalComponent } from '../modal.component';
                       }
                     </div>
                   }
-                  <label class="form-label" style="top: 10px; transform: translateY(0) scale(0.75); color: #666; font-weight: 600; pointer-events: none;">Tedarikçi</label>
                 </div>
+                <label class="form-label">Tedarikçi</label>
               </div>
-              
+
               <div class="form-field">
                 <input id="productPrice" type="number" formControlName="price" class="form-input form-input--prefix" [class.has-value]="hasValue('price')" min="0" step="0.01" [disabled]="isSaveLoading()" />
                 <label for="productPrice" class="form-label">Birim Fiyat</label>
@@ -704,6 +565,8 @@ export class ProductsComponent {
   ui = inject(UiStateService);
   inventoryService = inject(InventoryService);
   fb = inject(FormBuilder);
+  route = inject(ActivatedRoute);
+  router = inject(Router);
 
   categories = signal<any[]>([]);
 
@@ -1003,6 +866,27 @@ export class ProductsComponent {
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
+    this.route.queryParams.subscribe(params => {
+      this.productSearch.set(params['q'] || '');
+      if (params['open']) {
+        const openVal = params['open'];
+        if (openVal === 'new') {
+          this.openAddProduct();
+        } else if (openVal.startsWith('edit-')) {
+          const id = openVal.substring(5);
+          const found = this.state.products().find(p => p.id === id);
+          if (found) {
+            this.openEditProduct(found);
+          }
+        }
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { open: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
+      }
+    });
   }
 
   onSearchInput(event: Event) {
@@ -1289,7 +1173,7 @@ export class ProductsComponent {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Smart Inventory - Ürün Listesi</title>
+        <title>Ecelon - Ürün Listesi</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Inter', system-ui, sans-serif; padding: 32px; color: #1a1a1a; }
@@ -1303,7 +1187,7 @@ export class ProductsComponent {
         </style>
       </head>
       <body>
-        <h1>Smart Inventory — Ürün Listesi</h1>
+        <h1>Ecelon — Ürün Listesi</h1>
         <p class="subtitle">Yazdırma Tarihi: ${new Date().toLocaleString('tr-TR')} | Toplam: ${list.length} ürün</p>
         <table>
           <thead>

@@ -32,31 +32,41 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   unit?: string;
+
+  @IsString()
+  @IsOptional()
+  supplierId?: string;
 }
 
 export class UpdateProductDto {
   @IsString()
   @IsNotEmpty()
+  @IsOptional()
   name?: string;
 
   @IsString()
   @IsNotEmpty()
+  @IsOptional()
   sku?: string;
 
   @IsString()
   @IsNotEmpty()
+  @IsOptional()
   category?: string;
 
   @IsNumber()
   @Min(0)
+  @IsOptional()
   price?: number;
 
   @IsInt()
   @Min(0)
+  @IsOptional()
   quantity?: number;
 
   @IsInt()
   @Min(0)
+  @IsOptional()
   minQuantity?: number;
 
   @IsString()
@@ -66,4 +76,8 @@ export class UpdateProductDto {
   @IsString()
   @IsOptional()
   unit?: string;
+
+  @IsString()
+  @IsOptional()
+  supplierId?: string;
 }

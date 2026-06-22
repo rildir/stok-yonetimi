@@ -22,6 +22,7 @@ export const appRoutes: Route[] = [
       { path: 'reports', loadComponent: () => import('./components/reports/reports.component').then(m => m.ReportsComponent) },
       { path: 'stock-count', loadComponent: () => import('./components/stock-count/stock-count.component').then(m => m.StockCountComponent) },
       { path: 'billing', loadComponent: () => import('./components/billing/billing.component').then(m => m.BillingComponent) },
+      { path: 'warehouses', loadComponent: () => import('./components/warehouses/warehouses.component').then(m => m.WarehousesComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

@@ -1,10 +1,15 @@
 import { Component, inject, ViewChild, ElementRef, signal, computed, HostListener, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 import { UiStateService } from '../../services/ui-state.service';
+import { SocketService } from '../../services/socket.service';
 import { FormsModule } from '@angular/forms';
 import { NotificationService } from '../../services/notification.service';
 import { ModalComponent } from '../modal.component';
+import { AppStateService } from '../../services/app-state.service';
+import { InventoryService } from '../../inventory.service';
 
 @Component({
   selector: 'app-layout',
@@ -12,77 +17,83 @@ import { ModalComponent } from '../modal.component';
   imports: [CommonModule, RouterModule, FormsModule, ModalComponent],
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()">
-      <aside class="sidebar">
+      <aside class="sidebar" style="background-color: #232F3E; border-right: 1px solid #19222d;">
         <div>
           <div class="sidebar-logo">
-            <div class="logo-mark">S</div>
+            <div class="logo-mark" style="background-color: var(--primary); color: #0F1111; font-weight: 800;">E</div>
             <div class="logo-text">
-              <h2>Smart Inventory</h2>
-              <span>v1.2 · MONOCHROME</span>
+              <h2 style="color: #FFFFFF; font-size: 1rem;">Ecelon</h2>
+              <span style="color: #FEB869; font-weight: bold; font-size: 0.65rem;">amazon style</span>
             </div>
-            <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'">
+            <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'" style="color: #A9B4C2;">
               <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
             </button>
           </div>
           <nav class="nav-list">
             <!-- GENEL -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label">Genel</div>
+              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Genel</div>
             } @else {
-              <div class="nav-group-divider"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
             }
-            <a routerLink="/dashboard" routerLinkActive="active" class="nav-btn" title="Panel Özeti">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/dashboard'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Panel Özeti">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
               <span class="nav-text">Panel Özeti</span>
             </a>
 
             <!-- STOK YÖNETİMİ -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label">Stok Yönetimi</div>
+              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Stok Yönetimi</div>
             } @else {
-              <div class="nav-group-divider"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
             }
-            <a routerLink="/products" routerLinkActive="active" class="nav-btn" title="Ürün Yönetimi">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/products'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ürün Yönetimi">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
               <span class="nav-text">Ürün Yönetimi</span>
             </a>
-            <a routerLink="/stock-movements" routerLinkActive="active" class="nav-btn" title="Stok Hareketleri">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/stock-movements'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Stok Hareketleri">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
               <span class="nav-text">Stok Hareketleri</span>
             </a>
-            <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" title="Stok Sayımı">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/stock-count'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Stok Sayımı">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
               </svg>
               <span class="nav-text">Stok Sayımı</span>
             </a>
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/warehouses'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Depo Yönetimi">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              <span class="nav-text">Depo Yönetimi</span>
+            </a>
 
             <!-- OPERASYONLAR -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label">Operasyonlar</div>
+              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Operasyonlar</div>
             } @else {
-              <div class="nav-group-divider"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
             }
-            <a routerLink="/orders" routerLinkActive="active" class="nav-btn" title="Sipariş Takibi">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Sipariş Takibi">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
               <span class="nav-text">Sipariş Takibi</span>
             </a>
-            <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" title="Satın Alma">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/purchase-orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Satın Alma">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
               <span class="nav-text">Satın Alma</span>
             </a>
-            <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" title="Tedarikçiler">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/suppliers'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Tedarikçiler">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
               <span class="nav-text">Tedarikçiler</span>
             </a>
 
             <!-- SİSTEM -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label">Analiz & Sistem</div>
+              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Analiz & Sistem</div>
             } @else {
-              <div class="nav-group-divider"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
             }
-            <a routerLink="/reports" routerLinkActive="active" class="nav-btn" title="Raporlar">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/reports'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Raporlar">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
               <span class="nav-text">Raporlar</span>
             </a>
@@ -90,7 +101,7 @@ import { ModalComponent } from '../modal.component';
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
               <span class="nav-text">Abonelik & Fatura</span>
             </a>
-            <a routerLink="/settings" routerLinkActive="active" class="nav-btn" title="Ayarlar">
+            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/settings'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ayarlar">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               <span class="nav-text">Ayarlar</span>
             </a>
@@ -99,33 +110,145 @@ import { ModalComponent } from '../modal.component';
       </aside>
 
       <div class="main-layout-wrapper">
-        <header class="top-navbar">
+        <header class="top-navbar" style="background-color: #131921; height: 60px; border-bottom: none; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem;">
           <div class="navbar-left">
-            <div class="breadcrumbs">
-              <span class="breadcrumb-cat">{{ getBreadcrumbs().category }}</span>
-              <span class="breadcrumb-separator">/</span>
-              <span class="breadcrumb-page">{{ getBreadcrumbs().page }}</span>
+            <div class="breadcrumbs" style="color: #FFFFFF;">
+              <span class="breadcrumb-cat" style="color: #FEB869;">{{ getBreadcrumbs().category }}</span>
+              <span class="breadcrumb-separator" style="color: #A9B4C2; margin: 0 6px;">/</span>
+              <span class="breadcrumb-page" style="color: #FFFFFF; font-weight: bold;">{{ getBreadcrumbs().page }}</span>
             </div>
           </div>
-          <div class="navbar-right">
+
+          <!-- Centered Amazon Style Search Centerpiece -->
+          <div class="navbar-search-center" style="flex: 1; max-width: 600px; margin: 0 2rem; position: relative;">
+            <div class="nav-search-bar" style="display: flex; height: 38px; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+              <input 
+                type="text" 
+                class="nav-search-input" 
+                placeholder="Ecelon'da ara..." 
+                [(ngModel)]="navbarSearchQuery" 
+                (keyup.enter)="triggerNavbarSearch()"
+                (keydown.arrowdown)="onArrowDown($event)"
+                (keydown.arrowup)="onArrowUp($event)"
+                (focus)="onSearchFocus()"
+                (blur)="onSearchBlur()"
+                style="flex: 1; border: none; padding: 0 12px; font-size: 0.9rem; outline: none; background: #FFFFFF; color: #0F1111;"
+              />
+              <button 
+                class="nav-search-btn" 
+                (click)="triggerNavbarSearch()" 
+                title="Ara"
+                style="background-color: #FEB869; border: none; width: 45px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s;"
+                onmouseover="this.style.background='#F3A847'"
+                onmouseout="this.style.background='#FEB869'"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#0F1111" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Autocomplete suggestions dropdown -->
+            @if (isSearchFocused() && allVisibleSuggestions().length > 0) {
+              <div class="search-suggestions-dropdown" 
+                   style="position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #FFFFFF; border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25); z-index: 1000; max-height: 480px; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid #FEB869; margin-top: -1px; font-family: inherit;">
+                
+                <!-- Section: Pages -->
+                @if (filteredSuggestionsByType('nav').length > 0) {
+                  <div class="search-section">
+                    <div style="font-size: 0.75rem; font-weight: 800; color: #565959; background: #F7F7F7; padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #E5E7EB;">
+                      Sayfalar ve Menüler
+                    </div>
+                    @for (s of filteredSuggestionsByType('nav'); track s.title) {
+                      <div class="suggestion-item" 
+                           (mousedown)="selectSuggestion(s); $event.preventDefault()"
+                           style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #F3F3F3;"
+                           [style.background]="isItemActive(s) ? '#FFF8F2' : '#FFFFFF'"
+                           [style.borderLeft]="isItemActive(s) ? '4px solid #FEB869' : '4px solid transparent'"
+                           onmouseover="this.style.background='#FFF8F2'; this.style.borderLeft='4px solid #FEB869'"
+                           onmouseout="this.style.background=''; this.style.borderLeft=''"
+                      >
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                          <span style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center; width: 24px;">{{ s.icon }}</span>
+                          <span style="font-size: 0.9rem; font-weight: 600; color: #0F1111;" [innerHTML]="highlightMatch(s.title)"></span>
+                        </div>
+                        <span style="font-size: 0.75rem; color: #565959;">{{ s.category }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                <!-- Section: Actions -->
+                @if (filteredSuggestionsByType('action').length > 0) {
+                  <div class="search-section">
+                    <div style="font-size: 0.75rem; font-weight: 800; color: #565959; background: #F7F7F7; padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #E5E7EB;">
+                      Hızlı İşlemler
+                    </div>
+                    @for (s of filteredSuggestionsByType('action'); track s.title) {
+                      <div class="suggestion-item" 
+                           (mousedown)="selectSuggestion(s); $event.preventDefault()"
+                           style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #F3F3F3;"
+                           [style.background]="isItemActive(s) ? '#FFF8F2' : '#FFFFFF'"
+                           [style.borderLeft]="isItemActive(s) ? '4px solid #FEB869' : '4px solid transparent'"
+                           onmouseover="this.style.background='#FFF8F2'; this.style.borderLeft='4px solid #FEB869'"
+                           onmouseout="this.style.background=''; this.style.borderLeft=''"
+                      >
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                          <span style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center; width: 24px;">{{ s.icon }}</span>
+                          <span style="font-size: 0.9rem; font-weight: 600; color: #007600;" [innerHTML]="highlightMatch(s.title)"></span>
+                        </div>
+                        <span style="font-size: 0.7rem; font-weight: 700; background: #E7F4F3; color: #007600; padding: 2px 6px; border-radius: 4px;">Tetikle</span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                <!-- Section: Database matches -->
+                @if (matchingInventory().length > 0) {
+                  <div class="search-section">
+                    <div style="font-size: 0.75rem; font-weight: 800; color: #565959; background: #F7F7F7; padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #E5E7EB;">
+                      Veritabanı Kayıtları
+                    </div>
+                    @for (item of matchingInventory(); track item.name) {
+                      <div class="suggestion-item" 
+                           (mousedown)="selectSuggestion(item); $event.preventDefault()"
+                           style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #F3F3F3;"
+                           [style.background]="isItemActive(item) ? '#FFF8F2' : '#FFFFFF'"
+                           [style.borderLeft]="isItemActive(item) ? '4px solid #FEB869' : '4px solid transparent'"
+                           onmouseover="this.style.background='#FFF8F2'; this.style.borderLeft='4px solid #FEB869'"
+                           onmouseout="this.style.background=''; this.style.borderLeft=''"
+                      >
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                          <span style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center; width: 24px;">{{ item.icon }}</span>
+                          <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span style="font-size: 0.9rem; font-weight: 600; color: #0F1111;" [innerHTML]="highlightMatch(item.name)"></span>
+                            <span style="font-size: 0.75rem; color: #565959;">{{ item.subtitle }}</span>
+                          </div>
+                        </div>
+                        <span style="font-size: 0.7rem; font-weight: 700; background: #F0F2F2; color: #565959; padding: 2px 6px; border-radius: 4px;">{{ item.type }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="navbar-right" style="gap: 1.25rem;">
             <!-- Yapay Zeka Asistanı Navbar Tetikleyici -->
-            <button class="navbar-ai-btn" (click)="ui.toggleAiPanel()" title="Yapay Zeka Asistanı">
+            <button class="navbar-ai-btn" (click)="ui.toggleAiPanel()" title="Yapay Zeka Asistanı" style="background: transparent; border: 1px solid #FEB869; border-radius: 4px; color: #FEB869; padding: 6px 12px; font-size: 0.8rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" onmouseover="this.style.background='rgba(254, 184, 105, 0.1)'" onmouseout="this.style.background='transparent'">
               <span class="navbar-ai-icon">✦</span>
               <span>Asistan</span>
             </button>
 
-            <div class="system-status">
-              <span class="status-dot"></span> <span>Sistem Çevrimiçi</span>
-            </div>
-
-            <!-- Bildirim Paneli -->
+            <!-- Shopping Cart styled Notification Widget -->
             <div class="notification-widget">
-              <button class="notif-btn" (click)="toggleNotifDropdown($event)" aria-label="Bildirimler">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+              <button class="notif-btn" (click)="toggleNotifDropdown($event)" aria-label="Bildirimler" style="background: transparent; border: none; color: #FFFFFF; cursor: pointer; position: relative; display: flex; align-items: center; padding: 4px;">
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 @if (notifService.unreadCount() > 0) {
-                  <span class="notif-badge">{{ notifService.unreadCount() }}</span>
+                  <span class="notif-badge" style="background-color: #F08804; color: #FFFFFF; font-size: 11px; font-weight: bold; padding: 1px 6px; border-radius: 10px; position: absolute; top: -5px; right: -5px; box-shadow: 0 1px 2px rgba(0,0,0,0.3);">{{ notifService.unreadCount() }}</span>
                 }
               </button>
 
@@ -165,17 +288,23 @@ import { ModalComponent } from '../modal.component';
               }
             </div>
             
-            <div class="profile-widget" (click)="toggleProfileDropdown($event)">
-              <div class="avatar-circle">
-                {{ currentUser().name.charAt(0) }}
+            <div class="profile-widget" (click)="toggleProfileDropdown($event)" style="border: 1px solid transparent; background: transparent; padding: 4px 8px; border-radius: 4px;" onmouseover="this.style.borderColor='#FFFFFF'" onmouseout="this.style.borderColor='transparent'">
+              <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.8rem; box-shadow: none; border: 1.5px solid #FFFFFF; background: #374151;">
+                @if (currentUser().avatar) {
+                  <img [src]="currentUser().avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
+                } @else {
+                  {{ currentUser().name.charAt(0) }}
+                }
               </div>
-              <div class="user-info">
-                <span class="user-name">{{ currentUser().name }}</span>
-                <span class="user-role">{{ currentUser().role === 'admin' ? 'Yönetici' : 'Kullanıcı' }}</span>
+              <div class="user-info" style="display: flex; flex-direction: column; align-items: flex-start; gap: 0;">
+                <span class="user-name" style="font-size: 11px; font-weight: normal; color: #CCCCCC; line-height: 1;">Merhaba, {{ currentUser().name }}</span>
+                <span class="user-role" style="font-size: 13px; font-weight: bold; color: #FFFFFF; display: flex; align-items: center; gap: 2px; line-height: 1.2;">
+                  Hesap ve Listeler
+                  <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #FFFFFF;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/>
+                  </svg>
+                </span>
               </div>
-              <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-              </svg>
 
               @if (isProfileOpen()) {
                 <div class="profile-dropdown" (click)="$event.stopPropagation()">
@@ -199,14 +328,34 @@ import { ModalComponent } from '../modal.component';
         </header>
 
         <main class="main-content">
-          <router-outlet></router-outlet>
+          @if (ui.subscription().plan === 'none' && router.url !== '/billing') {
+            <div class="lockout-screen">
+              <div class="lockout-card">
+                <div class="lockout-icon-wrapper">
+                  <svg class="lockout-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                </div>
+                <h2>Aboneliğiniz Sona Erdi</h2>
+                <p>Ecelon özelliklerine erişmeye devam etmek ve verilerinizi yönetmek için lütfen aboneliğinizi yenileyin veya yeni bir plan seçin.</p>
+                <div class="lockout-actions">
+                  <button class="btn btn-primary" routerLink="/billing">Aboneliği Yenile</button>
+                  <button class="btn btn-secondary" (click)="doLogout()">Çıkış Yap</button>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <router-outlet></router-outlet>
+          }
         </main>
       </div>
 
       <!-- Global Yapay Zeka Floating Action Button (FAB) -->
-      <button class="global-ai-fab" (click)="ui.toggleAiPanel()" [class.active]="ui.isAiPanelOpen()" title="Yapay Zeka Asistanı">
-        <span class="fab-icon">✦</span>
-      </button>
+      @if (ui.subscription().plan !== 'none') {
+        <button class="global-ai-fab" (click)="ui.toggleAiPanel()" [class.active]="ui.isAiPanelOpen()" title="Yapay Zeka Asistanı">
+          <span class="fab-icon">✦</span>
+        </button>
+      }
 
       @if (ui.isAiPanelOpen()) {
         <div class="ai-panel-backdrop" (click)="ui.toggleAiPanel()"></div>
@@ -562,6 +711,14 @@ import { ModalComponent } from '../modal.component';
         </div>
       </aside>
 
+      <!-- Search focus backdrop overlay -->
+      @if (isSearchFocused()) {
+        <div class="search-backdrop" 
+             (mousedown)="isSearchFocused.set(false)"
+             style="position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(15, 17, 17, 0.45); z-index: 990; backdrop-filter: blur(2px); transition: opacity 0.25s ease;">
+        </div>
+      }
+
       <app-modal [isOpen]="!!ui.confirmConfig()" [title]="ui.confirmConfig()?.title || ''" (onClose)="ui.closeConfirm()">
         <div style="font-size: 14px; line-height: 1.5; color: var(--text-primary);">
           {{ ui.confirmConfig()?.message }}
@@ -577,7 +734,320 @@ import { ModalComponent } from '../modal.component';
 export class LayoutComponent {
   ui = inject(UiStateService);
   router = inject(Router);
+  socketService = inject(SocketService);
+  http = inject(HttpClient);
+  state = inject(AppStateService);
+  inventoryService = inject(InventoryService);
+  
   aiPrompt = '';
+  navbarSearchQuery = '';
+
+  isSearchFocused = signal(false);
+  activeIndex = signal<number>(-1);
+  warehouses = signal<any[]>([]);
+  suppliers = signal<any[]>([]);
+
+  suggestionsList = [
+    {
+      title: 'Depo Yönetimi',
+      type: 'nav',
+      category: 'Stok Yönetimi',
+      route: '/warehouses',
+      icon: '🏢',
+      keywords: ['depo', 'yönetimi', 'warehouses', 'depolar', 'şube', 'şubeler']
+    },
+    {
+      title: 'Ürün Yönetimi',
+      type: 'nav',
+      category: 'Stok Yönetimi',
+      route: '/products',
+      icon: '📦',
+      keywords: ['ürün', 'yönetimi', 'products', 'ürünler', 'stok', 'stoklar', 'malzeme']
+    },
+    {
+      title: 'Stok Hareketleri',
+      type: 'nav',
+      category: 'Stok Yönetimi',
+      route: '/stock-movements',
+      icon: '🔄',
+      keywords: ['stok', 'hareketleri', 'giriş', 'çıkış', 'transfer', 'sevk', 'movements']
+    },
+    {
+      title: 'Stok Sayımı',
+      type: 'nav',
+      category: 'Stok Yönetimi',
+      route: '/stock-count',
+      icon: '📋',
+      keywords: ['sayım', 'stok sayımı', 'count', 'envanter']
+    },
+    {
+      title: 'Sipariş Takibi',
+      type: 'nav',
+      category: 'Operasyonlar',
+      route: '/orders',
+      icon: '🛒',
+      keywords: ['sipariş', 'takibi', 'orders', 'siparişler', 'müşteri', 'satış']
+    },
+    {
+      title: 'Satın Alma',
+      type: 'nav',
+      category: 'Operasyonlar',
+      route: '/purchase-orders',
+      icon: '💳',
+      keywords: ['satın', 'alma', 'purchase', 'po', 'tedarik', 'sipariş']
+    },
+    {
+      title: 'Tedarikçiler',
+      type: 'nav',
+      category: 'Operasyonlar',
+      route: '/suppliers',
+      icon: '🏭',
+      keywords: ['tedarikçi', 'tedarikçiler', 'suppliers', 'üretici', 'satıcı']
+    },
+    {
+      title: 'Raporlar',
+      type: 'nav',
+      category: 'Analiz & Sistem',
+      route: '/reports',
+      icon: '📊',
+      keywords: ['raporlar', 'analiz', 'reports', 'istatistik', 'grafik']
+    },
+    {
+      title: 'Abonelik & Fatura',
+      type: 'nav',
+      category: 'Analiz & Sistem',
+      route: '/billing',
+      icon: '💵',
+      keywords: ['fatura', 'abonelik', 'billing', 'plan', 'ödeme', 'paket']
+    },
+    {
+      title: 'Ayarlar',
+      type: 'nav',
+      category: 'Analiz & Sistem',
+      route: '/settings',
+      icon: '⚙️',
+      keywords: ['ayarlar', 'settings', 'profil', 'güvenlik', 'şifre']
+    },
+    {
+      title: 'Yeni Sipariş Oluştur',
+      type: 'action',
+      category: 'Operasyonlar',
+      route: '/orders',
+      openParam: 'new',
+      icon: '➕🛒',
+      keywords: ['yeni', 'sipariş', 'oluştur', 'ekle', 'create', 'order', 'satış']
+    },
+    {
+      title: 'Yeni Ürün Ekle',
+      type: 'action',
+      category: 'Stok Yönetimi',
+      route: '/products',
+      openParam: 'new',
+      icon: '➕📦',
+      keywords: ['yeni', 'ürün', 'ekle', 'create', 'product', 'stok']
+    },
+    {
+      title: 'Yeni Depo Tanımla',
+      type: 'action',
+      category: 'Stok Yönetimi',
+      route: '/warehouses',
+      openParam: 'new',
+      icon: '➕🏢',
+      keywords: ['yeni', 'depo', 'tanımla', 'ekle', 'create', 'warehouse']
+    },
+    {
+      title: 'Yeni Tedarikçi Ekle',
+      type: 'action',
+      category: 'Operasyonlar',
+      route: '/suppliers',
+      openParam: 'new',
+      icon: '➕🏭',
+      keywords: ['yeni', 'tedarikçi', 'ekle', 'create', 'supplier']
+    },
+    {
+      title: 'Yeni Satın Alma Siparişi',
+      type: 'action',
+      category: 'Operasyonlar',
+      route: '/purchase-orders',
+      openParam: 'new',
+      icon: '➕💳',
+      keywords: ['yeni', 'satın', 'alma', 'siparişi', 'ekle', 'create', 'purchase', 'po']
+    }
+  ];
+
+  filteredSuggestions = computed(() => {
+    const query = this.navbarSearchQuery.toLowerCase().trim();
+    if (!query) {
+      return this.suggestionsList;
+    }
+    return this.suggestionsList.filter(s =>
+      s.title.toLowerCase().includes(query) ||
+      s.category.toLowerCase().includes(query) ||
+      s.keywords.some(k => k.toLowerCase().includes(query))
+    );
+  });
+
+  filteredSuggestionsByType(type: 'nav' | 'action') {
+    return this.filteredSuggestions().filter(s => s.type === type);
+  }
+
+  matchingInventory = computed(() => {
+    const query = this.navbarSearchQuery.toLowerCase().trim();
+    if (!query || query.length < 2) return [];
+
+    const matches: any[] = [];
+
+    // Match products
+    const prods = this.state.products();
+    const matchedProds = prods.filter(p =>
+      p.name.toLowerCase().includes(query) ||
+      p.sku.toLowerCase().includes(query)
+    ).slice(0, 3);
+
+    matchedProds.forEach(p => {
+      matches.push({
+        name: p.name,
+        type: 'Ürün',
+        subtitle: `SKU: ${p.sku} | Stok: ${p.quantity} ${p.unit || 'Adet'}`,
+        icon: '📦',
+        route: '/products',
+        openParam: `edit-${p.id}`
+      });
+    });
+
+    // Match warehouses
+    const whs = this.warehouses();
+    const matchedWhs = whs.filter(w =>
+      w.name.toLowerCase().includes(query) ||
+      w.code.toLowerCase().includes(query)
+    ).slice(0, 2);
+
+    matchedWhs.forEach(w => {
+      matches.push({
+        name: w.name,
+        type: 'Depo',
+        subtitle: `Kod: ${w.code} | Stok: ${w.totalStock} adet`,
+        icon: '🏢',
+        route: '/warehouses'
+      });
+    });
+
+    // Match suppliers
+    const sups = this.suppliers();
+    const matchedSups = sups.filter(s =>
+      s.name.toLowerCase().includes(query) ||
+      (s.contactPerson && s.contactPerson.toLowerCase().includes(query))
+    ).slice(0, 2);
+
+    matchedSups.forEach(s => {
+      matches.push({
+        name: s.name,
+        type: 'Tedarikçi',
+        subtitle: `İrtibat: ${s.contactPerson || '-'} | Derece: ${s.rating}/5`,
+        icon: '🏭',
+        route: '/suppliers'
+      });
+    });
+
+    return matches;
+  });
+
+  allVisibleSuggestions = computed(() => {
+    const list: any[] = [];
+    this.filteredSuggestionsByType('nav').forEach(s => list.push(s));
+    this.filteredSuggestionsByType('action').forEach(s => list.push(s));
+    this.matchingInventory().forEach(item => list.push(item));
+    return list;
+  });
+
+  isItemActive(item: any): boolean {
+    const list = this.allVisibleSuggestions();
+    const idx = this.activeIndex();
+    if (idx >= 0 && idx < list.length) {
+      const active = list[idx];
+      if (item.type === 'nav' || item.type === 'action') {
+        return active.title === item.title && active.route === item.route;
+      } else {
+        return active.name === item.name && active.type === item.type;
+      }
+    }
+    return false;
+  }
+
+  onArrowDown(event: Event) {
+    event.preventDefault();
+    const list = this.allVisibleSuggestions();
+    if (list.length === 0) return;
+    this.activeIndex.update(idx => idx < list.length - 1 ? idx + 1 : 0);
+  }
+
+  onArrowUp(event: Event) {
+    event.preventDefault();
+    const list = this.allVisibleSuggestions();
+    if (list.length === 0) return;
+    this.activeIndex.update(idx => idx > 0 ? idx - 1 : list.length - 1);
+  }
+
+  onSearchFocus() {
+    this.isSearchFocused.set(true);
+    this.activeIndex.set(-1);
+    this.inventoryService.getWarehouses().subscribe(data => this.warehouses.set(data));
+    this.inventoryService.getSuppliers().subscribe(data => this.suppliers.set(data));
+  }
+
+  onSearchBlur() {
+    setTimeout(() => {
+      this.isSearchFocused.set(false);
+    }, 250);
+  }
+
+  triggerNavbarSearch() {
+    const query = this.navbarSearchQuery.trim();
+    const list = this.allVisibleSuggestions();
+    const idx = this.activeIndex();
+
+    // If a suggestion item is highlighted, execute that selection
+    if (idx >= 0 && idx < list.length) {
+      this.selectSuggestion(list[idx]);
+      return;
+    }
+
+    if (query) {
+      const currentUrl = this.router.url.split('?')[0];
+      const searchableRoutes = ['/products', '/warehouses', '/suppliers', '/orders', '/purchase-orders', '/stock-movements'];
+      let targetRoute = '/products'; // Default fallback
+
+      if (searchableRoutes.includes(currentUrl)) {
+        targetRoute = currentUrl;
+      }
+
+      this.router.navigate([targetRoute], { queryParams: { q: query } });
+      this.isSearchFocused.set(false);
+      this.navbarSearchQuery = '';
+    }
+  }
+
+  selectSuggestion(suggestion: any) {
+    this.isSearchFocused.set(false);
+    this.activeIndex.set(-1);
+    const queryParams: any = suggestion.openParam ? { open: suggestion.openParam } : {};
+    this.router.navigate([suggestion.route], { queryParams });
+    this.navbarSearchQuery = '';
+  }
+
+  highlightMatch(text: string): string {
+    const query = this.navbarSearchQuery.toLowerCase().trim();
+    if (!query) return text;
+    const index = text.toLowerCase().indexOf(query);
+    if (index === -1) return text;
+    const originalText = text.substring(index, index + query.length);
+    const regex = new RegExp(this.escapeRegExp(originalText), 'g');
+    return text.replace(regex, `<strong style="color: #F08804; font-weight: 700;">$&</strong>`);
+  }
+
+  private escapeRegExp(string: string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   confirmGlobalAction() {
     const config = this.ui.confirmConfig();
@@ -593,6 +1063,16 @@ export class LayoutComponent {
       const loading = this.ui.isAiLoading();
       setTimeout(() => this.scrollToBottom(), 50);
     });
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
+    if (token) {
+      this.http.get(`${environment.apiUrl}/user/profile`).subscribe({
+        next: (profile: any) => {
+          this.ui.userProfile.set(profile);
+        },
+        error: () => {}
+      });
+    }
   }
 
   notifService = inject(NotificationService);
@@ -624,8 +1104,18 @@ export class LayoutComponent {
 
   currentUser = computed(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
-    if (!token) return { username: 'Misafir', role: 'guest', name: 'Misafir Kullanıcı' };
+    if (!token) return { username: 'Misafir', role: 'guest', name: 'Misafir Kullanıcı', avatar: null };
     try {
+      const profile = this.ui.userProfile();
+      if (profile) {
+        return {
+          username: profile.username,
+          role: profile.role,
+          name: profile.fullName,
+          avatar: profile.avatar
+        };
+      }
+      
       const payloadBase64 = token.split('.')[1];
       const payloadJson = decodeURIComponent(atob(payloadBase64).split('').map(c => {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
@@ -634,10 +1124,13 @@ export class LayoutComponent {
       return {
         username: payload.username,
         role: payload.role,
-        name: payload.username === 'admin' ? 'Ahmet Ildır' : payload.username
+        name: payload.username === 'admin' ? 'Ahmet Ildır' :
+              payload.username === 'manager' ? 'Yönetici Demo' :
+              payload.username === 'viewer' ? 'Gözlemci Demo' : payload.username,
+        avatar: null
       };
     } catch (e) {
-      return { username: 'Admin', role: 'admin', name: 'Ahmet Ildır' };
+      return { username: 'admin', role: 'admin', name: 'Ahmet Ildır', avatar: null };
     }
   });
 
@@ -652,8 +1145,9 @@ export class LayoutComponent {
     if (url.includes('/reports')) return 'Raporlar & Analiz';
     if (url.includes('/stock-count')) return 'Stok Sayımı';
     if (url.includes('/billing')) return 'Abonelik & Fatura';
+    if (url.includes('/warehouses')) return 'Depo Yönetimi';
     if (url.includes('/settings')) return 'Ayarlar';
-    return 'Smart Inventory';
+    return 'Ecelon';
   }
 
   getBreadcrumbs(): { category: string; page: string } {
@@ -662,6 +1156,7 @@ export class LayoutComponent {
     if (url.includes('/products')) return { category: 'Stok Yönetimi', page: 'Ürün Yönetimi' };
     if (url.includes('/stock-movements')) return { category: 'Stok Yönetimi', page: 'Stok Hareketleri' };
     if (url.includes('/stock-count')) return { category: 'Stok Yönetimi', page: 'Stok Sayımı' };
+    if (url.includes('/warehouses')) return { category: 'Stok Yönetimi', page: 'Depo Yönetimi' };
     if (url.includes('/orders')) return { category: 'Operasyonlar', page: 'Sipariş Takibi' };
     if (url.includes('/purchase-orders')) return { category: 'Operasyonlar', page: 'Satın Alma' };
     if (url.includes('/suppliers')) return { category: 'Operasyonlar', page: 'Tedarikçiler' };
@@ -704,6 +1199,7 @@ export class LayoutComponent {
 
   doLogout() {
     localStorage.removeItem('smart_inventory_token');
+    this.socketService.disconnect();
     this.ui.showToast('Çıkış yapıldı.', 'info');
     this.router.navigate(['/login']);
   }

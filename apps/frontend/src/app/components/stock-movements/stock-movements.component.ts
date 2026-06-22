@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { InventoryService, Product } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
@@ -181,6 +182,8 @@ export class StockMovementsComponent implements OnInit {
   inventory = inject(InventoryService);
   ui = inject(UiStateService);
   fb = inject(FormBuilder);
+  route = inject(ActivatedRoute);
+  router = inject(Router);
   
   movements = signal<any[]>([]);
   products = signal<Product[]>([]);
@@ -207,6 +210,10 @@ export class StockMovementsComponent implements OnInit {
   ngOnInit() {
     this.loadMovements(1);
     this.loadProducts();
+    this.route.queryParams.subscribe(params => {
+      this.searchQuery.set(params['q'] || '');
+      this.loadMovements(1);
+    });
   }
 
   private searchTimeout: any;

@@ -1,6 +1,7 @@
 import { Component, inject, signal, OnInit, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { Chart } from 'chart.js/auto';
@@ -81,8 +82,8 @@ import { Chart } from 'chart.js/auto';
       <div class="reports-grid-tables" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
         
         <!-- Product Movements Table -->
-        <div class="table-card" style="margin: 0;">
-          <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--secondary);">
+        <div class="table-card" style="margin: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+          <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #D5D9D9;">
             <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">Ürün Bazlı Hareket Detayları</h3>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Her ürün için toplam giriş-çıkış adetleri.</p>
           </div>
@@ -118,8 +119,8 @@ import { Chart } from 'chart.js/auto';
         </div>
 
         <!-- Supplier summary -->
-        <div class="table-card" style="margin: 0;">
-          <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--secondary);">
+        <div class="table-card" style="margin: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+          <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #D5D9D9;">
             <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">Tedarikçi Satın Alma Raporu</h3>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Tedarikçilere verilen sipariş adetleri ve maliyetler.</p>
           </div>
@@ -153,7 +154,15 @@ import { Chart } from 'chart.js/auto';
       </div>
 
       <!-- AI Demand Forecasting Section -->
-      <div class="forecast-section">
+      <div class="forecast-section" style="position: relative;">
+        @if (ui.subscription().plan !== 'ultra') {
+          <div class="forecast-lock-overlay" style="position: absolute; inset: 0; background: rgba(255,255,255,0.92); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(4px); border-radius: 8px; border: 1px dashed #D5D9D9; text-align: center; padding: 2rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔒</div>
+            <h4 style="font-size: 1rem; font-weight: bold; margin: 0; color: #0F1111;">Talep Tahmini & AI Öngörü</h4>
+            <p style="font-size: 0.8rem; color: #565959; max-width: 340px; margin: 8px 0 16px 0; line-height: 1.5;">Gelişmiş talep tahminleme ve yapay zeka destekli stok öngörüleri için Ultra Plan'a yükseltin.</p>
+            <button class="btn btn-primary" (click)="router.navigate(['/billing'])" style="font-size: 0.8rem; padding: 6px 16px; border-radius: 20px; font-weight: bold;">Ultra Plan'a Yükselt</button>
+          </div>
+        }
         <div class="report-chart-card" style="grid-column: 1 / -1;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
             <div>
@@ -164,7 +173,7 @@ import { Chart } from 'chart.js/auto';
               <p class="card-subtitle">Seçtiğiniz ürün için yapay zeka destekli talep analizi ve stok projeksiyonu.</p>
             </div>
             <div class="forecast-select">
-              <select class="form-input form-select" style="height: 40px; padding: 0 36px 0 12px; font-size: 13px; min-width: 250px;" (change)="onForecastProductChange($event)">
+              <select class="form-input form-select" style="height: 40px; padding: 0 36px 0 12px; font-size: 13px; min-width: 250px;" (change)="onForecastProductChange($event)" [disabled]="ui.subscription().plan !== 'ultra'">
                 <option value="">Ürün Seçin...</option>
                 @for (p of allProducts(); track p.id) {
                   <option [value]="p.id">{{ p.name }} ({{ p.sku }})</option>
@@ -229,11 +238,10 @@ import { Chart } from 'chart.js/auto';
       gap: 1.5rem;
     }
     .metric-card {
-      background: var(--surface);
-      border: 1px solid var(--secondary);
-      border-radius: var(--radius-lg);
+      background: #FFFFFF;
+      border: 1px solid #D5D9D9;
+      border-radius: 8px;
       padding: 1.5rem;
-      box-shadow: var(--shadow-sm);
     }
     .m-label {
       font-family: var(--font-heading);
@@ -261,11 +269,10 @@ import { Chart } from 'chart.js/auto';
       gap: 1.5rem;
     }
     .report-chart-card {
-      background: var(--surface);
-      border: 1px solid var(--secondary);
-      border-radius: var(--radius-lg);
+      background: #FFFFFF;
+      border: 1px solid #D5D9D9;
+      border-radius: 8px;
       padding: 1.5rem;
-      box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
     }
@@ -294,9 +301,9 @@ import { Chart } from 'chart.js/auto';
       gap: 1rem;
     }
     .forecast-metric {
-      background: var(--bg-hover, rgba(62, 207, 142, 0.04));
-      border: 1px solid var(--border-default, #2a2a2a);
-      border-radius: 10px;
+      background: #FFFFFF;
+      border: 1px solid #D5D9D9;
+      border-radius: 8px;
       padding: 1rem 1.25rem;
     }
     .fm-label {
@@ -311,7 +318,7 @@ import { Chart } from 'chart.js/auto';
       font-size: 1.5rem;
       font-weight: 700;
       margin: 0.3rem 0 0 0;
-      color: var(--text-primary, #ededed);
+      color: var(--text-primary, #0F1111);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -323,20 +330,20 @@ import { Chart } from 'chart.js/auto';
       font-weight: 600;
       letter-spacing: 0.3px;
     }
-    .confidence-badge.high { background: rgba(62, 207, 142, 0.15); color: #3ecf8e; }
+    .confidence-badge.high { background: rgba(0, 113, 133, 0.1); color: #007185; }
     .confidence-badge.medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-    .confidence-badge.low { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .confidence-badge.low { background: rgba(177, 39, 4, 0.1); color: #B12704; }
     .forecast-insight {
       display: flex;
       align-items: flex-start;
       gap: 8px;
       margin-top: 1rem;
       padding: 12px 16px;
-      background: var(--bg-hover, rgba(62, 207, 142, 0.06));
-      border: 1px solid var(--border-default, #2a2a2a);
+      background: #F7FAFA;
+      border: 1px solid #D5D9D9;
       border-radius: 8px;
       font-size: 0.85rem;
-      color: var(--text-secondary, #a1a1a1);
+      color: var(--text-secondary, #565959);
       line-height: 1.5;
     }
     @media (max-width: 768px) {
@@ -347,6 +354,7 @@ import { Chart } from 'chart.js/auto';
 export class ReportsComponent implements OnInit, AfterViewInit {
   inventoryService = inject(InventoryService);
   ui = inject(UiStateService);
+  router = inject(Router);
 
   @ViewChild('catChart') catCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('topChart') topCanvas!: ElementRef<HTMLCanvasElement>;
@@ -448,7 +456,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             labels: catLabels,
             datasets: [{
               data: catValues,
-              backgroundColor: ['#111827', '#374151', '#4B5563', '#6B7280', '#9CA3AF', '#D1D5DB'],
+              backgroundColor: ['#131921', '#232F3E', '#FFD814', '#F7CA00', '#B12704', '#D5D9D9'],
               borderWidth: 1
             }]
           },
@@ -456,7 +464,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Inter', size: 11 } } }
+              legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Amazon Ember, Arial, sans-serif', size: 11 } } }
             }
           }
         });
@@ -477,7 +485,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             datasets: [{
               label: 'Satış Adedi',
               data: topValues,
-              backgroundColor: '#111827',
+              backgroundColor: '#232F3E',
               borderRadius: 4
             }]
           },
@@ -488,8 +496,8 @@ export class ReportsComponent implements OnInit, AfterViewInit {
               legend: { display: false }
             },
             scales: {
-              y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { family: 'Inter' } } },
-              x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 } } }
+              y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { family: 'Amazon Ember, Arial, sans-serif' } } },
+              x: { grid: { display: false }, ticks: { font: { family: 'Amazon Ember, Arial, sans-serif', size: 10 } } }
             }
           }
         });
@@ -606,18 +614,18 @@ export class ReportsComponent implements OnInit, AfterViewInit {
           {
             label: 'Tahmini Stok',
             data: stockProjection,
-            borderColor: '#3ecf8e',
-            backgroundColor: 'rgba(62, 207, 142, 0.1)',
+            borderColor: '#007185',
+            backgroundColor: 'rgba(0, 113, 133, 0.1)',
             fill: true,
             tension: 0.3,
             borderWidth: 2,
             pointRadius: 3,
-            pointBackgroundColor: '#3ecf8e',
+            pointBackgroundColor: '#007185',
           },
           {
             label: 'Kritik Seviye',
             data: minLine,
-            borderColor: '#ef4444',
+            borderColor: '#B12704',
             borderDash: [6, 4],
             borderWidth: 1.5,
             pointRadius: 0,
@@ -631,18 +639,18 @@ export class ReportsComponent implements OnInit, AfterViewInit {
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { boxWidth: 10, font: { family: 'Inter', size: 11 } },
+            labels: { boxWidth: 10, font: { family: 'Amazon Ember, Arial, sans-serif', size: 11 } },
           },
         },
         scales: {
           y: {
             beginAtZero: true,
-            grid: { color: 'rgba(255,255,255,0.06)' },
-            ticks: { font: { family: 'Inter' }, color: '#6b6b6b' },
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            ticks: { font: { family: 'Amazon Ember, Arial, sans-serif' }, color: '#565959' },
           },
           x: {
             grid: { display: false },
-            ticks: { font: { family: 'Inter', size: 10 }, color: '#6b6b6b' },
+            ticks: { font: { family: 'Amazon Ember, Arial, sans-serif', size: 10 }, color: '#565959' },
           },
         },
       },

@@ -1,5 +1,6 @@
 import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray, FormsModule } from '@angular/forms';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
@@ -49,73 +50,90 @@ import { InventoryService, Order } from '../../inventory.service';
       </div>
     </div>
 
-    <div class="table-card">
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Sipariş No</th>
-              <th>Müşteri</th>
-              <th>Tarih</th>
-              <th>Ürünler</th>
-              <th>Toplam</th>
-              <th>Durum</th>
-              <th class="th-actions">Aksiyon</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (o of filteredOrders(); track o.id) {
-              <tr class="clickable-row" (click)="openOrderDetail(o)">
-                <td class="mono" style="font-weight:600">{{ o.orderNumber }}</td>
-                <td style="font-weight:500">{{ o.customerName }}</td>
-                <td class="mono" style="color:var(--text-muted)">{{ o.date | date:'dd.MM.yyyy HH:mm' }}</td>
-                <td class="order-items-cell" [attr.data-order-id]="o.id">
-                  <div class="measure-tags" style="visibility: hidden; position: absolute; white-space: nowrap; display: flex; gap: 4px; pointer-events: none; opacity: 0; z-index: -1;">
-                    @for (item of o.items; track item.productName) {
-                      <span class="order-item-tag">{{ item.productName }} ({{ item.quantity }}x)</span>
-                    }
+    <!-- Result Cards Stack (Amazon "Siparişlerim" layout) -->
+    <div style="display: flex; flex-direction: column; gap: 1.25rem; width: 100%;">
+      @for (o of filteredOrders(); track o.id) {
+        <div class="amazon-order-card" style="border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFFFFF; font-size: 13px;">
+          <!-- Header Bar (Light Grey background) -->
+          <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
+            <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
+              <div>
+                <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Sipariş Tarihi</div>
+                <div style="color: #0F1111; font-weight: 500;">{{ o.date | date:'dd.MM.yyyy HH:mm' }}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Toplam Tutar</div>
+                <div style="color: #B12704; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount }}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Alıcı (Müşteri)</div>
+                <div style="color: #0F1111; font-weight: 500;">{{ o.customerName }}</div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; color: #0F1111;">Sipariş No: #{{ o.orderNumber }}</div>
+              <div>
+                <a href="#" (click)="openOrderDetail(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">Sipariş Detayları</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Body (White background) -->
+          <div class="order-card-body" style="padding: 16px 18px; display: flex; justify-content: space-between; align-items: start; gap: 1.5rem; flex-wrap: wrap;">
+            <!-- Left: Items list -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 250px;">
+              <h4 style="margin: 0; font-size: 14px; font-weight: bold; color: #0F1111; display: flex; align-items: center; gap: 8px;">
+                <!-- Status badge -->
+                <span class="badge" [class.badge-instock]="o.status === 'Completed'" [class.badge-lowstock]="o.status === 'Pending'" [class.badge-outstock]="o.status === 'Cancelled'">
+                  {{ o.status === 'Completed' ? 'Teslim Edildi' : o.status === 'Pending' ? 'Beklemede' : 'İptal Edildi' }}
+                </span>
+              </h4>
+              
+              <!-- Item detail rows -->
+              <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+                @for (item of o.items; track item.productName) {
+                  <div style="display: flex; justify-content: space-between; width: 100%; max-width: 450px; font-size: 13px;">
+                    <span style="color: #007185; font-weight: 500;">{{ item.productName }}</span>
+                    <span style="color: #565959;">{{ item.quantity }} adet x ₺{{ item.price }}</span>
                   </div>
-                  <div class="order-items-flex">
-                    @for (item of o.items.slice(0, visibleTagsMap()[o.id] ?? o.items.length); track item.productName) {
-                      <span class="order-item-tag">{{ item.productName }} ({{ item.quantity }}x)</span>
-                    }
-                    @if ((visibleTagsMap()[o.id] ?? o.items.length) < o.items.length) {
-                      <span class="order-item-tag more-tag">+{{ o.items.length - (visibleTagsMap()[o.id] ?? o.items.length) }} daha</span>
-                    }
-                  </div>
-                </td>
-                <td class="mono" style="font-weight:700">₺{{ o.totalAmount }}</td>
-                <td>
-                  <span class="badge" [class.badge-instock]="o.status === 'Completed'" [class.badge-lowstock]="o.status === 'Pending'" [class.badge-outstock]="o.status === 'Cancelled'">
-                    {{ o.status === 'Completed' ? 'Tamamlandı' : o.status === 'Pending' ? 'Bekliyor' : 'İptal Edildi' }}
-                  </span>
-                </td>
-                <td (click)="$event.stopPropagation()">
-                  @if (o.status === 'Pending') {
-                    <div class="order-actions-row">
-                      <button class="action-btn-sm approve" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id">
-                        @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { Tamamla }
-                      </button>
-                      <button class="action-btn-sm cancel" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">İptal</button>
-                    </div>
-                  } @else if (o.status === 'Completed') {
-                    <div class="order-actions-row">
-                      <button class="action-btn-sm cancel" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">
-                        @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { İade Et }
-                      </button>
-                    </div>
-                  } @else {
-                    <span class="text-muted" style="text-align:right;display:block;">—</span>
-                  }
-                </td>
-              </tr>
-            }
-            @if (filteredOrders().length === 0) {
-              <tr><td colspan="7" class="empty-state">Arama kriterlerinize uygun sipariş bulunamadı.</td></tr>
-            }
-          </tbody>
-        </table>
-      </div>
+                }
+              </div>
+
+              <!-- Shipping Info if available -->
+              @if (o.carrier || o.trackingNumber) {
+                <div style="margin-top: 10px; font-size: 12px; color: #565959; background: #F7FAFA; border: 1px solid #D5D9D9; border-radius: 4px; padding: 6px 12px; display: inline-block; max-width: 450px;">
+                  🚚 Kargo: <strong>{{ o.carrier || 'Bilinmiyor' }}</strong> - Takip No: <strong style="font-family: var(--font-mono);">{{ o.trackingNumber || '-' }}</strong>
+                </div>
+              }
+            </div>
+
+            <!-- Right: Actions drop-down / buttons -->
+            <div style="display: flex; flex-direction: column; gap: 8px; width: 160px; flex-shrink: 0;" (click)="$event.stopPropagation()">
+              @if (o.status === 'Pending') {
+                <button class="btn btn-primary btn-sm" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
+                  @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { Tamamla }
+                </button>
+                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
+                  İptal Et
+                </button>
+              } @else if (o.status === 'Completed') {
+                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
+                  İade Et
+                </button>
+              } @else {
+                <button class="btn btn-secondary btn-sm" (click)="promptDeleteOrder(o)" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
+                  Sil
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+      @if (filteredOrders().length === 0) {
+        <div class="empty-state" style="padding: 3rem; text-align: center; border: 1px dashed #D5D9D9; border-radius: 8px; background: #FFFFFF; width: 100%;">
+          <p style="font-size: 15px; color: #565959;">Arama kriterlerinize uygun sipariş bulunamadı.</p>
+        </div>
+      }
     </div>
 
     <!-- ─── Create Order Modal ─── -->
@@ -301,7 +319,7 @@ import { InventoryService, Order } from '../../inventory.service';
                   </button>
                 }
                 @if (order.status === 'Cancelled') {
-                  <div style="color: #999; font-size: 13px; text-align: center; width: 100%; align-self: center;">Bu sipariş iptal edilmiştir.</div>
+                  <button class="btn btn-danger" (click)="promptDeleteOrder(order)" [disabled]="updatingOrderId() === order.id" style="width: 100%">Sil</button>
                 }
               }
             </div>
@@ -333,6 +351,30 @@ import { InventoryService, Order } from '../../inventory.service';
         </div>
       </div>
     }
+
+    <!-- ─── Delete Confirmation Modal ─── -->
+    @if (showDeleteModal()) {
+      <div class="modal-backdrop" style="z-index: 3000;">
+        <div class="modal-panel modal-panel-sm">
+          <div class="delete-modal-content">
+            <button class="delete-modal-close" (click)="closeDeleteModal()" [disabled]="updatingOrderId() !== null">✕</button>
+            <div class="delete-icon">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </div>
+            <h3 class="delete-modal-title">Siparişi Sil</h3>
+            <p class="delete-modal-desc">
+              <strong>{{ orderToDelete()?.orderNumber }}</strong> numaralı siparişi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+            </p>
+          </div>
+          <div class="delete-modal-actions">
+            <button class="btn btn-secondary" (click)="closeDeleteModal()" [disabled]="updatingOrderId() !== null">Vazgeç</button>
+            <button class="btn btn-danger" (click)="confirmDeleteOrder()" [disabled]="updatingOrderId() !== null">
+              @if (updatingOrderId() !== null) { <span class="spinner-sm spinner-light"></span> Siliniyor... } @else { Onayla }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `
 })
 export class OrdersComponent {
@@ -340,6 +382,8 @@ export class OrdersComponent {
   ui = inject(UiStateService);
   inventoryService = inject(InventoryService);
   fb = inject(FormBuilder);
+  route = inject(ActivatedRoute);
+  router = inject(Router);
 
   showCreateOrderModal = signal(false);
   isOrderSaving = signal(false);
@@ -352,6 +396,10 @@ export class OrdersComponent {
   // Cancel Confirmation Modal
   showCancelModal = signal(false);
   orderToCancel = signal<Order | null>(null);
+
+  // Delete Confirmation Modal
+  showDeleteModal = signal(false);
+  orderToDelete = signal<Order | null>(null);
 
   // Search & Filter
   orderSearch = signal('');
@@ -408,6 +456,18 @@ export class OrdersComponent {
     if (this.state.orders().length === 0) {
       this.state.loadData();
     }
+    this.route.queryParams.subscribe(params => {
+      this.orderSearch.set(params['q'] || '');
+      if (params['open'] === 'new') {
+        this.openCreateOrder();
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { open: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
+      }
+    });
   }
 
   ngAfterViewInit() {
@@ -622,18 +682,36 @@ export class OrdersComponent {
     this.isOrderSaving.set(true);
 
     const formValue = this.orderForm.value;
+
+    // Merge duplicate lines by summing their quantities
+    const mergedMap = new Map<string, { productName: string, quantity: number, price: number }>();
+    formValue.lines.forEach((l: any) => {
+      const existing = mergedMap.get(l.productId);
+      if (existing) {
+        existing.quantity += Number(l.quantity);
+      } else {
+        mergedMap.set(l.productId, {
+          productName: l.productName,
+          quantity: Number(l.quantity),
+          price: Number(l.price)
+        });
+      }
+    });
+
+    const mergedItems = Array.from(mergedMap.entries()).map(([productId, data]) => ({
+      productId,
+      productName: data.productName,
+      quantity: data.quantity,
+      price: data.price
+    }));
+
     const orderPayload = {
       customerName: formValue.customerName.trim(),
       date: new Date().toISOString(),
       status: 'Pending' as const,
       carrier: formValue.carrier ? formValue.carrier.trim() : null,
       trackingNumber: formValue.trackingNumber ? formValue.trackingNumber.trim() : null,
-      items: formValue.lines.map((l: any) => ({
-        productId: l.productId,
-        productName: l.productName,
-        quantity: l.quantity,
-        price: l.price,
-      })),
+      items: mergedItems,
     };
 
     this.inventoryService.createOrder(orderPayload).subscribe({
@@ -688,6 +766,36 @@ export class OrdersComponent {
     if (!order) return;
     this.updateOrderStatus(order.id, 'Cancelled');
     this.closeCancelModal();
+  }
+
+  // Delete Confirmation Modal Logic
+  promptDeleteOrder(order: Order) {
+    this.orderToDelete.set(order);
+    this.showDeleteModal.set(true);
+  }
+
+  closeDeleteModal() {
+    this.showDeleteModal.set(false);
+    this.orderToDelete.set(null);
+  }
+
+  confirmDeleteOrder() {
+    const order = this.orderToDelete();
+    if (!order) return;
+    this.updatingOrderId.set(order.id);
+    this.inventoryService.deleteOrder(order.id).subscribe({
+      next: () => {
+        this.state.orders.update(ords => ords.filter(o => o.id !== order.id));
+        this.closeOrderDetail();
+        this.closeDeleteModal();
+        this.updatingOrderId.set(null);
+        this.ui.showToast('Sipariş başarıyla silindi.', 'success');
+      },
+      error: (err) => {
+        this.updatingOrderId.set(null);
+        this.ui.showToast(err.error?.message || 'Sipariş silinirken hata oluştu.', 'error');
+      }
+    });
   }
 
   // Order Status Update

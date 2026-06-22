@@ -34,7 +34,7 @@ export class StockMovementEntity {
   @Column({ nullable: true })
   note: string;
 
-  @Column()
+  @Column({ nullable: true })
   performedBy: string;
 
   @Index()

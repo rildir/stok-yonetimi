@@ -13,8 +13,10 @@ export class SocketService {
   private socket!: Socket;
 
   init() {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
     this.socket = io(environment.wsUrl, {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      auth: { token }
     });
 
     this.socket.on('connect', () => {
@@ -56,7 +58,7 @@ export class SocketService {
       }
     });
 
-    this.socket.on('order_mutated', (data: { type: string; order: any }) => {
+    this.socket.on('order_mutated', (data: { type: string; order?: any; orderId?: string }) => {
       console.log('[SocketService] order_mutated event received', data);
 
       // Update local orders signal incrementally without full HTTP refetch
@@ -78,6 +80,11 @@ export class SocketService {
             
         this.notifications.addNotification(`Sipariş durumu güncellendi: ${data.order.orderNumber} (${trStatus})`, 'info');
         this.ui.showToast(`📋 Sipariş durumu güncellendi: ${data.order.orderNumber}`, 'info');
+      } else if (data.type === 'delete') {
+        const idToDelete = data.orderId;
+        this.appState.orders.update(ords => ords.filter(o => o.id !== idToDelete));
+        this.notifications.addNotification(`Sipariş silindi.`, 'info');
+        this.ui.showToast(`🗑️ Sipariş silindi.`, 'info');
       }
     });
 
@@ -112,6 +119,12 @@ export class SocketService {
       }
     });
 
+    this.socket.on('warehouse_mutated', (data: { type: string; warehouse?: any; warehouseId?: string }) => {
+      console.log('[SocketService] warehouse_mutated event received', data);
+      this.notifications.addNotification(`Depo verileri güncellendi.`, 'info');
+      this.ui.showToast(`📋 Depo verileri güncellendi.`, 'info');
+    });
+
     this.socket.on('supplier_mutated', (data: { type: string; supplier?: any; supplierId?: string }) => {
       console.log('[SocketService] supplier_mutated event received', data);
       if (data.type === 'create') {
@@ -125,5 +138,23 @@ export class SocketService {
         this.ui.showToast(`🗑️ Tedarikçi Silindi`, 'info');
       }
     });
+  }
+
+  connect() {
+    if (this.socket) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
+      this.socket.auth = { token };
+      if (this.socket.disconnected) {
+        this.socket.connect();
+      } else {
+        this.socket.disconnect().connect();
+      }
+    }
+  }
+
+  disconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+    }
   }
 }
