@@ -10,6 +10,9 @@ import { NotificationService } from '../../services/notification.service';
 import { ModalComponent } from '../modal.component';
 import { AppStateService } from '../../services/app-state.service';
 import { InventoryService } from '../../inventory.service';
+import { Subject, of } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
+import { SearchService, GlobalSearchResult } from '../../services/search.service';
 
 @Component({
   selector: 'app-layout',
@@ -110,7 +113,7 @@ import { InventoryService } from '../../inventory.service';
       </aside>
 
       <div class="main-layout-wrapper">
-        <header class="top-navbar" style="background-color: #131921; height: 60px; border-bottom: none; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem;">
+        <header class="top-navbar" style="background-color: #131921; height: 60px; border-bottom: none; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; position: relative; z-index: 1000;">
           <div class="navbar-left">
             <div class="breadcrumbs" style="color: #FFFFFF;">
               <span class="breadcrumb-cat" style="color: #FEB869;">{{ getBreadcrumbs().category }}</span>
@@ -123,10 +126,12 @@ import { InventoryService } from '../../inventory.service';
           <div class="navbar-search-center" style="flex: 1; max-width: 600px; margin: 0 2rem; position: relative;">
             <div class="nav-search-bar" style="display: flex; height: 38px; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
               <input 
+                #searchInput
                 type="text" 
                 class="nav-search-input" 
-                placeholder="Ecelon'da ara..." 
-                [(ngModel)]="navbarSearchQuery" 
+                placeholder="Ecelon'da ara... (Ctrl+K)" 
+                [ngModel]="navbarSearchQuery()" 
+                (ngModelChange)="onSearchQueryChange($event)"
                 (keyup.enter)="triggerNavbarSearch()"
                 (keydown.arrowdown)="onArrowDown($event)"
                 (keydown.arrowup)="onArrowUp($event)"
@@ -209,7 +214,7 @@ import { InventoryService } from '../../inventory.service';
                     <div style="font-size: 0.75rem; font-weight: 800; color: #565959; background: #F7F7F7; padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #E5E7EB;">
                       Veritabanı Kayıtları
                     </div>
-                    @for (item of matchingInventory(); track item.name) {
+                    @for (item of matchingInventory(); track item.type + '-' + (item.id || item.name)) {
                       <div class="suggestion-item" 
                            (mousedown)="selectSuggestion(item); $event.preventDefault()"
                            style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #F3F3F3;"
@@ -738,14 +743,36 @@ export class LayoutComponent {
   http = inject(HttpClient);
   state = inject(AppStateService);
   inventoryService = inject(InventoryService);
+  searchService = inject(SearchService);
   
+  @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
+
   aiPrompt = '';
-  navbarSearchQuery = '';
+  navbarSearchQuery = signal('');
+  searchResults = signal<GlobalSearchResult | null>(null);
+  private searchSubject = new Subject<string>();
 
   isSearchFocused = signal(false);
   activeIndex = signal<number>(-1);
   warehouses = signal<any[]>([]);
   suppliers = signal<any[]>([]);
+
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboardEvent(event: KeyboardEvent) {
+    // Ctrl+K or Cmd+K
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      if (this.searchInput) {
+        this.searchInput.nativeElement.focus();
+        this.isSearchFocused.set(true);
+      }
+    }
+  }
+
+  onSearchQueryChange(val: string) {
+    this.navbarSearchQuery.set(val);
+    this.searchSubject.next(val);
+  }
 
   suggestionsList = [
     {
@@ -875,8 +902,21 @@ export class LayoutComponent {
     }
   ];
 
+  translateStatus(status: string): string {
+    const translations: Record<string, string> = {
+      'Completed': 'Tamamlandı',
+      'Pending': 'Beklemede',
+      'Cancelled': 'İptal Edildi',
+      'Draft': 'Taslak',
+      'Sent': 'Gönderildi',
+      'Partially Received': 'Kısmen Alındı',
+      'Received': 'Teslim Alındı'
+    };
+    return translations[status] || status;
+  }
+
   filteredSuggestions = computed(() => {
-    const query = this.navbarSearchQuery.toLowerCase().trim();
+    const query = this.navbarSearchQuery().toLowerCase().trim();
     if (!query) {
       return this.suggestionsList;
     }
@@ -892,62 +932,83 @@ export class LayoutComponent {
   }
 
   matchingInventory = computed(() => {
-    const query = this.navbarSearchQuery.toLowerCase().trim();
-    if (!query || query.length < 2) return [];
+    const results = this.searchResults();
+    if (!results) return [];
 
     const matches: any[] = [];
 
     // Match products
-    const prods = this.state.products();
-    const matchedProds = prods.filter(p =>
-      p.name.toLowerCase().includes(query) ||
-      p.sku.toLowerCase().includes(query)
-    ).slice(0, 3);
-
-    matchedProds.forEach(p => {
-      matches.push({
-        name: p.name,
-        type: 'Ürün',
-        subtitle: `SKU: ${p.sku} | Stok: ${p.quantity} ${p.unit || 'Adet'}`,
-        icon: '📦',
-        route: '/products',
-        openParam: `edit-${p.id}`
+    if (results.products && results.products.length > 0) {
+      results.products.forEach(p => {
+        matches.push({
+          id: p.id,
+          name: p.name,
+          type: 'Ürün',
+          subtitle: `SKU: ${p.sku} | Stok: ${p.quantity} ${p.unit || 'Adet'}`,
+          icon: '📦',
+          route: '/products',
+          openParam: `edit-${p.id}`
+        });
       });
-    });
+    }
+
+    // Match orders
+    if (results.orders && results.orders.length > 0) {
+      results.orders.forEach(o => {
+        matches.push({
+          id: o.id,
+          name: o.orderNumber,
+          type: 'Müşteri Siparişi',
+          subtitle: `Müşteri: ${o.customerName} | Toplam: ₺${o.totalAmount} | Durum: ${this.translateStatus(o.status)}`,
+          icon: '🛒',
+          route: '/orders',
+          openParam: `edit-${o.id}`
+        });
+      });
+    }
+
+    // Match purchase orders
+    if (results.purchaseOrders && results.purchaseOrders.length > 0) {
+      results.purchaseOrders.forEach(po => {
+        matches.push({
+          id: po.id,
+          name: po.poNumber,
+          type: 'Tedarik Siparişi',
+          subtitle: `Tedarikçi: ${po.supplierName} | Toplam: ₺${po.totalAmount} | Durum: ${this.translateStatus(po.status)}`,
+          icon: '💳',
+          route: '/purchase-orders',
+          openParam: `edit-${po.id}`
+        });
+      });
+    }
 
     // Match warehouses
-    const whs = this.warehouses();
-    const matchedWhs = whs.filter(w =>
-      w.name.toLowerCase().includes(query) ||
-      w.code.toLowerCase().includes(query)
-    ).slice(0, 2);
-
-    matchedWhs.forEach(w => {
-      matches.push({
-        name: w.name,
-        type: 'Depo',
-        subtitle: `Kod: ${w.code} | Stok: ${w.totalStock} adet`,
-        icon: '🏢',
-        route: '/warehouses'
+    if (results.warehouses && results.warehouses.length > 0) {
+      results.warehouses.forEach(w => {
+        matches.push({
+          id: w.id,
+          name: w.name,
+          type: 'Depo',
+          subtitle: `Kod: ${w.code} | Adres: ${w.address || '-'}`,
+          icon: '🏢',
+          route: '/warehouses'
+        });
       });
-    });
+    }
 
     // Match suppliers
-    const sups = this.suppliers();
-    const matchedSups = sups.filter(s =>
-      s.name.toLowerCase().includes(query) ||
-      (s.contactPerson && s.contactPerson.toLowerCase().includes(query))
-    ).slice(0, 2);
-
-    matchedSups.forEach(s => {
-      matches.push({
-        name: s.name,
-        type: 'Tedarikçi',
-        subtitle: `İrtibat: ${s.contactPerson || '-'} | Derece: ${s.rating}/5`,
-        icon: '🏭',
-        route: '/suppliers'
+    if (results.suppliers && results.suppliers.length > 0) {
+      results.suppliers.forEach(s => {
+        matches.push({
+          id: s.id,
+          name: s.name,
+          type: 'Tedarikçi',
+          subtitle: `İrtibat: ${s.contactPerson || '-'} | Derece: ${s.rating}/5`,
+          icon: '🏭',
+          route: '/suppliers'
+        });
       });
-    });
+    }
 
     return matches;
   });
@@ -1002,7 +1063,7 @@ export class LayoutComponent {
   }
 
   triggerNavbarSearch() {
-    const query = this.navbarSearchQuery.trim();
+    const query = this.navbarSearchQuery().trim();
     const list = this.allVisibleSuggestions();
     const idx = this.activeIndex();
 
@@ -1023,7 +1084,8 @@ export class LayoutComponent {
 
       this.router.navigate([targetRoute], { queryParams: { q: query } });
       this.isSearchFocused.set(false);
-      this.navbarSearchQuery = '';
+      this.navbarSearchQuery.set('');
+      this.searchResults.set(null);
     }
   }
 
@@ -1032,11 +1094,12 @@ export class LayoutComponent {
     this.activeIndex.set(-1);
     const queryParams: any = suggestion.openParam ? { open: suggestion.openParam } : {};
     this.router.navigate([suggestion.route], { queryParams });
-    this.navbarSearchQuery = '';
+    this.navbarSearchQuery.set('');
+    this.searchResults.set(null);
   }
 
   highlightMatch(text: string): string {
-    const query = this.navbarSearchQuery.toLowerCase().trim();
+    const query = this.navbarSearchQuery().toLowerCase().trim();
     if (!query) return text;
     const index = text.toLowerCase().indexOf(query);
     if (index === -1) return text;
@@ -1073,6 +1136,26 @@ export class LayoutComponent {
         error: () => {}
       });
     }
+
+    // Global Search Debounced Subscription
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(query => {
+        const trimmed = query.trim();
+        if (!trimmed || trimmed.length < 2) {
+          return of(null);
+        }
+        return this.searchService.search(trimmed).pipe(
+          catchError(err => {
+            console.error('Global search error:', err);
+            return of(null);
+          })
+        );
+      })
+    ).subscribe(results => {
+      this.searchResults.set(results);
+    });
   }
 
   notifService = inject(NotificationService);

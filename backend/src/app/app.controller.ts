@@ -154,6 +154,17 @@ export class AppController {
     return { success: await this.dbService.deleteOrder(id) };
   }
 
+  // Global Search
+  @UseGuards(AuthGuard)
+  @Get('search')
+  async globalSearch(@Query('q') query: string, @Query('limit') limit?: string) {
+    if (!query) {
+      return { products: [], orders: [], purchaseOrders: [], suppliers: [], warehouses: [] };
+    }
+    const maxLimit = limit ? parseInt(limit, 10) : 10;
+    return this.dbService.globalSearch(query, maxLimit);
+  }
+
   // AI Query
   @UseGuards(AuthGuard)
   @Post('ai/query')

@@ -1925,7 +1925,7 @@ select:disabled {
   max-width: 400px;
   background: var(--surface);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: flex-start;
   padding: 1rem;
@@ -1940,7 +1940,7 @@ select:disabled {
   border-left-color: var(--status-outstock);
 }
 .toast-info {
-  border-left-color: var(--ai-accent);
+  border-left-color: #1D4ED8;
 }
 
 .toast-icon {
@@ -1957,13 +1957,13 @@ select:disabled {
   color: var(--status-outstock);
 }
 .toast-info .toast-icon {
-  color: var(--ai-accent);
+  color: #1D4ED8;
 }
 
 .toast-message {
   flex-grow: 1;
   font-size: 0.85rem;
-  color: var(--primary);
+  color: var(--text-primary);
   font-weight: 500;
   line-height: 1.4;
   margin-right: 1rem;

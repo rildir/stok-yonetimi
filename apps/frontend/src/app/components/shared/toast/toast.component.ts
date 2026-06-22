@@ -9,12 +9,14 @@ export type ToastType = 'success' | 'error' | 'info';
   imports: [CommonModule],
   template: `
     @if (isVisible()) {
-      <div class="inline-toast" [class.toast-success]="type() === 'success'" [class.toast-error]="type() === 'error'">
+      <div class="inline-toast" [class.toast-success]="type() === 'success'" [class.toast-error]="type() === 'error'" [class.toast-info]="type() === 'info'">
         <div class="inline-toast-icon">
           @if (type() === 'success') {
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
           } @else if (type() === 'error') {
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          } @else {
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           }
         </div>
         <div class="inline-toast-content">
@@ -48,6 +50,11 @@ export type ToastType = 'success' | 'error' | 'info';
       border-left-color: var(--status-outstock);
       background: rgba(220, 38, 38, 0.05);
     }
+
+    .inline-toast.toast-info {
+      border-left-color: #1D4ED8;
+      background: rgba(29, 78, 216, 0.05);
+    }
     
     .inline-toast-icon {
       flex-shrink: 0;
@@ -57,12 +64,13 @@ export type ToastType = 'success' | 'error' | 'info';
     
     .toast-success .inline-toast-icon { color: var(--status-instock); }
     .toast-error .inline-toast-icon { color: var(--status-outstock); }
+    .toast-info .inline-toast-icon { color: #1D4ED8; }
     
     .inline-toast-content {
       flex: 1;
       font-size: 0.85rem;
       font-weight: 500;
-      color: var(--primary);
+      color: var(--text-primary);
     }
     
     .inline-toast-close {
@@ -75,7 +83,7 @@ export type ToastType = 'success' | 'error' | 'info';
     }
     
     .inline-toast-close:hover {
-      color: var(--primary);
+      color: var(--text-primary);
     }
     
     @keyframes slideDown {

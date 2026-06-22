@@ -967,6 +967,54 @@ export class DbService implements OnModuleInit {
     return true;
   }
 
+  async globalSearch(query: string, limit: number = 10): Promise<{
+    products: ProductEntity[];
+    orders: OrderEntity[];
+    purchaseOrders: PurchaseOrderEntity[];
+    suppliers: SupplierEntity[];
+    warehouses: WarehouseEntity[];
+  }> {
+    const q = `%${query.toLowerCase()}%`;
+    const poRepo = this.dataSource.getRepository(PurchaseOrderEntity);
+
+    const [products, orders, purchaseOrders, suppliers, warehouses] = await Promise.all([
+      // Products
+      this.productRepo.createQueryBuilder('p')
+        .where('p.isDeleted = false')
+        .andWhere('(LOWER(p.name) LIKE :q OR LOWER(p.sku) LIKE :q)', { q })
+        .take(limit)
+        .getMany(),
+
+      // Orders
+      this.orderRepo.createQueryBuilder('o')
+        .where('(LOWER(o.customerName) LIKE :q OR LOWER(o.orderNumber) LIKE :q)', { q })
+        .take(limit)
+        .getMany(),
+
+      // Purchase Orders
+      poRepo.createQueryBuilder('po')
+        .where('(LOWER(po.supplierName) LIKE :q OR LOWER(po.poNumber) LIKE :q)', { q })
+        .take(limit)
+        .getMany(),
+
+      // Suppliers
+      this.supplierRepo.createQueryBuilder('s')
+        .where('s.isDeleted = false')
+        .andWhere('(LOWER(s.name) LIKE :q OR LOWER(s.contactPerson) LIKE :q OR LOWER(s.email) LIKE :q)', { q })
+        .take(limit)
+        .getMany(),
+
+      // Warehouses
+      this.warehouseRepo.createQueryBuilder('w')
+        .where('w.isDeleted = false')
+        .andWhere('(LOWER(w.name) LIKE :q OR LOWER(w.code) LIKE :q)', { q })
+        .take(limit)
+        .getMany()
+    ]);
+
+    return { products, orders, purchaseOrders, suppliers, warehouses };
+  }
+
   // Categories CRUD
   async getCategories(): Promise<CategoryEntity[]> {
     return this.categoryRepo.find({ where: { isDeleted: false }, order: { name: 'ASC' } });
