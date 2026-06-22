@@ -16,12 +16,13 @@ import { ToastComponent } from '../shared/toast/toast.component';
         <h1>Stok Hareketleri</h1>
         <p>Depodaki tüm ürün giriş, çıkış ve düzeltme işlemlerinin tarihçesi.</p>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
         <button class="btn btn-outline" (click)="loadMovements(currentPage())">Yenile</button>
         <button class="btn btn-outline" (click)="exportToCSV()" style="display: flex; align-items: center; gap: 6px;">
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           Dışa Aktar
         </button>
+        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
         <button class="btn btn-primary" (click)="openDrawer()">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           Manuel Düzeltme
@@ -49,13 +50,13 @@ import { ToastComponent } from '../shared/toast/toast.component';
             <thead>
               <tr>
                 <th>Tarih</th>
-                <th>Ürün Adı</th>
-                <th>İşlem Tipi</th>
+                <th>Ürün adı</th>
+                <th>İşlem tipi</th>
                 <th>Miktar</th>
-                <th>Eski Stok</th>
-                <th>Yeni Stok</th>
-                <th>Not / Referans</th>
-                <th>İşlemi Yapan</th>
+                <th>Eski stok</th>
+                <th>Yeni stok</th>
+                <th>Not / referans</th>
+                <th>İşlemi yapan</th>
               </tr>
             </thead>
             <tbody>
@@ -419,10 +420,10 @@ export class StockMovementsComponent implements OnInit {
 
   getTypeName(type: string) {
     switch (type) {
-      case 'IN': return 'Stok Girişi';
-      case 'OUT': return 'Stok Çıkışı';
+      case 'IN': return 'Stok girişi';
+      case 'OUT': return 'Stok çıkışı';
       case 'ORDER': return 'Sipariş';
-      case 'RETURN': return 'İptal / İade';
+      case 'RETURN': return 'İptal / iade';
       case 'ADJUSTMENT': return 'Düzeltme';
       default: return type;
     }

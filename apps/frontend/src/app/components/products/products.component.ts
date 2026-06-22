@@ -1,5 +1,6 @@
 import { Component, inject, signal, computed, HostListener } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, registerLocaleData } from '@angular/common';
+import localeTr from '@angular/common/locales/tr';
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AppStateService } from '../../services/app-state.service';
@@ -7,6 +8,8 @@ import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Product } from '../../inventory.service';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { ModalComponent } from '../modal.component';
+
+registerLocaleData(localeTr);
 
 @Component({
   selector: 'app-products',
@@ -90,7 +93,7 @@ import { ModalComponent } from '../modal.component';
         <h1>Ürün Yönetimi</h1>
         <p>İşletmenizin stoklarını ve ürün detaylarını buradan yönetin.</p>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
         <button class="btn btn-outline" (click)="fileInput.click()" title="CSV'den İçe Aktar">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
           İçe Aktar
@@ -104,9 +107,10 @@ import { ModalComponent } from '../modal.component';
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
           Yazdır
         </button>
-        <button class="btn btn-outline" (click)="openAddProduct()">+ Yeni Ürün Ekle</button>
-        <button class="btn btn-primary" (click)="ui.toggleAiPanel()">
-          <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <button class="btn btn-primary" (click)="openAddProduct()">+ Yeni Ürün Ekle</button>
+        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
+        <button class="btn btn-outline" (click)="ui.toggleAiPanel()">
+          <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #9333ea; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           Yapay Zeka Asistanı
         </button>
       </div>
@@ -147,7 +151,7 @@ import { ModalComponent } from '../modal.component';
         <div>
           <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Stok Durumu</h4>
           <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
-            @for (st of [{id:'all', label:'Tümü'}, {id:'In stock', label:'Stokta Var'}, {id:'Low stock', label:'Azalıyor'}, {id:'Out of stock', label:'Tükendi'}]; track st.id) {
+            @for (st of [{id:'all', label:'Tümü'}, {id:'In stock', label:'Stokta var'}, {id:'Low stock', label:'Azalıyor'}, {id:'Out of stock', label:'Tükendi'}]; track st.id) {
               <li>
                 <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #0F1111; font-size: 13px;">
                   <input type="radio" name="stockFilter" [checked]="productFilterStatus() === st.id" (change)="productFilterStatus.set($any(st.id))" style="cursor: pointer;" />
@@ -157,24 +161,28 @@ import { ModalComponent } from '../modal.component';
             }
           </ul>
         </div>
-
-        <!-- Rating Refinement (Amazon style) -->
-        <div>
-          <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Müşteri Puanı</h4>
-          <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px; color: #007185;">
-            <li><a href="#" (click)="$event.preventDefault()" style="text-decoration:none; color:inherit;">⭐⭐⭐⭐⭐ (5 Yıldız)</a></li>
-            <li><a href="#" (click)="$event.preventDefault()" style="text-decoration:none; color:inherit;">⭐⭐⭐⭐☆ ve üzeri</a></li>
-            <li><a href="#" (click)="$event.preventDefault()" style="text-decoration:none; color:inherit;">⭐⭐⭐☆☆ ve üzeri</a></li>
-          </ul>
-        </div>
       </aside>
 
       <!-- Right Main Content Panel -->
       <div class="ecelon-results-main" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
         <!-- Header with item count and sorting selection -->
         <div style="display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 8px; padding: 12px 16px;">
-          <div style="font-size: 14px; color: #565959;">
-            En çok eşleşen <strong>{{ filteredProducts().length }} sonuç</strong> gösteriliyor
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="font-size: 14px; color: #565959;">
+              En çok eşleşen <strong>{{ filteredProducts().length }} sonuç</strong> gösteriliyor
+            </div>
+            <!-- Sorting Control -->
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #0F1111;">
+              <span style="color: #565959;">Sıralama:</span>
+              <select [value]="productSortOption()" (change)="onSortChange($event)" style="padding: 4px 8px; border: 1px solid #D5D9D9; border-radius: 4px; background: #FFF; outline: none; font-size: 13px; cursor: pointer;">
+                <option value="default">Varsayılan</option>
+                <option value="stock-desc">En Çok Stok</option>
+                <option value="stock-asc">En Az Stok</option>
+                <option value="price-asc">Fiyat ↑</option>
+                <option value="price-desc">Fiyat ↓</option>
+                <option value="name-asc">A-Z</option>
+              </select>
+            </div>
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
             <!-- Select all checkbox -->
@@ -185,10 +193,23 @@ import { ModalComponent } from '../modal.component';
           </div>
         </div>
 
+        <!-- Sticky Column Headers -->
+        <div class="list-headers" style="display: flex; align-items: center; background: var(--canvas); border-bottom: 2px solid var(--border-color); padding: 8px 16px; margin-bottom: 4px; font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: none; letter-spacing: 0.05em;">
+          <div style="width: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">Seç</div>
+          <div style="width: 130px; flex-shrink: 0; text-align: center;">Görsel</div>
+          <div style="flex: 1; display: flex; padding-left: 16px;">
+            <div style="width: 45%; text-align: left;">Ürün & SKU & Kategori</div>
+            <div style="width: 25%; text-align: left; padding-left: 8px;">Stok durumu</div>
+            <div style="width: 30%; text-align: left; padding-left: 8px;">Mevcut / kritik</div>
+          </div>
+          <div style="width: 140px; text-align: right; padding-right: 16px; flex-shrink: 0;">Birim fiyat</div>
+          <div style="width: 180px; text-align: right; padding-right: 16px; flex-shrink: 0;">İşlemler</div>
+        </div>
+
         <!-- Result Cards Stack -->
         <div style="display: flex; flex-direction: column; gap: 12px;">
           @for (p of filteredProducts(); track p.id) {
-            <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" style="display: flex; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-card); overflow: visible; position: relative; transition: all 0.2s; box-shadow: var(--shadow-sm);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.transform='none'; this.style.boxShadow='var(--shadow-sm)'">
+            <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" style="display: flex; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-card); overflow: visible; position: relative; transition: all 0.2s; box-shadow: var(--shadow-sm);">
               <!-- Checkbox on card -->
               <div style="padding: 1rem 0.5rem 1rem 1rem; display: flex; align-items: center; justify-content: center;">
                 <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 16px; height: 16px;" />
@@ -207,28 +228,32 @@ import { ModalComponent } from '../modal.component';
               </div>
 
               <!-- Product Details in Center -->
-              <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
-                <div>
+              <div style="flex: 1; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+                <!-- Column 1: Name, SKU, Category -->
+                <div style="width: 45%; display: flex; flex-direction: column; gap: 4px;">
                   <h3 style="font-size: 15px; font-weight: bold; margin: 0; line-height: 1.3;">
                     <a href="#" (click)="$event.preventDefault(); openEditProduct(p)" style="color: #007185; text-decoration: none;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">
                       {{ p.name }}
                     </a>
                   </h3>
-                  <div style="font-size: 12px; color: #565959; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 10px;">
+                  <div style="font-size: 12px; color: #565959; display: flex; flex-direction: column; gap: 2px;">
                     <span>SKU: <strong style="font-family: var(--font-mono); color: #0F1111;">{{ p.sku }}</strong></span>
-                    <span>•</span>
                     <span>Kategori: <strong>{{ getCategoryName(p.category) }}</strong></span>
                   </div>
                 </div>
 
-                <div style="display: flex; gap: 8px; align-items: center; position: relative;">
-                  <!-- Stock indicator -->
+                <!-- Column 2: Stock status -->
+                <div style="width: 25%; display: flex; justify-content: flex-start; align-items: center;">
                   <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
-                    {{ p.status === 'In stock' ? 'Stokta Var' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
+                    {{ p.status === 'In stock' ? 'Stokta var' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
                   </span>
-                  
+                </div>
+
+                <!-- Column 3: Quantity / Critical -->
+                <div style="width: 30%; display: flex; justify-content: flex-start; align-items: center; position: relative;">
                   <span style="font-size: 12px; color: #0F1111; font-weight: 500;" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
-                    Mevcut: <strong>{{ p.quantity }} {{ p.unit || 'Adet' }}</strong> (Kritik: {{ p.minQuantity }})
+                    Mevcut: <strong>{{ p.quantity }} {{ p.unit || 'Adet' }}</strong> <br/>
+                    <span style="font-size: 11px; color: var(--text-muted);">Kritik: {{ p.minQuantity }}</span>
                     @if (p.warehouses && hoveredProductId() === p.id) {
                       <div class="warehouse-tooltip" style="display:block; position: absolute; bottom: 25px; left: 50px;">
                         <div class="wh-tooltip-title">Depo Dağılımı</div>
@@ -244,30 +269,29 @@ import { ModalComponent } from '../modal.component';
                 </div>
               </div>
 
-              <!-- Product Price and Actions on Right -->
-              <div style="width: 180px; padding: 16px; border-left: 1px solid #F0F2F2; display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; gap: 12px; text-align: right; background: #FAFAFA;">
-                <div>
-                  <div style="font-size: 11px; color: #565959;">Birim Fiyat</div>
-                  <div style="font-size: 20px; font-weight: bold; color: #B12704; font-family: var(--font-mono);">
-                    ₺{{ p.price }}
-                  </div>
-                  @if (p.status === 'Low stock') {
-                    <div style="font-size: 11px; color: #B12704; font-weight: bold; margin-top: 4px;">Sadece {{ p.quantity }} Adet Kaldı!</div>
-                  }
+              <!-- Product Price Column -->
+              <div style="width: 140px; padding: 16px; border-left: 1px solid #F0F2F2; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 4px; text-align: right; background: #FAFAFA; flex-shrink: 0;">
+                <div style="font-size: 16px; font-weight: bold; color: var(--text-primary, #0F1111); font-family: var(--font-mono);">
+                  {{ p.price | currency:'TRY':'symbol':'1.2-2':'tr' }}
                 </div>
+                @if (p.status === 'Low stock') {
+                  <div style="font-size: 11px; color: #B12704; font-weight: bold; margin-top: 4px;">Sadece {{ p.quantity }} Adet Kaldı!</div>
+                }
+              </div>
 
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                  <button class="btn btn-primary btn-sm" (click)="openEditProduct(p)" style="width: 100%; border-radius: 20px;">
-                    Düzenle
+              <!-- Product Actions Column -->
+              <div style="width: 180px; padding: 16px; border-left: 1px solid #F0F2F2; display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 8px; text-align: right; background: #FAFAFA; flex-shrink: 0;">
+                <button class="btn btn-primary btn-sm" (click)="openEditProduct(p)" style="width: 100%; border-radius: 20px;">
+                  Düzenle
+                </button>
+                <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
+                  <button class="btn btn-outline btn-sm" (click)="openTransferModal(p)" title="Depolar Arası Transfer" style="flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;">
+                    Transfer
                   </button>
-                  <div style="display: flex; gap: 4px;">
-                    <button class="btn btn-outline btn-sm" (click)="openTransferModal(p)" title="Depolar Arası Transfer" style="flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;">
-                      Transfer
-                    </button>
-                    <button class="btn btn-secondary btn-sm" (click)="promptDeleteProduct(p)" title="Sil" style="color: #B12704; flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;">
-                      Sil
-                    </button>
-                  </div>
+                  <div style="width: 1px; height: 16px; background-color: var(--border-color, #E5E7EB);"></div>
+                  <button class="btn btn-outline-danger btn-sm" (click)="promptDeleteProduct(p)" title="Sil" style="color: #EF4444; border-color: #EF4444; flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;" onmouseover="this.style.backgroundColor='#FEF2F2'" onmouseout="this.style.backgroundColor='transparent'">
+                    Sil
+                  </button>
                 </div>
               </div>
             </div>
@@ -571,6 +595,7 @@ export class ProductsComponent {
   categories = signal<any[]>([]);
 
   isCategoryDropdownOpen = signal(false);
+  productSortOption = signal<string>('default');
 
   // Scanner & Warehouse tooltip
   showScanner = signal(false);
@@ -775,7 +800,8 @@ export class ProductsComponent {
   loadCategories() {
     this.inventoryService.getCategories().subscribe({
       next: (data) => {
-        this.categories.set(data);
+        const cleaned = data.filter(c => c && c.name && !c.name.toLowerCase().startsWith('ekle:'));
+        this.categories.set(cleaned);
       }
     });
   }
@@ -845,6 +871,7 @@ export class ProductsComponent {
     let list = this.state.products();
     const search = this.productSearch().toLowerCase().trim();
     const statusFilter = this.productFilterStatus();
+    const sortOpt = this.productSortOption();
 
     if (search) {
       list = list.filter(p =>
@@ -857,6 +884,20 @@ export class ProductsComponent {
     if (statusFilter !== 'all') {
       list = list.filter(p => p.status === statusFilter);
     }
+
+    // Sort list
+    if (sortOpt === 'stock-desc') {
+      list = [...list].sort((a, b) => b.quantity - a.quantity);
+    } else if (sortOpt === 'stock-asc') {
+      list = [...list].sort((a, b) => a.quantity - b.quantity);
+    } else if (sortOpt === 'price-asc') {
+      list = [...list].sort((a, b) => a.price - b.price);
+    } else if (sortOpt === 'price-desc') {
+      list = [...list].sort((a, b) => b.price - a.price);
+    } else if (sortOpt === 'name-asc') {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    }
+
     return list;
   });
 
@@ -892,6 +933,11 @@ export class ProductsComponent {
   onSearchInput(event: Event) {
     const input = event.target as HTMLInputElement;
     this.productSearch.set(input.value);
+  }
+
+  onSortChange(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    this.productSortOption.set(select.value);
   }
 
   isFieldInvalid(fieldName: string): boolean {

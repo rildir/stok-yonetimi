@@ -94,18 +94,18 @@ import { SocketService } from '../../services/socket.service';
                 <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
                   <div class="settings-form-grid">
                     <div class="form-group" [class.has-error]="isProfileFieldInvalid('fullName')">
-                      <label for="">Ad Soyad</label>
+                      <label for="">Ad soyad</label>
                       <input type="text" formControlName="fullName" placeholder="Örn: Ahmet Yılmaz" />
                       @if (isProfileFieldInvalid('fullName')) { <span class="error-msg">Ad soyad en az 3 karakter olmalıdır.</span> }
                     </div>
                     <div class="form-group" [class.has-error]="isProfileFieldInvalid('email')">
-                      <label for="">E-posta Adresi</label>
+                      <label for="">E-posta adresi</label>
                       <input type="email" formControlName="email" placeholder="ornek@sirket.com" />
                       @if (isProfileFieldInvalid('email')) { <span class="error-msg">Geçerli bir e-posta adresi girin.</span> }
                     </div>
                   </div>
                   <div class="form-group">
-                    <label for="">Şirket / Departman</label>
+                    <label for="">Şirket / departman</label>
                     <input type="text" formControlName="department" placeholder="Örn: Depo Yönetimi" />
                   </div>
                   
@@ -123,7 +123,7 @@ import { SocketService } from '../../services/socket.service';
                 
                 <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()">
                   <div class="form-group" [class.has-error]="isPasswordFieldInvalid('currentPassword')">
-                    <label for="">Mevcut Şifre</label>
+                    <label for="">Mevcut şifre</label>
                     <div class="password-input-wrapper">
                       <input [type]="showCurrent() ? 'text' : 'password'" formControlName="currentPassword" placeholder="••••••••" />
                       <button type="button" class="password-toggle-btn" (click)="showCurrent.set(!showCurrent())">
@@ -136,7 +136,7 @@ import { SocketService } from '../../services/socket.service';
                   
                   <div class="settings-form-grid">
                     <div class="form-group" [class.has-error]="isPasswordFieldInvalid('newPassword')">
-                      <label for="">Yeni Şifre</label>
+                      <label for="">Yeni şifre</label>
                       <div class="password-input-wrapper">
                         <input [type]="showNew() ? 'text' : 'password'" formControlName="newPassword" placeholder="En az 6 karakter" (input)="evaluatePasswordStrength()"/>
                         <button type="button" class="password-toggle-btn" (click)="showNew.set(!showNew())">
@@ -157,7 +157,7 @@ import { SocketService } from '../../services/socket.service';
                     </div>
                     
                     <div class="form-group" [class.has-error]="passwordForm.errors?.['mismatch'] && (passwordForm.get('confirmPassword')?.dirty || passwordForm.get('confirmPassword')?.touched)">
-                      <label for="">Yeni Şifre (Tekrar)</label>
+                      <label for="">Yeni şifre (tekrar)</label>
                       <div class="password-input-wrapper">
                         <input [type]="showConfirm() ? 'text' : 'password'" formControlName="confirmPassword" placeholder="Şifrenizi tekrar girin" />
                         <button type="button" class="password-toggle-btn" (click)="showConfirm.set(!showConfirm())">
@@ -190,7 +190,7 @@ import { SocketService } from '../../services/socket.service';
                 <div class="side-card-title">Hesap Özeti</div>
                 <div class="summary-row">
                   <span class="summary-label">Hesap Türü</span>
-                  <span class="summary-value">{{ ui.userProfile()?.role === 'admin' ? 'Yönetici' : ui.userProfile()?.role === 'manager' ? 'Stok Sorumlusu' : 'Gözlemci' }}</span>
+                  <span class="summary-value">{{ ui.userProfile()?.role === 'admin' ? 'Yönetici' : ui.userProfile()?.role === 'manager' ? 'Stok sorumlusu' : 'Gözlemci' }}</span>
                 </div>
                 <div class="summary-row">
                   <span class="summary-label">Üyelik Tarihi</span>
@@ -263,8 +263,8 @@ import { SocketService } from '../../services/socket.service';
                   <table>
                     <thead>
                       <tr>
-                        <th>Kategori Adı</th>
-                        <th>Slug (Benzersiz Arama Anahtarı)</th>
+                        <th>Kategori adı</th>
+                        <th>Slug (benzersiz arama anahtarı)</th>
                         <th class="th-actions">İşlemler</th>
                       </tr>
                     </thead>
@@ -349,8 +349,8 @@ import { SocketService } from '../../services/socket.service';
                   <table>
                     <thead>
                       <tr>
-                        <th>Ad Soyad</th>
-                        <th>Kullanıcı Adı</th>
+                        <th>Ad soyad</th>
+                        <th>Kullanıcı adı</th>
                         <th>Rol</th>
                         <th>Departman</th>
                         <th>E-posta</th>
@@ -375,7 +375,7 @@ import { SocketService } from '../../services/socket.service';
                           <td class="mono" style="color: var(--text-muted); font-size: 0.85rem;">{{ user.username }}</td>
                           <td>
                             <span class="badge" [class.badge-instock]="user.role === 'admin'" [class.badge-lowstock]="user.role === 'manager'" [class.badge-outstock]="user.role === 'viewer'">
-                              {{ user.role === 'admin' ? 'Yönetici' : user.role === 'manager' ? 'Stok Sorumlusu' : 'Gözlemci' }}
+                              {{ user.role === 'admin' ? 'Yönetici' : user.role === 'manager' ? 'Stok sorumlusu' : 'Gözlemci' }}
                             </span>
                           </td>
                           <td style="font-size: 0.9rem;">{{ user.department || '-' }}</td>

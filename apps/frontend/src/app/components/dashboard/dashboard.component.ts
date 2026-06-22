@@ -19,33 +19,36 @@ import { Chart } from 'chart.js/auto';
     </header>
 
     <!-- SLEEK AI SEARCH BAR -->
-    <div class="ai-search-centerpiece" [class.locked]="ui.subscription().plan !== 'ultra'">
-      <!-- The actual search bar & suggestions (will be blurred when locked) -->
-      <div class="ai-search-content-wrapper">
-        <div class="ai-search-bar" [class.ai-loading]="ui.isAiLoading()">
-          <div class="ai-search-icon">✦</div>
-          <input 
-            type="text" 
-            class="ai-search-input" 
-            placeholder="Yapay Zeka Asistanı ile stok analizi yapın, sipariş özetleri isteyin..." 
-            [(ngModel)]="aiPrompt" 
-            (keydown)="onKeydown($event)"
-            [disabled]="ui.subscription().plan !== 'ultra'"
-          />
-          <button class="ai-search-submit" (click)="askQuestion(aiPrompt)" [disabled]="!aiPrompt.trim() || ui.subscription().plan !== 'ultra'">
-             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </button>
+    @if (ui.subscription().plan !== 'ultra' && !isBannerDismissed) {
+      <div class="ai-search-centerpiece locked" style="position: relative;">
+        <!-- Close button for AI upsell banner -->
+        <button (click)="dismissBanner($event)" style="position: absolute; right: 12px; top: 12px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; z-index: 20; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.05)'; this.style.color='var(--text-primary)';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-muted)';" title="Kapat">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <!-- The actual search bar & suggestions (will be blurred when locked) -->
+        <div class="ai-search-content-wrapper">
+          <div class="ai-search-bar" [class.ai-loading]="ui.isAiLoading()">
+            <div class="ai-search-icon">✦</div>
+            <input 
+              type="text" 
+              class="ai-search-input" 
+              placeholder="Yapay Zeka Asistanı ile stok analizi yapın, sipariş özetleri isteyin..." 
+              [(ngModel)]="aiPrompt" 
+              (keydown)="onKeydown($event)"
+              [disabled]="true"
+            />
+            <button class="ai-search-submit" [disabled]="true">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <div class="ai-search-suggestions">
+            <span class="suggestion-label">Şunu deneyin:</span>
+            <button class="suggestion-tag" [disabled]="true">⚠️ Kritik Stoklar</button>
+            <button class="suggestion-tag" [disabled]="true">🔥 En Çok Satan</button>
+            <button class="suggestion-tag" [disabled]="true">📊 Stok Hareketi</button>
+          </div>
         </div>
-        <div class="ai-search-suggestions">
-          <span class="suggestion-label">Şunu deneyin:</span>
-          <button class="suggestion-tag" (click)="askQuestion('Kritik stok seviyesindeki ürünler hangileri?')" [disabled]="ui.subscription().plan !== 'ultra'">⚠️ Kritik Stoklar</button>
-          <button class="suggestion-tag" (click)="askQuestion('En çok satan ürün hangisi?')" [disabled]="ui.subscription().plan !== 'ultra'">🔥 En Çok Satan</button>
-          <button class="suggestion-tag" (click)="askQuestion('Haftalık stok hareket analizi yap')" [disabled]="ui.subscription().plan !== 'ultra'">📊 Stok Hareketi</button>
-        </div>
-      </div>
 
-      <!-- Eye-catching lock overlay on top of the blur -->
-      @if (ui.subscription().plan !== 'ultra') {
         <div class="ai-centerpiece-lock-overlay" routerLink="/billing">
           <div class="lock-overlay-pill">
             <span class="gold-lock-icon">✦</span>
@@ -55,8 +58,32 @@ import { Chart } from 'chart.js/auto';
             <span class="lock-arrow-icon">→</span>
           </div>
         </div>
-      }
-    </div>
+      </div>
+    } @else if (ui.subscription().plan === 'ultra') {
+      <div class="ai-search-centerpiece">
+        <div class="ai-search-content-wrapper">
+          <div class="ai-search-bar" [class.ai-loading]="ui.isAiLoading()">
+            <div class="ai-search-icon">✦</div>
+            <input 
+              type="text" 
+              class="ai-search-input" 
+              placeholder="Yapay Zeka Asistanı ile stok analizi yapın, sipariş özetleri isteyin..." 
+              [(ngModel)]="aiPrompt" 
+              (keydown)="onKeydown($event)"
+            />
+            <button class="ai-search-submit" (click)="askQuestion(aiPrompt)" [disabled]="!aiPrompt.trim()">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <div class="ai-search-suggestions">
+            <span class="suggestion-label">Şunu deneyin:</span>
+            <button class="suggestion-tag" (click)="askQuestion('Kritik stok seviyesindeki ürünler hangileri?')">⚠️ Kritik Stoklar</button>
+            <button class="suggestion-tag" (click)="askQuestion('En çok satan ürün hangisi?')">🔥 En Çok Satan</button>
+            <button class="suggestion-tag" (click)="askQuestion('Haftalık stok hareket analizi yap')">📊 Stok Hareketi</button>
+          </div>
+        </div>
+      </div>
+    }
 
     <div class="dashboard-unified-grid" style="display: grid; grid-template-columns: repeat(24, 1fr); gap: 16px; width: 100%; padding-bottom: 2.5rem;">
       <!-- ROW 1: Stat Cards -->
@@ -70,7 +97,7 @@ import { Chart } from 'chart.js/auto';
         </div>
       </div>
       
-      <div class="stat-card" style="grid-column: span 6; height: 100%;">
+      <div class="stat-card" [class.warning-yellow]="state.lowStockCount() > 0" style="grid-column: span 6; height: 100%;">
         <div class="stat-icon-box lowstock">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
         </div>
@@ -80,7 +107,7 @@ import { Chart } from 'chart.js/auto';
         </div>
       </div>
       
-      <div class="stat-card" style="grid-column: span 6; height: 100%;">
+      <div class="stat-card" [class.warning-red]="state.outOfStockCount() > 0" style="grid-column: span 6; height: 100%;">
         <div class="stat-icon-box outstock">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
@@ -99,19 +126,30 @@ import { Chart } from 'chart.js/auto';
           <div class="stat-value good">₺{{ state.totalRevenue().toLocaleString('tr-TR', { minimumFractionDigits: 2 }) }}</div>
         </div>
       </div>
-
+ 
       <!-- ROW 2: Charts & Quick Actions -->
       <!-- SON 7 GÜNÜN STOK HAREKETİ -->
       <div class="sidebar-card" style="grid-column: span 10; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; height: 285px;">
-        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.05em;">Son 7 Günün Stok Hareketi</h4>
-        <div style="flex: 1; position: relative; width: 100%; height: 100%;">
-          <canvas #weeklyChart></canvas>
+        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.05em;">Son 7 Günün Stok Hareketi (Adet)</h4>
+        <div style="flex: 1; position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+          <canvas #weeklyChart [style.display]="isChartEmpty ? 'none' : 'block'"></canvas>
+          @if (isChartEmpty) {
+            <div class="chart-empty-state" style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-muted); gap: 10px; width: 100%; height: 100%; padding: 1rem; box-sizing: border-box;">
+              <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="color: var(--secondary-focus);">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v16.5c0 .621.504 1.125 1.125 1.125h16.5m-15.375-3h15m-15-3.75h12m-12-3.75h9m-9-3.75h3" />
+              </svg>
+              <div>
+                <strong style="display: block; font-size: 0.8rem; color: var(--text-primary); margin-bottom: 2px;">Henüz Stok Hareketi Yok</strong>
+                <span style="font-size: 0.72rem; line-height: 1.3;">Bu hafta herhangi bir ürün girişi veya çıkışı kaydedilmedi.</span>
+              </div>
+            </div>
+          }
         </div>
       </div>
 
       <!-- KATEGORİ BAZLI DAĞILIM -->
       <div class="sidebar-card" style="grid-column: span 8; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; height: 285px;">
-        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.05em;">Kategori Bazlı Dağılım</h4>
+        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: none; color: var(--text-primary); letter-spacing: 0.05em;">Kategori bazlı dağılım</h4>
         <div style="flex: 1; position: relative; width: 100%; height: 100%; padding: 0.5rem;">
           <canvas #categoryChart></canvas>
         </div>
@@ -220,6 +258,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   inventoryService = inject(InventoryService);
   
   aiPrompt = '';
+  isBannerDismissed = false;
+  isChartEmpty = false;
 
   @ViewChild('weeklyChart') weeklyCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('categoryChart') categoryCanvas!: ElementRef<HTMLCanvasElement>;
@@ -248,9 +288,17 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   });
 
   ngOnInit() {
+    this.isBannerDismissed = localStorage.getItem('ecelon_ai_banner_dismissed') === 'true';
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
+  }
+
+  dismissBanner(event: Event) {
+    event.stopPropagation();
+    event.preventDefault();
+    this.isBannerDismissed = true;
+    localStorage.setItem('ecelon_ai_banner_dismissed', 'true');
   }
 
   ngAfterViewInit() {
@@ -302,7 +350,10 @@ export class DashboardComponent implements OnInit, AfterViewInit {
         exits.push(daysMap[key].out);
       }
 
-      if (this.weeklyCanvas) {
+      const isDataEmpty = entries.every(v => v === 0) && exits.every(v => v === 0);
+      this.isChartEmpty = isDataEmpty;
+
+      if (!isDataEmpty && this.weeklyCanvas) {
         const ctx = this.weeklyCanvas.nativeElement.getContext('2d');
         if (ctx) {
           this.weeklyChartInstance = new Chart(ctx, {
@@ -328,10 +379,33 @@ export class DashboardComponent implements OnInit, AfterViewInit {
               responsive: true,
               maintainAspectRatio: false,
               plugins: {
-                legend: { display: false }
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(context: any) {
+                      let label = context.dataset.label || '';
+                      if (label) {
+                        label += ': ';
+                      }
+                      if (context.parsed.y !== null) {
+                        label += context.parsed.y + ' Adet';
+                      }
+                      return label;
+                    }
+                  }
+                }
               },
               scales: {
-                y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 9, family: 'Inter' } } },
+                y: { 
+                  beginAtZero: true, 
+                  grid: { color: '#f3f4f6' }, 
+                  ticks: { 
+                    font: { size: 9, family: 'Inter' },
+                    callback: function(value: any) {
+                      return value + ' Adet';
+                    }
+                  } 
+                },
                 x: { grid: { display: false }, ticks: { font: { size: 9, family: 'Inter' } } }
               }
             }

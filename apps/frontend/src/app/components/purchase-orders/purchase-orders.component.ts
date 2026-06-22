@@ -18,18 +18,19 @@ import { ToastComponent } from '../shared/toast/toast.component';
         <h1>Satın Alma Siparişleri</h1>
         <p>Tedarikçilere verilen siparişler ve stok kabulleri.</p>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
+        <button class="btn btn-primary" (click)="openDrawer()">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Yeni Sipariş
+        </button>
+        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
         <button class="btn btn-outline" (click)="autoDraft()" [disabled]="isAutoDrafting()" title="Stok seviyesi düşük ürünler için otomatik sipariş taslağı oluştur">
           @if (isAutoDrafting()) {
             <span class="spinner-sm"></span> Analiz ediliyor...
           } @else {
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #9333ea; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             Otomatik Sipariş Taslağı
           }
-        </button>
-        <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          Yeni Sipariş
         </button>
       </div>
     </header>
@@ -75,20 +76,20 @@ import { ToastComponent } from '../shared/toast/toast.component';
             <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
               <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
                 <div>
-                  <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Sipariş Tarihi</div>
+                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Sipariş tarihi</div>
                   <div style="color: #0F1111; font-weight: 500;">{{ o.createdAt | date:'dd.MM.yyyy' }}</div>
                 </div>
                 <div>
-                  <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Toplam Tutar</div>
+                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Toplam tutar</div>
                   <div style="color: #B12704; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount | number:'1.2-2' }}</div>
                 </div>
                 <div>
-                  <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Tedarikçi</div>
+                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Tedarikçi</div>
                   <div style="color: #0F1111; font-weight: 500;">{{ o.supplierName }}</div>
                 </div>
               </div>
               <div style="text-align: right;">
-                <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; color: #0F1111;">PO No: #{{ o.poNumber }}</div>
+                <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">PO no: #{{ o.poNumber }}</div>
                 <div>
                   <a href="#" (click)="openDetailDrawer(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">Sipariş Detayları</a>
                 </div>
@@ -258,7 +259,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 <span class="detail-value mono">{{ detailOrder().createdAt | date:'dd.MM.yyyy HH:mm' }}</span>
               </div>
               <div class="detail-field">
-                <span class="detail-label">Beklenen Tarih</span>
+                <span class="detail-label">Beklenen tarih</span>
                 <span class="detail-value mono">{{ (detailOrder().expectedDate | date:'dd.MM.yyyy') || '-' }}</span>
               </div>
             </div>
@@ -330,7 +331,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
       font-family: var(--font-heading);
       font-size: 11px;
       font-weight: 700;
-      text-transform: uppercase;
+      text-transform: none;
       letter-spacing: 0.5px;
       color: var(--text-muted);
     }
@@ -698,8 +699,8 @@ export class PurchaseOrdersComponent implements OnInit {
     switch (status) {
       case 'Draft': return 'Taslak';
       case 'Sent': return 'Gönderildi';
-      case 'Received': return 'Teslim Alındı';
-      case 'Cancelled': return 'İptal Edildi';
+      case 'Received': return 'Teslim alındı';
+      case 'Cancelled': return 'İptal edildi';
       default: return status;
     }
   }

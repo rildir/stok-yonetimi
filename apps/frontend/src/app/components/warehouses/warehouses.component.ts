@@ -50,12 +50,12 @@ import { ToastComponent } from '../shared/toast/toast.component';
           <table>
             <thead>
               <tr>
-                <th>Depo Adı</th>
-                <th>Depo Kodu</th>
+                <th>Depo adı</th>
+                <th>Depo kodu</th>
                 <th>Adres</th>
-                <th style="text-align: right;">Ürün Çeşidi</th>
-                <th style="text-align: right;">Toplam Stok</th>
-                <th style="text-align: right;">Toplam Değer</th>
+                <th style="text-align: right;">Ürün çeşidi</th>
+                <th style="text-align: right;">Toplam stok</th>
+                <th style="text-align: right;">Toplam değer</th>
                 <th class="th-actions">İşlemler</th>
               </tr>
             </thead>

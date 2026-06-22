@@ -17,10 +17,11 @@ import { InventoryService, Order } from '../../inventory.service';
         <h1>Sipariş Takibi</h1>
         <p>Tüm siparişlerinizi, iadelerinizi ve müşteri taleplerini yönetin.</p>
       </div>
-      <div class="header-actions">
-        <button class="btn btn-outline" (click)="openCreateOrder()">+ Yeni Sipariş</button>
-        <button class="btn btn-primary" (click)="ui.toggleAiPanel()">
-          <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
+        <button class="btn btn-primary" (click)="openCreateOrder()">+ Yeni Sipariş</button>
+        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
+        <button class="btn btn-outline" (click)="ui.toggleAiPanel()">
+          <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #9333ea; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           Yapay Zeka Asistanı
         </button>
       </div>
@@ -58,20 +59,20 @@ import { InventoryService, Order } from '../../inventory.service';
           <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
             <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
               <div>
-                <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Sipariş Tarihi</div>
+                <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Sipariş tarihi</div>
                 <div style="color: #0F1111; font-weight: 500;">{{ o.date | date:'dd.MM.yyyy HH:mm' }}</div>
               </div>
               <div>
-                <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Toplam Tutar</div>
+                <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Toplam tutar</div>
                 <div style="color: #B12704; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount }}</div>
               </div>
               <div>
-                <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Alıcı (Müşteri)</div>
+                <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Alıcı (müşteri)</div>
                 <div style="color: #0F1111; font-weight: 500;">{{ o.customerName }}</div>
               </div>
             </div>
             <div style="text-align: right;">
-              <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; color: #0F1111;">Sipariş No: #{{ o.orderNumber }}</div>
+              <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">Sipariş no: #{{ o.orderNumber }}</div>
               <div>
                 <a href="#" (click)="openOrderDetail(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">Sipariş Detayları</a>
               </div>
@@ -85,7 +86,7 @@ import { InventoryService, Order } from '../../inventory.service';
               <h4 style="margin: 0; font-size: 14px; font-weight: bold; color: #0F1111; display: flex; align-items: center; gap: 8px;">
                 <!-- Status badge -->
                 <span class="badge" [class.badge-instock]="o.status === 'Completed'" [class.badge-lowstock]="o.status === 'Pending'" [class.badge-outstock]="o.status === 'Cancelled'">
-                  {{ o.status === 'Completed' ? 'Teslim Edildi' : o.status === 'Pending' ? 'Beklemede' : 'İptal Edildi' }}
+                  {{ o.status === 'Completed' ? 'Teslim edildi' : o.status === 'Pending' ? 'Beklemede' : 'İptal edildi' }}
                 </span>
               </h4>
               
@@ -276,7 +277,7 @@ import { InventoryService, Order } from '../../inventory.service';
                   <span class="detail-label-col">Durum</span>
                   <div style="text-align: right">
                     <span class="badge" [class.badge-instock]="order.status === 'Completed'" [class.badge-lowstock]="order.status === 'Pending'" [class.badge-outstock]="order.status === 'Cancelled'">
-                      {{ order.status === 'Completed' ? 'TAMAMLANDI' : order.status === 'Pending' ? 'BEKLİYOR' : 'İPTAL EDİLDİ' }}
+                      {{ order.status === 'Completed' ? 'Tamamlandı' : order.status === 'Pending' ? 'Bekliyor' : 'İptal edildi' }}
                     </span>
                   </div>
 

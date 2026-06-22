@@ -91,10 +91,10 @@ import { Chart } from 'chart.js/auto';
             <table>
               <thead>
                 <tr>
-                  <th>Ürün Adı</th>
-                  <th class="text-right">Toplam Giriş</th>
-                  <th class="text-right">Toplam Çıkış</th>
-                  <th class="text-right">Net Değişim</th>
+                  <th>Ürün adı</th>
+                  <th class="text-right">Toplam giriş</th>
+                  <th class="text-right">Toplam çıkış</th>
+                  <th class="text-right">Net değişim</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,9 +128,9 @@ import { Chart } from 'chart.js/auto';
             <table>
               <thead>
                 <tr>
-                  <th>Tedarikçi Firması</th>
-                  <th class="text-right">PO Sayısı</th>
-                  <th class="text-right">Toplam Ödeme</th>
+                  <th>Tedarikçi firması</th>
+                  <th class="text-right">PO sayısı</th>
+                  <th class="text-right">Toplam ödeme</th>
                 </tr>
               </thead>
               <tbody>

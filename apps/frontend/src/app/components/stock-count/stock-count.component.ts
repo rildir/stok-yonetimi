@@ -112,7 +112,7 @@ interface StockCount {
       font-size: 0.75rem;
       font-weight: 600;
       color: var(--text-muted);
-      text-transform: uppercase;
+      text-transform: none;
       letter-spacing: 0.5px;
     }
 
@@ -243,7 +243,7 @@ interface StockCount {
         </div>
 
         <div class="drawer-field">
-          <label for="countNotes">Sayım Notları (Opsiyonel)</label>
+          <label for="countNotes">Sayım notları (opsiyonel)</label>
           <input id="countNotes" type="text" [(ngModel)]="activeNotes" class="form-input" style="height:42px" placeholder="örn. A reyonu genel sayımı" [disabled]="isActionLoading()" />
         </div>
 
@@ -255,8 +255,8 @@ interface StockCount {
                   <th>Ürün Adı</th>
                   <th>SKU</th>
                   <th>Birim</th>
-                  <th style="width: 120px;">Sistem Stok</th>
-                  <th style="width: 120px; text-align: center;">Sayılan Stok</th>
+                  <th style="width: 120px;">Sistem stoku</th>
+                  <th style="width: 120px; text-align: center;">Sayılan stok</th>
                   <th style="width: 100px;">Fark</th>
                 </tr>
               </thead>
@@ -294,7 +294,7 @@ interface StockCount {
               <th>Tarih</th>
               <th>Yapan</th>
               <th>Durum</th>
-              <th>Kalem Sayısı</th>
+              <th>Kalem sayısı</th>
               <th>Notlar</th>
               <th class="th-actions">Aksiyon</th>
             </tr>
@@ -307,7 +307,7 @@ interface StockCount {
                 <td>{{ c.performedBy }}</td>
                 <td>
                   <span class="badge" [class.badge-instock]="c.status === 'Completed'" [class.badge-lowstock]="c.status === 'InProgress'">
-                    {{ c.status === 'Completed' ? 'Tamamlandı' : 'Devam Ediyor' }}
+                    {{ c.status === 'Completed' ? 'Tamamlandı' : 'Devam ediyor' }}
                   </span>
                 </td>
                 <td class="mono">{{ c.items.length }}</td>
@@ -369,7 +369,7 @@ interface StockCount {
           <div class="drawer-body">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem">
               <div class="drawer-field">
-                <label>Sayım No</label>
+                <label>Sayım no</label>
                 <span class="mono" style="font-weight:700">{{ selectedCount()?.countNumber }}</span>
               </div>
               <div class="drawer-field">
@@ -392,7 +392,7 @@ interface StockCount {
             </div>
 
             <div class="drawer-field" style="margin-top:1.5rem">
-              <label>Sayılan Kalemler</label>
+              <label>Sayılan kalemler</label>
               <table class="drawer-table">
                 <thead>
                   <tr>

@@ -1,4 +1,4 @@
-import { Component, inject, ViewChild, ElementRef, signal, computed, HostListener, effect } from '@angular/core';
+import { Component, inject, ViewChild, ElementRef, signal, computed, HostListener, effect, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -21,92 +21,111 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()">
       <aside class="sidebar">
-        <div>
-          <div class="sidebar-logo">
-            <div class="logo-text">
-              <h2>ecelon</h2>
+        <div style="display: flex; flex-direction: column; justify-content: space-between; height: 100%; width: 100%; overflow: hidden;">
+          <div>
+            <div class="sidebar-logo">
+              <div class="logo-text">
+                <h2>ecelon</h2>
+              </div>
+              <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'">
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+              </button>
             </div>
-            <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'">
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
-            </button>
+            <nav class="nav-list">
+              <!-- GENEL -->
+              @if (!isSidebarCollapsed()) {
+                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Genel</div>
+              } @else {
+                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+              }
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/dashboard'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Panel Özeti">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
+                <span class="nav-text">Panel Özeti</span>
+              </a>
+
+              <!-- STOK YÖNETİMİ -->
+              @if (!isSidebarCollapsed()) {
+                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Stok Yönetimi</div>
+              } @else {
+                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+              }
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/products'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ürün Yönetimi">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span class="nav-text">Ürün Yönetimi</span>
+              </a>
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/stock-movements'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Stok Hareketleri">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                <span class="nav-text">Stok Hareketleri</span>
+              </a>
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/stock-count'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Stok Sayımı">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                <span class="nav-text">Stok Sayımı</span>
+              </a>
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/warehouses'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Depo Yönetimi">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span class="nav-text">Depo Yönetimi</span>
+              </a>
+
+              <!-- OPERASYONLAR -->
+              @if (!isSidebarCollapsed()) {
+                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Operasyonlar</div>
+              } @else {
+                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+              }
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Sipariş Takibi">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                <span class="nav-text">Sipariş Takibi</span>
+              </a>
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/purchase-orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Satın Alma">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span class="nav-text">Satın Alma</span>
+              </a>
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/suppliers'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Tedarikçiler">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                <span class="nav-text">Tedarikçiler</span>
+              </a>
+
+              <!-- SİSTEM -->
+              @if (!isSidebarCollapsed()) {
+                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Analiz & Sistem</div>
+              } @else {
+                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+              }
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/reports'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Raporlar">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span class="nav-text">Raporlar</span>
+              </a>
+              <a routerLink="/billing" routerLinkActive="active" class="nav-btn" title="Abonelik & Fatura">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                <span class="nav-text">Abonelik & Fatura</span>
+              </a>
+              <a [routerLink]="ui.subscription().plan === 'none' ? null : '/settings'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ayarlar">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span class="nav-text">Ayarlar</span>
+              </a>
+            </nav>
           </div>
-          <nav class="nav-list">
-            <!-- GENEL -->
-            @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Genel</div>
-            } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
-            }
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/dashboard'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Panel Özeti">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
-              <span class="nav-text">Panel Özeti</span>
-            </a>
 
-            <!-- STOK YÖNETİMİ -->
-            @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Stok Yönetimi</div>
-            } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
-            }
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/products'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ürün Yönetimi">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-              <span class="nav-text">Ürün Yönetimi</span>
-            </a>
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/stock-movements'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Stok Hareketleri">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-              <span class="nav-text">Stok Hareketleri</span>
-            </a>
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/stock-count'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Stok Sayımı">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-              </svg>
-              <span class="nav-text">Stok Sayımı</span>
-            </a>
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/warehouses'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Depo Yönetimi">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span class="nav-text">Depo Yönetimi</span>
-            </a>
-
-            <!-- OPERASYONLAR -->
-            @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Operasyonlar</div>
-            } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
-            }
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Sipariş Takibi">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-              <span class="nav-text">Sipariş Takibi</span>
-            </a>
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/purchase-orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Satın Alma">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-              <span class="nav-text">Satın Alma</span>
-            </a>
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/suppliers'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Tedarikçiler">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-              <span class="nav-text">Tedarikçiler</span>
-            </a>
-
-            <!-- SİSTEM -->
-            @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Analiz & Sistem</div>
-            } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
-            }
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/reports'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Raporlar">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-              <span class="nav-text">Raporlar</span>
-            </a>
-            <a routerLink="/billing" routerLinkActive="active" class="nav-btn" title="Abonelik & Fatura">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-              <span class="nav-text">Abonelik & Fatura</span>
-            </a>
-            <a [routerLink]="ui.subscription().plan === 'none' ? null : '/settings'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ayarlar">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <span class="nav-text">Ayarlar</span>
-            </a>
-          </nav>
+          <!-- Sidebar Footer Upgrade Banner -->
+          @if (ui.subscription().plan !== 'ultra') {
+            <div class="sidebar-upgrade-box" [class.collapsed]="isSidebarCollapsed()" routerLink="/billing">
+              @if (!isSidebarCollapsed()) {
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                  <span style="color: #FBBF24; font-size: 1rem;">✦</span>
+                  <strong style="color: #FFFFFF; font-size: 0.78rem; font-weight: 600; font-family: var(--font-heading);">Ultra Plan'a Geçin</strong>
+                </div>
+                <p style="color: #94A3B8; font-size: 0.7rem; margin: 0; line-height: 1.3; font-family: var(--font-body);">Yapay zeka ve gelişmiş analitikleri aktif edin.</p>
+              } @else {
+                <div style="display: flex; justify-content: center; align-items: center; height: 24px;" title="Ultra Plan'a Geçin">
+                  <span style="color: #FBBF24; font-size: 1.1rem; font-weight: bold;">✦</span>
+                </div>
+              }
+            </div>
+          }
         </div>
       </aside>
 
@@ -127,7 +146,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                 #searchInput
                 type="text" 
                 class="nav-search-input" 
-                placeholder="Ecelon'da ara... (Ctrl+K)" 
+                placeholder="Ecelon'da ara..." 
                 [ngModel]="navbarSearchQuery()" 
                 (ngModelChange)="onSearchQueryChange($event)"
                 (keyup.enter)="triggerNavbarSearch()"
@@ -136,6 +155,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                 (focus)="onSearchFocus()"
                 (blur)="onSearchBlur()"
               />
+              <kbd class="search-kbd-badge">{{ searchShortcut }}</kbd>
               <button 
                 class="nav-search-btn" 
                 (click)="triggerNavbarSearch()" 
@@ -714,7 +734,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
     </div>
   `
 })
-export class LayoutComponent {
+export class LayoutComponent implements OnInit {
   ui = inject(UiStateService);
   router = inject(Router);
   socketService = inject(SocketService);
@@ -724,6 +744,17 @@ export class LayoutComponent {
   searchService = inject(SearchService);
   
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
+
+  searchShortcut = 'Ctrl+K';
+
+  ngOnInit() {
+    if (typeof window !== 'undefined') {
+      const platform = navigator.platform || '';
+      const userAgent = navigator.userAgent || '';
+      const isMac = /mac/i.test(platform) || /mac/i.test(userAgent);
+      this.searchShortcut = isMac ? '⌘K' : 'Ctrl+K';
+    }
+  }
 
   aiPrompt = '';
   navbarSearchQuery = signal('');
