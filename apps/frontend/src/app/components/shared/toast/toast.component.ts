@@ -31,46 +31,35 @@ export type ToastType = 'success' | 'error' | 'info';
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px 16px;
+      padding: 14px 16px;
       margin-bottom: 24px;
-      background: #fff;
-      border: 1px solid #e5e5e5;
-      border-radius: 6px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-      animation: slideDown 0.3s ease-out;
-      border-left: 4px solid var(--secondary);
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+      animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
-    .inline-toast.toast-success {
-      border-left-color: var(--status-instock);
-      background: rgba(16, 185, 129, 0.05);
-    }
-    
-    .inline-toast.toast-error {
-      border-left-color: var(--status-outstock);
-      background: rgba(220, 38, 38, 0.05);
-    }
-
-    .inline-toast.toast-info {
-      border-left-color: #1D4ED8;
-      background: rgba(29, 78, 216, 0.05);
-    }
+    .inline-toast.toast-success { border-left: 4px solid var(--status-instock); }
+    .inline-toast.toast-error { border-left: 4px solid var(--status-outstock); }
+    .inline-toast.toast-info { border-left: 4px solid var(--primary); }
     
     .inline-toast-icon {
       flex-shrink: 0;
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
     }
     
     .toast-success .inline-toast-icon { color: var(--status-instock); }
     .toast-error .inline-toast-icon { color: var(--status-outstock); }
-    .toast-info .inline-toast-icon { color: #1D4ED8; }
+    .toast-info .inline-toast-icon { color: var(--primary); }
     
     .inline-toast-content {
       flex: 1;
-      font-size: 0.85rem;
+      font-size: 0.875rem;
       font-weight: 500;
       color: var(--text-primary);
+      line-height: 1.4;
     }
     
     .inline-toast-close {
@@ -78,17 +67,20 @@ export type ToastType = 'success' | 'error' | 'info';
       border: none;
       cursor: pointer;
       color: var(--text-muted);
-      font-size: 0.8rem;
+      font-size: 1rem;
       padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
     }
     
     .inline-toast-close:hover {
+      background: var(--background);
       color: var(--text-primary);
     }
     
     @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
   `]
 })

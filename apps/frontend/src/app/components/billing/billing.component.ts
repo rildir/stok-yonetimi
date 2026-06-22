@@ -215,58 +215,58 @@ interface SavedCard {
       </div>
 
       <!-- RIGHT COLUMN (Amazon Style Wallet & Actions) -->
-      <div class="billing-sidebar-pane amazon-wallet-pane">
-        <div class="amazon-wallet-card">
-          <h3 class="amazon-title">Ödeme Yöntemleriniz</h3>
-          <p class="amazon-subtitle">Banka ve Kredi Kartları</p>
+      <div class="billing-sidebar-pane ecelon-wallet-pane">
+        <div class="ecelon-wallet-card">
+          <h3 class="ecelon-title">Ödeme Yöntemleriniz</h3>
+          <p class="ecelon-subtitle">Banka ve Kredi Kartları</p>
           
           @if (savedCards().length === 0) {
-            <div class="amazon-empty-state">
-              <div class="amazon-empty-icon">💳</div>
+            <div class="ecelon-empty-state">
+              <div class="ecelon-empty-icon">💳</div>
               <h4>Kayıtlı kartınız bulunmuyor</h4>
               <p>Güvenli ve hızlı işlem gerçekleştirmek için bir ödeme yöntemi ekleyin.</p>
             </div>
           } @else {
-            <div class="amazon-cards-list">
+            <div class="ecelon-cards-list">
               @for (c of savedCards(); track c.id) {
-                <div class="amazon-card-row" [class.selected]="c.id === selectedCardId()" (click)="selectedCardId.set(c.id)">
-                  <div class="amazon-row-top">
+                <div class="ecelon-card-row" [class.selected]="c.id === selectedCardId()" (click)="selectedCardId.set(c.id)">
+                  <div class="ecelon-row-top">
                     <!-- Radio Button selector -->
-                    <div class="amazon-radio-wrapper">
-                      <span class="amazon-custom-radio" [class.checked]="c.id === selectedCardId()"></span>
+                    <div class="ecelon-radio-wrapper">
+                      <span class="ecelon-custom-radio" [class.checked]="c.id === selectedCardId()"></span>
                     </div>
                     
                     <!-- Card Details -->
-                    <div class="amazon-card-info">
-                      <div class="amazon-card-brand-display">
+                    <div class="ecelon-card-info">
+                      <div class="ecelon-card-brand-display">
                         <!-- Visual brand tag -->
                         <span class="brand-badge" [class.visa]="c.cardNumber.startsWith('4')" [class.master]="!c.cardNumber.startsWith('4')">
                           {{ c.cardNumber.startsWith('4') ? 'Visa' : 'Mastercard' }}
                         </span>
                         <span class="card-digits">son hanesi {{ c.cardNumber.replace(/\s/g, '').slice(-4) }}</span>
                       </div>
-                      <div class="amazon-card-meta">
+                      <div class="ecelon-card-meta">
                         <span>Ad: <strong>{{ c.cardHolder }}</strong></span>
                         <span>SKT: <strong>{{ c.cardExpiry }}</strong></span>
                       </div>
                     </div>
                   </div>
                   
-                  <div class="amazon-row-actions">
-                    <button class="amazon-link-btn danger" (click)="deleteCard($event, c.id)">Kaldır</button>
+                  <div class="ecelon-row-actions">
+                    <button class="ecelon-link-btn danger" (click)="deleteCard($event, c.id)">Kaldır</button>
                   </div>
                 </div>
               }
             </div>
           }
 
-          <div class="amazon-actions-footer">
-            <button class="btn-amazon-primary add-card-btn" (click)="openCheckout('only_add_card')">
+          <div class="ecelon-actions-footer">
+            <button class="btn-ecelon-primary add-card-btn" (click)="openCheckout('only_add_card')">
               <span class="plus-icon">+</span> Kredi veya Banka Kartı Ekle
             </button>
             
             @if (ui.subscription().plan !== 'none') {
-              <button class="btn-amazon-danger-outline cancel-sub-btn" (click)="confirmCancel()">
+              <button class="btn-ecelon-danger-outline cancel-sub-btn" (click)="confirmCancel()">
                 Aboneliği İptal Et
               </button>
             }
@@ -278,7 +278,7 @@ interface SavedCard {
     <!-- ─── CHECKOUT MODAL ─── -->
     @if (isCheckoutOpen()) {
       <div class="checkout-overlay">
-        <div class="checkout-modal amazon-checkout-modal">
+        <div class="checkout-modal ecelon-checkout-modal">
           <div class="checkout-header no-print">
             <h3>{{ checkoutPlan === 'only_add_card' ? 'Kredi veya Banka Kartı Ekle' : 'Ödeme Yöntemi Seçin' }}</h3>
             <button class="close-btn" (click)="closeCheckout()">✕</button>
@@ -299,14 +299,14 @@ interface SavedCard {
                 <span class="form-group-label" style="font-family:var(--font-heading); font-size:0.7rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; display:block;">Kayıtlı Kartlarınızdan Seçin</span>
                 <div class="payment-methods-list" style="display:flex; flex-direction:column; gap:8px;">
                   @for (c of savedCards(); track c.id) {
-                    <label class="payment-method-row amazon-payment-method-row" [class.selected]="c.id === checkoutCardId()" (click)="checkoutCardId.set(c.id); useNewCard.set(false)">
+                    <label class="payment-method-row ecelon-payment-method-row" [class.selected]="c.id === checkoutCardId()" (click)="checkoutCardId.set(c.id); useNewCard.set(false)">
                       <input type="radio" name="checkoutCard" [value]="c.id" [checked]="c.id === checkoutCardId()" />
                       <span class="card-bullet-text">
                         <strong>{{ c.cardHolder }}</strong> · •••• {{ c.cardNumber.replace(/\s/g, '').slice(-4) }} (SKT: {{ c.cardExpiry }})
                       </span>
                     </label>
                   }
-                  <label class="payment-method-row amazon-payment-method-row" [class.selected]="useNewCard()" (click)="useNewCard.set(true); checkoutCardId.set('')">
+                  <label class="payment-method-row ecelon-payment-method-row" [class.selected]="useNewCard()" (click)="useNewCard.set(true); checkoutCardId.set('')">
                     <input type="radio" name="checkoutCard" value="new" [checked]="useNewCard()" />
                     <span class="card-bullet-text">
                       <strong>Yeni Kredi Kartı Ekle ve Öde</strong>
@@ -319,25 +319,25 @@ interface SavedCard {
             <form (ngSubmit)="handlePaymentSubmit()" style="display:flex; flex-direction:column; gap:14px;">
               <!-- Input Fields (If adding card, or choosing to enter new card) -->
               @if (useNewCard() || savedCards().length === 0 || checkoutPlan === 'only_add_card') {
-                <div class="amazon-form-group">
-                  <label for="cardNumber" class="amazon-form-label">Kart numarası</label>
-                  <input id="cardNumber" class="amazon-form-input" type="text" placeholder="5412 7522 3412 7856" [(ngModel)]="cardNumber" (input)="formatCardNumber()" name="cardNumber" maxlength="19" required />
+                <div class="ecelon-form-group">
+                  <label for="cardNumber" class="ecelon-form-label">Kart numarası</label>
+                  <input id="cardNumber" class="ecelon-form-input" type="text" placeholder="5412 7522 3412 7856" [(ngModel)]="cardNumber" (input)="formatCardNumber()" name="cardNumber" maxlength="19" required />
                 </div>
-                <div class="amazon-form-group">
-                  <label for="cardHolder" class="amazon-form-label">Kart üzerindeki ad</label>
-                  <input id="cardHolder" class="amazon-form-input" type="text" placeholder="Ahmet Ildır" [(ngModel)]="cardHolder" name="cardHolder" required />
+                <div class="ecelon-form-group">
+                  <label for="cardHolder" class="ecelon-form-label">Kart üzerindeki ad</label>
+                  <input id="cardHolder" class="ecelon-form-input" type="text" placeholder="Ahmet Ildır" [(ngModel)]="cardHolder" name="cardHolder" required />
                 </div>
-                <div class="amazon-form-row">
-                  <div class="amazon-form-group" style="flex: 2;">
-                    <label class="amazon-form-label">Son kullanma tarihi</label>
-                    <div class="amazon-expiry-dropdowns">
-                      <select class="amazon-form-select" [(ngModel)]="cardExpiryMonth" name="cardExpiryMonth" required>
+                <div class="ecelon-form-row">
+                  <div class="ecelon-form-group" style="flex: 2;">
+                    <label class="ecelon-form-label">Son kullanma tarihi</label>
+                    <div class="ecelon-expiry-dropdowns">
+                      <select class="ecelon-form-select" [(ngModel)]="cardExpiryMonth" name="cardExpiryMonth" required>
                         <option value="" disabled selected>Ay</option>
                         @for (m of months; track m) {
                           <option [value]="m">{{ m }}</option>
                         }
                       </select>
-                      <select class="amazon-form-select" [(ngModel)]="cardExpiryYear" name="cardExpiryYear" required>
+                      <select class="ecelon-form-select" [(ngModel)]="cardExpiryYear" name="cardExpiryYear" required>
                         <option value="" disabled selected>Yıl</option>
                         @for (y of years; track y) {
                           <option [value]="y">{{ y }}</option>
@@ -345,9 +345,9 @@ interface SavedCard {
                       </select>
                     </div>
                   </div>
-                  <div class="amazon-form-group" style="flex: 1; max-width: 100px;">
-                    <label for="cardCvv" class="amazon-form-label">CVV/CVC</label>
-                    <input id="cardCvv" class="amazon-form-input" type="text" placeholder="CVC" [(ngModel)]="cardCvv" name="cardCvv" maxlength="3" required />
+                  <div class="ecelon-form-group" style="flex: 1; max-width: 100px;">
+                    <label for="cardCvv" class="ecelon-form-label">CVV/CVC</label>
+                    <input id="cardCvv" class="ecelon-form-input" type="text" placeholder="CVC" [(ngModel)]="cardCvv" name="cardCvv" maxlength="3" required />
                   </div>
                 </div>
               } @else {
@@ -356,9 +356,9 @@ interface SavedCard {
                 </div>
               }
 
-              <div class="amazon-checkout-actions">
-                <button type="button" class="btn-amazon-secondary" (click)="closeCheckout()">İptal Et</button>
-                <button type="submit" class="btn-amazon-primary action-btn" [disabled]="isPaying()">
+              <div class="ecelon-checkout-actions">
+                <button type="button" class="btn-ecelon-secondary" (click)="closeCheckout()">İptal Et</button>
+                <button type="submit" class="btn-ecelon-primary action-btn" [disabled]="isPaying()">
                   @if (isPaying()) {
                     İşlem yapılıyor...
                   } @else {

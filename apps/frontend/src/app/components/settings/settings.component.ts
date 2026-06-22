@@ -34,9 +34,9 @@ import { SocketService } from '../../services/socket.service';
     <div class="settings-layout" style="width: 100%;">
       <!-- AMAZON YOUR ACCOUNT DASHBOARD -->
       @if (activeTab() === 'dashboard') {
-        <div class="amazon-settings-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; width: 100%;">
+        <div class="ecelon-settings-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; width: 100%;">
           <!-- Card 1: Profil & Güvenlik -->
-          <div class="amazon-settings-card" (click)="changeTab('profile')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
+          <div class="ecelon-settings-card" (click)="changeTab('profile')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
             <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">🔒</div>
             <div>
               <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">Giriş ve Güvenlik</h3>
@@ -45,7 +45,7 @@ import { SocketService } from '../../services/socket.service';
           </div>
 
           <!-- Card 2: Kategori Yönetimi -->
-          <div class="amazon-settings-card" (click)="changeTab('categories')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
+          <div class="ecelon-settings-card" (click)="changeTab('categories')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
             <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">📦</div>
             <div>
               <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">Kategori Yönetimi</h3>
@@ -55,7 +55,7 @@ import { SocketService } from '../../services/socket.service';
 
           <!-- Card 3: Kullanıcı Yönetimi (Admin only) -->
           @if (ui.userProfile()?.role === 'admin') {
-            <div class="amazon-settings-card" (click)="changeTab('users')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
+            <div class="ecelon-settings-card" (click)="changeTab('users')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
               <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">👥</div>
               <div>
                 <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">Kullanıcı Yönetimi</h3>

@@ -20,24 +20,22 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
   imports: [CommonModule, RouterModule, FormsModule, ModalComponent],
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()">
-      <aside class="sidebar" style="background-color: #232F3E; border-right: 1px solid #19222d;">
+      <aside class="sidebar">
         <div>
           <div class="sidebar-logo">
-            <div class="logo-mark" style="background-color: var(--primary); color: #0F1111; font-weight: 800;">E</div>
             <div class="logo-text">
-              <h2 style="color: #FFFFFF; font-size: 1rem;">Ecelon</h2>
-              <span style="color: #FEB869; font-weight: bold; font-size: 0.65rem;">amazon style</span>
+              <h2>ecelon</h2>
             </div>
-            <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'" style="color: #A9B4C2;">
+            <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'">
               <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
             </button>
           </div>
           <nav class="nav-list">
             <!-- GENEL -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Genel</div>
+              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Genel</div>
             } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
             }
             <a [routerLink]="ui.subscription().plan === 'none' ? null : '/dashboard'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Panel Özeti">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
@@ -46,9 +44,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
             <!-- STOK YÖNETİMİ -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Stok Yönetimi</div>
+              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Stok Yönetimi</div>
             } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
             }
             <a [routerLink]="ui.subscription().plan === 'none' ? null : '/products'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ürün Yönetimi">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
@@ -73,9 +71,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
             <!-- OPERASYONLAR -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Operasyonlar</div>
+              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Operasyonlar</div>
             } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
             }
             <a [routerLink]="ui.subscription().plan === 'none' ? null : '/orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Sipariş Takibi">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
@@ -92,9 +90,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
             <!-- SİSTEM -->
             @if (!isSidebarCollapsed()) {
-              <div class="nav-group-label" style="color: #A9B4C2; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Analiz & Sistem</div>
+              <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Analiz & Sistem</div>
             } @else {
-              <div class="nav-group-divider" style="border-top: 1px solid #37475A; margin: 0.5rem 0;"></div>
+              <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
             }
             <a [routerLink]="ui.subscription().plan === 'none' ? null : '/reports'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Raporlar">
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
@@ -113,18 +111,18 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
       </aside>
 
       <div class="main-layout-wrapper">
-        <header class="top-navbar" style="background-color: #131921; height: 60px; border-bottom: none; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; position: relative; z-index: 1000;">
+        <header class="top-navbar">
           <div class="navbar-left">
-            <div class="breadcrumbs" style="color: #FFFFFF;">
-              <span class="breadcrumb-cat" style="color: #FEB869;">{{ getBreadcrumbs().category }}</span>
-              <span class="breadcrumb-separator" style="color: #A9B4C2; margin: 0 6px;">/</span>
-              <span class="breadcrumb-page" style="color: #FFFFFF; font-weight: bold;">{{ getBreadcrumbs().page }}</span>
+            <div class="breadcrumbs">
+              <span class="breadcrumb-cat">{{ getBreadcrumbs().category }}</span>
+              <span class="breadcrumb-separator">/</span>
+              <span class="breadcrumb-page">{{ getBreadcrumbs().page }}</span>
             </div>
           </div>
 
-          <!-- Centered Amazon Style Search Centerpiece -->
-          <div class="navbar-search-center" style="flex: 1; max-width: 600px; margin: 0 2rem; position: relative;">
-            <div class="nav-search-bar" style="display: flex; height: 38px; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+          <!-- Centered Ecelon Style Search Centerpiece -->
+          <div class="navbar-search-center">
+            <div class="nav-search-bar">
               <input 
                 #searchInput
                 type="text" 
@@ -137,47 +135,37 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                 (keydown.arrowup)="onArrowUp($event)"
                 (focus)="onSearchFocus()"
                 (blur)="onSearchBlur()"
-                style="flex: 1; border: none; padding: 0 12px; font-size: 0.9rem; outline: none; background: #FFFFFF; color: #0F1111;"
               />
               <button 
                 class="nav-search-btn" 
                 (click)="triggerNavbarSearch()" 
                 title="Ara"
-                style="background-color: #FEB869; border: none; width: 45px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s;"
-                onmouseover="this.style.background='#F3A847'"
-                onmouseout="this.style.background='#FEB869'"
               >
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#0F1111" stroke-width="2.5">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
               </button>
             </div>
 
             <!-- Autocomplete suggestions dropdown -->
-            @if (isSearchFocused() && allVisibleSuggestions().length > 0) {
-              <div class="search-suggestions-dropdown" 
-                   style="position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #FFFFFF; border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25); z-index: 1000; max-height: 480px; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid #FEB869; margin-top: -1px; font-family: inherit;">
+            @if (isSearchFocused() && navbarSearchQuery().trim() !== '' && allVisibleSuggestions().length > 0) {
+              <div class="search-suggestions-dropdown">
                 
                 <!-- Section: Pages -->
                 @if (filteredSuggestionsByType('nav').length > 0) {
                   <div class="search-section">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: #565959; background: #F7F7F7; padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #E5E7EB;">
+                    <div class="search-section-header">
                       Sayfalar ve Menüler
                     </div>
                     @for (s of filteredSuggestionsByType('nav'); track s.title) {
                       <div class="suggestion-item" 
+                           [class.active]="isItemActive(s)"
                            (mousedown)="selectSuggestion(s); $event.preventDefault()"
-                           style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #F3F3F3;"
-                           [style.background]="isItemActive(s) ? '#FFF8F2' : '#FFFFFF'"
-                           [style.borderLeft]="isItemActive(s) ? '4px solid #FEB869' : '4px solid transparent'"
-                           onmouseover="this.style.background='#FFF8F2'; this.style.borderLeft='4px solid #FEB869'"
-                           onmouseout="this.style.background=''; this.style.borderLeft=''"
                       >
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                          <span style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center; width: 24px;">{{ s.icon }}</span>
-                          <span style="font-size: 0.9rem; font-weight: 600; color: #0F1111;" [innerHTML]="highlightMatch(s.title)"></span>
+                        <div class="suggestion-item-left">
+                          <span class="suggestion-item-title" [innerHTML]="highlightMatch(s.title)"></span>
                         </div>
-                        <span style="font-size: 0.75rem; color: #565959;">{{ s.category }}</span>
+                        <span class="suggestion-item-category">{{ s.category }}</span>
                       </div>
                     }
                   </div>
@@ -186,23 +174,18 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                 <!-- Section: Actions -->
                 @if (filteredSuggestionsByType('action').length > 0) {
                   <div class="search-section">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: #565959; background: #F7F7F7; padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #E5E7EB;">
+                    <div class="search-section-header">
                       Hızlı İşlemler
                     </div>
                     @for (s of filteredSuggestionsByType('action'); track s.title) {
                       <div class="suggestion-item" 
+                           [class.active]="isItemActive(s)"
                            (mousedown)="selectSuggestion(s); $event.preventDefault()"
-                           style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #F3F3F3;"
-                           [style.background]="isItemActive(s) ? '#FFF8F2' : '#FFFFFF'"
-                           [style.borderLeft]="isItemActive(s) ? '4px solid #FEB869' : '4px solid transparent'"
-                           onmouseover="this.style.background='#FFF8F2'; this.style.borderLeft='4px solid #FEB869'"
-                           onmouseout="this.style.background=''; this.style.borderLeft=''"
                       >
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                          <span style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center; width: 24px;">{{ s.icon }}</span>
-                          <span style="font-size: 0.9rem; font-weight: 600; color: #007600;" [innerHTML]="highlightMatch(s.title)"></span>
+                        <div class="suggestion-item-left">
+                          <span class="suggestion-item-title" style="color: var(--primary);" [innerHTML]="highlightMatch(s.title)"></span>
                         </div>
-                        <span style="font-size: 0.7rem; font-weight: 700; background: #E7F4F3; color: #007600; padding: 2px 6px; border-radius: 4px;">Tetikle</span>
+                        <span class="suggestion-badge action">Tetikle</span>
                       </div>
                     }
                   </div>
@@ -211,26 +194,21 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                 <!-- Section: Database matches -->
                 @if (matchingInventory().length > 0) {
                   <div class="search-section">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: #565959; background: #F7F7F7; padding: 8px 16px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #E5E7EB;">
+                    <div class="search-section-header">
                       Veritabanı Kayıtları
                     </div>
                     @for (item of matchingInventory(); track item.type + '-' + (item.id || item.name)) {
                       <div class="suggestion-item" 
+                           [class.active]="isItemActive(item)"
                            (mousedown)="selectSuggestion(item); $event.preventDefault()"
-                           style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #F3F3F3;"
-                           [style.background]="isItemActive(item) ? '#FFF8F2' : '#FFFFFF'"
-                           [style.borderLeft]="isItemActive(item) ? '4px solid #FEB869' : '4px solid transparent'"
-                           onmouseover="this.style.background='#FFF8F2'; this.style.borderLeft='4px solid #FEB869'"
-                           onmouseout="this.style.background=''; this.style.borderLeft=''"
                       >
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                          <span style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center; width: 24px;">{{ item.icon }}</span>
+                        <div class="suggestion-item-left">
                           <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                            <span style="font-size: 0.9rem; font-weight: 600; color: #0F1111;" [innerHTML]="highlightMatch(item.name)"></span>
-                            <span style="font-size: 0.75rem; color: #565959;">{{ item.subtitle }}</span>
+                            <span class="suggestion-item-title" [innerHTML]="highlightMatch(item.name)"></span>
+                            <span class="suggestion-item-subtitle">{{ item.subtitle }}</span>
                           </div>
                         </div>
-                        <span style="font-size: 0.7rem; font-weight: 700; background: #F0F2F2; color: #565959; padding: 2px 6px; border-radius: 4px;">{{ item.type }}</span>
+                        <span class="suggestion-badge">{{ item.type }}</span>
                       </div>
                     }
                   </div>
@@ -241,19 +219,19 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
           <div class="navbar-right" style="gap: 1.25rem;">
             <!-- Yapay Zeka Asistanı Navbar Tetikleyici -->
-            <button class="navbar-ai-btn" (click)="ui.toggleAiPanel()" title="Yapay Zeka Asistanı" style="background: transparent; border: 1px solid #FEB869; border-radius: 4px; color: #FEB869; padding: 6px 12px; font-size: 0.8rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" onmouseover="this.style.background='rgba(254, 184, 105, 0.1)'" onmouseout="this.style.background='transparent'">
-              <span class="navbar-ai-icon">✦</span>
+            <button class="navbar-ai-btn" (click)="ui.toggleAiPanel()" title="Yapay Zeka Asistanı">
+              <svg class="navbar-ai-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M7 5H3"/></svg>
               <span>Asistan</span>
             </button>
 
             <!-- Shopping Cart styled Notification Widget -->
             <div class="notification-widget">
-              <button class="notif-btn" (click)="toggleNotifDropdown($event)" aria-label="Bildirimler" style="background: transparent; border: none; color: #FFFFFF; cursor: pointer; position: relative; display: flex; align-items: center; padding: 4px;">
+              <button class="notif-btn" (click)="toggleNotifDropdown($event)" aria-label="Bildirimler">
                 <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 @if (notifService.unreadCount() > 0) {
-                  <span class="notif-badge" style="background-color: #F08804; color: #FFFFFF; font-size: 11px; font-weight: bold; padding: 1px 6px; border-radius: 10px; position: absolute; top: -5px; right: -5px; box-shadow: 0 1px 2px rgba(0,0,0,0.3);">{{ notifService.unreadCount() }}</span>
+                  <span class="notif-badge">{{ notifService.unreadCount() }}</span>
                 }
               </button>
 
@@ -293,19 +271,19 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
               }
             </div>
             
-            <div class="profile-widget" (click)="toggleProfileDropdown($event)" style="border: 1px solid transparent; background: transparent; padding: 4px 8px; border-radius: 4px;" onmouseover="this.style.borderColor='#FFFFFF'" onmouseout="this.style.borderColor='transparent'">
-              <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.8rem; box-shadow: none; border: 1.5px solid #FFFFFF; background: #374151;">
+            <div class="profile-widget" (click)="toggleProfileDropdown($event)">
+              <div class="avatar-circle">
                 @if (currentUser().avatar) {
                   <img [src]="currentUser().avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
                 } @else {
                   {{ currentUser().name.charAt(0) }}
                 }
               </div>
-              <div class="user-info" style="display: flex; flex-direction: column; align-items: flex-start; gap: 0;">
-                <span class="user-name" style="font-size: 11px; font-weight: normal; color: #CCCCCC; line-height: 1;">Merhaba, {{ currentUser().name }}</span>
-                <span class="user-role" style="font-size: 13px; font-weight: bold; color: #FFFFFF; display: flex; align-items: center; gap: 2px; line-height: 1.2;">
+              <div class="user-info">
+                <span class="user-name">Merhaba, {{ currentUser().name }}</span>
+                <span class="user-role" style="display: flex; align-items: center; gap: 2px;">
                   Hesap ve Listeler
-                  <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #FFFFFF;">
+                  <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/>
                   </svg>
                 </span>
@@ -358,7 +336,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
       <!-- Global Yapay Zeka Floating Action Button (FAB) -->
       @if (ui.subscription().plan !== 'none') {
         <button class="global-ai-fab" (click)="ui.toggleAiPanel()" [class.active]="ui.isAiPanelOpen()" title="Yapay Zeka Asistanı">
-          <span class="fab-icon">✦</span>
+          <svg class="fab-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M7 5H3"/></svg>
         </button>
       }
 

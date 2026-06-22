@@ -313,13 +313,13 @@ export class DashboardComponent implements OnInit, AfterViewInit {
                 {
                   label: 'Giriş',
                   data: entries,
-                  backgroundColor: '#232F3E', /* Navy */
+                  backgroundColor: '#4F46E5', /* Indigo */
                   borderRadius: 3
                 },
                 {
                   label: 'Çıkış',
                   data: exits,
-                  backgroundColor: '#FEB869', /* Amazon Orange/Gold */
+                  backgroundColor: '#8B5CF6', /* Violet */
                   borderRadius: 3
                 }
               ]
@@ -357,7 +357,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
                 labels: catLabels,
                 datasets: [{
                   data: catValues,
-                  backgroundColor: ['#131921', '#232F3E', '#37475A', '#FEB869', '#FFD814', '#D5D9D9'],
+                  backgroundColor: ['#4F46E5', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#E2E8F0'],
                   borderWidth: 1
                 }]
               },

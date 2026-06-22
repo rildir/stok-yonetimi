@@ -67,10 +67,10 @@ import { ToastComponent } from '../shared/toast/toast.component';
         <button class="btn btn-outline" (click)="openDrawer()">Sipariş Oluştur</button>
       </div>
     } @else {
-      <!-- Result Cards Stack (Amazon "Siparişlerim" layout) -->
-      <div style="display: flex; flex-direction: column; gap: 1.25rem; width: 100%;">
+      <!-- Result Cards Stack (Ecelon layout) -->
+      <div class="orders-list-stack" style="display: flex; flex-direction: column; gap: 1rem;">
         @for (o of filteredOrders(); track o.id) {
-          <div class="amazon-order-card" style="border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFFFFF; font-size: 13px;">
+          <div class="ecelon-order-card" style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: var(--surface-card); font-size: 0.875rem;">
             <!-- Header Bar (Light Grey background) -->
             <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
               <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">

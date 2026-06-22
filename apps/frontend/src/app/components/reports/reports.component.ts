@@ -456,7 +456,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             labels: catLabels,
             datasets: [{
               data: catValues,
-              backgroundColor: ['#131921', '#232F3E', '#FFD814', '#F7CA00', '#B12704', '#D5D9D9'],
+              backgroundColor: ['#4F46E5', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#E2E8F0'],
               borderWidth: 1
             }]
           },
@@ -464,7 +464,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Amazon Ember, Arial, sans-serif', size: 11 } } }
+              legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: "'Inter', sans-serif", size: 11 } } }
             }
           }
         });
@@ -485,7 +485,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             datasets: [{
               label: 'Satış Adedi',
               data: topValues,
-              backgroundColor: '#232F3E',
+              backgroundColor: '#4F46E5',
               borderRadius: 4
             }]
           },
@@ -496,8 +496,8 @@ export class ReportsComponent implements OnInit, AfterViewInit {
               legend: { display: false }
             },
             scales: {
-              y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { family: 'Amazon Ember, Arial, sans-serif' } } },
-              x: { grid: { display: false }, ticks: { font: { family: 'Amazon Ember, Arial, sans-serif', size: 10 } } }
+              y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { family: "'Inter', sans-serif" } } },
+              x: { grid: { display: false }, ticks: { font: { family: "'Inter', sans-serif", size: 10 } } }
             }
           }
         });
@@ -614,18 +614,18 @@ export class ReportsComponent implements OnInit, AfterViewInit {
           {
             label: 'Tahmini Stok',
             data: stockProjection,
-            borderColor: '#007185',
-            backgroundColor: 'rgba(0, 113, 133, 0.1)',
+            borderColor: '#4F46E5',
+            backgroundColor: 'rgba(79, 70, 229, 0.1)',
             fill: true,
             tension: 0.3,
             borderWidth: 2,
             pointRadius: 3,
-            pointBackgroundColor: '#007185',
+            pointBackgroundColor: '#4F46E5',
           },
           {
             label: 'Kritik Seviye',
             data: minLine,
-            borderColor: '#B12704',
+            borderColor: '#EF4444',
             borderDash: [6, 4],
             borderWidth: 1.5,
             pointRadius: 0,
@@ -639,18 +639,18 @@ export class ReportsComponent implements OnInit, AfterViewInit {
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { boxWidth: 10, font: { family: 'Amazon Ember, Arial, sans-serif', size: 11 } },
+            labels: { boxWidth: 10, font: { family: "'Inter', sans-serif", size: 11 } },
           },
         },
         scales: {
           y: {
             beginAtZero: true,
             grid: { color: 'rgba(0,0,0,0.06)' },
-            ticks: { font: { family: 'Amazon Ember, Arial, sans-serif' }, color: '#565959' },
+            ticks: { font: { family: "'Inter', sans-serif" }, color: '#565959' },
           },
           x: {
             grid: { display: false },
-            ticks: { font: { family: 'Amazon Ember, Arial, sans-serif', size: 10 }, color: '#565959' },
+            ticks: { font: { family: "'Inter', sans-serif", size: 10 }, color: '#565959' },
           },
         },
       },

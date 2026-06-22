@@ -124,10 +124,10 @@ import { ModalComponent } from '../modal.component';
       </button>
     </div>
 
-    <!-- Amazon Style Two-Column Layout -->
-    <div class="amazon-search-layout" style="display: flex; gap: 1.5rem; align-items: start; width: 100%;">
-      <!-- Left Refiner Sidebar -->
-      <aside class="amazon-refiner" style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1.25rem; background: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px;">
+    <!-- Ecelon Style Two-Column Layout -->
+    <div class="ecelon-search-layout" style="display: flex; gap: 1.5rem; align-items: start; width: 100%;">
+      <!-- Left Sidebar Refinements -->
+      <aside class="ecelon-refiner" style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1.25rem; background: var(--surface-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
         <!-- Category refinement -->
         <div>
           <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Kategoriler</h4>
@@ -169,8 +169,8 @@ import { ModalComponent } from '../modal.component';
         </div>
       </aside>
 
-      <!-- Right Main Content Panel (Amazon search result list) -->
-      <div class="amazon-results-main" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
+      <!-- Right Main Content Panel -->
+      <div class="ecelon-results-main" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
         <!-- Header with item count and sorting selection -->
         <div style="display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 8px; padding: 12px 16px;">
           <div style="font-size: 14px; color: #565959;">
@@ -188,7 +188,7 @@ import { ModalComponent } from '../modal.component';
         <!-- Result Cards Stack -->
         <div style="display: flex; flex-direction: column; gap: 12px;">
           @for (p of filteredProducts(); track p.id) {
-            <div class="amazon-search-result-card" [class.selected]="isProductSelected(p.id)" style="display: flex; border: 1px solid #D5D9D9; border-radius: 8px; background: #FFFFFF; overflow: visible; position: relative; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
+            <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" style="display: flex; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-card); overflow: visible; position: relative; transition: all 0.2s; box-shadow: var(--shadow-sm);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.transform='none'; this.style.boxShadow='var(--shadow-sm)'">
               <!-- Checkbox on card -->
               <div style="padding: 1rem 0.5rem 1rem 1rem; display: flex; align-items: center; justify-content: center;">
                 <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 16px; height: 16px;" />

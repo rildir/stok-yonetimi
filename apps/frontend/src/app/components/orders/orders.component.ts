@@ -50,10 +50,10 @@ import { InventoryService, Order } from '../../inventory.service';
       </div>
     </div>
 
-    <!-- Result Cards Stack (Amazon "Siparişlerim" layout) -->
-    <div style="display: flex; flex-direction: column; gap: 1.25rem; width: 100%;">
-      @for (o of filteredOrders(); track o.id) {
-        <div class="amazon-order-card" style="border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFFFFF; font-size: 13px;">
+      <!-- Result Cards Stack (Ecelon layout) -->
+      <div class="orders-list-stack" style="display: flex; flex-direction: column; gap: 1rem;">
+        @for (o of filteredOrders(); track o.id) {
+          <div class="ecelon-order-card" style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: var(--surface-card); font-size: 0.875rem;">
           <!-- Header Bar (Light Grey background) -->
           <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
             <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
@@ -136,92 +136,100 @@ import { InventoryService, Order } from '../../inventory.service';
       }
     </div>
 
-    <!-- ─── Create Order Modal ─── -->
+    <!-- ─── Create Order Drawer ─── -->
     @if (showCreateOrderModal()) {
-      <div class="modal-backdrop" style="z-index: 3000;">
-        <div class="modal-panel modal-panel-lg">
-          <div class="modal-header"><h3>Yeni Sipariş Oluştur</h3><button class="close-modal-btn" (click)="closeCreateOrder()">✕</button></div>
-          <form [formGroup]="orderForm" (ngSubmit)="saveOrder()">
-            <div class="modal-body">
-              <div class="form-group" [class.has-error]="isFieldInvalid('customerName')">
-                <label>Müşteri Adı</label>
-                <input type="text" formControlName="customerName" placeholder="Müşteri adı girin" [disabled]="isOrderSaving()"/>
-                @if (isFieldInvalid('customerName')) { <span class="error-msg">Müşteri adı zorunludur.</span> }
+      <div class="drawer-overlay" (click)="closeCreateOrder()" style="z-index: 3000;">
+        <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
+          <div class="drawer-header">
+            <span class="drawer-title">Yeni Sipariş Oluştur</span>
+            <button class="drawer-close" (click)="closeCreateOrder()">×</button>
+          </div>
+          <form [formGroup]="orderForm" (ngSubmit)="saveOrder()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+            <div class="drawer-body">
+              <div class="form-field">
+                <input id="customerNameInput" type="text" formControlName="customerName" class="form-input" [class.has-value]="hasValue('customerName')" [disabled]="isOrderSaving()" placeholder="Müşteri adı girin"/>
+                <label for="customerNameInput" class="form-label">Müşteri Adı</label>
+                @if (isFieldInvalid('customerName')) { <div class="form-error">⚠ Müşteri adı zorununludur.</div> }
               </div>
 
               <!-- Shipping Info Rows -->
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div class="form-group" style="margin-bottom: 0;">
-                  <label>Kargo Firması (Opsiyonel)</label>
-                  <input type="text" formControlName="carrier" placeholder="Örn: Yurtiçi Kargo" [disabled]="isOrderSaving()"/>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-field">
+                  <input id="carrierInput" type="text" formControlName="carrier" class="form-input" [class.has-value]="hasValue('carrier')" [disabled]="isOrderSaving()" placeholder="Örn: Yurtiçi Kargo"/>
+                  <label for="carrierInput" class="form-label">Kargo Firması (Opsiyonel)</label>
                 </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                  <label>Takip Numarası (Opsiyonel)</label>
-                  <input type="text" formControlName="trackingNumber" placeholder="Örn: YK123456" [disabled]="isOrderSaving()"/>
+                <div class="form-field">
+                  <input id="trackingNumberInput" type="text" formControlName="trackingNumber" class="form-input" [class.has-value]="hasValue('trackingNumber')" [disabled]="isOrderSaving()" placeholder="Örn: YK123456"/>
+                  <label for="trackingNumberInput" class="form-label">Takip Numarası (Opsiyonel)</label>
                 </div>
               </div>
               
-              <label class="form-section-label">Sipariş Kalemleri</label>
-              <div formArrayName="lines">
-                @for (line of linesArray.controls; track $index; let i = $index) {
-                  <div class="order-line-row" [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i">
-                    <div class="form-group row-col-product">
-                      <div class="custom-select-wrapper" (click)="toggleDropdown(i); $event.stopPropagation()">
-                        <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()">
-                          <span class="selected-text">
-                            @if (line.get('productId')?.value) {
-                              {{ getProductName(line.get('productId')?.value) }} <span class="selected-stock">(Stok: {{ line.get('maxQuantity')?.value }})</span>
-                            } @else {
-                              Ürün seçin...
-                            }
-                          </span>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </div>
-                        @if (isDropdownOpen(i)) {
-                          <div class="custom-select-dropdown">
-                            @for (p of state.products(); track p.id) {
-                              @if (p.quantity > 0) {
-                                <div class="custom-option" (click)="selectProduct(i, p.id); $event.stopPropagation()">
-                                  <div class="opt-left">
-                                    <span class="opt-name">{{ p.name }}</span>
-                                    <span class="opt-stock" [class.low]="p.quantity < 10">Stok: {{ p.quantity }}</span>
-                                  </div>
-                                  <span class="opt-price">₺{{ p.price.toFixed(2) }}</span>
-                                </div>
+              <div style="margin-top: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <h3 style="font-size: 14px; font-weight: 600; margin: 0;">Sipariş Kalemleri</h3>
+                  <button type="button" class="btn btn-sm btn-outline" (click)="addOrderLine()" [disabled]="isOrderSaving()">+ Ürün Ekle</button>
+                </div>
+
+                <div formArrayName="lines" style="display: flex; flex-direction: column; gap: 10px;">
+                  @for (line of linesArray.controls; track $index; let i = $index) {
+                    <div [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i" style="display: flex; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px; position: relative;">
+                      <div style="flex: 2;">
+                        <div class="custom-select-wrapper" (click)="toggleDropdown(i); $event.stopPropagation()">
+                          <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()" style="height: 40px; padding: 0 12px; font-size: 13px;">
+                            <span class="selected-text">
+                              @if (line.get('productId')?.value) {
+                                {{ getProductName(line.get('productId')?.value) }} <span class="selected-stock" style="color: var(--text-muted); font-size: 11px;">(Stok: {{ line.get('maxQuantity')?.value }})</span>
+                              } @else {
+                                Ürün seçin...
                               }
-                            }
+                            </span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                           </div>
+                          @if (isDropdownOpen(i)) {
+                            <div class="custom-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 200px; overflow-y: auto; background: var(--surface); border: 1px solid var(--secondary); border-radius: 8px; box-shadow: var(--shadow-lg);">
+                              @for (p of state.products(); track p.id) {
+                                @if (p.quantity > 0) {
+                                  <div class="custom-option" (click)="selectProduct(i, p.id); $event.stopPropagation()" style="padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--secondary); font-size: 13px;" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'">
+                                    <div class="opt-left" style="display: flex; flex-direction: column;">
+                                      <span class="opt-name" style="font-weight: 500;">{{ p.name }}</span>
+                                      <span class="opt-stock" [class.low]="p.quantity < 10" style="font-size: 11px; color: var(--text-muted);">Stok: {{ p.quantity }}</span>
+                                    </div>
+                                    <span class="opt-price" style="font-family: var(--font-mono); font-weight: 600; color: var(--primary);">₺{{ p.price.toFixed(2) }}</span>
+                                  </div>
+                                }
+                              }
+                            </div>
+                          }
+                        </div>
+                      </div>
+                      <div style="flex: 1;" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
+                        <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" placeholder="Miktar" min="1" [max]="line.get('maxQuantity')?.value" (input)="enforceMaxQuantity($event, i)" [disabled]="isOrderSaving()"/>
+                        @if (line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)) {
+                          <span class="error-msg-small" style="color: var(--status-outstock); font-size: 10px; display: block; margin-top: 2px;">Maks: {{ line.get('maxQuantity')?.value }}</span>
                         }
                       </div>
+                      <div style="flex: 1;">
+                        <input type="text" [value]="'₺' + (line.get('price')?.value * line.get('quantity')?.value).toFixed(2)" disabled class="form-input mono" style="height: 40px; padding: 0 12px; font-size: 13px; background: var(--canvas);"/>
+                      </div>
+                      <button type="button" class="delete-btn" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()" style="padding: 6px;">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
                     </div>
-                    <div class="form-group row-col-qty" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
-                      <input type="number" formControlName="quantity" min="1" [max]="line.get('maxQuantity')?.value" (input)="enforceMaxQuantity($event, i)" [disabled]="isOrderSaving()"/>
-                      @if (line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)) {
-                        <span class="error-msg-small">Maksimum stok: {{ line.get('maxQuantity')?.value }}</span>
-                      }
-                    </div>
-                    <div class="form-group row-col-price">
-                      <input type="text" [value]="'₺' + (line.get('price')?.value * line.get('quantity')?.value).toFixed(2)" disabled class="mono"/>
-                    </div>
-                    <button type="button" class="delete-btn" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                  </div>
+                  }
+                </div>
+                @if (linesArray.invalid && (linesArray.dirty || linesArray.touched)) {
+                  <span class="form-error" style="display:block;margin-top:0.5rem;">Tüm satırlarda geçerli bir ürün ve miktar (en az 1) seçilmelidir.</span>
                 }
               </div>
-              @if (linesArray.invalid && (linesArray.dirty || linesArray.touched)) {
-                <span class="error-msg" style="display:block;margin-top:0.25rem;">Tüm satırlarda geçerli bir ürün ve miktar (en az 1) seçilmelidir.</span>
-              }
-              
-              <button type="button" class="btn btn-outline btn-sm" (click)="addOrderLine()" [disabled]="isOrderSaving()" style="margin-top:0.5rem">+ Ürün Satırı Ekle</button>
-              
-              <div class="order-total-bar">
-                <span>Toplam Tutar</span>
-                <strong class="mono">₺{{ getNewOrderTotal().toFixed(2) }}</strong>
+
+              <div class="order-total-bar" style="margin-top: 24px; padding: 16px; background: var(--canvas); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--secondary);">
+                <span style="font-weight: 600; font-size: 14px;">Toplam Tutar</span>
+                <strong class="mono" style="font-size: 16px; color: var(--primary);">₺{{ getNewOrderTotal().toFixed(2) }}</strong>
               </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeCreateOrder()" [disabled]="isOrderSaving()">Vazgeç</button>
+            
+            <div class="drawer-footer">
+              <button type="button" class="btn btn-secondary" (click)="closeCreateOrder()">Vazgeç</button>
               <button type="submit" class="btn btn-primary" [disabled]="orderForm.invalid || isOrderSaving()">
                 @if (isOrderSaving()) { <span class="spinner-sm spinner-light"></span> Oluşturuluyor... } @else { Sipariş Oluştur }
               </button>
@@ -548,6 +556,11 @@ export class OrdersComponent {
   isFieldInvalid(fieldName: string): boolean {
     const field = this.orderForm.get(fieldName);
     return field ? (field.invalid && (field.dirty || field.touched)) : false;
+  }
+
+  hasValue(fieldName: string): boolean {
+    const val = this.orderForm.get(fieldName)?.value;
+    return val !== null && val !== undefined && val !== '';
   }
 
   // Custom Select Logic
