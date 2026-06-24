@@ -327,12 +327,12 @@
 
 .btn-secondary {
   background-color: var(--secondary);
-  color: var(--primary-hover);
+  color: var(--text-primary);
   border-color: transparent;
 }
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--secondary-hover);
-  color: var(--primary-hover);
+  color: var(--text-primary);
 }
 
 .btn-sm {
@@ -619,6 +619,10 @@
   background: rgba(220, 38, 38, 0.08);
   color: var(--status-outstock);
 }
+.badge-muted {
+  background: rgba(107, 114, 128, 0.08);
+  color: var(--text-muted);
+}
 
 /* Status dots */
 .sdot {
@@ -657,14 +661,14 @@ table {
 }
 
 th {
-  background: #F7FAFA;
-  padding: 0.8rem 1.25rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
+  background: var(--canvas);
+  padding: 8px 16px;
+  font-size: 11px;
+  text-transform: none;
   letter-spacing: 0.05em;
-  font-weight: 700;
-  color: #565959;
-  border-bottom: 2px solid #D5D9D9;
+  font-weight: bold;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border-color);
   white-space: nowrap;
 }
 
@@ -2101,7 +2105,7 @@ select:disabled {
 .delete-modal-title {
   font-size: 1rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--text-primary, #111827);
   margin-top: 0.75rem;
 }
 

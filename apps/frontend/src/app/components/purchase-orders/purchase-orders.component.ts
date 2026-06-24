@@ -6,6 +6,7 @@ import { InventoryService } from '../../inventory.service';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
+import { tap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-purchase-orders',
@@ -81,7 +82,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 </div>
                 <div>
                   <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Toplam tutar</div>
-                  <div style="color: #B12704; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount | number:'1.2-2' }}</div>
+                  <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount | number:'1.2-2' }}</div>
                 </div>
                 <div>
                   <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Tedarikçi</div>
@@ -89,7 +90,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 </div>
               </div>
               <div style="text-align: right;">
-                <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">PO no: #{{ o.poNumber }}</div>
+                <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">PO no: {{ formatPoNumber(o.poNumber) }}</div>
                 <div>
                   <a href="#" (click)="openDetailDrawer(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">Sipariş Detayları</a>
                 </div>
@@ -109,10 +110,11 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 
                 <!-- Item detail rows -->
                 <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
-                  @for (item of o.items; track item.productId) {
-                    <div style="display: flex; justify-content: space-between; width: 100%; max-width: 450px; font-size: 13px;">
-                      <span style="color: #007185; font-weight: 500;">{{ item.productName }}</span>
-                      <span style="color: #565959;">{{ item.quantity }} adet</span>
+                  @for (item of getGroupedItems(o.items); track item.productId) {
+                    <div style="display: flex; justify-content: space-between; width: 100%; max-width: 550px; font-size: 13px;">
+                      <span style="color: #0F1111; font-weight: 500;">
+                        {{ item.productName }} — {{ item.quantity }} adet x ₺{{ item.price | number:'1.2-2' }} = ₺{{ (item.quantity * item.price) | number:'1.2-2' }}
+                      </span>
                     </div>
                   }
                 </div>
@@ -121,11 +123,11 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 @if (o.expectedDate || o.notes) {
                   <div style="margin-top: 10px; font-size: 12px; color: #565959; background: #F7FAFA; border: 1px solid #D5D9D9; border-radius: 4px; padding: 6px 12px; display: inline-block; max-width: 450px;">
                     @if (o.expectedDate) {
-                      📅 Beklenen Tarih: <strong>{{ o.expectedDate | date:'dd.MM.yyyy' }}</strong>
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Beklenen Tarih: <strong>{{ o.expectedDate | date:'dd.MM.yyyy' }}</strong>
                     }
                     @if (o.expectedDate && o.notes) { <span style="margin: 0 8px;">|</span> }
                     @if (o.notes) {
-                      📝 Notlar: <em>{{ o.notes }}</em>
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Notlar: <em>{{ o.notes }}</em>
                     }
                   </div>
                 }
@@ -133,20 +135,26 @@ import { ToastComponent } from '../shared/toast/toast.component';
 
               <!-- Right: Actions buttons -->
               <div style="display: flex; flex-direction: column; gap: 8px; width: 160px; flex-shrink: 0;" (click)="$event.stopPropagation()">
-                @if (o.status === 'Draft' || o.status === 'Sent') {
-                  @if (o.status === 'Draft') {
-                    <button class="btn btn-primary btn-sm" (click)="sendPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
-                      Gönder
-                    </button>
-                    <button class="btn btn-secondary btn-sm" (click)="editPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
-                      Düzenle
-                    </button>
-                  }
+                @if (o.status === 'Draft') {
+                  <button class="btn btn-primary btn-sm" (click)="sendPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
+                    Gönder
+                  </button>
+                  <button class="btn btn-secondary btn-sm" (click)="editPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
+                    Düzenle
+                  </button>
+                  <button class="btn btn-secondary btn-sm" (click)="deletePurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
+                    Sil
+                  </button>
+                } @else if (o.status === 'Sent') {
                   <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)" style="width: 100%; border-radius: 20px; background-color: #007185; color: #fff; border-color: #005a6a;">
                     Teslim Al
                   </button>
-                  <button class="btn btn-secondary btn-sm" (click)="o.status === 'Draft' ? deletePurchaseOrder(o) : cancelPurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
-                    {{ o.status === 'Draft' ? 'Sil' : 'İptal Et' }}
+                  <button class="btn btn-secondary btn-sm" (click)="cancelPurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
+                    İptal Et
+                  </button>
+                } @else if (o.status === 'Cancelled') {
+                  <button class="btn btn-secondary btn-sm" (click)="deletePurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
+                    Sil
                   </button>
                 }
               </div>
@@ -238,7 +246,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
           <div class="drawer-header">
             <div>
               <span class="drawer-title">Sipariş Detayı</span>
-              <span class="text-muted" style="font-size:12px; display:block; margin-top:2px;">PO No: {{ detailOrder().poNumber }}</span>
+              <span class="text-muted" style="font-size:12px; display:block; margin-top:2px;">PO No: {{ formatPoNumber(detailOrder().poNumber) }}</span>
             </div>
             <button class="drawer-close" (click)="closeDetailDrawer()">×</button>
           </div>
@@ -266,10 +274,14 @@ import { ToastComponent } from '../shared/toast/toast.component';
             
             <h3 class="detail-items-title">Kalemler</h3>
             <div style="display: flex; flex-direction: column; gap: 8px;">
-              @for (item of detailOrder().items; track item.productId) {
+              @for (item of getGroupedItems(detailOrder().items); track item.productId) {
                 <div class="detail-item-row">
-                  <span class="detail-item-name">{{ item.productName }}</span>
-                  <span class="detail-item-qty">{{ item.quantity }} Adet</span>
+                  <span class="detail-item-name">
+                    {{ item.productName }}
+                  </span>
+                  <span class="detail-item-qty" style="font-size: 13px; font-weight: normal; color: #565959;">
+                    {{ item.quantity }} adet x ₺{{ item.price | number:'1.2-2' }} = <strong style="color: #0f1111; font-weight: bold;">₺{{ (item.quantity * item.price) | number:'1.2-2' }}</strong>
+                  </span>
                 </div>
               }
             </div>
@@ -295,15 +307,15 @@ import { ToastComponent } from '../shared/toast/toast.component';
           </div>
           <div class="drawer-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
             <button class="btn btn-secondary" (click)="closeDetailDrawer()">Kapat</button>
-            @if (detailOrder().status === 'Draft' || detailOrder().status === 'Sent') {
-              @if (detailOrder().status === 'Draft') {
-                <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">Sil</button>
-                <button class="btn btn-outline" (click)="editPurchaseOrder(detailOrder())">Düzenle</button>
-                <button class="btn btn-outline" (click)="sendPurchaseOrder(detailOrder())" style="border-color: var(--status-lowstock); color: var(--status-lowstock)">Gönder</button>
-              } @else {
-                <button class="btn btn-danger" (click)="cancelPurchaseOrder(detailOrder())">İptal Et</button>
-              }
+            @if (detailOrder().status === 'Draft') {
+              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">Sil</button>
+              <button class="btn btn-outline" (click)="editPurchaseOrder(detailOrder())">Düzenle</button>
+              <button class="btn btn-primary" (click)="sendPurchaseOrder(detailOrder())">Gönder</button>
+            } @else if (detailOrder().status === 'Sent') {
+              <button class="btn btn-danger" (click)="cancelPurchaseOrder(detailOrder())">İptal Et</button>
               <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">Teslim Al</button>
+            } @else if (detailOrder().status === 'Cancelled') {
+              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">Sil</button>
             }
           </div>
         </div>
@@ -601,19 +613,22 @@ export class PurchaseOrdersComponent implements OnInit {
 
   deletePurchaseOrder(order: any) {
     this.ui.openConfirm({
-      title: 'Siparişi Sil',
-      message: `${order.poNumber} numaralı satın alma siparişini silmek istediğinize emin misiniz?`,
+      title: 'Satın alma siparişini sil',
+      message: `${this.formatPoNumber(order.poNumber)} numaralı sipariş kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      isDelete: true,
       onConfirm: () => {
-        this.inventory.deletePurchaseOrder(order.id).subscribe({
-          next: () => {
-            this.closeDetailDrawer();
-            this.loadData();
-            this.ui.showToast('Satın alma siparişi silindi.', 'success');
-          },
-          error: (err) => {
-            this.ui.showToast(err.error?.message || 'İşlem gerçekleştirilemedi.', 'error');
-          }
-        });
+        return this.inventory.deletePurchaseOrder(order.id).pipe(
+          tap({
+            next: () => {
+              this.closeDetailDrawer();
+              this.loadData();
+              this.ui.showToast('Satın alma siparişi silindi.', 'success');
+            },
+            error: (err) => {
+              this.ui.showToast(err.error?.message || 'İşlem gerçekleştirilemedi.', 'error');
+            }
+          })
+        );
       }
     });
   }
@@ -621,7 +636,7 @@ export class PurchaseOrdersComponent implements OnInit {
   sendPurchaseOrder(order: any) {
     this.ui.openConfirm({
       title: 'Siparişi Gönder',
-      message: `${order.poNumber} numaralı siparişi tedarikçiye gönderildi olarak işaretlemek istiyor musunuz?`,
+      message: `${this.formatPoNumber(order.poNumber)} numaralı siparişi tedarikçiye gönderildi olarak işaretlemek istiyor musunuz?`,
       onConfirm: () => {
         this.inventory.updatePurchaseOrderStatus(order.id, 'Sent').subscribe({
           next: () => {
@@ -640,7 +655,7 @@ export class PurchaseOrdersComponent implements OnInit {
   receivePurchaseOrder(order: any) {
     this.ui.openConfirm({
       title: 'Teslim Al',
-      message: `${order.poNumber} numaralı siparişi teslim alıp ürünleri stoklara eklemek istediğinize emin misiniz?`,
+      message: `${this.formatPoNumber(order.poNumber)} numaralı siparişi teslim alıp ürünleri stoklara eklemek istediğinize emin misiniz?`,
       onConfirm: () => {
         this.inventory.updatePurchaseOrderStatus(order.id, 'Received').subscribe({
           next: () => {
@@ -660,7 +675,7 @@ export class PurchaseOrdersComponent implements OnInit {
   cancelPurchaseOrder(order: any) {
     this.ui.openConfirm({
       title: 'Siparişi İptal Et',
-      message: `${order.poNumber} numaralı siparişi iptal etmek istediğinize emin misiniz?`,
+      message: `${this.formatPoNumber(order.poNumber)} numaralı siparişi iptal etmek istediğinize emin misiniz?`,
       onConfirm: () => {
         this.inventory.updatePurchaseOrderStatus(order.id, 'Cancelled').subscribe({
           next: () => {
@@ -693,6 +708,37 @@ export class PurchaseOrdersComponent implements OnInit {
         });
       }
     });
+  }
+
+  getGroupedItems(items: any[]): any[] {
+    if (!items) return [];
+    const grouped: { [key: string]: any } = {};
+    for (const item of items) {
+      const productId = item.productId;
+      if (!grouped[productId]) {
+        const p = this.state.products().find(x => x.id === productId);
+        const price = item.price !== undefined && item.price !== null ? item.price : (p ? p.price : 0);
+        grouped[productId] = {
+          productId: item.productId,
+          productName: item.productName || p?.name || 'Bilinmeyen Ürün',
+          quantity: 0,
+          price: price,
+          occurrenceCount: 0
+        };
+      }
+      grouped[productId].quantity += item.quantity;
+      grouped[productId].occurrenceCount += 1;
+    }
+    return Object.values(grouped);
+  }
+
+  formatPoNumber(poNumber: string): string {
+    if (!poNumber) return '';
+    let clean = poNumber.replace(/^#?PO-/, '');
+    if (clean.length > 4) {
+      clean = clean.slice(-4);
+    }
+    return `#PO-${clean.toUpperCase()}`;
   }
 
   getStatusName(status: string) {

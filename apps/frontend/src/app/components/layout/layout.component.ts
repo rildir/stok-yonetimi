@@ -10,7 +10,7 @@ import { NotificationService } from '../../services/notification.service';
 import { ModalComponent } from '../modal.component';
 import { AppStateService } from '../../services/app-state.service';
 import { InventoryService } from '../../inventory.service';
-import { Subject, of } from 'rxjs';
+import { Subject, of, Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { SearchService, GlobalSearchResult } from '../../services/search.service';
 
@@ -112,18 +112,20 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
           <!-- Sidebar Footer Upgrade Banner -->
           @if (ui.subscription().plan !== 'ultra') {
-            <div class="sidebar-upgrade-box" [class.collapsed]="isSidebarCollapsed()" routerLink="/billing">
-              @if (!isSidebarCollapsed()) {
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                  <span style="color: #FBBF24; font-size: 1rem;">✦</span>
-                  <strong style="color: #FFFFFF; font-size: 0.78rem; font-weight: 600; font-family: var(--font-heading);">Ultra Plan'a Geçin</strong>
-                </div>
-                <p style="color: #94A3B8; font-size: 0.7rem; margin: 0; line-height: 1.3; font-family: var(--font-body);">Yapay zeka ve gelişmiş analitikleri aktif edin.</p>
-              } @else {
-                <div style="display: flex; justify-content: center; align-items: center; height: 24px;" title="Ultra Plan'a Geçin">
-                  <span style="color: #FBBF24; font-size: 1.1rem; font-weight: bold;">✦</span>
-                </div>
-              }
+            <div class="sidebar-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 12px;">
+              <div class="sidebar-upgrade-box" [class.collapsed]="isSidebarCollapsed()" routerLink="/billing" style="margin: 0;">
+                @if (!isSidebarCollapsed()) {
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <span style="color: #FBBF24; font-size: 1rem;">✦</span>
+                    <strong style="color: #FFFFFF; font-size: 0.78rem; font-weight: 600; font-family: var(--font-heading);">Ultra Plan'a Geçin</strong>
+                  </div>
+                  <p style="color: #94A3B8; font-size: 0.7rem; margin: 0; line-height: 1.3; font-family: var(--font-body);">Yapay zeka ve gelişmiş analitikleri aktif edin.</p>
+                } @else {
+                  <div style="display: flex; justify-content: center; align-items: center; height: 24px;" title="Ultra Plan'a Geçin">
+                    <span style="color: #FBBF24; font-size: 1.1rem; font-weight: bold;">✦</span>
+                  </div>
+                }
+              </div>
             </div>
           }
         </div>
@@ -722,15 +724,54 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
         </div>
       }
 
-      <app-modal [isOpen]="!!ui.confirmConfig()" [title]="ui.confirmConfig()?.title || ''" (onClose)="ui.closeConfirm()">
-        <div style="font-size: 14px; line-height: 1.5; color: var(--text-primary);">
-          {{ ui.confirmConfig()?.message }}
-        </div>
-        <div footer style="display: flex; gap: 8px;">
-          <button class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || 'Vazgeç' }}</button>
-          <button class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || 'Onayla' }}</button>
-        </div>
-      </app-modal>
+      @if (ui.confirmConfig()?.isDelete) {
+        <app-modal [isOpen]="!!ui.confirmConfig()" [title]="''" [isDelete]="true" (onClose)="isConfirmLoading() ? null : ui.closeConfirm()">
+          <div style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 0;">
+            <!-- Red background circle trash icon -->
+            <div style="width: 48px; height: 48px; border-radius: 50%; background-color: #FEE2E2; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; color: #DC2626;">
+              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </div>
+            
+            <h3 style="font-size: 18px; font-weight: 700; color: #0F172A; margin: 0 0 8px 0;">{{ ui.confirmConfig()?.title }}</h3>
+            
+            <p style="font-size: 14px; line-height: 1.5; color: #475569; margin: 0;">
+              {{ ui.confirmConfig()?.message }}
+            </p>
+          </div>
+          <div footer style="display: flex; gap: 8px; justify-content: flex-end; width: 100%;">
+            <!-- Sol: Vazgeç - ghost/outline, nötr renk -->
+            <button class="btn btn-outline" 
+                    (click)="ui.closeConfirm()" 
+                    [disabled]="isConfirmLoading()"
+                    style="border: 1px solid #D1D5DB; background: transparent; color: #4B5563; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; cursor: pointer;">
+              Vazgeç
+            </button>
+            <!-- Sağ: Sil - dolu, kırmızı/danger renk -->
+            <button class="btn" 
+                    (click)="confirmGlobalAction()" 
+                    [disabled]="isConfirmLoading()"
+                    style="background-color: #DC2626; color: #FFFFFF; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              @if (isConfirmLoading()) {
+                <span class="spinner-sm spinner-light" style="width: 14px; height: 14px; border-width: 2px;"></span> Siliniyor...
+              } @else {
+                Sil
+              }
+            </button>
+          </div>
+        </app-modal>
+      } @else {
+        <app-modal [isOpen]="!!ui.confirmConfig()" [title]="ui.confirmConfig()?.title || ''" (onClose)="ui.closeConfirm()">
+          <div style="font-size: 14px; line-height: 1.5; color: var(--text-primary);">
+            {{ ui.confirmConfig()?.message }}
+          </div>
+          <div footer style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || 'Vazgeç' }}</button>
+            <button class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || 'Onayla' }}</button>
+          </div>
+        </app-modal>
+      }
     </div>
   `
 })
@@ -742,6 +783,7 @@ export class LayoutComponent implements OnInit {
   state = inject(AppStateService);
   inventoryService = inject(InventoryService);
   searchService = inject(SearchService);
+  isConfirmLoading = signal(false);
   
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
@@ -1123,10 +1165,35 @@ export class LayoutComponent implements OnInit {
 
   confirmGlobalAction() {
     const config = this.ui.confirmConfig();
-    if (config && config.onConfirm) {
-      config.onConfirm();
+    if (!config) return;
+
+    if (config.onConfirm) {
+      const result = config.onConfirm();
+      if (result instanceof Promise) {
+        this.isConfirmLoading.set(true);
+        result.then(() => {
+          this.isConfirmLoading.set(false);
+          this.ui.confirmConfig.set(null);
+        }).catch(() => {
+          this.isConfirmLoading.set(false);
+        });
+      } else if (result && typeof result.subscribe === 'function') {
+        this.isConfirmLoading.set(true);
+        result.subscribe({
+          next: () => {
+            this.isConfirmLoading.set(false);
+            this.ui.confirmConfig.set(null);
+          },
+          error: () => {
+            this.isConfirmLoading.set(false);
+          }
+        });
+      } else {
+        this.ui.closeConfirm();
+      }
+    } else {
+      this.ui.closeConfirm();
     }
-    this.ui.closeConfirm();
   }
 
   constructor() {

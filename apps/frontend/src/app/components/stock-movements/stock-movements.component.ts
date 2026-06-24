@@ -30,10 +30,35 @@ import { ToastComponent } from '../shared/toast/toast.component';
       </div>
     </header>
 
-    <div class="filter-bar">
-      <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="text" placeholder="Ürün adına göre filtrele..." [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
+    <div class="filter-bar" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; flex: 1;">
+        <!-- Arama Inputu -->
+        <div class="search-box" style="margin: 0; min-width: 240px; flex: 1; max-width: 320px;">
+          <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" placeholder="Ürün adına göre filtrele..." [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
+        </div>
+
+        <!-- Tarih Filtresi -->
+        <div class="date-filters">
+          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">Başlangıç:</span>
+          <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="onStartDateChange($event)" title="Başlangıç Tarihi" />
+          <span class="date-separator">-</span>
+          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">Bitiş:</span>
+          <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="onEndDateChange($event)" title="Bitiş Tarihi" />
+          @if (startDate() || endDate()) {
+            <button class="btn btn-sm btn-secondary" (click)="clearDateFilter()" style="padding: 4px 8px; font-size: 0.7rem; height: 26px; border-radius: var(--radius-sm); margin-left: 6px;">
+              Temizle
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- İşlem Tipi Filtresi -->
+      <div class="filter-pills">
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().length === 0" (click)="toggleType('ALL')">Tümü</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('IN')" (click)="toggleType('IN')">Stok girişi</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('ORDER')" (click)="toggleType('ORDER')">Sipariş</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('RETURN')" (click)="toggleType('RETURN')">İptal / iade</button>
       </div>
     </div>
 
@@ -52,9 +77,9 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 <th>Tarih</th>
                 <th>Ürün adı</th>
                 <th>İşlem tipi</th>
-                <th>Miktar</th>
-                <th>Eski stok</th>
-                <th>Yeni stok</th>
+                <th style="text-align: right;">Miktar</th>
+                <th style="text-align: right;">Eski stok</th>
+                <th style="text-align: right;">Yeni stok</th>
                 <th>Not / referans</th>
                 <th>İşlemi yapan</th>
               </tr>
@@ -69,22 +94,28 @@ import { ToastComponent } from '../shared/toast/toast.component';
                        {{ getTypeName(m.type) }}
                     </span>
                   </td>
-                  <td>
+                  <td style="text-align: right;">
                     <span [class.text-success]="m.quantity > 0" [class.text-danger]="m.quantity < 0">
                       {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
                     </span>
                   </td>
-                  <td>{{ m.previousQuantity }}</td>
-                  <td style="font-weight: 600;">{{ m.newQuantity }}</td>
+                  <td style="text-align: right;">{{ m.previousQuantity }}</td>
+                  <td style="text-align: right; font-weight: 600;">{{ m.newQuantity }}</td>
                   <td>
                     <div class="text-xs text-muted" style="margin-bottom: 2px;">{{ m.note }}</div>
                     @if (m.referenceId) {
-                      <span class="badge" style="font-size: 10px; font-family: var(--font-mono); font-weight: 500; background: rgba(107, 114, 128, 0.08); color: #4b5563; border: 1px solid rgba(107, 114, 128, 0.15); padding: 1px 5px; border-radius: 4px; display: inline-block;">
+                      <span class="badge badge-muted">
                         {{ formatReference(m.referenceType, m.referenceId) }}
                       </span>
                     }
                   </td>
-                  <td>{{ m.performedBy }}</td>
+                  <td>
+                    @if (m.performedBy && m.performedBy.toLowerCase() === 'system') {
+                      <span class="performed-badge performed-system">System</span>
+                    } @else {
+                      <span class="performed-badge performed-admin">{{ m.performedBy || 'Admin' }}</span>
+                    }
+                  </td>
                 </tr>
               }
             </tbody>
@@ -177,6 +208,33 @@ import { ToastComponent } from '../shared/toast/toast.component';
   styles: [`
     .text-success { color: var(--status-instock); font-weight: 600; }
     .text-danger { color: var(--status-outstock); font-weight: 600; }
+    table tbody td {
+      vertical-align: top;
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+    .badge-in { background: rgba(0, 118, 0, 0.08); color: #007600; }
+    .badge-order { background: rgba(59, 130, 246, 0.08); color: #2563EB; }
+    .badge-return { background: rgba(196, 85, 0, 0.08); color: #C45500; }
+    .badge-adjustment { background: rgba(100, 116, 139, 0.08); color: #64748B; }
+    .badge-out { background: rgba(177, 39, 4, 0.08); color: #B12704; }
+    .performed-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+    .performed-system {
+      background: rgba(100, 116, 139, 0.08);
+      color: #64748B;
+    }
+    .performed-admin {
+      background: rgba(139, 92, 246, 0.08);
+      color: #8B5CF6;
+    }
   `]
 })
 export class StockMovementsComponent implements OnInit {
@@ -190,6 +248,11 @@ export class StockMovementsComponent implements OnInit {
   products = signal<Product[]>([]);
   isLoading = signal(true);
   searchQuery = signal('');
+
+  // Date and Type Filter Signals
+  startDate = signal<string>('');
+  endDate = signal<string>('');
+  selectedTypes = signal<string[]>([]);
 
   // Pagination Signals
   currentPage = signal(1);
@@ -222,7 +285,16 @@ export class StockMovementsComponent implements OnInit {
   loadMovements(page: number = 1) {
     this.isLoading.set(true);
     const search = this.searchQuery();
-    this.inventory.getStockMovements(undefined, page, this.pageSize(), search).subscribe({
+    const typeParam = this.selectedTypes().length > 0 ? this.selectedTypes().join(',') : undefined;
+    this.inventory.getStockMovements(
+      undefined,
+      page,
+      this.pageSize(),
+      search,
+      this.startDate() || undefined,
+      this.endDate() || undefined,
+      typeParam
+    ).subscribe({
       next: (res) => {
         this.movements.set(res.data);
         this.totalItems.set(res.total);
@@ -244,9 +316,48 @@ export class StockMovementsComponent implements OnInit {
     });
   }
 
+  onStartDateChange(val: string) {
+    this.startDate.set(val);
+    this.loadMovements(1);
+  }
+
+  onEndDateChange(val: string) {
+    this.endDate.set(val);
+    this.loadMovements(1);
+  }
+
+  clearDateFilter() {
+    this.startDate.set('');
+    this.endDate.set('');
+    this.loadMovements(1);
+  }
+
+  toggleType(type: string) {
+    if (type === 'ALL') {
+      this.selectedTypes.set([]);
+    } else {
+      const current = this.selectedTypes();
+      if (current.includes(type)) {
+        this.selectedTypes.set(current.filter(t => t !== type));
+      } else {
+        this.selectedTypes.set([...current, type]);
+      }
+    }
+    this.loadMovements(1);
+  }
+
   exportToCSV() {
     const search = this.searchQuery();
-    this.inventory.getStockMovements(undefined, 1, 100000, search).subscribe({
+    const typeParam = this.selectedTypes().length > 0 ? this.selectedTypes().join(',') : undefined;
+    this.inventory.getStockMovements(
+      undefined,
+      1,
+      100000,
+      search,
+      this.startDate() || undefined,
+      this.endDate() || undefined,
+      typeParam
+    ).subscribe({
       next: (res) => {
         const list = res.data;
         if (!list || list.length === 0) {
@@ -431,12 +542,13 @@ export class StockMovementsComponent implements OnInit {
 
   getBadgeClass(type: string) {
     switch (type) {
-      case 'IN':
-      case 'RETURN': return 'badge-instock';
-      case 'ORDER':
-      case 'OUT': return 'badge-outstock';
-      case 'ADJUSTMENT': return 'badge-lowstock';
+      case 'IN': return 'badge-in';
+      case 'ORDER': return 'badge-order';
+      case 'RETURN': return 'badge-return';
+      case 'ADJUSTMENT': return 'badge-adjustment';
+      case 'OUT': return 'badge-out';
       default: return '';
     }
   }
 }
+

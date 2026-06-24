@@ -19,47 +19,7 @@ import { Chart } from 'chart.js/auto';
     </header>
 
     <!-- SLEEK AI SEARCH BAR -->
-    @if (ui.subscription().plan !== 'ultra' && !isBannerDismissed) {
-      <div class="ai-search-centerpiece locked" style="position: relative;">
-        <!-- Close button for AI upsell banner -->
-        <button (click)="dismissBanner($event)" style="position: absolute; right: 12px; top: 12px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; z-index: 20; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.05)'; this.style.color='var(--text-primary)';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-muted)';" title="Kapat">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-        <!-- The actual search bar & suggestions (will be blurred when locked) -->
-        <div class="ai-search-content-wrapper">
-          <div class="ai-search-bar" [class.ai-loading]="ui.isAiLoading()">
-            <div class="ai-search-icon">✦</div>
-            <input 
-              type="text" 
-              class="ai-search-input" 
-              placeholder="Yapay Zeka Asistanı ile stok analizi yapın, sipariş özetleri isteyin..." 
-              [(ngModel)]="aiPrompt" 
-              (keydown)="onKeydown($event)"
-              [disabled]="true"
-            />
-            <button class="ai-search-submit" [disabled]="true">
-               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-          </div>
-          <div class="ai-search-suggestions">
-            <span class="suggestion-label">Şunu deneyin:</span>
-            <button class="suggestion-tag" [disabled]="true">⚠️ Kritik Stoklar</button>
-            <button class="suggestion-tag" [disabled]="true">🔥 En Çok Satan</button>
-            <button class="suggestion-tag" [disabled]="true">📊 Stok Hareketi</button>
-          </div>
-        </div>
-
-        <div class="ai-centerpiece-lock-overlay" routerLink="/billing">
-          <div class="lock-overlay-pill">
-            <span class="gold-lock-icon">✦</span>
-            <span class="lock-upgrade-text">
-              Yapay Zeka Asistanını Etkinleştirmek İçin <strong>Ultra Plana Geçin</strong>
-            </span>
-            <span class="lock-arrow-icon">→</span>
-          </div>
-        </div>
-      </div>
-    } @else if (ui.subscription().plan === 'ultra') {
+    @if (ui.subscription().plan === 'ultra') {
       <div class="ai-search-centerpiece">
         <div class="ai-search-content-wrapper">
           <div class="ai-search-bar" [class.ai-loading]="ui.isAiLoading()">

@@ -5,6 +5,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } 
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
+import { tap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-suppliers',
@@ -71,9 +72,20 @@ import { ToastComponent } from '../shared/toast/toast.component';
                   </td>
                   <td>
                     <span style="font-weight: 500;">{{ s.leadTimeDays ?? 3 }} gün</span>
+                  <td>
+                    @if (s.email) {
+                      <a href="mailto:{{ s.email }}" style="color: #007185; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ s.email }}</a>
+                    } @else {
+                      -
+                    }
                   </td>
-                  <td>{{ s.email || '-' }}</td>
-                  <td>{{ s.phone || '-' }}</td>
+                  <td>
+                    @if (s.phone) {
+                      <a href="tel:{{ s.phone }}" style="color: #007185; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ normalizePhone(s.phone) }}</a>
+                    } @else {
+                      -
+                    }
+                  </td>
                   <td class="td-actions">
                     <button class="edit-btn" title="Düzenle" (click)="openDrawer(s)">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -122,23 +134,36 @@ import { ToastComponent } from '../shared/toast/toast.component';
                 <input id="supplierPhone" type="tel" formControlName="phone" class="form-input" [class.has-value]="hasValue('phone')" [disabled]="isSaving()" />
                 <label for="supplierPhone" class="form-label">Telefon Numarası</label>
               </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 0;">
-                <div class="form-field" style="margin-bottom: 0;">
-                  <select id="supplierRating" formControlName="rating" class="form-input has-value" [disabled]="isSaving()">
-                    <option [value]="5">⭐⭐⭐⭐⭐ (5 Yıldız)</option>
-                    <option [value]="4">⭐⭐⭐⭐ (4 Yıldız)</option>
-                    <option [value]="3">⭐⭐⭐ (3 Yıldız)</option>
-                    <option [value]="2">⭐⭐ (2 Yıldız)</option>
-                    <option [value]="1">⭐ (1 Yıldız)</option>
-                  </select>
-                  <label for="supplierRating" class="form-label">Tedarikçi Puanı</label>
+              <div class="form-field" style="display: flex; flex-direction: column;">
+                <label class="form-label" style="position: static; transform: none; font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 6px;">Tedarikçi puanı</label>
+                <div class="star-rating-container" style="display: flex; gap: 4px; align-items: center; padding: 4px 0;">
+                  @for (star of [1, 2, 3, 4, 5]; track star) {
+                    <button type="button" 
+                            (click)="setRating(star)" 
+                            [disabled]="isSaving()" 
+                            style="background: transparent; border: none; padding: 1px; cursor: pointer; outline: none; font-size: 18px; transition: transform 0.1s ease; line-height: 1;"
+                            [style.color]="supplierForm.get('rating')?.value >= star ? '#fbbf24' : '#d5d9d9'"
+                            onmouseover="this.style.transform='scale(1.2)'"
+                            onmouseout="this.style.transform='scale(1)'"
+                            title="{{ star }} Yıldız"
+                    >
+                      ★
+                    </button>
+                  }
+                  <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 4px; white-space: nowrap;">
+                    @if (supplierForm.get('rating')?.value) {
+                      ({{ supplierForm.get('rating')?.value }} Yıldız)
+                    } @else {
+                      (Puan Seçilmedi)
+                    }
+                  </span>
                 </div>
+              </div>
 
-                <div class="form-field" style="margin-bottom: 0;">
-                  <input id="supplierLeadTime" type="number" formControlName="leadTimeDays" class="form-input" [class.has-value]="hasValue('leadTimeDays')" [disabled]="isSaving()" min="0" />
-                  <label for="supplierLeadTime" class="form-label">Teslim Süresi (Gün)</label>
-                  @if (isFieldInvalid('leadTimeDays')) { <div class="form-error">⚠ Geçerli bir teslim süresi girin.</div> }
-                </div>
+              <div class="form-field">
+                <input id="supplierLeadTime" type="number" formControlName="leadTimeDays" class="form-input" [class.has-value]="hasValue('leadTimeDays')" [disabled]="isSaving()" min="0" />
+                <label for="supplierLeadTime" class="form-label">Teslim Süresi (Gün)</label>
+                @if (isFieldInvalid('leadTimeDays')) { <div class="form-error">⚠ Geçerli bir teslim süresi girin.</div> }
               </div>
 
               <div class="form-field">
@@ -154,35 +179,11 @@ import { ToastComponent } from '../shared/toast/toast.component';
             
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">Vazgeç</button>
-              <button type="submit" class="btn btn-primary" [disabled]="supplierForm.invalid || isSaving()">
+              <button type="submit" class="btn btn-primary" [disabled]="supplierForm.invalid || supplierForm.pristine || isSaving()">
                 @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { Kaydet }
               </button>
             </div>
           </form>
-        </div>
-      </div>
-    }
-
-    <!-- Delete Confirmation Modal -->
-    @if (showDeleteModal()) {
-      <div class="modal-backdrop">
-        <div class="modal-panel modal-panel-sm">
-          <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="cancelDeleteSupplier()" [disabled]="isSaving()">✕</button>
-            <div class="delete-icon">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <h3 class="delete-modal-title">Tedarikçiyi Sil</h3>
-            <p class="delete-modal-desc">
-              <strong>{{ supplierToDelete()?.name }}</strong> adlı tedarikçiyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
-            </p>
-          </div>
-          <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="cancelDeleteSupplier()" [disabled]="isSaving()">Vazgeç</button>
-            <button class="btn btn-danger" (click)="confirmDeleteSupplier()" [disabled]="isSaving()">
-              @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Siliniyor... } @else { Sil }
-            </button>
-          </div>
         </div>
       </div>
     }
@@ -202,8 +203,6 @@ export class SuppliersComponent implements OnInit {
   isDrawerOpen = signal(false);
   isSaving = signal(false);
   editId = signal<string | null>(null);
-  showDeleteModal = signal(false);
-  supplierToDelete = signal<any>(null);
  
   searchQuery = signal('');
 
@@ -225,7 +224,7 @@ export class SuppliersComponent implements OnInit {
     phone: [''],
     address: [''],
     notes: [''],
-    rating: [5, [Validators.required, Validators.min(1), Validators.max(5)]],
+    rating: [null, [Validators.required, Validators.min(1), Validators.max(5)]],
     leadTimeDays: [3, [Validators.required, Validators.min(0)]]
   });
 
@@ -279,7 +278,7 @@ export class SuppliersComponent implements OnInit {
         phone: '',
         address: '',
         notes: '',
-        rating: 5,
+        rating: null,
         leadTimeDays: 3
       });
     }
@@ -292,6 +291,26 @@ export class SuppliersComponent implements OnInit {
     this.editId.set(null);
   }
 
+  normalizePhone(phone: string): string {
+    if (!phone) return '';
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length >= 10) {
+      const last10 = digits.slice(-10);
+      const area = last10.slice(0, 3);
+      const p1 = last10.slice(3, 6);
+      const p2 = last10.slice(6, 8);
+      const p3 = last10.slice(8, 10);
+      return `+90 ${area} ${p1} ${p2} ${p3}`;
+    }
+    return phone;
+  }
+
+  setRating(rating: number) {
+    if (this.isSaving()) return;
+    this.supplierForm.patchValue({ rating });
+    this.supplierForm.get('rating')?.markAsDirty();
+  }
+
   saveSupplier() {
     if (this.supplierForm.invalid) {
       this.supplierForm.markAllAsTouched();
@@ -300,8 +319,13 @@ export class SuppliersComponent implements OnInit {
 
     this.isSaving.set(true);
     const data = this.supplierForm.value;
-    const id = this.editId();
+    
+    // Normalize phone number on save
+    if (data.phone) {
+      data.phone = this.normalizePhone(data.phone);
+    }
 
+    const id = this.editId();
     const req = id ? this.inventory.updateSupplier(id, data) : this.inventory.createSupplier(data);
 
     req.subscribe({
@@ -318,31 +342,24 @@ export class SuppliersComponent implements OnInit {
 
   deleteSupplier(id: string) {
     const supplier = this.suppliers().find(s => s.id === id);
-    if (supplier) {
-      this.supplierToDelete.set(supplier);
-      this.showDeleteModal.set(true);
-    }
-  }
-
-  cancelDeleteSupplier() {
-    this.showDeleteModal.set(false);
-    this.supplierToDelete.set(null);
-  }
-
-  confirmDeleteSupplier() {
-    const supplier = this.supplierToDelete();
     if (!supplier) return;
-    
-    this.isSaving.set(true);
-    this.inventory.deleteSupplier(supplier.id).subscribe({
-      next: () => {
-        this.isSaving.set(false);
-        this.showDeleteModal.set(false);
-        this.supplierToDelete.set(null);
-        this.loadSuppliers();
-      },
-      error: () => {
-        this.isSaving.set(false);
+
+    this.ui.openConfirm({
+      title: 'Tedarikçiyi sil',
+      message: `${supplier.name} kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      isDelete: true,
+      onConfirm: () => {
+        return this.inventory.deleteSupplier(supplier.id).pipe(
+          tap({
+            next: () => {
+              this.loadSuppliers();
+              this.ui.showToast('Tedarikçi başarıyla silindi.', 'success');
+            },
+            error: () => {
+              this.ui.showToast('İşlem gerçekleştirilemedi.', 'error');
+            }
+          })
+        );
       }
     });
   }

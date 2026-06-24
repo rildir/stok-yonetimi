@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -10,7 +10,7 @@ import { CommonModule } from '@angular/common';
       <div class="modal-backdrop" (click)="close()"></div>
 
       <!-- Modal panel with smooth scale/fade-in -->
-      <div class="modal-panel">
+      <div class="modal-panel" [class.is-delete]="isDelete">
         <!-- Header -->
         <div class="modal-header">
           <h3 class="modal-title">{{ title }}</h3>
@@ -117,12 +117,32 @@ import { CommonModule } from '@angular/common';
       border-top: 1px solid var(--secondary, #f0f0f0);
       background: var(--canvas, #f9fafb);
     }
+    .modal-panel.is-delete .modal-header {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .modal-panel.is-delete .modal-footer {
+      border-top: none;
+      background: transparent;
+      padding-top: 0;
+    }
+    .modal-panel.is-delete .modal-content {
+      padding: 12px 24px 20px 24px;
+    }
   `]
 })
 export class ModalComponent {
   @Input() isOpen = false;
   @Input() title = '';
+  @Input() isDelete = false;
   @Output() onClose = new EventEmitter<void>();
+
+  @HostListener('document:keydown.escape')
+  handleEscapeKey() {
+    if (this.isOpen) {
+      this.close();
+    }
+  }
 
   close() {
     this.onClose.emit();

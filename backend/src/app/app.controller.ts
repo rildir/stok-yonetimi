@@ -199,14 +199,21 @@ export class AppController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('type') type?: string,
   ) {
     return this.dbService.getStockMovements(
       productId,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
-      search
+      search,
+      startDate,
+      endDate,
+      type
     );
   }
+
 
   @UseGuards(AuthGuard)
   @Roles('admin', 'manager')

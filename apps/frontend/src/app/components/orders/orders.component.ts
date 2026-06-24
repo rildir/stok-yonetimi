@@ -5,6 +5,7 @@ import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray, For
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Order } from '../../inventory.service';
+import { tap } from 'rxjs';
 
 @Component({
   selector: 'app-orders',
@@ -34,12 +35,28 @@ import { InventoryService, Order } from '../../inventory.service';
         <input type="text" placeholder="Müşteri adı veya sipariş no ara..." [value]="orderSearch()" (input)="onSearchInput($event)"/>
       </div>
       
-      <div class="date-filters">
-        <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" title="Başlangıç Tarihi" />
+      <div class="date-filters" style="border: none; padding: 0; background: transparent; display: flex; align-items: center; gap: 8px;">
+        <input 
+          type="text" 
+          placeholder="Başlangıç tarihi" 
+          style="width: 130px; padding: 0.55rem 0.75rem; border: 1px solid var(--secondary); border-radius: var(--radius-md); font-size: 0.85rem; font-family: var(--font-body); outline: none; background: var(--surface); color: var(--text-primary); transition: border-color 0.15s;"
+          onfocus="(this.type='date')" 
+          onblur="if(!this.value)this.type='text'"
+          [ngModel]="startDate()" 
+          (ngModelChange)="startDate.set($event)" 
+        />
         <span class="date-separator">-</span>
-        <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" title="Bitiş Tarihi" />
+        <input 
+          type="text" 
+          placeholder="Bitiş tarihi" 
+          style="width: 130px; padding: 0.55rem 0.75rem; border: 1px solid var(--secondary); border-radius: var(--radius-md); font-size: 0.85rem; font-family: var(--font-body); outline: none; background: var(--surface); color: var(--text-primary); transition: border-color 0.15s;"
+          onfocus="(this.type='date')" 
+          onblur="if(!this.value)this.type='text'"
+          [ngModel]="endDate()" 
+          (ngModelChange)="endDate.set($event)" 
+        />
         @if (startDate() || endDate()) {
-          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" title="Filtreyi Temizle">✕</button>
+          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" title="Filtreyi Temizle" style="margin-left: 4px;">✕</button>
         }
       </div>
 
@@ -64,7 +81,7 @@ import { InventoryService, Order } from '../../inventory.service';
               </div>
               <div>
                 <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Toplam tutar</div>
-                <div style="color: #B12704; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount }}</div>
+                <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount }}</div>
               </div>
               <div>
                 <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Alıcı (müşteri)</div>
@@ -72,7 +89,23 @@ import { InventoryService, Order } from '../../inventory.service';
               </div>
             </div>
             <div style="text-align: right;">
-              <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">Sipariş no: #{{ o.orderNumber }}</div>
+              <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111; display: flex; align-items: center; justify-content: flex-end; gap: 4px; position: relative;">
+                <span>Sipariş no: #{{ o.orderNumber }}</span>
+                <button 
+                  (click)="copyToClipboard(o.orderNumber, o.id); $event.stopPropagation()" 
+                  style="background: none; border: none; padding: 2px; cursor: pointer; color: #565959; display: inline-flex; align-items: center; justify-content: center; outline: none;" 
+                  title="Sipariş Numarasını Kopyala"
+                >
+                  <svg style="width: 13px; height: 13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  </svg>
+                </button>
+                @if (copiedOrderId() === o.id) {
+                  <span style="position: absolute; bottom: 100%; right: 0; background: #333; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: normal; margin-bottom: 4px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10;">
+                    Kopyalandı
+                  </span>
+                }
+              </div>
               <div>
                 <a href="#" (click)="openOrderDetail(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">Sipariş Detayları</a>
               </div>
@@ -102,8 +135,16 @@ import { InventoryService, Order } from '../../inventory.service';
 
               <!-- Shipping Info if available -->
               @if (o.carrier || o.trackingNumber) {
-                <div style="margin-top: 10px; font-size: 12px; color: #565959; background: #F7FAFA; border: 1px solid #D5D9D9; border-radius: 4px; padding: 6px 12px; display: inline-block; max-width: 450px;">
-                  🚚 Kargo: <strong>{{ o.carrier || 'Bilinmiyor' }}</strong> - Takip No: <strong style="font-family: var(--font-mono);">{{ o.trackingNumber || '-' }}</strong>
+                <div style="display: flex; justify-content: space-between; width: 100%; max-width: 450px; font-size: 13px; margin-top: 8px;">
+                  <span style="color: #565959; display: flex; align-items: center; gap: 6px;">
+                    <svg style="width: 14px; height: 14px; color: #565959;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    Kargo: <strong style="color: #0F1111;">{{ o.carrier || 'Bilinmiyor' }}</strong>
+                  </span>
+                  <span style="color: #565959;">
+                    Takip No: <strong style="font-family: var(--font-mono); color: #0F1111;">{{ o.trackingNumber || '-' }}</strong>
+                  </span>
                 </div>
               }
             </div>
@@ -112,7 +153,7 @@ import { InventoryService, Order } from '../../inventory.service';
             <div style="display: flex; flex-direction: column; gap: 8px; width: 160px; flex-shrink: 0;" (click)="$event.stopPropagation()">
               @if (o.status === 'Pending') {
                 <button class="btn btn-primary btn-sm" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
-                  @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { Tamamla }
+                  @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { Tamamlandı İşaretle }
                 </button>
                 <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
                   İptal Et
@@ -361,29 +402,7 @@ import { InventoryService, Order } from '../../inventory.service';
       </div>
     }
 
-    <!-- ─── Delete Confirmation Modal ─── -->
-    @if (showDeleteModal()) {
-      <div class="modal-backdrop" style="z-index: 3000;">
-        <div class="modal-panel modal-panel-sm">
-          <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="closeDeleteModal()" [disabled]="updatingOrderId() !== null">✕</button>
-            <div class="delete-icon">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <h3 class="delete-modal-title">Siparişi Sil</h3>
-            <p class="delete-modal-desc">
-              <strong>{{ orderToDelete()?.orderNumber }}</strong> numaralı siparişi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
-            </p>
-          </div>
-          <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="closeDeleteModal()" [disabled]="updatingOrderId() !== null">Vazgeç</button>
-            <button class="btn btn-danger" (click)="confirmDeleteOrder()" [disabled]="updatingOrderId() !== null">
-              @if (updatingOrderId() !== null) { <span class="spinner-sm spinner-light"></span> Siliniyor... } @else { Onayla }
-            </button>
-          </div>
-        </div>
-      </div>
-    }
+
   `
 })
 export class OrdersComponent {
@@ -397,6 +416,7 @@ export class OrdersComponent {
   showCreateOrderModal = signal(false);
   isOrderSaving = signal(false);
   updatingOrderId = signal<string | null>(null);
+  copiedOrderId = signal<string | null>(null);
 
   selectedOrder = signal<Order | null>(null);
   isOrderDetailOpen = signal(false);
@@ -406,9 +426,7 @@ export class OrdersComponent {
   showCancelModal = signal(false);
   orderToCancel = signal<Order | null>(null);
 
-  // Delete Confirmation Modal
-  showDeleteModal = signal(false);
-  orderToDelete = signal<Order | null>(null);
+
 
   // Search & Filter
   orderSearch = signal('');
@@ -460,6 +478,17 @@ export class OrdersComponent {
   // Table Tags Calculation
   visibleTagsMap = signal<Record<string, number | undefined>>({});
   private resizeObserver: ResizeObserver | null = null;
+
+  copyToClipboard(text: string, orderId: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      this.copiedOrderId.set(orderId);
+      setTimeout(() => {
+        if (this.copiedOrderId() === orderId) {
+          this.copiedOrderId.set(null);
+        }
+      }, 1500);
+    });
+  }
 
   ngOnInit() {
     if (this.state.orders().length === 0) {
@@ -784,30 +813,23 @@ export class OrdersComponent {
 
   // Delete Confirmation Modal Logic
   promptDeleteOrder(order: Order) {
-    this.orderToDelete.set(order);
-    this.showDeleteModal.set(true);
-  }
-
-  closeDeleteModal() {
-    this.showDeleteModal.set(false);
-    this.orderToDelete.set(null);
-  }
-
-  confirmDeleteOrder() {
-    const order = this.orderToDelete();
-    if (!order) return;
-    this.updatingOrderId.set(order.id);
-    this.inventoryService.deleteOrder(order.id).subscribe({
-      next: () => {
-        this.state.orders.update(ords => ords.filter(o => o.id !== order.id));
-        this.closeOrderDetail();
-        this.closeDeleteModal();
-        this.updatingOrderId.set(null);
-        this.ui.showToast('Sipariş başarıyla silindi.', 'success');
-      },
-      error: (err) => {
-        this.updatingOrderId.set(null);
-        this.ui.showToast(err.error?.message || 'Sipariş silinirken hata oluştu.', 'error');
+    this.ui.openConfirm({
+      title: 'Siparişi sil',
+      message: `#${order.orderNumber} numaralı sipariş kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      isDelete: true,
+      onConfirm: () => {
+        return this.inventoryService.deleteOrder(order.id).pipe(
+          tap({
+            next: () => {
+              this.state.orders.update(ords => ords.filter(o => o.id !== order.id));
+              this.closeOrderDetail();
+              this.ui.showToast('Sipariş başarıyla silindi.', 'success');
+            },
+            error: (err) => {
+              this.ui.showToast(err.error?.message || 'Sipariş silinirken hata oluştu.', 'error');
+            }
+          })
+        );
       }
     });
   }

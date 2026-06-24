@@ -27,7 +27,8 @@ export interface ConfirmConfig {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  onConfirm: () => void;
+  isDelete?: boolean;
+  onConfirm: () => any;
   onCancel?: () => void;
 }
 

@@ -13,6 +13,7 @@ interface StockCountItem {
   countedQuantity: number;
   difference: number;
   unit: string;
+  isModified?: boolean;
 }
 
 interface StockCount {
@@ -138,11 +139,14 @@ interface StockCount {
 
     .drawer-table th {
       text-align: left;
-      padding: 8px;
+      padding: 8px 16px;
       background-color: var(--canvas);
-      border-bottom: 1px solid var(--secondary);
+      border-bottom: 2px solid var(--border-color);
       color: var(--text-muted);
-      font-weight: 600;
+      font-weight: bold;
+      font-size: 11px;
+      text-transform: none;
+      letter-spacing: 0.05em;
     }
 
     .drawer-table td {
@@ -194,7 +198,7 @@ interface StockCount {
 
     .diff-pos { background-color: rgba(5, 150, 105, 0.1); color: #059669; }
     .diff-neg { background-color: rgba(220, 38, 38, 0.1); color: #dc2626; }
-    .diff-zero { background-color: var(--canvas); color: var(--text-muted); }
+    .diff-zero { background-color: #f1f5f9; color: #475569; }
 
     .qty-input {
       width: 80px;
@@ -211,6 +215,26 @@ interface StockCount {
 
     .qty-input:focus {
       border-color: var(--primary);
+    }
+
+    .zero-stock-row {
+      background-color: #fffbeb !important;
+    }
+    .zero-stock-row:hover td {
+      background-color: #fef3c7 !important;
+    }
+
+    .zero-stock-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      background-color: #fef3c7;
+      color: #d97706;
+      border: 1px solid #fcd34d;
+      margin-left: 8px;
     }
   `],
   template: `
@@ -233,7 +257,7 @@ interface StockCount {
           <div>
             <h3 class="mono">{{ activeCount()?.countNumber }}</h3>
             <span style="font-size: 0.75rem; color: var(--text-muted)">
-              Başlangıç: {{ activeCount()?.startedAt | date:'dd.MM.yyyy HH:mm' }} · Performans: {{ activeCount()?.performedBy }}
+              Başlangıç: {{ activeCount()?.startedAt | date:'dd.MM.yyyy HH:mm' }} · Yapan: {{ activeCount()?.performedBy }}
             </span>
           </div>
           <div style="display:flex; gap:8px">
@@ -245,6 +269,21 @@ interface StockCount {
         <div class="drawer-field">
           <label for="countNotes">Sayım notları (opsiyonel)</label>
           <input id="countNotes" type="text" [(ngModel)]="activeNotes" class="form-input" style="height:42px" placeholder="örn. A reyonu genel sayımı" [disabled]="isActionLoading()" />
+        </div>
+
+        <!-- Progress Indicator -->
+        <div class="progress-container" style="background: var(--canvas); border: 1px solid var(--secondary); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 0.5rem;">
+          <div class="progress-info" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary)">
+              İlerleme: <span class="mono">{{ countedItemsCount() }}</span> / <span class="mono">{{ totalItemsCount() }}</span> ürün sayıldı
+            </span>
+            <span class="mono" style="font-size: 0.85rem; font-weight: 700; color: var(--primary)">
+              {{ progressPercentage() }}%
+            </span>
+          </div>
+          <div class="progress-bar-bg" style="width: 100%; height: 8px; background-color: var(--secondary); border-radius: 4px; overflow: hidden; position: relative;">
+            <div class="progress-bar-fill" [style.width.%]="progressPercentage()" style="height: 100%; background: linear-gradient(90deg, var(--primary) 0%, #8b5cf6 100%); border-radius: 4px; transition: width 0.3s ease;"></div>
+          </div>
         </div>
 
         <div class="table-card" style="margin: 0; box-shadow: none; border: 1px solid var(--secondary)">
@@ -262,9 +301,16 @@ interface StockCount {
               </thead>
               <tbody>
                 @for (item of activeItems(); track item.productId) {
-                  <tr>
-                    <td><strong>{{ item.productName }}</strong></td>
-                    <td class="mono">{{ item.sku }}</td>
+                  <tr [class.zero-stock-row]="item.systemQuantity === 0">
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <strong>{{ item.productName }}</strong>
+                        @if (item.systemQuantity === 0) {
+                          <span class="zero-stock-badge">Sistemde stok yok</span>
+                        }
+                      </div>
+                    </td>
+                    <td class="mono" style="color: var(--text-primary);">{{ item.sku }}</td>
                     <td>{{ item.unit || 'Adet' }}</td>
                     <td class="mono">{{ item.systemQuantity }}</td>
                     <td style="text-align: center;">
@@ -344,13 +390,13 @@ interface StockCount {
             </div>
             <h3 class="delete-modal-title">Sayımı Onayla ve Tamamla</h3>
             <p class="delete-modal-desc" style="font-size:0.85rem">
-              Sayımı tamamlamak istediğinize emin misiniz? Tespit edilen farklar stok miktarlarına otomatik uygulanacak ve stok hareketleri oluşturulacaktır.
+              Sayımı tamamladıktan sonra düzenleme yapılamaz. Devam edilsin mi?
             </p>
           </div>
           <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()">Vazgeç</button>
+            <button class="btn btn-secondary" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()">İptal</button>
             <button class="btn btn-primary" (click)="completeCount()" [disabled]="isActionLoading()">
-              @if (isActionLoading()) { <span class="spinner-sm spinner-light"></span> Tamamlanıyor... } @else { Tamamla }
+              @if (isActionLoading()) { <span class="spinner-sm spinner-light"></span> Onaylanıyor... } @else { Onayla }
             </button>
           </div>
         </div>
@@ -405,9 +451,16 @@ interface StockCount {
                 </thead>
                 <tbody>
                   @for (item of selectedCount()?.items; track item.productId) {
-                    <tr>
-                      <td><strong>{{ item.productName }}</strong></td>
-                      <td class="mono">{{ item.sku }}</td>
+                    <tr [class.zero-stock-row]="item.systemQuantity === 0">
+                      <td>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                          <strong>{{ item.productName }}</strong>
+                          @if (item.systemQuantity === 0) {
+                            <span class="zero-stock-badge">Sistemde stok yok</span>
+                          }
+                        </div>
+                      </td>
+                      <td class="mono" style="color: var(--text-primary);">{{ item.sku }}</td>
                       <td class="mono">{{ item.systemQuantity }}</td>
                       <td class="mono">{{ item.countedQuantity }}</td>
                       <td>
@@ -441,6 +494,20 @@ export class StockCountComponent {
   isActionLoading = signal(false);
   showCompleteModal = signal(false);
 
+  countedItemsCount = computed(() => {
+    return this.activeItems().filter((item) => item.isModified).length;
+  });
+
+  totalItemsCount = computed(() => {
+    return this.activeItems().length;
+  });
+
+  progressPercentage = computed(() => {
+    const total = this.totalItemsCount();
+    if (total === 0) return 0;
+    return Math.round((this.countedItemsCount() / total) * 100);
+  });
+
   ngOnInit() {
     this.loadHistory();
   }
@@ -453,7 +520,11 @@ export class StockCountComponent {
         const inProgress = data.find(c => c.status === 'InProgress');
         if (inProgress) {
           this.activeCount.set(inProgress);
-          this.activeItems.set(JSON.parse(JSON.stringify(inProgress.items))); // deep clone
+          const clonedItems = JSON.parse(JSON.stringify(inProgress.items)).map((item: any) => ({
+            ...item,
+            isModified: item.difference !== 0
+          }));
+          this.activeItems.set(clonedItems);
           this.activeNotes = inProgress.notes || '';
         } else {
           this.activeCount.set(null);
@@ -487,6 +558,8 @@ export class StockCountComponent {
   onCountedChange(item: StockCountItem) {
     const counted = Number(item.countedQuantity);
     item.difference = counted - item.systemQuantity;
+    item.isModified = true;
+    this.activeItems.set([...this.activeItems()]);
   }
 
   saveDraft() {
@@ -546,7 +619,11 @@ export class StockCountComponent {
 
   resumeCount(c: StockCount) {
     this.activeCount.set(c);
-    this.activeItems.set(JSON.parse(JSON.stringify(c.items)));
+    const clonedItems = JSON.parse(JSON.stringify(c.items)).map((item: any) => ({
+      ...item,
+      isModified: item.difference !== 0
+    }));
+    this.activeItems.set(clonedItems);
     this.activeNotes = c.notes || '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }

@@ -129,12 +129,24 @@ export class InventoryService {
   }
 
   // Stock Movements
-  getStockMovements(productId?: string, page: number = 1, limit: number = 20, search?: string): Observable<{ data: any[], total: number }> {
+  getStockMovements(
+    productId?: string,
+    page: number = 1,
+    limit: number = 20,
+    search?: string,
+    startDate?: string,
+    endDate?: string,
+    type?: string
+  ): Observable<{ data: any[], total: number }> {
     let url = `${this.apiUrl}/stock-movements?page=${page}&limit=${limit}`;
     if (productId) url += `&productId=${productId}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
+    if (type) url += `&type=${type}`;
     return this.http.get<{ data: any[], total: number }>(url);
   }
+
 
   createManualAdjustment(productId: string, newQuantity: number, note: string): Observable<any> {
     return this.http.post<any>(`${this.apiUrl}/stock-movements/adjust`, { productId, newQuantity, note });

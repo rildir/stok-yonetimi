@@ -7,14 +7,14 @@ import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Product } from '../../inventory.service';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
-import { ModalComponent } from '../modal.component';
+import { tap } from 'rxjs';
 
 registerLocaleData(localeTr);
 
 @Component({
   selector: 'app-products',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, ModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
 /* SCAN BUTTON */
@@ -167,10 +167,16 @@ registerLocaleData(localeTr);
       <div class="ecelon-results-main" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
         <!-- Header with item count and sorting selection -->
         <div style="display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 8px; padding: 12px 16px;">
-          <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
             <div style="font-size: 14px; color: #565959;">
               En çok eşleşen <strong>{{ filteredProducts().length }} sonuç</strong> gösteriliyor
             </div>
+            @if (selectedWarehouseFilter()) {
+              <div class="badge badge-lowstock" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; background: rgba(217, 119, 6, 0.08); color: var(--status-lowstock); border: 1px solid rgba(217, 119, 6, 0.2);">
+                Depo: {{ selectedWarehouseFilter() }}
+                <button (click)="clearWarehouseFilter()" style="background: none; border: none; color: inherit; cursor: pointer; font-weight: bold; margin-left: 2px; font-size: 0.85rem; padding: 0 2px; line-height: 1;">✕</button>
+              </div>
+            }
             <!-- Sorting Control -->
             <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #0F1111;">
               <span style="color: #565959;">Sıralama:</span>
@@ -436,29 +442,7 @@ registerLocaleData(localeTr);
       </div>
     }
 
-    <!-- ─── Delete Confirmation Modal ─── -->
-    @if (showDeleteModal()) {
-      <div class="modal-backdrop">
-        <div class="modal-panel modal-panel-sm">
-          <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="cancelDeleteProduct()" [disabled]="isDeleteLoading()">✕</button>
-            <div class="delete-icon">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <h3 class="delete-modal-title">Ürünü Sil</h3>
-            <p class="delete-modal-desc">
-              <strong>{{ productToDelete()?.name }}</strong> adlı ürünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
-            </p>
-          </div>
-          <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="cancelDeleteProduct()" [disabled]="isDeleteLoading()">Vazgeç</button>
-            <button class="btn btn-danger" (click)="confirmDeleteProduct()" [disabled]="isDeleteLoading()">
-              @if (isDeleteLoading()) { <span class="spinner-sm spinner-light"></span> Siliniyor... } @else { Sil }
-            </button>
-          </div>
-        </div>
-      </div>
-    }
+
 
     <!-- ─── Bulk Actions Bar ─── -->
     @if (selectedProductIds().length > 0) {
@@ -468,7 +452,7 @@ registerLocaleData(localeTr);
         </div>
         <div class="bulk-buttons">
           <div class="bulk-category-select-wrapper">
-            <button class="btn btn-outline-light" (click)="toggleBulkCategoryDropdown($event)">
+            <button class="btn-outline-light" (click)="toggleBulkCategoryDropdown($event)">
               Kategori Değiştir
             </button>
             @if (isBulkCategoryDropdownOpen()) {
@@ -481,39 +465,17 @@ registerLocaleData(localeTr);
               </div>
             }
           </div>
-          <button class="btn btn-danger-dark" (click)="promptBulkDelete()">
+          <button class="btn-danger-dark" (click)="promptBulkDelete()">
             Seçilenleri Sil
           </button>
-          <button class="btn btn-ghost-light" (click)="clearSelection()">
+          <button class="btn-ghost-light" (click)="clearSelection()">
             Vazgeç
           </button>
         </div>
       </div>
     }
 
-    <!-- ─── Bulk Delete Confirmation Modal ─── -->
-    @if (showBulkDeleteModal()) {
-      <div class="modal-backdrop">
-        <div class="modal-panel modal-panel-sm">
-          <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="cancelBulkDelete()" [disabled]="isBulkDeleteLoading()">✕</button>
-            <div class="delete-icon">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <h3 class="delete-modal-title">Seçili Ürünleri Sil</h3>
-            <p class="delete-modal-desc">
-              Seçilen <strong>{{ selectedProductIds().length }}</strong> ürünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
-            </p>
-          </div>
-          <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="cancelBulkDelete()" [disabled]="isBulkDeleteLoading()">Vazgeç</button>
-            <button class="btn btn-danger" (click)="confirmBulkDelete()" [disabled]="isBulkDeleteLoading()">
-              @if (isBulkDeleteLoading()) { <span class="spinner-sm spinner-light"></span> Siliniyor... } @else { Sil }
-            </button>
-          </div>
-        </div>
-      </div>
-    }
+
 
     <!-- Barcode Scanner Modal -->
     @if (showScanner()) {
@@ -524,64 +486,72 @@ registerLocaleData(localeTr);
       />
     }
 
-    <!-- ─── Warehouse Stock Transfer Modal ─── -->
-    <app-modal [isOpen]="isTransferModalOpen()" title="Depolar Arası Stok Transferi" (onClose)="closeTransferModal()">
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <p style="font-size: 13px; color: var(--text-muted, #6b7280);">
-          Seçilen ürün: <strong style="color: var(--text-primary);">{{ selectedProductForTransfer()?.name }}</strong> (SKU: {{ selectedProductForTransfer()?.sku }})
-        </p>
-
-        <!-- Kaynak Depo Seçimi -->
-        <div class="form-field-standalone" style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: left;">Kaynak Depo</label>
-          <select [(ngModel)]="transferFromWarehouse" (change)="onTransferFromWarehouseChange()" style="width: 100%; padding: 10px; border: 1.5px solid var(--secondary, #e5e7eb); border-radius: 8px; background: var(--surface, #fff); color: var(--text-primary); outline: none;">
-            <option value="" disabled selected>Depo Seçin</option>
-            @for (wh of availableFromWarehouses(); track wh.name) {
-              <option [value]="wh.name">{{ wh.name }} (Mevcut: {{ wh.qty }})</option>
-            }
-          </select>
-        </div>
-
-        <!-- Hedef Depo Seçimi -->
-        <div class="form-field-standalone" style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: left;">Hedef Depo</label>
-          <select [(ngModel)]="transferToWarehouse" style="width: 100%; padding: 10px; border: 1.5px solid var(--secondary, #e5e7eb); border-radius: 8px; background: var(--surface, #fff); color: var(--text-primary); outline: none;">
-            <option value="" disabled selected>Depo Seçin</option>
-            @for (wh of availableToWarehouses(); track wh) {
-              <option [value]="wh">{{ wh }}</option>
-            }
-          </select>
-        </div>
-
-        <!-- Miktar Girişi -->
-        <div class="form-field-standalone" style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: left;">Transfer Edilecek Miktar</label>
-          <input type="number" [(ngModel)]="transferQuantity" min="1" [max]="maxTransferQuantity()" style="width: 100%; padding: 10px; border: 1.5px solid var(--secondary, #e5e7eb); border-radius: 8px; background: var(--surface, #fff); color: var(--text-primary); outline: none;" />
-          @if (maxTransferQuantity() > 0) {
-            <span style="font-size: 11px; color: var(--text-muted);">Maksimum transfer edilebilir: {{ maxTransferQuantity() }}</span>
-          }
-        </div>
-
-        <!-- Hata ve Bilgi Mesajı -->
-        @if (transferError()) {
-          <div style="font-size: 12px; color: #dc2626; padding: 10px; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.15); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
-            <span>⚠ {{ transferError() }}</span>
+    <!-- ─── Warehouse Stock Transfer Drawer ─── -->
+    @if (isTransferModalOpen()) {
+      <div class="drawer-overlay" (click)="closeTransferModal()">
+        <div class="drawer-panel" (click)="$event.stopPropagation()">
+          <div class="drawer-header">
+            <h2 class="drawer-title">Depolar Arası Stok Transferi</h2>
+            <button class="drawer-close" (click)="closeTransferModal()">✕</button>
           </div>
-        }
-      </div>
+          
+          <div class="drawer-body">
+            <p style="font-size: 13px; color: var(--text-muted, #6b7280);">
+              Seçilen ürün: <strong style="color: var(--text-primary);">{{ selectedProductForTransfer()?.name }}</strong> (SKU: {{ selectedProductForTransfer()?.sku }})
+            </p>
 
-      <!-- Modal Footer Action Buttons -->
-      <div footer style="display: flex; gap: 8px; justify-content: flex-end; width: 100%;">
-        <button class="btn btn-outline" (click)="closeTransferModal()" [disabled]="isTransferLoading()">Vazgeç</button>
-        <button class="btn btn-primary" (click)="executeTransfer()" [disabled]="isTransferLoading() || !isTransferValid()">
-          @if (isTransferLoading()) {
-            Transfer Ediliyor...
-          } @else {
-            Transferi Tamamla
-          }
-        </button>
+            <!-- Kaynak Depo Seçimi -->
+            <div class="form-field">
+              <select class="form-select" [ngModel]="transferFromWarehouse()" (ngModelChange)="transferFromWarehouse.set($event); onTransferFromWarehouseChange()">
+                <option value="" disabled selected>Depo Seçin</option>
+                @for (wh of availableFromWarehouses(); track wh.name) {
+                  <option [value]="wh.name">{{ wh.name }} (Mevcut: {{ wh.qty }})</option>
+                }
+              </select>
+              <label class="form-label">Kaynak Depo</label>
+            </div>
+
+            <!-- Hedef Depo Seçimi -->
+            <div class="form-field">
+              <select class="form-select" [ngModel]="transferToWarehouse()" (ngModelChange)="transferToWarehouse.set($event)">
+                <option value="" disabled selected>Depo Seçin</option>
+                @for (wh of availableToWarehouses(); track wh) {
+                  <option [value]="wh">{{ wh }}</option>
+                }
+              </select>
+              <label class="form-label">Hedef Depo</label>
+            </div>
+
+            <!-- Miktar Girişi -->
+            <div class="form-field">
+              <input type="number" class="form-input" [ngModel]="transferQuantity()" (ngModelChange)="transferQuantity.set($event)" min="1" [max]="maxTransferQuantity()" />
+              <label class="form-label">Transfer Edilecek Miktar</label>
+              @if (maxTransferQuantity() > 0) {
+                <span class="form-error" style="color: var(--text-muted);">Maksimum transfer edilebilir: {{ maxTransferQuantity() }}</span>
+              }
+            </div>
+
+            <!-- Hata ve Bilgi Mesajı -->
+            @if (transferError()) {
+              <div style="font-size: 12px; color: #dc2626; padding: 10px; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.15); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
+                <span>⚠ {{ transferError() }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="drawer-footer">
+            <button class="btn btn-outline" style="border: 1px solid #d5d9d9; background: #fff; color: #0f1111; border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="closeTransferModal()" [disabled]="isTransferLoading()">Vazgeç</button>
+            <button class="btn btn-primary" style="background: #0f1111; color: #fff; border: none; border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="executeTransfer()" [disabled]="isTransferLoading() || !isTransferValid()">
+              @if (isTransferLoading()) {
+                Transfer Ediliyor...
+              } @else {
+                Transferi Tamamla
+              }
+            </button>
+          </div>
+        </div>
       </div>
-    </app-modal>
+    }
   `
 })
 export class ProductsComponent {
@@ -604,34 +574,57 @@ export class ProductsComponent {
   // Transfer warehouse stock states
   isTransferModalOpen = signal(false);
   selectedProductForTransfer = signal<Product | null>(null);
-  transferFromWarehouse = '';
-  transferToWarehouse = '';
-  transferQuantity = 1;
+  transferFromWarehouse = signal('');
+  transferToWarehouse = signal('');
+  transferQuantity = signal(1);
   transferError = signal<string | null>(null);
   isTransferLoading = signal(false);
 
+  allWarehouses = signal<any[]>([]);
+
+  loadWarehouses() {
+    this.inventoryService.getWarehouses().subscribe({
+      next: (data) => {
+        this.allWarehouses.set(data);
+      }
+    });
+  }
+
   availableFromWarehouses = computed(() => {
     const prod = this.selectedProductForTransfer();
-    if (!prod || !prod.warehouses) return [];
-    return Object.entries(prod.warehouses)
-      .map(([name, qty]) => ({ name, qty: qty as number }))
-      .filter(w => w.qty > 0);
+    if (!prod) return [];
+    if (prod.warehouses && Object.keys(prod.warehouses).length > 0) {
+      return Object.entries(prod.warehouses)
+        .map(([name, qty]) => ({ name, qty: qty as number }))
+        .filter(w => w.qty > 0);
+    }
+    if (prod.quantity > 0) {
+      const mainWhName = this.allWarehouses().length > 0 ? this.allWarehouses()[0].name : 'Merkez Depo';
+      return [{ name: mainWhName, qty: prod.quantity }];
+    }
+    return [];
   });
 
   availableToWarehouses = computed(() => {
     const prod = this.selectedProductForTransfer();
-    if (!prod || !prod.warehouses) return [];
-    const defaultWarehouses = ['Merkez Depo', 'Ataşehir Şube'];
-    const currentKeys = Object.keys(prod.warehouses);
-    const allUniqueWarehouses = Array.from(new Set([...defaultWarehouses, ...currentKeys]));
-    
-    return allUniqueWarehouses.filter(w => w !== this.transferFromWarehouse);
+    if (!prod) return [];
+    const allWhNames = this.allWarehouses().map(w => w.name);
+    if (allWhNames.length === 0) {
+      allWhNames.push('Merkez Depo', 'Ataşehir Şube');
+    }
+    return allWhNames.filter(name => name !== this.transferFromWarehouse());
   });
 
   maxTransferQuantity = computed(() => {
     const prod = this.selectedProductForTransfer();
-    if (!prod || !prod.warehouses || !this.transferFromWarehouse) return 0;
-    return (prod.warehouses[this.transferFromWarehouse] as number) || 0;
+    const fromWh = this.transferFromWarehouse();
+    if (!prod || !fromWh) return 0;
+    if (prod.warehouses && prod.warehouses[fromWh] !== undefined) {
+      return (prod.warehouses[fromWh] as number) || 0;
+    }
+    const available = this.availableFromWarehouses();
+    const matched = available.find(w => w.name === fromWh);
+    return matched ? matched.qty : 0;
   });
 
   getBarcodeBars(sku: string): { width: number, isBar: boolean }[] {
@@ -677,8 +670,6 @@ export class ProductsComponent {
   // Bulk selection & operation states
   selectedProductIds = signal<string[]>([]);
   isBulkCategoryDropdownOpen = signal(false);
-  showBulkDeleteModal = signal(false);
-  isBulkDeleteLoading = signal(false);
 
   isProductSelected(id: string): boolean {
     return this.selectedProductIds().includes(id);
@@ -748,34 +739,28 @@ export class ProductsComponent {
   }
 
   promptBulkDelete() {
-    this.showBulkDeleteModal.set(true);
-  }
-
-  cancelBulkDelete() {
-    this.showBulkDeleteModal.set(false);
-  }
-
-  confirmBulkDelete() {
     const ids = this.selectedProductIds();
-    if (ids.length === 0 || this.isBulkDeleteLoading()) return;
-    this.isBulkDeleteLoading.set(true);
-
-    this.inventoryService.bulkDeleteProducts(ids).subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.state.products.update(list => list.filter(p => !ids.includes(p.id)));
-          this.ui.showToast(`${ids.length} ürün silindi.`, 'success');
-          this.clearSelection();
-        } else {
-          this.ui.showToast('Ürünler silinirken hata oluştu.', 'error');
-        }
-        this.isBulkDeleteLoading.set(false);
-        this.cancelBulkDelete();
-      },
-      error: () => {
-        this.isBulkDeleteLoading.set(false);
-        this.ui.showToast('Ürünler silinirken hata oluştu.', 'error');
-        this.cancelBulkDelete();
+    this.ui.openConfirm({
+      title: 'Ürünleri sil',
+      message: `Seçilen ${ids.length} ürün kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      isDelete: true,
+      onConfirm: () => {
+        return this.inventoryService.bulkDeleteProducts(ids).pipe(
+          tap({
+            next: (res) => {
+              if (res.success) {
+                this.state.products.update(list => list.filter(p => !ids.includes(p.id)));
+                this.ui.showToast(`${ids.length} ürün silindi.`, 'success');
+                this.clearSelection();
+              } else {
+                this.ui.showToast('Ürünler silinirken hata oluştu.', 'error');
+              }
+            },
+            error: () => {
+              this.ui.showToast('Ürünler silinirken hata oluştu.', 'error');
+            }
+          })
+        );
       }
     });
   }
@@ -859,19 +844,28 @@ export class ProductsComponent {
     imageUrl: ['']
   });
 
-  showDeleteModal = signal(false);
-  productToDelete = signal<Product | null>(null);
-  isDeleteLoading = signal(false);
 
-  // Filtering
+
   productSearch = signal('');
   productFilterStatus = signal<'all' | 'In stock' | 'Low stock' | 'Out of stock'>('all');
+  selectedWarehouseFilter = signal('');
+
+  clearWarehouseFilter() {
+    this.selectedWarehouseFilter.set('');
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { warehouse: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+  }
 
   filteredProducts = computed(() => {
     let list = this.state.products();
     const search = this.productSearch().toLowerCase().trim();
     const statusFilter = this.productFilterStatus();
     const sortOpt = this.productSortOption();
+    const warehouseFilter = this.selectedWarehouseFilter();
 
     if (search) {
       list = list.filter(p =>
@@ -883,6 +877,9 @@ export class ProductsComponent {
     }
     if (statusFilter !== 'all') {
       list = list.filter(p => p.status === statusFilter);
+    }
+    if (warehouseFilter) {
+      list = list.filter(p => p.warehouses && p.warehouses[warehouseFilter] > 0);
     }
 
     // Sort list
@@ -904,11 +901,13 @@ export class ProductsComponent {
   ngOnInit() {
     this.loadSuppliers();
     this.loadCategories();
+    this.loadWarehouses();
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
     this.route.queryParams.subscribe(params => {
       this.productSearch.set(params['q'] || '');
+      this.selectedWarehouseFilter.set(params['warehouse'] || '');
       if (params['open']) {
         const openVal = params['open'];
         if (openVal === 'new') {
@@ -1030,30 +1029,26 @@ export class ProductsComponent {
 
   // Delete Product
   promptDeleteProduct(product: Product) {
-    this.productToDelete.set(product);
-    this.showDeleteModal.set(true);
-  }
-  cancelDeleteProduct() {
-    this.showDeleteModal.set(false);
-    this.productToDelete.set(null);
-  }
-  confirmDeleteProduct() {
-    const product = this.productToDelete();
-    if (!product || this.isDeleteLoading()) return;
-    this.isDeleteLoading.set(true);
-    this.inventoryService.deleteProduct(product.id).subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.state.products.update(p => p.filter(prod => prod.id !== product.id));
-          this.ui.showToast('Ürün başarıyla silindi.', 'success');
-        }
-        this.isDeleteLoading.set(false);
-        this.cancelDeleteProduct();
-      },
-      error: () => {
-        this.isDeleteLoading.set(false);
-        this.ui.showToast('Ürün silinirken hata oluştu.', 'error');
-        this.cancelDeleteProduct();
+    this.ui.openConfirm({
+      title: 'Ürünü sil',
+      message: `${product.name} kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      isDelete: true,
+      onConfirm: () => {
+        return this.inventoryService.deleteProduct(product.id).pipe(
+          tap({
+            next: (res) => {
+              if (res.success) {
+                this.state.products.update(p => p.filter(prod => prod.id !== product.id));
+                this.ui.showToast('Ürün başarıyla silindi.', 'success');
+              } else {
+                this.ui.showToast('Ürün silinirken hata oluştu.', 'error');
+              }
+            },
+            error: () => {
+              this.ui.showToast('Ürün silinirken hata oluştu.', 'error');
+            }
+          })
+        );
       }
     });
   }
@@ -1260,23 +1255,23 @@ export class ProductsComponent {
   }
 
   onTransferFromWarehouseChange() {
-    this.transferQuantity = 1;
-    this.transferToWarehouse = '';
+    this.transferQuantity.set(1);
+    this.transferToWarehouse.set('');
   }
 
   isTransferValid(): boolean {
     const maxQty = this.maxTransferQuantity();
-    return !!this.transferFromWarehouse && 
-           !!this.transferToWarehouse && 
-           this.transferQuantity > 0 && 
-           this.transferQuantity <= maxQty;
+    return !!this.transferFromWarehouse() && 
+           !!this.transferToWarehouse() && 
+           this.transferQuantity() > 0 && 
+           this.transferQuantity() <= maxQty;
   }
 
   openTransferModal(product: Product) {
     this.selectedProductForTransfer.set(product);
-    this.transferFromWarehouse = '';
-    this.transferToWarehouse = '';
-    this.transferQuantity = 1;
+    this.transferFromWarehouse.set('');
+    this.transferToWarehouse.set('');
+    this.transferQuantity.set(1);
     this.transferError.set(null);
     this.isTransferModalOpen.set(true);
   }
@@ -1284,9 +1279,9 @@ export class ProductsComponent {
   closeTransferModal() {
     this.isTransferModalOpen.set(false);
     this.selectedProductForTransfer.set(null);
-    this.transferFromWarehouse = '';
-    this.transferToWarehouse = '';
-    this.transferQuantity = 1;
+    this.transferFromWarehouse.set('');
+    this.transferToWarehouse.set('');
+    this.transferQuantity.set(1);
     this.transferError.set(null);
   }
 
@@ -1299,9 +1294,9 @@ export class ProductsComponent {
 
     this.inventoryService.transferWarehouseStock(
       prod.id,
-      this.transferFromWarehouse,
-      this.transferToWarehouse,
-      this.transferQuantity
+      this.transferFromWarehouse(),
+      this.transferToWarehouse(),
+      this.transferQuantity()
     ).subscribe({
       next: (res) => {
         this.isTransferLoading.set(false);

@@ -643,9 +643,23 @@ export class DbService implements OnModuleInit {
   }
 
   // Stock Movements
-  async getStockMovements(productId?: string, page: number = 1, limit: number = 20, search?: string): Promise<{ data: StockMovementEntity[], total: number }> {
+  async getStockMovements(
+    productId?: string,
+    page: number = 1,
+    limit: number = 20,
+    search?: string,
+    startDate?: string,
+    endDate?: string,
+    type?: string
+  ): Promise<{ data: StockMovementEntity[], total: number }> {
     const query = this.stockMovementRepo.createQueryBuilder('sm').orderBy('sm.createdAt', 'DESC');
-    if (productId) query.where('sm.productId = :productId', { productId });
+    
+    // Start with a base true condition so subsequent .andWhere() forms valid SQL
+    query.where('1=1');
+
+    if (productId) {
+      query.andWhere('sm.productId = :productId', { productId });
+    }
     
     if (search) {
       const s = `%${search.toLowerCase()}%`;
@@ -654,6 +668,20 @@ export class DbService implements OnModuleInit {
         { search: s }
       );
     }
+
+    if (startDate) {
+      query.andWhere('sm.createdAt >= :startDate', { startDate: `${startDate} 00:00:00` });
+    }
+
+    if (endDate) {
+      query.andWhere('sm.createdAt <= :endDate', { endDate: `${endDate} 23:59:59` });
+    }
+
+    if (type && type !== 'ALL') {
+      const types = type.split(',');
+      query.andWhere('sm.type IN (:...types)', { types });
+    }
+
     
     const [data, total] = await query
       .skip((page - 1) * limit)
@@ -662,6 +690,7 @@ export class DbService implements OnModuleInit {
       
     return { data, total };
   }
+
 
   async createManualAdjustment(productId: string, newQuantity: number, note: string, performedBy: string): Promise<StockMovementEntity> {
     const saved = await this.dataSource.transaction(async (manager) => {
@@ -1522,7 +1551,12 @@ export class DbService implements OnModuleInit {
       });
       if (!product) return null;
 
-      const warehouses = product.warehouses || {};
+      let warehouses = product.warehouses || {};
+      if (Object.keys(warehouses).length === 0 && product.quantity > 0) {
+        const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+        const defaultWarehouseName = activeWarehouses.length > 0 ? activeWarehouses[0].name : 'Merkez Depo';
+        warehouses = { [defaultWarehouseName]: product.quantity };
+      }
       const fromQty = warehouses[fromWarehouse] || 0;
       if (fromQty < quantity) {
         throw new BadRequestException(
