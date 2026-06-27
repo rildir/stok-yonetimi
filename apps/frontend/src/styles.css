@@ -10,18 +10,18 @@
   --surface-card: #FFFFFF;
   --border-color: #E2E8F0;
   --background: #F1F5F9;
-  --primary: #6366F1;
-  --primary-hover: #4F46E5;
+  --primary: #0F172A;
+  --primary-hover: #1E293B;
   --secondary: #E2E8F0;
   --secondary-hover: #CBD5E1;
   --text-primary: #0F172A;
   --text-muted: #64748B;
-  --ai-accent: #8B5CF6;
-  --ai-accent-hover: #7C3AED;
-  --ai-accent-light: rgba(139, 92, 246, 0.12);
-  --status-instock: #007600;
-  --status-lowstock: #C45500;
-  --status-outstock: #B12704;
+  --ai-accent: #FF5A1F;
+  --ai-accent-hover: #FF7E40;
+  --ai-accent-light: rgba(255, 90, 31, 0.1);
+  --status-instock: #6366F1;
+  --status-lowstock: #F97316;
+  --status-outstock: #EF4444;
 
   /* Fonts */
   --font-heading: 'Plus Jakarta Sans', Arial, sans-serif;

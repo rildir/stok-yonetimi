@@ -23,20 +23,119 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
       <aside class="sidebar">
         <div style="display: flex; flex-direction: column; justify-content: space-between; height: 100%; width: 100%; overflow: hidden;">
           <div>
-            <div class="sidebar-logo">
-              <div class="logo-text">
-                <h2>ecelon</h2>
+            <div class="sidebar-logo" style="justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                @if (!isSidebarCollapsed()) {
+                  <div class="logo-text" style="display: flex; flex-direction: column;">
+                    <h2 style="font-family: var(--font-heading); font-size: 0.95rem; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.1;">ecelon</h2>
+                    <span style="font-size: 0.65rem; color: #64748B; margin-top: 1px; display: block;">{{ ui.subscription().plan === 'ultra' ? 'Ultra Plan' : ui.subscription().plan === 'professional' ? 'Profesyonel Plan' : ui.subscription().plan === 'standard' ? 'Standart Plan' : 'Ücretsiz Plan' }}</span>
+                  </div>
+                } @else {
+                  <span style="font-family: var(--font-heading); font-size: 1.15rem; font-weight: 900; color: #0F172A; padding-left: 2px;">e</span>
+                }
               </div>
-              <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'">
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+              <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'" style="border: 1px solid #E2E8F0; border-radius: 50%; width: 28px; height: 28px; background: #FFFFFF; color: #64748B; display: flex; align-items: center; justify-content: center; margin: 0;">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
               </button>
             </div>
+            
+            <!-- Sidebar Search Input matching Mockup -->
+            @if (!isSidebarCollapsed()) {
+              <div style="padding: 12px 16px 4px 16px; position: relative;">
+                <div style="display: flex; align-items: center; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; padding: 6px 12px; gap: 8px; height: 38px;">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #64748B; stroke-width: 2.5;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  <input 
+                    #searchInput
+                    type="text" 
+                    style="border: none; background: transparent; outline: none; font-size: 0.82rem; color: #0F172A; width: 100%; font-family: var(--font-body);"
+                    placeholder="Ara... (Ctrl+K)" 
+                    [ngModel]="navbarSearchQuery()" 
+                    (ngModelChange)="onSearchQueryChange($event)"
+                    (keyup.enter)="triggerNavbarSearch()"
+                    (keydown.arrowdown)="onArrowDown($event)"
+                    (keydown.arrowup)="onArrowUp($event)"
+                    (focus)="onSearchFocus()"
+                    (blur)="onSearchBlur()"
+                  />
+                  <kbd style="font-size: 0.65rem; color: #94A3B8; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 1px 4px; border-radius: 4px; font-family: var(--font-mono); pointer-events: none;">Ctrl+K</kbd>
+                </div>
+
+                <!-- Autocomplete suggestions floating dropdown overlay -->
+                @if (isSearchFocused() && navbarSearchQuery().trim() !== '' && allVisibleSuggestions().length > 0) {
+                  <div class="search-suggestions-dropdown">
+                    
+                    <!-- Section: Pages -->
+                    @if (filteredSuggestionsByType('nav').length > 0) {
+                      <div class="search-section">
+                        <div class="search-section-header">
+                          Sayfalar ve Menüler
+                        </div>
+                        @for (s of filteredSuggestionsByType('nav'); track s.title) {
+                          <div class="suggestion-item" 
+                               [class.active]="isItemActive(s)"
+                               (mousedown)="selectSuggestion(s); $event.preventDefault()"
+                          >
+                            <div class="suggestion-item-left">
+                              <span class="suggestion-item-title" [innerHTML]="highlightMatch(s.title)"></span>
+                            </div>
+                            <span class="suggestion-item-category">{{ s.category }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
+
+                    <!-- Section: Actions -->
+                    @if (filteredSuggestionsByType('action').length > 0) {
+                      <div class="search-section">
+                        <div class="search-section-header">
+                          Hızlı İşlemler
+                        </div>
+                        @for (s of filteredSuggestionsByType('action'); track s.title) {
+                          <div class="suggestion-item" 
+                               [class.active]="isItemActive(s)"
+                               (mousedown)="selectSuggestion(s); $event.preventDefault()"
+                          >
+                            <div class="suggestion-item-left">
+                              <span class="suggestion-item-title" style="color: var(--primary);" [innerHTML]="highlightMatch(s.title)"></span>
+                            </div>
+                            <span class="suggestion-badge action">Tetikle</span>
+                          </div>
+                        }
+                      </div>
+                    }
+
+                    <!-- Section: Database matches -->
+                    @if (matchingInventory().length > 0) {
+                      <div class="search-section">
+                        <div class="search-section-header">
+                          Veritabanı Kayıtları
+                        </div>
+                        @for (item of matchingInventory(); track item.type + '-' + (item.id || item.name)) {
+                          <div class="suggestion-item" 
+                               [class.active]="isItemActive(item)"
+                               (mousedown)="selectSuggestion(item); $event.preventDefault()"
+                          >
+                            <div class="suggestion-item-left">
+                              <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                                <span class="suggestion-item-title" [innerHTML]="highlightMatch(item.name)"></span>
+                                <span class="suggestion-item-subtitle">{{ item.subtitle }}</span>
+                              </div>
+                            </div>
+                            <span class="suggestion-badge">{{ item.type }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
             <nav class="nav-list">
               <!-- GENEL -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Genel</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Ana Menü</div>
               } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
               <a [routerLink]="ui.subscription().plan === 'none' ? null : '/dashboard'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Panel Özeti">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
@@ -45,9 +144,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
               <!-- STOK YÖNETİMİ -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Stok Yönetimi</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Stok Yönetimi</div>
               } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
               <a [routerLink]="ui.subscription().plan === 'none' ? null : '/products'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Ürün Yönetimi">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
@@ -72,9 +171,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
               <!-- OPERASYONLAR -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Operasyonlar</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Operasyonlar</div>
               } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
               <a [routerLink]="ui.subscription().plan === 'none' ? null : '/orders'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Sipariş Takibi">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
@@ -91,9 +190,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
               <!-- SİSTEM -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #818CF8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding-left: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem;">Analiz & Sistem</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Sistem</div>
               } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 0.5rem 0;"></div>
+                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
               <a [routerLink]="ui.subscription().plan === 'none' ? null : '/reports'" routerLinkActive="active" class="nav-btn" [class.disabled]="ui.subscription().plan === 'none'" title="Raporlar">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
@@ -112,17 +211,17 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 
           <!-- Sidebar Footer Upgrade Banner -->
           @if (ui.subscription().plan !== 'ultra') {
-            <div class="sidebar-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 12px;">
-              <div class="sidebar-upgrade-box" [class.collapsed]="isSidebarCollapsed()" routerLink="/billing" style="margin: 0;">
+            <div class="sidebar-footer" style="border-top: 1px solid #F1F5F9; padding: 12px;">
+              <div class="sidebar-upgrade-box" [class.collapsed]="isSidebarCollapsed()" routerLink="/billing" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
                 @if (!isSidebarCollapsed()) {
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                    <span style="color: #FBBF24; font-size: 1rem;">✦</span>
-                    <strong style="color: #FFFFFF; font-size: 0.78rem; font-weight: 600; font-family: var(--font-heading);">Ultra Plan'a Geçin</strong>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="color: #FFFFFF;"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 0M12 3c-1.2 2-3 4-3 7a3 3 0 006 0c0-3-1.8-5-3-7z"/></svg>
+                    <strong style="color: #FFFFFF; font-size: 0.78rem; font-weight: 700; font-family: var(--font-heading);">Ultra Plan'a Geçin</strong>
                   </div>
-                  <p style="color: #94A3B8; font-size: 0.7rem; margin: 0; line-height: 1.3; font-family: var(--font-body);">Yapay zeka ve gelişmiş analitikleri aktif edin.</p>
+                  <p style="color: rgba(255, 255, 255, 0.85); font-size: 0.68rem; margin: 0; line-height: 1.35; font-family: var(--font-body);">Yapay zeka ve gelişmiş analitikleri aktif edin.</p>
                 } @else {
                   <div style="display: flex; justify-content: center; align-items: center; height: 24px;" title="Ultra Plan'a Geçin">
-                    <span style="color: #FBBF24; font-size: 1.1rem; font-weight: bold;">✦</span>
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="color: #FFFFFF;"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 0M12 3c-1.2 2-3 4-3 7a3 3 0 006 0c0-3-1.8-5-3-7z"/></svg>
                   </div>
                 }
               </div>
@@ -134,126 +233,20 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
       <div class="main-layout-wrapper">
         <header class="top-navbar">
           <div class="navbar-left">
-            <div class="breadcrumbs">
-              <span class="breadcrumb-cat">{{ getBreadcrumbs().category }}</span>
-              <span class="breadcrumb-separator">/</span>
-              <span class="breadcrumb-page">{{ getBreadcrumbs().page }}</span>
-            </div>
-          </div>
-
-          <!-- Centered Ecelon Style Search Centerpiece -->
-          <div class="navbar-search-center">
-            <div class="nav-search-bar">
-              <input 
-                #searchInput
-                type="text" 
-                class="nav-search-input" 
-                placeholder="Ecelon'da ara..." 
-                [ngModel]="navbarSearchQuery()" 
-                (ngModelChange)="onSearchQueryChange($event)"
-                (keyup.enter)="triggerNavbarSearch()"
-                (keydown.arrowdown)="onArrowDown($event)"
-                (keydown.arrowup)="onArrowUp($event)"
-                (focus)="onSearchFocus()"
-                (blur)="onSearchBlur()"
-              />
-              <kbd class="search-kbd-badge">{{ searchShortcut }}</kbd>
-              <button 
-                class="nav-search-btn" 
-                (click)="triggerNavbarSearch()" 
-                title="Ara"
-              >
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-              </button>
-            </div>
-
-            <!-- Autocomplete suggestions dropdown -->
-            @if (isSearchFocused() && navbarSearchQuery().trim() !== '' && allVisibleSuggestions().length > 0) {
-              <div class="search-suggestions-dropdown">
-                
-                <!-- Section: Pages -->
-                @if (filteredSuggestionsByType('nav').length > 0) {
-                  <div class="search-section">
-                    <div class="search-section-header">
-                      Sayfalar ve Menüler
-                    </div>
-                    @for (s of filteredSuggestionsByType('nav'); track s.title) {
-                      <div class="suggestion-item" 
-                           [class.active]="isItemActive(s)"
-                           (mousedown)="selectSuggestion(s); $event.preventDefault()"
-                      >
-                        <div class="suggestion-item-left">
-                          <span class="suggestion-item-title" [innerHTML]="highlightMatch(s.title)"></span>
-                        </div>
-                        <span class="suggestion-item-category">{{ s.category }}</span>
-                      </div>
-                    }
-                  </div>
-                }
-
-                <!-- Section: Actions -->
-                @if (filteredSuggestionsByType('action').length > 0) {
-                  <div class="search-section">
-                    <div class="search-section-header">
-                      Hızlı İşlemler
-                    </div>
-                    @for (s of filteredSuggestionsByType('action'); track s.title) {
-                      <div class="suggestion-item" 
-                           [class.active]="isItemActive(s)"
-                           (mousedown)="selectSuggestion(s); $event.preventDefault()"
-                      >
-                        <div class="suggestion-item-left">
-                          <span class="suggestion-item-title" style="color: var(--primary);" [innerHTML]="highlightMatch(s.title)"></span>
-                        </div>
-                        <span class="suggestion-badge action">Tetikle</span>
-                      </div>
-                    }
-                  </div>
-                }
-
-                <!-- Section: Database matches -->
-                @if (matchingInventory().length > 0) {
-                  <div class="search-section">
-                    <div class="search-section-header">
-                      Veritabanı Kayıtları
-                    </div>
-                    @for (item of matchingInventory(); track item.type + '-' + (item.id || item.name)) {
-                      <div class="suggestion-item" 
-                           [class.active]="isItemActive(item)"
-                           (mousedown)="selectSuggestion(item); $event.preventDefault()"
-                      >
-                        <div class="suggestion-item-left">
-                          <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                            <span class="suggestion-item-title" [innerHTML]="highlightMatch(item.name)"></span>
-                            <span class="suggestion-item-subtitle">{{ item.subtitle }}</span>
-                          </div>
-                        </div>
-                        <span class="suggestion-badge">{{ item.type }}</span>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            }
+            <h1 style="font-size: 1.45rem; font-weight: 700; color: #0F172A; font-family: var(--font-heading); margin: 0; letter-spacing: -0.025em;">
+              {{ getBreadcrumbs().page }}
+            </h1>
           </div>
 
           <div class="navbar-right" style="gap: 1.25rem;">
-            <!-- Yapay Zeka Asistanı Navbar Tetikleyici -->
-            <button class="navbar-ai-btn" (click)="ui.toggleAiPanel()" title="Yapay Zeka Asistanı">
-              <svg class="navbar-ai-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M7 5H3"/></svg>
-              <span>Asistan</span>
-            </button>
-
             <!-- Shopping Cart styled Notification Widget -->
             <div class="notification-widget">
               <button class="notif-btn" (click)="toggleNotifDropdown($event)" aria-label="Bildirimler">
-                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 @if (notifService.unreadCount() > 0) {
-                  <span class="notif-badge">{{ notifService.unreadCount() }}</span>
+                  <span class="notif-badge" style="border: 2px solid #FFFFFF;">{{ notifService.unreadCount() }}</span>
                 }
               </button>
 
@@ -292,7 +285,16 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                 </div>
               }
             </div>
-            
+
+            <!-- Avatars stack + Invite button from mockup -->
+            <div style="display: flex; align-items: center; margin-right: -4px;">
+              <div style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #FFFFFF; background: #E2E8F0; overflow: hidden; margin-right: -8px; z-index: 3;"><img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" style="width: 100%; height: 100%; object-fit: cover;"/></div>
+              <div style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #FFFFFF; background: #CBD5E1; overflow: hidden; margin-right: -8px; z-index: 2;"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" style="width: 100%; height: 100%; object-fit: cover;"/></div>
+              <div style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #FFFFFF; background: #FF5A1F; color: #FFFFFF; font-size: 0.65rem; font-weight: bold; display: flex; align-items: center; justify-content: center; margin-right: -8px; z-index: 1;">+3</div>
+              <button style="width: 28px; height: 28px; border-radius: 50%; border: 1.5px dashed #CBD5E1; background: #FFFFFF; color: #64748B; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-left: 12px; transition: all 0.2s;" onmouseover="this.style.borderColor='#94A3B8'; this.style.color='#0F172A'" onmouseout="this.style.borderColor='#CBD5E1'; this.style.color='#64748B'"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg></button>
+            </div>
+
+            <!-- Profile Widget -->
             <div class="profile-widget" (click)="toggleProfileDropdown($event)">
               <div class="avatar-circle">
                 @if (currentUser().avatar) {
@@ -433,7 +435,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                   <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </button>
               }
-              <img src="/assets/image/f8ba49b9-052e-4780-b96d-411004b4884b.jpg" alt="AI Logo" style="width:22px;height:22px;object-fit:contain;border-radius:4px;"/>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#FF5A1F" stroke-width="2.5" style="background: rgba(255, 90, 31, 0.1); border-radius: 6px; padding: 3px; flex-shrink: 0; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l-.813-5.096a2 2 0 00-1.666-1.666L1.428 13.5l5.096-.813a2 2 0 001.666-1.666L9 5.904l.813 5.096a2 2 0 001.666 1.666l5.096.813-5.096.813a2 2 0 00-1.666 1.666zM19 3v4m2-2h-4"/></svg>
               <div>
                 <h3>{{ ui.subscription().plan === 'ultra' ? (ui.activeSession()?.title || 'Yapay Zeka Asistanı') : 'Yapay Zeka Asistanı' }}</h3>
                 <span class="ai-badge"><span class="pulse-dot"></span> Gemma 3.5 Aktif</span>
@@ -462,7 +464,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
               </div>
               <div class="chat-bubble-wrapper ai">
                 <div class="ai-avatar">
-                  <img src="/assets/image/f8ba49b9-052e-4780-b96d-411004b4884b.jpg" alt="AI"/>
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l-.813-5.096a2 2 0 00-1.666-1.666L1.428 13.5l5.096-.813a2 2 0 001.666-1.666L9 5.904l.813 5.096a2 2 0 001.666 1.666l5.096.813-5.096.813a2 2 0 00-1.666 1.666zM19 3v4m2-2h-4"/></svg>
                 </div>
                 <div class="answer-card">
                   <div class="answer-card-header">
@@ -522,7 +524,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
               } @else if (msg.text || (msg.card && (msg.card.description || msg.card.thinking))) {
                 <div class="chat-bubble-wrapper ai">
                   <div class="ai-avatar">
-                    <img src="/assets/image/f8ba49b9-052e-4780-b96d-411004b4884b.jpg" alt="AI"/>
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l-.813-5.096a2 2 0 00-1.666-1.666L1.428 13.5l5.096-.813a2 2 0 001.666-1.666L9 5.904l.813 5.096a2 2 0 001.666 1.666l5.096.813-5.096.813a2 2 0 00-1.666 1.666zM19 3v4m2-2h-4"/></svg>
                   </div>
                   
                   @if (msg.card) {
@@ -688,7 +690,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
             @if (ui.isAiThinking()) {
               <div class="chat-bubble-wrapper ai loading-wrapper">
                 <div class="ai-avatar pulse">
-                  <img src="/assets/image/f8ba49b9-052e-4780-b96d-411004b4884b.jpg" alt="AI"/>
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l-.813-5.096a2 2 0 00-1.666-1.666L1.428 13.5l5.096-.813a2 2 0 001.666-1.666L9 5.904l.813 5.096a2 2 0 001.666 1.666l5.096.813-5.096.813a2 2 0 00-1.666 1.666zM19 3v4m2-2h-4"/></svg>
                 </div>
                 <div class="thinking-card">
                   <span class="thinking-text">Asistan verileri analiz ediyor</span>
@@ -716,13 +718,6 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
         </div>
       </aside>
 
-      <!-- Search focus backdrop overlay -->
-      @if (isSearchFocused()) {
-        <div class="search-backdrop" 
-             (mousedown)="isSearchFocused.set(false)"
-             style="position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(15, 17, 17, 0.45); z-index: 990; backdrop-filter: blur(2px); transition: opacity 0.25s ease;">
-        </div>
-      }
 
       @if (ui.confirmConfig()?.isDelete) {
         <app-modal [isOpen]="!!ui.confirmConfig()" [title]="''" [isDelete]="true" (onClose)="isConfirmLoading() ? null : ui.closeConfirm()">
@@ -1361,6 +1356,14 @@ export class LayoutComponent implements OnInit {
     this.socketService.disconnect();
     this.ui.showToast('Çıkış yapıldı.', 'info');
     this.router.navigate(['/login']);
+  }
+
+  copyShareLink() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      this.ui.showToast('Sayfa bağlantısı panoya kopyalandı.', 'success');
+    }).catch(() => {
+      this.ui.showToast('Bağlantı kopyalanamadı.', 'error');
+    });
   }
 
   askQuestionAndClear() {
