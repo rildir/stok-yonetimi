@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { UserRole, SubscriptionPlan } from './enums';
 
 @Entity('users')
 export class UserEntity {
@@ -11,8 +12,8 @@ export class UserEntity {
   @Column()
   password: string;
 
-  @Column()
-  role: string; // 'admin' | 'manager' | 'viewer'
+  @Column({ type: 'varchar', default: UserRole.VIEWER })
+  role: UserRole | string;
 
   @Column()
   fullName: string;
@@ -29,8 +30,8 @@ export class UserEntity {
   @Column({ default: 0 })
   tokenVersion: number;
 
-  @Column({ default: 'standard' })
-  subscriptionPlan: string; // 'standard' | 'professional' | 'ultra'
+  @Column({ type: 'varchar', default: SubscriptionPlan.STANDARD })
+  subscriptionPlan: SubscriptionPlan | string;
 
   @Column({ nullable: true })
   subscriptionExpiresAt: Date;

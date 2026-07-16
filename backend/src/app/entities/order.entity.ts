@@ -1,5 +1,7 @@
-import { Entity, Column, PrimaryGeneratedColumn, Index, DeleteDateColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Index, DeleteDateColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
+import { OrderItemEntity } from './order-item.entity';
+import { OrderStatus } from './enums';
 
 @Entity('orders')
 export class OrderEntity {
@@ -17,14 +19,14 @@ export class OrderEntity {
   date: Date;
 
   @Index()
-  @Column()
-  status: string;
+  @Column({ type: 'varchar', default: OrderStatus.PENDING })
+  status: OrderStatus | string;
 
   @Column('decimal', { precision: 10, scale: 2, transformer: new ColumnNumericTransformer() })
   totalAmount: number;
 
-  @Column('json')
-  items: any;
+  @OneToMany(() => OrderItemEntity, (item) => item.order, { cascade: true, eager: true })
+  items: OrderItemEntity[];
 
   @Column({ nullable: true })
   carrier?: string;

@@ -23,11 +23,6 @@ export class AuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
 
-    const url = request.url || '';
-    if (url === '/' || url === '/api') {
-      return true;
-    }
-
     const token = this.extractTokenFromHeader(request);
     if (!token) {
       throw new UnauthorizedException('Yetkisiz erişim: Oturum açmanız gerekiyor.');

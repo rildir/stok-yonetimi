@@ -5,7 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Roles } from '../../guards/roles.decorator';
 import { Public } from '../../guards/public.decorator';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
-import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto } from '../../dto/user.dto';
+import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto, LoginDto } from '../../dto/user.dto';
 
 @Controller()
 export class UserController {
@@ -17,8 +17,8 @@ export class UserController {
 
   @Public()
   @Post('auth/login')
-  async login(@Body() body: any) {
-    const { username, password } = body;
+  async login(@Body() dto: LoginDto) {
+    const { username, password } = dto;
     const user = await this.userService.getUserByUsername(username);
     if (!user) {
       throw new BadRequestException('Kullanıcı adı veya şifre hatalı.');

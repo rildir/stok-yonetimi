@@ -2,28 +2,18 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { OrderEntity } from '../../entities/order.entity';
+import { OrderItemEntity } from '../../entities/order-item.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
-export interface OrderItem {
+import { OrderStatus, StockMovementType } from '../../entities/enums';
+
+export interface OrderItemInput {
   productId: string;
   productName: string;
   quantity: number;
-  price: number;
-}
-
-export interface Order {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  date?: string;
-  status: 'Completed' | 'Pending' | 'Cancelled' | string;
-  totalAmount: number;
-  items: OrderItem[];
-  carrier?: string;
-  trackingNumber?: string;
 }
 
 @Injectable()
@@ -39,45 +29,65 @@ export class OrderService {
   ) {}
 
   async getOrders(): Promise<OrderEntity[]> {
-    return this.orderRepo.find({ order: { date: 'DESC' } });
+    return this.orderRepo.find({
+      relations: { items: true },
+      order: { date: 'DESC' },
+    });
   }
 
   async getOrderById(id: string): Promise<OrderEntity | null> {
-    return this.orderRepo.findOne({ where: { id } });
+    return this.orderRepo.findOne({
+      where: { id },
+      relations: { items: true },
+    });
   }
 
-  async createOrder(order: Omit<Order, 'id' | 'orderNumber' | 'totalAmount' | 'items'> & { items: Omit<OrderItem, 'price'>[] }, performedBy: string = 'System'): Promise<OrderEntity> {
-    if (order.status === 'Cancelled') {
+  async createOrder(
+    data: {
+      customerName: string;
+      status: OrderStatus | string;
+      items: OrderItemInput[];
+      carrier?: string;
+      trackingNumber?: string;
+      date?: string;
+    },
+    performedBy: string = 'System'
+  ): Promise<OrderEntity> {
+    if (data.status === OrderStatus.CANCELLED) {
       throw new BadRequestException('Yeni bir sipariş "İptal Edildi" (Cancelled) durumuyla oluşturulamaz.');
     }
+
     const productsToEmit: ProductEntity[] = [];
+
     const savedOrder = await this.dataSource.transaction(async (manager) => {
       let orderNumber = '';
       let attempts = 0;
-      const maxAttempts = 5;
+      const maxAttempts = 10;
+
       while (attempts < maxAttempts) {
         orderNumber = `ORD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
         const existing = await manager.findOne(OrderEntity, { where: { orderNumber } });
         if (!existing) break;
         attempts++;
       }
+
       if (attempts === maxAttempts) {
         throw new BadRequestException('Benzersiz sipariş numarası üretilemedi, lütfen tekrar deneyin.');
       }
 
-      let totalAmount = 0;
-      const items: OrderItem[] = [];
-
-      const mergedItemsMap = new Map<string, Omit<OrderItem, 'price'>>();
-      for (const item of order.items) {
-        if (mergedItemsMap.has(item.productId)) {
-          const existing = mergedItemsMap.get(item.productId)!;
-          existing.quantity += item.quantity;
+      // Merge duplicates in payload
+      const mergedMap = new Map<string, OrderItemInput>();
+      for (const item of data.items) {
+        if (mergedMap.has(item.productId)) {
+          mergedMap.get(item.productId)!.quantity += item.quantity;
         } else {
-          mergedItemsMap.set(item.productId, { ...item });
+          mergedMap.set(item.productId, { ...item });
         }
       }
-      const orderItems = Array.from(mergedItemsMap.values());
+      const orderItems = Array.from(mergedMap.values());
+
+      let totalAmount = 0;
+      const orderItemEntities: OrderItemEntity[] = [];
 
       for (const item of orderItems) {
         const prod = await manager.findOne(ProductEntity, {
@@ -92,11 +102,11 @@ export class OrderService {
           throw new BadRequestException(`Yetersiz stok: ${prod.name} (Mevcut: ${prod.quantity})`);
         }
 
-        if (order.status === 'Completed' || order.status === 'Pending') {
+        if (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING) {
           const oldQty = prod.quantity;
-          
+
           const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
-          const activeNames = activeWarehouses.map(w => w.name);
+          const activeNames = activeWarehouses.map((w) => w.name);
           prod.warehouses = this.stockHelper.deductStockFromWarehouses(prod.warehouses, item.quantity, activeNames);
 
           prod.quantity -= item.quantity;
@@ -104,36 +114,46 @@ export class OrderService {
           const savedProd = await manager.save(ProductEntity, prod);
           productsToEmit.push(savedProd);
 
-          await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
-            productId: savedProd.id,
-            productName: savedProd.name,
-            type: 'ORDER',
-            quantity: -item.quantity,
-            previousQuantity: oldQty,
-            newQuantity: prod.quantity,
-            referenceId: orderNumber,
-            referenceType: 'order',
-            note: `Sipariş oluşturuldu: ${orderNumber}`,
-            performedBy
-          }));
+          await manager.save(
+            StockMovementEntity,
+            manager.create(StockMovementEntity, {
+              productId: savedProd.id,
+              productName: savedProd.name,
+              type: StockMovementType.ORDER,
+              quantity: -item.quantity,
+              previousQuantity: oldQty,
+              newQuantity: prod.quantity,
+              referenceId: orderNumber,
+              referenceType: 'order',
+              note: `Sipariş oluşturuldu: ${orderNumber}`,
+              performedBy,
+            })
+          );
         }
 
-        totalAmount += prod.price * item.quantity;
-        items.push({
+        const itemPrice = prod.price;
+        totalAmount += itemPrice * item.quantity;
+
+        const orderItem = manager.create(OrderItemEntity, {
           productId: prod.id,
           productName: prod.name,
           quantity: item.quantity,
-          price: prod.price,
+          price: itemPrice,
         });
+        orderItemEntities.push(orderItem);
       }
 
       const newOrder = manager.create(OrderEntity, {
-        ...order,
-        date: order.date || new Date().toISOString(),
+        customerName: data.customerName,
+        status: data.status || OrderStatus.PENDING,
+        carrier: data.carrier,
+        trackingNumber: data.trackingNumber,
+        date: data.date ? new Date(data.date) : new Date(),
         orderNumber,
         totalAmount: parseFloat(totalAmount.toFixed(2)),
-        items,
+        items: orderItemEntities,
       });
+
       return await manager.save(OrderEntity, newOrder);
     });
 
@@ -145,36 +165,39 @@ export class OrderService {
     return savedOrder;
   }
 
-  async updateOrderStatus(id: string, status: 'Completed' | 'Pending' | 'Cancelled' | string, performedBy: string = 'System'): Promise<OrderEntity | null> {
+  async updateOrderStatus(id: string, status: OrderStatus | string, performedBy: string = 'System'): Promise<OrderEntity | null> {
     const productsToEmit: ProductEntity[] = [];
+
     const savedOrder = await this.dataSource.transaction(async (manager) => {
       const order = await manager.findOne(OrderEntity, {
         where: { id },
-        lock: { mode: 'pessimistic_write' }
+        relations: { items: true },
+        lock: { mode: 'pessimistic_write' },
       });
       if (!order) return null;
-      
+
       const oldStatus = order.status;
       if (oldStatus === status) return order;
 
-      if (oldStatus === 'Cancelled') {
+      if (oldStatus === OrderStatus.CANCELLED) {
         throw new BadRequestException('İptal edilmiş bir siparişin durumu değiştirilemez.');
       }
-      if (oldStatus === 'Completed' && status === 'Pending') {
+      if (oldStatus === OrderStatus.COMPLETED && status === OrderStatus.PENDING) {
         throw new BadRequestException('Tamamlanmış bir sipariş tekrar "Beklemede" (Pending) durumuna alınamaz.');
       }
 
-      if (status === 'Cancelled' && (oldStatus === 'Pending' || oldStatus === 'Completed')) {
+      if (status === OrderStatus.CANCELLED && (oldStatus === OrderStatus.PENDING || oldStatus === OrderStatus.COMPLETED)) {
         for (const item of order.items) {
+          if (!item.productId) continue;
           const prod = await manager.findOne(ProductEntity, {
             where: { id: item.productId },
-            lock: { mode: 'pessimistic_write' }
+            lock: { mode: 'pessimistic_write' },
           });
           if (prod) {
             const oldQty = prod.quantity;
 
             const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
-            const activeNames = activeWarehouses.map(w => w.name);
+            const activeNames = activeWarehouses.map((w) => w.name);
             prod.warehouses = this.stockHelper.addStockToWarehouses(prod.warehouses, item.quantity, activeNames);
 
             prod.quantity += item.quantity;
@@ -182,18 +205,21 @@ export class OrderService {
             const savedProd = await manager.save(ProductEntity, prod);
             productsToEmit.push(savedProd);
 
-            await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
-              productId: savedProd.id,
-              productName: savedProd.name,
-              type: 'RETURN',
-              quantity: item.quantity,
-              previousQuantity: oldQty,
-              newQuantity: prod.quantity,
-              referenceId: order.orderNumber,
-              referenceType: 'order',
-              note: `Sipariş iptal edildi: ${order.orderNumber}`,
-              performedBy
-            }));
+            await manager.save(
+              StockMovementEntity,
+              manager.create(StockMovementEntity, {
+                productId: savedProd.id,
+                productName: savedProd.name,
+                type: StockMovementType.RETURN,
+                quantity: item.quantity,
+                previousQuantity: oldQty,
+                newQuantity: prod.quantity,
+                referenceId: order.orderNumber,
+                referenceType: 'order',
+                note: `Sipariş iptal edildi: ${order.orderNumber}`,
+                performedBy,
+              })
+            );
           }
         }
       }
@@ -214,7 +240,7 @@ export class OrderService {
   async deleteOrder(id: string): Promise<boolean> {
     const order = await this.orderRepo.findOne({ where: { id } });
     if (order) {
-      if (order.status !== 'Cancelled') {
+      if (order.status !== OrderStatus.CANCELLED) {
         throw new BadRequestException('Sadece iptal edilmiş siparişler silinebilir.');
       }
       await this.orderRepo.softRemove(order);

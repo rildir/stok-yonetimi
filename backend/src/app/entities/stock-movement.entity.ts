@@ -1,4 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { ProductEntity } from './product.entity';
+import { StockMovementType } from './enums';
 
 @Entity('stock_movements')
 export class StockMovementEntity {
@@ -9,12 +11,16 @@ export class StockMovementEntity {
   @Column()
   productId: string;
 
+  @ManyToOne(() => ProductEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'productId' })
+  product?: ProductEntity;
+
   @Column()
   productName: string;
 
   @Index()
-  @Column()
-  type: string; // 'IN' | 'OUT' | 'ORDER' | 'RETURN' | 'ADJUSTMENT'
+  @Column({ type: 'varchar' })
+  type: StockMovementType | string;
 
   @Column('int')
   quantity: number;

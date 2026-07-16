@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
@@ -6,17 +6,15 @@ import { CategoryEntity } from '../../entities/category.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { OrderEntity } from '../../entities/order.entity';
+import { OrderItemEntity } from '../../entities/order-item.entity';
+import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { StockHelperService } from './stock-helper.service';
-
-export interface OrderItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  price: number;
-}
+import { UserRole, OrderStatus, StockMovementType } from '../../entities/enums';
 
 @Injectable()
 export class SeedService implements OnModuleInit {
+  private readonly logger = new Logger(SeedService.name);
+
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
@@ -39,18 +37,18 @@ export class SeedService implements OnModuleInit {
   private async seedMockDataIfEmpty() {
     const userCount = await this.userRepo.count();
     if (userCount === 0) {
-      console.log('[SeedService] Users table is empty. Seeding initial users...');
+      this.logger.log('Users table is empty. Seeding initial users...');
       const isProduction = process.env.NODE_ENV === 'production';
       const initialUsers = [
         {
           username: process.env.ADMIN_USERNAME || 'admin',
           password: this.stockHelper.hashPassword(process.env.ADMIN_PASSWORD || 'admin'),
-          role: 'admin',
+          role: UserRole.ADMIN,
           fullName: 'Ahmet Ildır',
           email: 'admin@sirket.com',
           department: 'Sistem Yönetimi',
-          tokenVersion: 0
-        }
+          tokenVersion: 0,
+        },
       ];
 
       if (!isProduction) {
@@ -58,20 +56,20 @@ export class SeedService implements OnModuleInit {
           {
             username: 'manager',
             password: this.stockHelper.hashPassword('manager123'),
-            role: 'manager',
+            role: UserRole.MANAGER,
             fullName: 'Yönetici Demo',
             email: 'manager@sirket.com',
             department: 'Stok Yönetimi',
-            tokenVersion: 0
+            tokenVersion: 0,
           },
           {
             username: 'viewer',
             password: this.stockHelper.hashPassword('viewer123'),
-            role: 'viewer',
+            role: UserRole.VIEWER,
             fullName: 'Gözlemci Demo',
             email: 'viewer@sirket.com',
             department: 'Gözlem Ekibi',
-            tokenVersion: 0
+            tokenVersion: 0,
           }
         );
       }
@@ -83,13 +81,13 @@ export class SeedService implements OnModuleInit {
 
     const categoryCount = await this.categoryRepo.count();
     if (categoryCount === 0) {
-      console.log('[SeedService] Categories table is empty. Seeding initial categories...');
+      this.logger.log('Categories table is empty. Seeding initial categories...');
       const initialCategories = [
         { name: 'Aksesuarlar', slug: 'Accessories' },
         { name: 'Ses Ekipmanları', slug: 'Audio' },
         { name: 'Monitörler', slug: 'Monitors' },
         { name: 'Giyilebilir Teknoloji', slug: 'Wearables' },
-        { name: 'Ofis Mobilyası', slug: 'Furniture' }
+        { name: 'Ofis Mobilyası', slug: 'Furniture' },
       ];
       for (const cat of initialCategories) {
         await this.categoryRepo.save(this.categoryRepo.create(cat));
@@ -98,10 +96,10 @@ export class SeedService implements OnModuleInit {
 
     const warehouseCount = await this.warehouseRepo.count();
     if (warehouseCount === 0) {
-      console.log('[SeedService] Warehouses table is empty. Seeding initial warehouses...');
+      this.logger.log('Warehouses table is empty. Seeding initial warehouses...');
       const initialWarehouses = [
         { name: 'Merkez Depo', code: 'WH-001', address: 'İstanbul Merkez' },
-        { name: 'Ataşehir Şube', code: 'WH-002', address: 'Ataşehir, İstanbul' }
+        { name: 'Ataşehir Şube', code: 'WH-002', address: 'Ataşehir, İstanbul' },
       ];
       for (const wh of initialWarehouses) {
         await this.warehouseRepo.save(this.warehouseRepo.create(wh));
@@ -111,7 +109,7 @@ export class SeedService implements OnModuleInit {
     const productCount = await this.productRepo.count();
     if (productCount > 0) return;
 
-    console.log('[SeedService] Database is empty. Seeding initial data...');
+    this.logger.log('Database is empty. Seeding initial products & orders...');
 
     const initialProducts: Partial<ProductEntity>[] = [
       { name: 'Wireless Mouse M320', sku: 'MS-320', category: 'Accessories', price: 29.99, quantity: 45, minQuantity: 10, warehouses: { 'Merkez Depo': 30, 'Ataşehir Şube': 15 } },
@@ -136,40 +134,78 @@ export class SeedService implements OnModuleInit {
 
     const today = new Date();
     const mockOrderTemplates = [
-      { customer: 'Ahmet Yılmaz', daysAgo: 0, status: 'Completed', items: [{ pIndex: 0, qty: 2 }, { pIndex: 3, qty: 1 }] },
-      { customer: 'Mehmet Kaya', daysAgo: 1, status: 'Completed', items: [{ pIndex: 4, qty: 1 }, { pIndex: 9, qty: 1 }] },
-      { customer: 'Ayşe Demir', daysAgo: 1, status: 'Completed', items: [{ pIndex: 1, qty: 1 }] },
-      { customer: 'Fatma Şahin', daysAgo: 2, status: 'Pending', items: [{ pIndex: 6, qty: 2 }] },
-      { customer: 'Ali Çelik', daysAgo: 3, status: 'Completed', items: [{ pIndex: 3, qty: 3 }, { pIndex: 9, qty: 2 }] },
+      { customer: 'Ahmet Yılmaz', daysAgo: 0, status: OrderStatus.COMPLETED, items: [{ pIndex: 0, qty: 2 }, { pIndex: 3, qty: 1 }] },
+      { customer: 'Mehmet Kaya', daysAgo: 1, status: OrderStatus.COMPLETED, items: [{ pIndex: 4, qty: 1 }, { pIndex: 9, qty: 1 }] },
+      { customer: 'Ayşe Demir', daysAgo: 1, status: OrderStatus.COMPLETED, items: [{ pIndex: 1, qty: 1 }] },
+      { customer: 'Fatma Şahin', daysAgo: 2, status: OrderStatus.PENDING, items: [{ pIndex: 6, qty: 2 }] },
+      { customer: 'Ali Çelik', daysAgo: 3, status: OrderStatus.COMPLETED, items: [{ pIndex: 3, qty: 3 }, { pIndex: 9, qty: 2 }] },
     ];
 
-    for (let i = 0; i < mockOrderTemplates.length; i++) {
-      const template = mockOrderTemplates[i];
-      const orderDate = new Date();
-      orderDate.setDate(today.getDate() - template.daysAgo);
+    await this.dataSource.transaction(async (manager) => {
+      const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+      const activeNames = activeWarehouses.map((w) => w.name);
 
-      const items: OrderItem[] = template.items.map(item => {
-        const prod = savedProducts[item.pIndex];
-        return {
-          productId: prod.id,
-          productName: prod.name,
-          quantity: item.qty,
-          price: prod.price,
-        };
-      });
+      for (let i = 0; i < mockOrderTemplates.length; i++) {
+        const template = mockOrderTemplates[i];
+        const orderDate = new Date();
+        orderDate.setDate(today.getDate() - template.daysAgo);
 
-      const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const orderNum = `ORD-${202600 + i + 1}`;
+        let totalAmount = 0;
+        const itemEntities: OrderItemEntity[] = [];
 
-      const newOrder = this.orderRepo.create({
-        orderNumber: `ORD-${202600 + i + 1}`,
-        customerName: template.customer,
-        date: orderDate.toISOString(),
-        status: template.status,
-        totalAmount: parseFloat(totalAmount.toFixed(2)),
-        items,
-      });
+        for (const item of template.items) {
+          const prod = savedProducts[item.pIndex];
+          const oldQty = prod.quantity;
 
-      await this.orderRepo.save(newOrder);
-    }
+          if (template.status === OrderStatus.COMPLETED || template.status === OrderStatus.PENDING) {
+            prod.warehouses = this.stockHelper.deductStockFromWarehouses(prod.warehouses, item.qty, activeNames);
+            prod.quantity = Math.max(0, prod.quantity - item.qty);
+            prod.status = this.stockHelper.calculateStatus(prod.quantity, prod.minQuantity);
+            await manager.save(ProductEntity, prod);
+
+            await manager.save(
+              StockMovementEntity,
+              manager.create(StockMovementEntity, {
+                productId: prod.id,
+                productName: prod.name,
+                type: StockMovementType.ORDER,
+                quantity: -item.qty,
+                previousQuantity: oldQty,
+                newQuantity: prod.quantity,
+                referenceId: orderNum,
+                referenceType: 'order',
+                note: `Initial seed order: ${orderNum}`,
+                performedBy: 'SeedSystem',
+              })
+            );
+          }
+
+          totalAmount += prod.price * item.qty;
+
+          itemEntities.push(
+            manager.create(OrderItemEntity, {
+              productId: prod.id,
+              productName: prod.name,
+              quantity: item.qty,
+              price: prod.price,
+            })
+          );
+        }
+
+        const newOrder = manager.create(OrderEntity, {
+          orderNumber: orderNum,
+          customerName: template.customer,
+          date: orderDate,
+          status: template.status,
+          totalAmount: parseFloat(totalAmount.toFixed(2)),
+          items: itemEntities,
+        });
+
+        await manager.save(OrderEntity, newOrder);
+      }
+    });
+
+    this.logger.log('Initial data seed complete with transactional stock deduction.');
   }
 }

@@ -1,5 +1,9 @@
-import { Entity, Column, PrimaryGeneratedColumn, Check, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Check, Index, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
+import { CategoryEntity } from './category.entity';
+import { SupplierEntity } from './supplier.entity';
+import { ProductWarehouseStockEntity } from './product-warehouse-stock.entity';
+import { ProductStatus } from './enums';
 
 @Entity('products')
 @Check('quantity >= 0')
@@ -15,7 +19,14 @@ export class ProductEntity {
 
   @Index()
   @Column()
-  category: string;
+  category: string; // Slug for category lookup
+
+  @ManyToOne(() => CategoryEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'categoryId' })
+  categoryEntity?: CategoryEntity;
+
+  @Column({ nullable: true })
+  categoryId?: string;
 
   @Column('decimal', { precision: 10, scale: 2, transformer: new ColumnNumericTransformer() })
   price: number;
@@ -26,8 +37,8 @@ export class ProductEntity {
   @Column('int')
   minQuantity: number;
 
-  @Column()
-  status: string;
+  @Column({ type: 'varchar', default: ProductStatus.IN_STOCK })
+  status: ProductStatus | string;
 
   @Column({ default: 'Adet' })
   unit: string;
@@ -40,11 +51,18 @@ export class ProductEntity {
   @Column({ nullable: true })
   supplierId: string;
 
+  @ManyToOne(() => SupplierEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'supplierId' })
+  supplier?: SupplierEntity;
+
   @Column({ nullable: true })
   imageUrl: string;
 
   @Column('json', { nullable: true })
   warehouses: Record<string, number> | null;
+
+  @OneToMany(() => ProductWarehouseStockEntity, (pws) => pws.product, { cascade: true })
+  warehouseStocks: ProductWarehouseStockEntity[];
 
   @CreateDateColumn()
   createdAt: Date;

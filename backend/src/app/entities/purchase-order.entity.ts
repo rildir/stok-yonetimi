@@ -1,4 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { ColumnNumericTransformer } from '../utils/numeric-transformer';
+import { SupplierEntity } from './supplier.entity';
+import { PurchaseOrderItemEntity } from './purchase-order-item.entity';
+import { PurchaseOrderStatus } from './enums';
 
 @Entity('purchase_orders')
 export class PurchaseOrderEntity {
@@ -12,17 +16,21 @@ export class PurchaseOrderEntity {
   @Column()
   supplierId: string;
 
+  @ManyToOne(() => SupplierEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'supplierId' })
+  supplier?: SupplierEntity;
+
   @Column()
   supplierName: string;
 
   @Index()
-  @Column()
-  status: string; // 'Draft' | 'Sent' | 'Partially Received' | 'Received' | 'Cancelled'
+  @Column({ type: 'varchar', default: PurchaseOrderStatus.DRAFT })
+  status: PurchaseOrderStatus | string;
 
-  @Column('json')
-  items: any[];
+  @OneToMany(() => PurchaseOrderItemEntity, (item) => item.purchaseOrder, { cascade: true, eager: true })
+  items: PurchaseOrderItemEntity[];
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  @Column('decimal', { precision: 10, scale: 2, default: 0, transformer: new ColumnNumericTransformer() })
   totalAmount: number;
 
   @Column({ nullable: true })

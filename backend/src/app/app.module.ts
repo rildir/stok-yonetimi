@@ -7,12 +7,15 @@ import { APP_GUARD } from '@nestjs/core';
 // Entities
 import { ProductEntity } from './entities/product.entity';
 import { OrderEntity } from './entities/order.entity';
+import { OrderItemEntity } from './entities/order-item.entity';
 import { StockMovementEntity } from './entities/stock-movement.entity';
 import { SupplierEntity } from './entities/supplier.entity';
 import { PurchaseOrderEntity } from './entities/purchase-order.entity';
+import { PurchaseOrderItemEntity } from './entities/purchase-order-item.entity';
 import { CategoryEntity } from './entities/category.entity';
 import { StockCountEntity } from './entities/stock-count.entity';
 import { WarehouseEntity } from './entities/warehouse.entity';
+import { ProductWarehouseStockEntity } from './entities/product-warehouse-stock.entity';
 import { UserEntity } from './entities/user.entity';
 
 // Guards
@@ -43,11 +46,24 @@ import { ReportModule } from './modules/report/report.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'stok_yonetimi',
-      entities: [ProductEntity, OrderEntity, StockMovementEntity, SupplierEntity, PurchaseOrderEntity, CategoryEntity, StockCountEntity, WarehouseEntity, UserEntity],
+      entities: [
+        ProductEntity,
+        OrderEntity,
+        OrderItemEntity,
+        StockMovementEntity,
+        SupplierEntity,
+        PurchaseOrderEntity,
+        PurchaseOrderItemEntity,
+        CategoryEntity,
+        StockCountEntity,
+        WarehouseEntity,
+        ProductWarehouseStockEntity,
+        UserEntity,
+      ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
       migrationsRun: process.env.NODE_ENV === 'production',
-      }),
+    }),
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || 'secret_smart_inventory_2026',

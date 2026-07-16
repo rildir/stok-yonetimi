@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateProductDto {
   @IsString()
@@ -80,4 +81,22 @@ export class UpdateProductDto {
   @IsString()
   @IsOptional()
   supplierId?: string;
+}
+
+export class BulkDeleteProductsDto {
+  @IsArray({ message: 'IDs bir dizi olmalıdır.' })
+  @ArrayMinSize(1, { message: 'En az bir ID seçilmelidir.' })
+  @IsString({ each: true, message: 'Her bir ID string olmalıdır.' })
+  ids: string[];
+}
+
+export class BulkUpdateProductsDto {
+  @IsArray({ message: 'IDs bir dizi olmalıdır.' })
+  @ArrayMinSize(1, { message: 'En az bir ID seçilmelidir.' })
+  @IsString({ each: true, message: 'Her bir ID string olmalıdır.' })
+  ids: string[];
+
+  @ValidateNested()
+  @Type(() => UpdateProductDto)
+  updates: UpdateProductDto;
 }

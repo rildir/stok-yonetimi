@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { OrderEntity } from '../../entities/order.entity';
+import { OrderItemEntity } from '../../entities/order-item.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
+import { OrderStatus, PurchaseOrderStatus } from '../../entities/enums';
 
 @Injectable()
 export class ReportService {
@@ -25,143 +27,116 @@ export class ReportService {
   ) {}
 
   async getStockSummary(startDate?: string, endDate?: string) {
-    const query = this.stockMovementRepo.createQueryBuilder('sm');
+    const query = this.stockMovementRepo.createQueryBuilder('sm')
+      .select('COALESCE(SUM(CASE WHEN sm.quantity > 0 THEN sm.quantity ELSE 0 END), 0)', 'totalIn')
+      .select('COALESCE(SUM(CASE WHEN sm.quantity > 0 THEN sm.quantity ELSE 0 END), 0)', 'totalIn')
+      .addSelect('COALESCE(SUM(CASE WHEN sm.quantity < 0 THEN ABS(sm.quantity) ELSE 0 END), 0)', 'totalOut');
+
     if (startDate) {
       query.andWhere('sm.createdAt >= :startDate', { startDate: new Date(startDate) });
     }
     if (endDate) {
       query.andWhere('sm.createdAt <= :endDate', { endDate: new Date(endDate) });
     }
-    
-    const movements = await query.getMany();
-    let totalIn = 0;
-    let totalOut = 0;
-    
-    for (const m of movements) {
-      const q = m.quantity || 0;
-      if (q > 0) {
-        totalIn += q;
-      } else {
-        totalOut += Math.abs(q);
-      }
-    }
-    
+
+    const raw = await query.getRawOne();
+    const totalIn = Number(raw?.totalIn || 0);
+    const totalOut = Number(raw?.totalOut || 0);
+
     return {
       totalIn,
       totalOut,
-      netChange: totalIn - totalOut
+      netChange: totalIn - totalOut,
     };
   }
 
   async getProductMovementsReport(startDate?: string, endDate?: string) {
-    const query = this.stockMovementRepo.createQueryBuilder('sm');
+    const query = this.stockMovementRepo.createQueryBuilder('sm')
+      .select('sm.productId', 'productId')
+      .addSelect('MAX(sm.productName)', 'productName')
+      .addSelect('COALESCE(SUM(CASE WHEN sm.quantity > 0 THEN sm.quantity ELSE 0 END), 0)', 'totalIn')
+      .addSelect('COALESCE(SUM(CASE WHEN sm.quantity < 0 THEN ABS(sm.quantity) ELSE 0 END), 0)', 'totalOut')
+      .where('sm.productId IS NOT NULL')
+      .groupBy('sm.productId');
+
     if (startDate) {
       query.andWhere('sm.createdAt >= :startDate', { startDate: new Date(startDate) });
     }
     if (endDate) {
       query.andWhere('sm.createdAt <= :endDate', { endDate: new Date(endDate) });
     }
-    
-    const movements = await query.getMany();
-    const productReports: Record<string, { productId: string, productName: string, totalIn: number, totalOut: number }> = {};
-    
-    for (const m of movements) {
-      const pId = m.productId;
-      if (!pId) continue;
-      if (!productReports[pId]) {
-        productReports[pId] = {
-          productId: pId,
-          productName: m.productName || 'Bilinmeyen Ürün',
-          totalIn: 0,
-          totalOut: 0
-        };
-      }
-      const qty = m.quantity || 0;
-      if (qty > 0) {
-        productReports[pId].totalIn += qty;
-      } else {
-        productReports[pId].totalOut += Math.abs(qty);
-      }
-    }
-    
-    return Object.values(productReports);
+
+    const rawResults = await query.getRawMany();
+    return rawResults.map((r) => ({
+      productId: r.productId,
+      productName: r.productName || 'Bilinmeyen Ürün',
+      totalIn: Number(r.totalIn || 0),
+      totalOut: Number(r.totalOut || 0),
+    }));
   }
 
   async getCategoryDistribution() {
-    const products = await this.productRepo.find({ where: { isDeleted: false } });
-    const distribution: Record<string, { category: string, productCount: number, totalStock: number, totalValue: number }> = {};
-    
-    for (const p of products) {
-      const cat = p.category || 'Diğer';
-      if (!distribution[cat]) {
-        distribution[cat] = {
-          category: cat,
-          productCount: 0,
-          totalStock: 0,
-          totalValue: 0
-        };
-      }
-      distribution[cat].productCount += 1;
-      distribution[cat].totalStock += p.quantity || 0;
-      distribution[cat].totalValue += (p.quantity || 0) * (p.price || 0);
-    }
-    return Object.values(distribution);
+    const rawResults = await this.productRepo.createQueryBuilder('p')
+      .select('COALESCE(p.category, \'Diğer\')', 'category')
+      .addSelect('COUNT(p.id)', 'productCount')
+      .addSelect('COALESCE(SUM(p.quantity), 0)', 'totalStock')
+      .addSelect('COALESCE(SUM(p.quantity * p.price), 0)', 'totalValue')
+      .where('p.isDeleted = false')
+      .groupBy('p.category')
+      .getRawMany();
+
+    return rawResults.map((r) => ({
+      category: r.category,
+      productCount: Number(r.productCount || 0),
+      totalStock: Number(r.totalStock || 0),
+      totalValue: Number(r.totalValue || 0),
+    }));
   }
 
   async getTopSelling(days: number = 30) {
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - days);
-    
-    const orders = await this.orderRepo.find();
-    const filteredOrders = orders.filter(o => 
-      o.status === 'Completed' && 
-      new Date(o.date).getTime() >= thresholdDate.getTime()
-    );
 
-    const productSales: Record<string, { productName: string, totalQty: number, totalRevenue: number }> = {};
+    const rawResults = await this.dataSource.getRepository(OrderItemEntity)
+      .createQueryBuilder('oi')
+      .innerJoin('oi.order', 'o')
+      .select('oi.productId', 'productId')
+      .addSelect('MAX(oi.productName)', 'productName')
+      .addSelect('SUM(oi.quantity)', 'totalQty')
+      .addSelect('SUM(oi.quantity * oi.price)', 'totalRevenue')
+      .where('o.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('o.date >= :thresholdDate', { thresholdDate })
+      .groupBy('oi.productId')
+      .orderBy('SUM(oi.quantity)', 'DESC')
+      .limit(10)
+      .getRawMany();
 
-    for (const order of filteredOrders) {
-      const items = Array.isArray(order.items) ? order.items : [];
-      for (const item of items) {
-        if (!item.productId) continue;
-        if (!productSales[item.productId]) {
-          productSales[item.productId] = {
-            productName: item.productName || 'Bilinmeyen Ürün',
-            totalQty: 0,
-            totalRevenue: 0
-          };
-        }
-        productSales[item.productId].totalQty += item.quantity || 0;
-        productSales[item.productId].totalRevenue += (item.quantity || 0) * (item.price || 0);
-      }
-    }
-
-    return Object.values(productSales)
-      .sort((a, b) => b.totalQty - a.totalQty)
-      .slice(0, 10);
+    return rawResults.map((r) => ({
+      productName: r.productName || 'Bilinmeyen Ürün',
+      totalQty: Number(r.totalQty || 0),
+      totalRevenue: Number(r.totalRevenue || 0),
+    }));
   }
 
   async getSupplierSummary() {
     const poRepo = this.dataSource.getRepository(PurchaseOrderEntity);
-    const pos = await poRepo.find();
-    const summary: Record<string, { supplierName: string, poCount: number, totalAmount: number }> = {};
-    
-    for (const po of pos) {
-      if (po.status === 'Cancelled') continue;
-      const sId = po.supplierId;
-      if (!summary[sId]) {
-        summary[sId] = {
-          supplierName: po.supplierName || 'Bilinmeyen Tedarikçi',
-          poCount: 0,
-          totalAmount: 0
-        };
-      }
-      summary[sId].poCount += 1;
-      if (po.status === 'Received') {
-        summary[sId].totalAmount += Number(po.totalAmount) || 0;
-      }
-    }
-    return Object.values(summary);
+    const rawResults = await poRepo.createQueryBuilder('po')
+      .select('po.supplierId', 'supplierId')
+      .addSelect('MAX(po.supplierName)', 'supplierName')
+      .addSelect('COUNT(po.id)', 'poCount')
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN po.status = '${PurchaseOrderStatus.RECEIVED}' THEN po.totalAmount ELSE 0 END), 0)`,
+        'totalAmount'
+      )
+      .where('po.status != :cancelledStatus', { cancelledStatus: PurchaseOrderStatus.CANCELLED })
+      .groupBy('po.supplierId')
+      .getRawMany();
+
+    return rawResults.map((r) => ({
+      supplierName: r.supplierName || 'Bilinmeyen Tedarikçi',
+      poCount: Number(r.poCount || 0),
+      totalAmount: Number(r.totalAmount || 0),
+    }));
   }
 
   async globalSearch(query: string, limit: number = 10): Promise<{
@@ -183,11 +158,13 @@ export class ReportService {
         .getMany(),
 
       this.orderRepo.createQueryBuilder('o')
+        .leftJoinAndSelect('o.items', 'items')
         .where('(LOWER(o.customerName) LIKE :q OR LOWER(o.orderNumber) LIKE :q)', { q })
         .take(limit)
         .getMany(),
 
       poRepo.createQueryBuilder('po')
+        .leftJoinAndSelect('po.items', 'items')
         .where('(LOWER(po.supplierName) LIKE :q OR LOWER(po.poNumber) LIKE :q)', { q })
         .take(limit)
         .getMany(),
@@ -202,7 +179,7 @@ export class ReportService {
         .where('w.isDeleted = false')
         .andWhere('(LOWER(w.name) LIKE :q OR LOWER(w.code) LIKE :q)', { q })
         .take(limit)
-        .getMany()
+        .getMany(),
     ]);
 
     return { products, orders, purchaseOrders, suppliers, warehouses };

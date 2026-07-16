@@ -2,12 +2,21 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
+import { PurchaseOrderItemEntity } from '../../entities/purchase-order-item.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
+import { PurchaseOrderStatus, StockMovementType } from '../../entities/enums';
+
+export interface PurchaseOrderItemInput {
+  productId: string;
+  productName?: string;
+  quantity: number;
+  price?: number;
+}
 
 @Injectable()
 export class PurchaseOrderService {
@@ -24,23 +33,34 @@ export class PurchaseOrderService {
   ) {}
 
   async getPurchaseOrders(): Promise<PurchaseOrderEntity[]> {
-    return this.poRepo.find({ order: { createdAt: 'DESC' } });
+    return this.poRepo.find({
+      relations: { items: true },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async getPurchaseOrderById(id: string): Promise<PurchaseOrderEntity | null> {
-    return this.poRepo.findOne({ where: { id } });
+    return this.poRepo.findOne({
+      where: { id },
+      relations: { items: true },
+    });
   }
 
-  async createPurchaseOrder(data: Partial<PurchaseOrderEntity>): Promise<PurchaseOrderEntity> {
-    return await this.dataSource.transaction(async manager => {
-      const repo = manager.getRepository(PurchaseOrderEntity);
-
+  async createPurchaseOrder(data: {
+    supplierId: string;
+    supplierName?: string;
+    items: PurchaseOrderItemInput[];
+    expectedDate?: string;
+    notes?: string;
+    totalAmount?: number;
+  }): Promise<PurchaseOrderEntity> {
+    return await this.dataSource.transaction(async (manager) => {
       let poNumber = '';
       let attempts = 0;
-      const maxAttempts = 5;
+      const maxAttempts = 10;
       while (attempts < maxAttempts) {
         poNumber = `PO-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        const existing = await repo.findOne({ where: { poNumber } });
+        const existing = await manager.findOne(PurchaseOrderEntity, { where: { poNumber } });
         if (!existing) break;
         attempts++;
       }
@@ -49,92 +69,113 @@ export class PurchaseOrderService {
       }
 
       if (!data.supplierId) {
-        throw new BadRequestException('Tedarikçi ID\'si (supplierId) belirtilmelidir.');
+        throw new BadRequestException("Tedarikçi ID'si (supplierId) belirtilmelidir.");
       }
       const supplier = await manager.findOne(SupplierEntity, { where: { id: data.supplierId, isDeleted: false } });
       if (!supplier) {
         throw new BadRequestException(`Tedarikçi bulunamadı: ID ${data.supplierId}`);
       }
-      data.supplierName = supplier.name;
 
-      let calculatedTotal = 0;
       if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
         throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
       }
+
+      let calculatedTotal = 0;
+      const itemEntities: PurchaseOrderItemEntity[] = [];
+
       for (const item of data.items) {
         if (!item.productId) {
-          throw new BadRequestException('Sipariş kalemi için ürün ID\'si (productId) belirtilmelidir.');
+          throw new BadRequestException("Sipariş kalemi için ürün ID'si (productId) belirtilmelidir.");
         }
         const product = await manager.findOne(ProductEntity, { where: { id: item.productId, isDeleted: false } });
         if (!product) {
           throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
         }
-        item.productName = product.name;
-        if (item.price === undefined || item.price === null || item.price === 0) {
-          item.price = product.price;
-        }
-        calculatedTotal += (item.price || 0) * (item.quantity || 0);
+
+        const itemPrice = item.price !== undefined && item.price !== null && item.price > 0 ? item.price : product.price;
+        calculatedTotal += itemPrice * (item.quantity || 0);
+
+        const poItem = manager.create(PurchaseOrderItemEntity, {
+          productId: product.id,
+          productName: product.name,
+          quantity: item.quantity,
+          price: itemPrice,
+        });
+        itemEntities.push(poItem);
       }
-      data.totalAmount = parseFloat(calculatedTotal.toFixed(2));
-      
-      const newPo = repo.create({
-        ...data,
+
+      const newPo = manager.create(PurchaseOrderEntity, {
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        expectedDate: data.expectedDate,
+        notes: data.notes,
         poNumber,
-        status: 'Draft'
+        status: PurchaseOrderStatus.DRAFT,
+        totalAmount: parseFloat(calculatedTotal.toFixed(2)),
+        items: itemEntities,
       });
-      const saved = await repo.save(newPo);
+
+      const saved = await manager.save(PurchaseOrderEntity, newPo);
       this.appGateway.server.emit('purchase_order_mutated', { type: 'create', purchaseOrder: saved });
       return saved;
     });
   }
 
-  async updatePurchaseOrderStatus(id: string, status: string, performedBy: string = 'System'): Promise<PurchaseOrderEntity | null> {
-    const saved = await this.dataSource.transaction(async manager => {
-      const po = await manager.findOne(PurchaseOrderEntity, { where: { id }, lock: { mode: 'pessimistic_write' } });
+  async updatePurchaseOrderStatus(id: string, status: PurchaseOrderStatus | string, performedBy: string = 'System'): Promise<PurchaseOrderEntity | null> {
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const po = await manager.findOne(PurchaseOrderEntity, {
+        where: { id },
+        relations: { items: true },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!po) return null;
 
       const oldStatus = po.status;
       if (oldStatus === status) return po;
 
-      if (oldStatus === 'Received') {
+      if (oldStatus === PurchaseOrderStatus.RECEIVED) {
         throw new BadRequestException('Teslim alınmış bir satın alma siparişinin durumu değiştirilemez.');
       }
-      if (oldStatus === 'Cancelled') {
+      if (oldStatus === PurchaseOrderStatus.CANCELLED) {
         throw new BadRequestException('İptal edilmiş bir satın alma siparişinin durumu değiştirilemez.');
       }
 
-      if (oldStatus !== 'Received' && status === 'Received') {
+      if (oldStatus !== PurchaseOrderStatus.RECEIVED && status === PurchaseOrderStatus.RECEIVED) {
         for (const item of po.items) {
+          if (!item.productId) continue;
           const prod = await manager.findOne(ProductEntity, { where: { id: item.productId }, lock: { mode: 'pessimistic_write' } });
           if (prod) {
             const oldQty = prod.quantity;
 
             const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
-            const activeNames = activeWarehouses.map(w => w.name);
+            const activeNames = activeWarehouses.map((w) => w.name);
             prod.warehouses = this.stockHelper.addStockToWarehouses(prod.warehouses, item.quantity, activeNames);
 
             prod.quantity += item.quantity;
             prod.status = this.stockHelper.calculateStatus(prod.quantity, prod.minQuantity);
             await manager.save(ProductEntity, prod);
 
-            await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
-              productId: prod.id,
-              productName: prod.name,
-              type: 'IN',
-              quantity: item.quantity,
-              previousQuantity: oldQty,
-              newQuantity: prod.quantity,
-              referenceId: po.poNumber,
-              referenceType: 'purchase_order',
-              note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
-              performedBy
-            }));
-            
+            await manager.save(
+              StockMovementEntity,
+              manager.create(StockMovementEntity, {
+                productId: prod.id,
+                productName: prod.name,
+                type: StockMovementType.IN,
+                quantity: item.quantity,
+                previousQuantity: oldQty,
+                newQuantity: prod.quantity,
+                referenceId: po.poNumber,
+                referenceType: 'purchase_order',
+                note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
+                performedBy,
+              })
+            );
+
             this.appGateway.server.emit('product_mutated', { type: 'update', product: prod });
           }
         }
       }
-      
+
       po.status = status;
       return await manager.save(PurchaseOrderEntity, po);
     });
@@ -145,10 +186,10 @@ export class PurchaseOrderService {
     return saved;
   }
 
-  async updatePurchaseOrder(id: string, updates: Partial<PurchaseOrderEntity>): Promise<PurchaseOrderEntity | null> {
-    const po = await this.poRepo.findOne({ where: { id } });
+  async updatePurchaseOrder(id: string, updates: any): Promise<PurchaseOrderEntity | null> {
+    const po = await this.poRepo.findOne({ where: { id }, relations: { items: true } });
     if (!po) return null;
-    if (po.status !== 'Draft') {
+    if (po.status !== PurchaseOrderStatus.DRAFT) {
       throw new BadRequestException('Sadece "Taslak" (Draft) durumundaki satın alma siparişleri güncellenebilir.');
     }
 
@@ -166,21 +207,28 @@ export class PurchaseOrderService {
         throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
       }
       let calculatedTotal = 0;
+      const newItems: PurchaseOrderItemEntity[] = [];
+
       for (const item of updates.items) {
         if (!item.productId) {
-          throw new BadRequestException('Sipariş kalemi için ürün ID\'si (productId) belirtilmelidir.');
+          throw new BadRequestException("Sipariş kalemi için ürün ID'si (productId) belirtilmelidir.");
         }
         const product = await this.productRepo.findOne({ where: { id: item.productId, isDeleted: false } });
         if (!product) {
           throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
         }
-        item.productName = product.name;
-        if (item.price === undefined || item.price === null || item.price === 0) {
-          item.price = product.price;
-        }
-        calculatedTotal += (item.price || 0) * (item.quantity || 0);
+        const itemPrice = item.price !== undefined && item.price !== null && item.price > 0 ? item.price : product.price;
+        calculatedTotal += itemPrice * (item.quantity || 0);
+
+        const poItem = this.dataSource.getRepository(PurchaseOrderItemEntity).create({
+          productId: product.id,
+          productName: product.name,
+          quantity: item.quantity,
+          price: itemPrice,
+        });
+        newItems.push(poItem);
       }
-      po.items = updates.items;
+      po.items = newItems;
       po.totalAmount = parseFloat(calculatedTotal.toFixed(2));
     }
 
@@ -196,7 +244,7 @@ export class PurchaseOrderService {
   async deletePurchaseOrder(id: string): Promise<boolean> {
     const po = await this.poRepo.findOne({ where: { id } });
     if (!po) return false;
-    if (po.status !== 'Draft') {
+    if (po.status !== PurchaseOrderStatus.DRAFT) {
       throw new BadRequestException('Sadece "Taslak" (Draft) durumundaki satın alma siparişleri silinebilir.');
     }
     await this.poRepo.remove(po);
@@ -206,7 +254,7 @@ export class PurchaseOrderService {
 
   async autoDraftPurchaseOrders(): Promise<any[]> {
     const products = await this.productRepo.find({ where: { isDeleted: false } });
-    const lowStockProducts = products.filter(p => p.quantity < p.minQuantity && p.quantity >= 0 && p.supplierId);
+    const lowStockProducts = products.filter((p) => p.quantity < p.minQuantity && p.quantity >= 0 && p.supplierId);
 
     if (lowStockProducts.length === 0) {
       return [];
@@ -220,7 +268,7 @@ export class PurchaseOrderService {
       let supplierName = 'Genel Tedarikçi';
 
       if (supplierId) {
-        const sup = suppliers.find(s => s.id === supplierId);
+        const sup = suppliers.find((s) => s.id === supplierId);
         if (sup) supplierName = sup.name;
       }
 
@@ -232,7 +280,8 @@ export class PurchaseOrderService {
       supplierGroups[key].items.push({
         productId: p.id,
         productName: p.name,
-        quantity: reorderQty
+        quantity: reorderQty,
+        price: p.price,
       });
     }
 
@@ -241,20 +290,26 @@ export class PurchaseOrderService {
 
     for (const group of Object.values(supplierGroups)) {
       const poNumber = `PO-AUTO-${now.getTime().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-      const totalAmount = group.items.reduce((sum: number, item: any) => {
-        const prod = products.find(p => p.id === item.productId);
-        return sum + (prod ? prod.price * item.quantity : 0);
-      }, 0);
+      const totalAmount = group.items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+
+      const items = group.items.map((i) =>
+        this.dataSource.getRepository(PurchaseOrderItemEntity).create({
+          productId: i.productId,
+          productName: i.productName,
+          quantity: i.quantity,
+          price: i.price,
+        })
+      );
 
       const newPO = this.poRepo.create({
         poNumber,
         supplierId: group.supplierId,
         supplierName: group.supplierName,
-        status: 'Draft',
-        items: group.items,
+        status: PurchaseOrderStatus.DRAFT,
+        items,
         totalAmount: parseFloat(totalAmount.toFixed(2)),
         notes: 'AI destekli otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
-        createdAt: now
+        createdAt: now,
       });
 
       const saved = await this.poRepo.save(newPO);

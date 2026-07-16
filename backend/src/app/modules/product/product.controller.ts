@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, ParseArrayPipe } from '@nestjs/common';
 import { ProductService } from './product.service';
-import { CreateProductDto, UpdateProductDto } from '../../dto/product.dto';
+import { CreateProductDto, UpdateProductDto, BulkDeleteProductsDto, BulkUpdateProductsDto } from '../../dto/product.dto';
 import { ProductEntity } from '../../entities/product.entity';
 import { Roles } from '../../guards/roles.decorator';
 
@@ -20,7 +20,10 @@ export class ProductController {
 
   @Roles('admin', 'manager')
   @Post('bulk')
-  async bulkCreateProducts(@Body() products: any[], @Req() req: any): Promise<ProductEntity[]> {
+  async bulkCreateProducts(
+    @Body(new ParseArrayPipe({ items: CreateProductDto })) products: CreateProductDto[],
+    @Req() req: any
+  ): Promise<ProductEntity[]> {
     const user = req.user?.username || 'System';
     return this.productService.bulkCreateProducts(products, user);
   }
@@ -34,11 +37,8 @@ export class ProductController {
 
   @Roles('admin', 'manager')
   @Put('bulk-update')
-  async bulkUpdateProducts(
-    @Body('ids') ids: string[],
-    @Body('updates') updates: any
-  ): Promise<{ success: boolean }> {
-    return { success: await this.productService.bulkUpdateProducts(ids, updates) };
+  async bulkUpdateProducts(@Body() dto: BulkUpdateProductsDto): Promise<{ success: boolean }> {
+    return { success: await this.productService.bulkUpdateProducts(dto.ids, dto.updates) };
   }
 
   @Roles('admin', 'manager')
@@ -54,8 +54,8 @@ export class ProductController {
 
   @Roles('admin')
   @Post('bulk-delete')
-  async bulkDeleteProducts(@Body('ids') ids: string[]): Promise<{ success: boolean }> {
-    return { success: await this.productService.bulkDeleteProducts(ids) };
+  async bulkDeleteProducts(@Body() dto: BulkDeleteProductsDto): Promise<{ success: boolean }> {
+    return { success: await this.productService.bulkDeleteProducts(dto.ids) };
   }
 
   @Roles('admin')

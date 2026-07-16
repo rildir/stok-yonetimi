@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
+import { CreateUserDto, UpdateUserDto } from '../../dto/user.dto';
+import { UserRole, SubscriptionPlan } from '../../entities/enums';
 
 @Injectable()
 export class UserService {
@@ -11,6 +13,11 @@ export class UserService {
     private readonly userRepo: Repository<UserEntity>,
     private readonly stockHelper: StockHelperService,
   ) {}
+
+  private sanitizeUser(user: UserEntity): UserEntity {
+    const { password, ...sanitized } = user;
+    return sanitized as UserEntity;
+  }
 
   async getUserByUsername(username: string): Promise<UserEntity | null> {
     return this.userRepo.findOne({ where: { username } });
@@ -27,8 +34,7 @@ export class UserService {
     if (updates.avatar !== undefined) user.avatar = updates.avatar;
 
     const saved = await this.userRepo.save(user);
-    delete (saved as any).password;
-    return saved;
+    return this.sanitizeUser(saved);
   }
 
   async updateUserPassword(username: string, newPasswordPlain: string): Promise<void> {
@@ -52,31 +58,34 @@ export class UserService {
 
   async getAllUsers(): Promise<UserEntity[]> {
     const users = await this.userRepo.find({ order: { fullName: 'ASC' } });
-    return users.map(u => {
-      delete (u as any).password;
-      return u;
-    });
+    return users.map((u) => this.sanitizeUser(u));
   }
 
-  async createUser(adminUsername: string, data: any): Promise<UserEntity> {
+  async createUser(adminUsername: string, data: CreateUserDto): Promise<UserEntity> {
     const admin = await this.getUserByUsername(adminUsername);
     if (!admin) {
       throw new BadRequestException('Yönetici bulunamadı.');
     }
 
-    const currentCount = await this.userRepo.count();
-    const plan = admin.subscriptionPlan || 'standard';
+    const totalUsers = await this.userRepo.count();
+    const plan = admin.subscriptionPlan || SubscriptionPlan.STANDARD;
 
-    let limit = 1;
-    if (plan === 'professional') limit = 5;
-    else if (plan === 'ultra') limit = 999999;
-    else if (plan === 'none') limit = 0;
+    // Standard = 5 seats, Professional = 20 seats, Ultra = unlimited
+    let limit = 5;
+    if (plan === SubscriptionPlan.PROFESSIONAL) limit = 20;
+    else if (plan === SubscriptionPlan.ULTRA) limit = 999999;
+    else if (plan === SubscriptionPlan.NONE) limit = 1;
 
-    if (currentCount >= limit) {
-      const planName = plan === 'standard' ? 'Standart' : plan === 'professional' ? 'Profesyonel' : 'Ultra';
+    if (totalUsers >= limit) {
+      const planName =
+        plan === SubscriptionPlan.STANDARD
+          ? 'Standart'
+          : plan === SubscriptionPlan.PROFESSIONAL
+          ? 'Profesyonel'
+          : 'Ultra';
       throw new BadRequestException(
         `Mevcut planınız (${planName}) en fazla ${limit} kullanıcıya izin vermektedir. ` +
-        `Yeni kullanıcı eklemek için lütfen planınızı yükseltin.`
+          `Yeni kullanıcı eklemek için lütfen planınızı yükseltin.`
       );
     }
 
@@ -88,20 +97,19 @@ export class UserService {
     const newUser = this.userRepo.create({
       username: data.username,
       password: this.stockHelper.hashPassword(data.password || '123456'),
-      role: data.role || 'viewer',
+      role: data.role || UserRole.VIEWER,
       fullName: data.fullName,
       email: data.email,
       department: data.department || '',
-      subscriptionPlan: 'standard',
-      tokenVersion: 0
+      subscriptionPlan: SubscriptionPlan.STANDARD,
+      tokenVersion: 0,
     });
 
     const saved = await this.userRepo.save(newUser);
-    delete (saved as any).password;
-    return saved;
+    return this.sanitizeUser(saved);
   }
 
-  async updateUser(id: string, updates: any): Promise<UserEntity> {
+  async updateUser(id: string, updates: UpdateUserDto): Promise<UserEntity> {
     const user = await this.userRepo.findOne({ where: { id } });
     if (!user) {
       throw new BadRequestException('Kullanıcı bulunamadı.');
@@ -111,23 +119,22 @@ export class UserService {
     if (updates.email !== undefined) user.email = updates.email;
     if (updates.department !== undefined) user.department = updates.department;
     if (updates.role !== undefined) user.role = updates.role;
-    
+
     if (updates.password) {
       user.password = this.stockHelper.hashPassword(updates.password);
       user.tokenVersion++;
     }
 
     const saved = await this.userRepo.save(user);
-    delete (saved as any).password;
-    return saved;
+    return this.sanitizeUser(saved);
   }
 
   async deleteUser(id: string): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { id } });
     if (!user) return false;
-    
-    if (user.role === 'admin') {
-      const adminCount = await this.userRepo.count({ where: { role: 'admin' } });
+
+    if (user.role === UserRole.ADMIN) {
+      const adminCount = await this.userRepo.count({ where: { role: UserRole.ADMIN } });
       if (adminCount <= 1) {
         throw new BadRequestException('Son yönetici hesabı silinemez.');
       }
@@ -143,7 +150,7 @@ export class UserService {
       throw new BadRequestException('Kullanıcı bulunamadı.');
     }
     user.subscriptionPlan = plan;
-    if (plan === 'none') {
+    if (plan === SubscriptionPlan.NONE) {
       user.subscriptionExpiresAt = null as any;
     } else {
       const expires = new Date();
