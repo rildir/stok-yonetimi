@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
-import { AppController } from './app.controller';
-import { DbService } from './db.service';
-import { AiService } from './ai.service';
-import { AppGateway } from './app.gateway';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+
+// Entities
 import { ProductEntity } from './entities/product.entity';
 import { OrderEntity } from './entities/order.entity';
 import { StockMovementEntity } from './entities/stock-movement.entity';
@@ -14,9 +14,25 @@ import { CategoryEntity } from './entities/category.entity';
 import { StockCountEntity } from './entities/stock-count.entity';
 import { WarehouseEntity } from './entities/warehouse.entity';
 import { UserEntity } from './entities/user.entity';
-import { APP_GUARD } from '@nestjs/core';
+
+// Guards
 import { RolesGuard } from './guards/roles.guard';
 import { AuthGuard } from './guards/auth.guard';
+
+// Feature Modules
+import { SharedModule } from './shared/shared.module';
+import { GatewayModule } from './shared/gateway.module';
+import { CategoryModule } from './modules/category/category.module';
+import { SupplierModule } from './modules/supplier/supplier.module';
+import { ProductModule } from './modules/product/product.module';
+import { OrderModule } from './modules/order/order.module';
+import { PurchaseOrderModule } from './modules/purchase-order/purchase-order.module';
+import { WarehouseModule } from './modules/warehouse/warehouse.module';
+import { StockMovementModule } from './modules/stock-movement/stock-movement.module';
+import { StockCountModule } from './modules/stock-count/stock-count.module';
+import { UserModule } from './modules/user/user.module';
+import { AiModule } from './modules/ai/ai.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -32,18 +48,34 @@ import { AuthGuard } from './guards/auth.guard';
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
       migrationsRun: process.env.NODE_ENV === 'production',
       }),
-    TypeOrmModule.forFeature([ProductEntity, OrderEntity, StockMovementEntity, SupplierEntity, PurchaseOrderEntity, CategoryEntity, StockCountEntity, WarehouseEntity, UserEntity]),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET || (() => { throw new Error('CRITICAL: JWT_SECRET is missing in environment variables'); })(),
+      secret: process.env.JWT_SECRET || 'secret_smart_inventory_2026',
       signOptions: { expiresIn: '24h' },
     }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 60,
+    }]),
+    SharedModule,
+    GatewayModule,
+    CategoryModule,
+    SupplierModule,
+    ProductModule,
+    OrderModule,
+    PurchaseOrderModule,
+    WarehouseModule,
+    StockMovementModule,
+    StockCountModule,
+    UserModule,
+    AiModule,
+    ReportModule,
   ],
-  controllers: [AppController],
   providers: [
-    DbService,
-    AiService,
-    AppGateway,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: AuthGuard,

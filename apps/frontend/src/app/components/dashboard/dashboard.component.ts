@@ -92,8 +92,27 @@ import { Chart } from 'chart.js/auto';
       <div class="sidebar-card" style="grid-column: span 10; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; height: 285px;">
         <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.05em;">Son 7 Günün Stok Hareketi (Adet)</h4>
         <div style="flex: 1; position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-          <canvas #weeklyChart [style.display]="isChartEmpty ? 'none' : 'block'"></canvas>
-          @if (isChartEmpty) {
+          <canvas #weeklyChart [style.display]="(isChartEmpty || isWeeklyLoading) ? 'none' : 'block'"></canvas>
+          @if (isWeeklyLoading) {
+            <div class="chart-loading-state" style="display: flex; flex-direction: column; gap: 8px; width: 100%; height: 100%; justify-content: flex-end; padding: 10px 0; box-sizing: border-box;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-end; height: 100%; gap: 12px; padding: 0 10px;">
+                <div class="skeleton-bar" style="width: 12%; height: 40%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out;"></div>
+                <div class="skeleton-bar" style="width: 12%; height: 75%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.2s;"></div>
+                <div class="skeleton-bar" style="width: 12%; height: 50%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.4s;"></div>
+                <div class="skeleton-bar" style="width: 12%; height: 90%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.6s;"></div>
+                <div class="skeleton-bar" style="width: 12%; height: 30%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.8s;"></div>
+                <div class="skeleton-bar" style="width: 12%; height: 60%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 1.0s;"></div>
+                <div class="skeleton-bar" style="width: 12%; height: 45%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 1.2s;"></div>
+              </div>
+            </div>
+            <style>
+              @keyframes pulse {
+                0% { opacity: 0.4; }
+                50% { opacity: 0.8; }
+                100% { opacity: 0.4; }
+              }
+            </style>
+          } @else if (isChartEmpty) {
             <div class="chart-empty-state" style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-muted); gap: 10px; width: 100%; height: 100%; padding: 1rem; box-sizing: border-box;">
               <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="color: var(--secondary-focus);">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v16.5c0 .621.504 1.125 1.125 1.125h16.5m-15.375-3h15m-15-3.75h12m-12-3.75h9m-9-3.75h3" />
@@ -220,6 +239,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   aiPrompt = '';
   isBannerDismissed = false;
   isChartEmpty = false;
+  isWeeklyLoading = true;
 
   @ViewChild('weeklyChart') weeklyCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('categoryChart') categoryCanvas!: ElementRef<HTMLCanvasElement>;
@@ -285,92 +305,99 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    this.inventoryService.getStockMovements(undefined, 1, 100).subscribe(res => {
-      const movements = res.data || [];
-      for (const m of movements) {
-        const mDate = new Date(m.createdAt);
-        if (mDate.getTime() >= sevenDaysAgo.getTime()) {
-          const key = mDate.toDateString();
-          if (daysMap[key]) {
-            const qty = m.quantity || 0;
-            if (qty > 0) {
-              daysMap[key].in += qty;
-            } else {
-              daysMap[key].out += Math.abs(qty);
+    this.isWeeklyLoading = true;
+    this.inventoryService.getStockMovements(undefined, 1, 100).subscribe({
+      next: res => {
+        const movements = res.data || [];
+        for (const m of movements) {
+          const mDate = new Date(m.createdAt);
+          if (mDate.getTime() >= sevenDaysAgo.getTime()) {
+            const key = mDate.toDateString();
+            if (daysMap[key]) {
+              const qty = m.quantity || 0;
+              if (qty > 0) {
+                daysMap[key].in += qty;
+              } else {
+                daysMap[key].out += Math.abs(qty);
+              }
             }
           }
         }
-      }
 
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const key = d.toDateString();
-        entries.push(daysMap[key].in);
-        exits.push(daysMap[key].out);
-      }
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const key = d.toDateString();
+          entries.push(daysMap[key].in);
+          exits.push(daysMap[key].out);
+        }
 
-      const isDataEmpty = entries.every(v => v === 0) && exits.every(v => v === 0);
-      this.isChartEmpty = isDataEmpty;
+        const isDataEmpty = entries.every(v => v === 0) && exits.every(v => v === 0);
+        this.isChartEmpty = isDataEmpty;
 
-      if (!isDataEmpty && this.weeklyCanvas) {
-        const ctx = this.weeklyCanvas.nativeElement.getContext('2d');
-        if (ctx) {
-          this.weeklyChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels,
-              datasets: [
-                {
-                  label: 'Giriş',
-                  data: entries,
-                  backgroundColor: '#4F46E5', /* Indigo */
-                  borderRadius: 3
-                },
-                {
-                  label: 'Çıkış',
-                  data: exits,
-                  backgroundColor: '#8B5CF6', /* Violet */
-                  borderRadius: 3
-                }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: function(context: any) {
-                      let label = context.dataset.label || '';
-                      if (label) {
-                        label += ': ';
+        if (!isDataEmpty && this.weeklyCanvas) {
+          const ctx = this.weeklyCanvas.nativeElement.getContext('2d');
+          if (ctx) {
+            this.weeklyChartInstance = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels,
+                datasets: [
+                  {
+                    label: 'Giriş',
+                    data: entries,
+                    backgroundColor: '#4F46E5', /* Indigo */
+                    borderRadius: 3
+                  },
+                  {
+                    label: 'Çıkış',
+                    data: exits,
+                    backgroundColor: '#8B5CF6', /* Violet */
+                    borderRadius: 3
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context: any) {
+                        let label = context.dataset.label || '';
+                        if (label) {
+                          label += ': ';
+                        }
+                        if (context.parsed.y !== null) {
+                          label += context.parsed.y + ' Adet';
+                        }
+                        return label;
                       }
-                      if (context.parsed.y !== null) {
-                        label += context.parsed.y + ' Adet';
-                      }
-                      return label;
                     }
                   }
-                }
-              },
-              scales: {
-                y: { 
-                  beginAtZero: true, 
-                  grid: { color: '#f3f4f6' }, 
-                  ticks: { 
-                    font: { size: 9, family: 'Inter' },
-                    callback: function(value: any) {
-                      return value + ' Adet';
-                    }
-                  } 
                 },
-                x: { grid: { display: false }, ticks: { font: { size: 9, family: 'Inter' } } }
+                scales: {
+                  y: { 
+                    beginAtZero: true, 
+                    grid: { color: '#f3f4f6' }, 
+                    ticks: { 
+                      font: { size: 9, family: 'Inter' },
+                      callback: function(value: any) {
+                        return value + ' Adet';
+                      }
+                    } 
+                  },
+                  x: { grid: { display: false }, ticks: { font: { size: 9, family: 'Inter' } } }
+                }
               }
-            }
-          });
+            });
+          }
         }
+        this.isWeeklyLoading = false;
+      },
+      error: () => {
+        this.isWeeklyLoading = false;
       }
     });
 

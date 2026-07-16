@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DbService } from './db.service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ProductService } from '../product/product.service';
+import { OrderService } from '../order/order.service';
+import { PurchaseOrderService } from '../purchase-order/purchase-order.service';
+import { StockMovementService } from '../stock-movement/stock-movement.service';
+import { SupplierService } from '../supplier/supplier.service';
+import { CategoryService } from '../category/category.service';
+import { StockCountService } from '../stock-count/stock-count.service';
 
 export interface AiResponseCard {
   title: string;
@@ -43,7 +49,15 @@ export class AiService {
   private readonly MAX_PRODUCTS_IN_PROMPT = 100;
   private readonly MAX_ORDERS_IN_PROMPT = 200;
 
-  constructor(private dbService: DbService) {
+  constructor(
+    private productService: ProductService,
+    private orderService: OrderService,
+    private poService: PurchaseOrderService,
+    private stockMovementService: StockMovementService,
+    private supplierService: SupplierService,
+    private categoryService: CategoryService,
+    private stockCountService: StockCountService,
+  ) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       this.genAI = new GoogleGenerativeAI(apiKey);
@@ -106,10 +120,10 @@ export class AiService {
           },
         });
 
-        const products = await this.dbService.getProducts();
-        const orders = await this.dbService.getOrders();
-        const suppliers = await this.dbService.getSuppliers();
-        const categories = await this.dbService.getCategories();
+        const products = await this.productService.getProducts();
+        const orders = await this.orderService.getOrders();
+        const suppliers = await this.supplierService.getSuppliers();
+        const categories = await this.categoryService.getCategories();
         const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
         const resultStream = await model.generateContentStream(systemPrompt);
@@ -130,10 +144,10 @@ export class AiService {
     // Phase 2: Local Ollama Streaming
     try {
       let fullText = '';
-      const products = await this.dbService.getProducts();
-      const orders = await this.dbService.getOrders();
-      const suppliers = await this.dbService.getSuppliers();
-      const categories = await this.dbService.getCategories();
+      const products = await this.productService.getProducts();
+      const orders = await this.orderService.getOrders();
+      const suppliers = await this.supplierService.getSuppliers();
+      const categories = await this.categoryService.getCategories();
       const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
       const response = await fetch(this.ollamaUrl, {
@@ -198,10 +212,10 @@ export class AiService {
       },
     });
 
-    const products = await this.dbService.getProducts();
-    const orders = await this.dbService.getOrders();
-    const suppliers = await this.dbService.getSuppliers();
-    const categories = await this.dbService.getCategories();
+    const products = await this.productService.getProducts();
+    const orders = await this.orderService.getOrders();
+    const suppliers = await this.supplierService.getSuppliers();
+    const categories = await this.categoryService.getCategories();
     const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
     const result = await model.generateContent(systemPrompt);
@@ -212,10 +226,10 @@ export class AiService {
 
   // ─── Ollama (Yerel LLM) ───────────────────────────────────────
   private async processWithOllama(query: string): Promise<AiResponseCard> {
-    const products = await this.dbService.getProducts();
-    const orders = await this.dbService.getOrders();
-    const suppliers = await this.dbService.getSuppliers();
-    const categories = await this.dbService.getCategories();
+    const products = await this.productService.getProducts();
+    const orders = await this.orderService.getOrders();
+    const suppliers = await this.supplierService.getSuppliers();
+    const categories = await this.categoryService.getCategories();
     const systemPrompt = this.buildSystemPrompt(products, orders, suppliers, categories, query);
 
     // AbortController ile 60 saniyelik timeout
@@ -305,11 +319,11 @@ export class AiService {
           const { productId, quantity, customerName, status } = action.payload;
           if (!productId) throw new Error('productId alanı zorunludur.');
           
-          const product = await this.dbService.getProductById(productId);
+          const product = await this.productService.getProductById(productId);
           if (!product) throw new Error(`Ürün bulunamadı: ID ${productId}`);
           
           const qty = parseInt(quantity, 10) || 1;
-          const order = await this.dbService.createOrder({
+          const order = await this.orderService.createOrder({
             customerName: customerName || 'Yapay Zeka Müşterisi',
             status: status || 'Pending',
             date: new Date().toISOString(),
@@ -330,16 +344,16 @@ export class AiService {
           const { supplierId, productId, quantity } = action.payload;
           if (!supplierId || !productId) throw new Error('supplierId ve productId alanları zorunludur.');
           
-          const supplier = await this.dbService.getSupplierById(supplierId);
+          const supplier = await this.supplierService.getSupplierById(supplierId);
           if (!supplier) throw new Error(`Tedarikçi bulunamadı: ID ${supplierId}`);
           
-          const product = await this.dbService.getProductById(productId);
+          const product = await this.productService.getProductById(productId);
           if (!product) throw new Error(`Ürün bulunamadı: ID ${productId}`);
           
           const qty = parseInt(quantity, 10) || 10;
           const price = parseFloat((product.price * 0.7).toFixed(2)); // Tedarik fiyatı %70 olsun
           
-          const po = await this.dbService.createPurchaseOrder({
+          const po = await this.poService.createPurchaseOrder({
             supplierId,
             supplierName: supplier.name,
             items: [{
@@ -363,7 +377,7 @@ export class AiService {
           if (!productId || newQuantity === undefined) throw new Error('productId ve newQuantity alanları zorunludur.');
           
           const qty = parseInt(newQuantity, 10);
-          const movement = await this.dbService.createManualAdjustment(productId, qty, note || 'AI Düzeltmesi', 'AI Assistant');
+          const movement = await this.stockMovementService.createManualAdjustment(productId, qty, note || 'AI Düzeltmesi', 'AI Assistant');
           return {
             success: true,
             message: `Stok miktarı ${qty} olarak düzeltildi.`,
@@ -376,7 +390,7 @@ export class AiService {
           if (!name || !category || price === undefined) throw new Error('name, category ve price alanları zorunludur.');
           
           const newSku = sku || `WC-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-          const prod = await this.dbService.createProduct({
+          const prod = await this.productService.createProduct({
             name,
             sku: newSku,
             category,
@@ -396,7 +410,7 @@ export class AiService {
           const { name, contactName, contactPerson, email, phone, address } = action.payload;
           if (!name) throw new Error('Tedarikçi adı (name) zorunludur.');
           
-          const supplier = await this.dbService.createSupplier({
+          const supplier = await this.supplierService.createSupplier({
             name,
             contactPerson: contactPerson || contactName,
             email,
@@ -414,7 +428,7 @@ export class AiService {
           const { name } = action.payload;
           if (!name) throw new Error('Kategori adı (name) zorunludur.');
           
-          const category = await this.dbService.createCategory({ name, slug: name.toLowerCase().replace(/\s+/g, '-') });
+          const category = await this.categoryService.createCategory({ name, slug: name.toLowerCase().replace(/\s+/g, '-') });
           return {
             success: true,
             message: `Yeni kategori eklendi: ${category.name}`,
@@ -424,7 +438,7 @@ export class AiService {
         
         case 'create_stock_count': {
           const { notes } = action.payload;
-          const count = await this.dbService.createStockCount(notes || 'AI Tarafından Başlatılan Sayım', 'AI Assistant');
+          const count = await this.stockCountService.createStockCount(notes || 'AI Tarafından Başlatılan Sayım', 'AI Assistant');
           return {
             success: true,
             message: `Yeni stok sayımı süreci başlatıldı (ID: ${count.id}).`,
@@ -727,8 +741,8 @@ User Question: "${query}"`;
 
     // 1. Yeni Sipariş Oluşturma (Sales Order)
     if (q.includes('sipariş oluştur') || q.includes('sipariş ver') || q.includes('sipariş ekle') || q.includes('yeni sipariş')) {
-      const products = await this.dbService.getProducts();
-      const matchedProduct = products.find(p => q.includes(p.name.toLowerCase()));
+      const products = await this.productService.getProducts();
+      const matchedProduct = products.find((p: any) => q.includes(p.name.toLowerCase()));
       
       if (matchedProduct) {
         let cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
@@ -836,8 +850,8 @@ User Question: "${query}"`;
 
     // 5. Manuel Stok Düzeltme
     if (q.includes('stok düzelt') || q.includes('stok güncelle') || q.includes('stoğu ayarla') || q.includes('stok ayarla')) {
-      const products = await this.dbService.getProducts();
-      const matchedProduct = products.find(p => q.includes(p.name.toLowerCase()));
+      const products = await this.productService.getProducts();
+      const matchedProduct = products.find((p: any) => q.includes(p.name.toLowerCase()));
       if (matchedProduct) {
         let cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
         let targetQty = 0;
@@ -872,11 +886,11 @@ User Question: "${query}"`;
 
     // 6. Satın Alma Siparişi / Tedarik Siparişi (Purchase Order)
     if (q.includes('tedarik siparişi') || q.includes('satın alma siparişi') || q.includes('po oluştur')) {
-      const suppliers = await this.dbService.getSuppliers();
-      const products = await this.dbService.getProducts();
+      const suppliers = await this.supplierService.getSuppliers();
+      const products = await this.productService.getProducts();
       
-      const matchedSupplier = suppliers.find(s => q.includes(s.name.toLowerCase()));
-      const matchedProduct = products.find(p => q.includes(p.name.toLowerCase()));
+      const matchedSupplier = suppliers.find((s: any) => q.includes(s.name.toLowerCase()));
+      const matchedProduct = products.find((p: any) => q.includes(p.name.toLowerCase()));
       
       if (matchedSupplier && matchedProduct) {
         let cleanQuery = query.toLowerCase()
@@ -943,11 +957,11 @@ User Question: "${query}"`;
   // ─── Fallback Yardımcı Metodlar ────────────────────────────────
 
   private async getInventoryValuation(): Promise<AiResponseCard> {
-    const products = await this.dbService.getProducts();
-    const totalValue = products.reduce((sum, p) => sum + (p.quantity * p.price), 0);
+    const products = await this.productService.getProducts();
+    const totalValue = products.reduce((sum: number, p: any) => sum + (p.quantity * p.price), 0);
 
     const categoryMap: Record<string, number> = {};
-    products.forEach(p => {
+    products.forEach((p: any) => {
       const val = p.quantity * p.price;
       categoryMap[p.category] = (categoryMap[p.category] || 0) + val;
     });
@@ -970,11 +984,11 @@ User Question: "${query}"`;
   }
 
   private async getCustomerAnalysis(): Promise<AiResponseCard> {
-    const orders = await this.dbService.getOrders();
-    const completed = orders.filter(o => o.status === 'Completed');
+    const orders = await this.orderService.getOrders();
+    const completed = orders.filter((o: any) => o.status === 'Completed');
 
     const customerMap: Record<string, { count: number; total: number }> = {};
-    completed.forEach(o => {
+    completed.forEach((o: any) => {
       if (!customerMap[o.customerName]) customerMap[o.customerName] = { count: 0, total: 0 };
       customerMap[o.customerName].count++;
       customerMap[o.customerName].total += o.totalAmount;
@@ -987,7 +1001,7 @@ User Question: "${query}"`;
         total: data.total,
         avg: data.total / data.count,
       }))
-      .sort((a, b) => b.total - a.total);
+      .sort((a: any, b: any) => b.total - a.total);
 
     return {
       title: 'Müşteri Analizi',
@@ -996,15 +1010,15 @@ User Question: "${query}"`;
       description: `${sorted.length} müşterinin harcama verileri analiz edildi.`,
       tableData: {
         headers: ['Müşteri', 'Sipariş Sayısı', 'Toplam Harcama (₺)', 'Ort. Sipariş (₺)'],
-        rows: sorted.map(c => [c.name, c.count, parseFloat(c.total.toFixed(2)), parseFloat(c.avg.toFixed(2))]),
+        rows: sorted.map((c: any) => [c.name, c.count, parseFloat(c.total.toFixed(2)), parseFloat(c.avg.toFixed(2))]),
       },
     };
   }
 
   private async getOrderStatusDistribution(): Promise<AiResponseCard> {
-    const orders = await this.dbService.getOrders();
+    const orders = await this.orderService.getOrders();
     const statusMap: Record<string, number> = { Completed: 0, Pending: 0, Cancelled: 0 };
-    orders.forEach(o => {
+    orders.forEach((o: any) => {
       statusMap[o.status] = (statusMap[o.status] || 0) + 1;
     });
 
@@ -1027,14 +1041,14 @@ User Question: "${query}"`;
   }
 
   private async getDashboardSummary(query: string): Promise<AiResponseCard> {
-    const products = await this.dbService.getProducts();
-    const orders = await this.dbService.getOrders();
-    const completedOrders = orders.filter(o => o.status === 'Completed');
+    const products = await this.productService.getProducts();
+    const orders = await this.orderService.getOrders();
+    const completedOrders = orders.filter((o: any) => o.status === 'Completed');
 
-    const totalRevenue = completedOrders.reduce((s, o) => s + o.totalAmount, 0);
-    const totalInventoryValue = products.reduce((s, p) => s + (p.quantity * p.price), 0);
-    const criticalCount = products.filter(p => p.quantity <= p.minQuantity).length;
-    const outOfStockCount = products.filter(p => p.quantity === 0).length;
+    const totalRevenue = completedOrders.reduce((s: number, o: any) => s + o.totalAmount, 0);
+    const totalInventoryValue = products.reduce((s: number, p: any) => s + (p.quantity * p.price), 0);
+    const criticalCount = products.filter((p: any) => p.quantity <= p.minQuantity).length;
+    const outOfStockCount = products.filter((p: any) => p.quantity === 0).length;
     const avgOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
 
     return {
@@ -1055,14 +1069,14 @@ User Question: "${query}"`;
   }
 
   private async getLeastSellingProducts(): Promise<AiResponseCard> {
-    const allOrders = await this.dbService.getOrders();
-    const orders = allOrders.filter(o => o.status === 'Completed');
-    const products = await this.dbService.getProducts();
+    const allOrders = await this.orderService.getOrders();
+    const orders = allOrders.filter((o: any) => o.status === 'Completed');
+    const products = await this.productService.getProducts();
 
     const salesMap: { [productId: string]: number } = {};
-    products.forEach(p => { salesMap[p.id] = 0; });
+    products.forEach((p: any) => { salesMap[p.id] = 0; });
 
-    orders.forEach(o => {
+    orders.forEach((o: any) => {
       o.items.forEach((item: any) => {
         if (salesMap[item.productId] !== undefined) {
           salesMap[item.productId] += item.quantity;
@@ -1071,8 +1085,8 @@ User Question: "${query}"`;
     });
 
     const sortedList = products
-      .map(p => ({ name: p.name, sales: salesMap[p.id] }))
-      .sort((a, b) => a.sales - b.sales)
+      .map((p: any) => ({ name: p.name, sales: salesMap[p.id] }))
+      .sort((a: any, b: any) => a.sales - b.sales)
       .slice(0, 5);
 
     return {
@@ -1082,10 +1096,10 @@ User Question: "${query}"`;
       thinking: 'Tamamlanan siparişlerdeki tüm kalemler taranıyor, her ürün için toplam satış adetleri toplanıyor. Satış adedi en düşük olan ilk 5 ürün belirleniyor.',
       description: 'Tamamlanan siparişlerde en düşük satış adedine sahip 5 ürün.',
       chartData: {
-        labels: sortedList.map(item => item.name),
+        labels: sortedList.map((item: any) => item.name),
         datasets: [{
           label: 'Satış Adedi',
-          data: sortedList.map(item => item.sales),
+          data: sortedList.map((item: any) => item.sales),
           backgroundColor: ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE'],
         }],
       },
@@ -1093,14 +1107,14 @@ User Question: "${query}"`;
   }
 
   private async getMostSellingProducts(): Promise<AiResponseCard> {
-    const allOrders = await this.dbService.getOrders();
-    const orders = allOrders.filter(o => o.status === 'Completed');
-    const products = await this.dbService.getProducts();
+    const allOrders = await this.orderService.getOrders();
+    const orders = allOrders.filter((o: any) => o.status === 'Completed');
+    const products = await this.productService.getProducts();
 
     const salesMap: { [productId: string]: number } = {};
-    products.forEach(p => { salesMap[p.id] = 0; });
+    products.forEach((p: any) => { salesMap[p.id] = 0; });
 
-    orders.forEach(o => {
+    orders.forEach((o: any) => {
       o.items.forEach((item: any) => {
         if (salesMap[item.productId] !== undefined) {
           salesMap[item.productId] += item.quantity;
@@ -1109,8 +1123,8 @@ User Question: "${query}"`;
     });
 
     const sortedList = products
-      .map(p => ({ name: p.name, sales: salesMap[p.id] }))
-      .sort((a, b) => b.sales - a.sales)
+      .map((p: any) => ({ name: p.name, sales: salesMap[p.id] }))
+      .sort((a: any, b: any) => b.sales - a.sales)
       .slice(0, 5);
 
     return {
@@ -1120,10 +1134,10 @@ User Question: "${query}"`;
       thinking: 'Tamamlanan sipariş verileri üzerinden ürün bazında satış adetleri toplanıyor ve en yüksek satış miktarına sahip ilk 5 ürün listeleniyor.',
       description: 'Toplam sipariş hacmine göre en yüksek satış adetli ürünler.',
       chartData: {
-        labels: sortedList.map(item => item.name),
+        labels: sortedList.map((item: any) => item.name),
         datasets: [{
           label: 'Satış Payı',
-          data: sortedList.map(item => item.sales),
+          data: sortedList.map((item: any) => item.sales),
           backgroundColor: ['#0EA5E9', '#38BDF8', '#7DD3FC', '#BAE6FD', '#E0F2FE'],
         }],
       },
@@ -1131,8 +1145,8 @@ User Question: "${query}"`;
   }
 
   private async getCriticalStockProducts(): Promise<AiResponseCard> {
-    const products = await this.dbService.getProducts();
-    const criticalProducts = products.filter(p => p.quantity <= p.minQuantity);
+    const products = await this.productService.getProducts();
+    const criticalProducts = products.filter((p: any) => p.quantity <= p.minQuantity);
 
     return {
       title: 'Kritik Stok Seviyesindeki Ürünler',
@@ -1141,14 +1155,14 @@ User Question: "${query}"`;
       description: `Stok seviyesi minimum limitin altına düşmüş veya tükenmiş ${criticalProducts.length} ürün tespit edildi.`,
       tableData: {
         headers: ['Ürün Adı', 'SKU', 'Mevcut Stok', 'Minimum Limit'],
-        rows: criticalProducts.map(p => [p.name, p.sku, p.quantity, p.minQuantity]),
+        rows: criticalProducts.map((p: any) => [p.name, p.sku, p.quantity, p.minQuantity]),
       },
     };
   }
 
   private async getSalesSummary(): Promise<AiResponseCard> {
-    const allOrders = await this.dbService.getOrders();
-    const orders = allOrders.filter(o => o.status === 'Completed');
+    const allOrders = await this.orderService.getOrders();
+    const orders = allOrders.filter((o: any) => o.status === 'Completed');
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

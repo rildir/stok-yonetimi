@@ -2,7 +2,12 @@ import { WebSocketGateway, WebSocketServer, OnGatewayInit, OnGatewayConnection, 
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+    credentials: true
+  }
+})
 export class AppGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 

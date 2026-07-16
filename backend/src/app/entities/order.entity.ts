@@ -13,8 +13,8 @@ export class OrderEntity {
   customerName: string;
 
   @Index()
-  @Column()
-  date: string;
+  @Column('datetime', { default: () => 'CURRENT_TIMESTAMP' })
+  date: Date;
 
   @Index()
   @Column()

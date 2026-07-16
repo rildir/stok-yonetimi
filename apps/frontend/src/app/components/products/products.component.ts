@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, HostListener, effect } from '@angular/core';
 import { CommonModule, registerLocaleData } from '@angular/common';
 import localeTr from '@angular/common/locales/tr';
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
@@ -88,85 +88,206 @@ registerLocaleData(localeTr);
 }
   `],
   template: `
-    <header class="page-header">
-      <div>
-        <h1>Ürün Yönetimi</h1>
-        <p>İşletmenizin stoklarını ve ürün detaylarını buradan yönetin.</p>
+    <!-- Redesigned Mockup Sub-Header Controls Toolbar -->
+    <div class="toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px 16px;">
+      <!-- Left side: Dropdown selectors & toggles -->
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <!-- Table View / Grid View Selector Dropdown -->
+        <div class="custom-select-wrapper" style="width: 170px;" (click)="$event.stopPropagation()">
+          <div class="custom-select-trigger" (click)="isViewDropdownOpen.update(v => !v); isSortDropdownOpen.set(false)" [class.open]="isViewDropdownOpen()" style="height: 38px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8rem; font-weight: 500; font-family: var(--font-body); padding: 0 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s ease;">
+            <span class="selected-text" style="display: flex; align-items: center; gap: 8px;">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+              {{ isTableView() ? 'Tablo Görünümü' : 'Kart Görünümü' }}
+            </span>
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          @if (isViewDropdownOpen()) {
+            <div class="custom-select-dropdown" style="z-index: 2000; width: 100%; border-radius: 8px; position: absolute; top: calc(100% + 4px); left: 0; background: #FFFFFF; border: 1px solid #E2E8F0; box-shadow: var(--shadow-lg); max-height: 220px; overflow-y: auto;">
+              <div class="custom-option" (click)="isTableView.set(true); isViewDropdownOpen.set(false)" style="padding: 0.65rem 0.85rem; font-size: 0.8rem; font-family: var(--font-body); display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #F1F5F9;">
+                <span class="opt-name" [style.fontWeight]="isTableView() ? 'bold' : 'normal'">Tablo Görünümü</span>
+              </div>
+              <div class="custom-option" (click)="isTableView.set(false); isViewDropdownOpen.set(false)" style="padding: 0.65rem 0.85rem; font-size: 0.8rem; font-family: var(--font-body); display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                <span class="opt-name" [style.fontWeight]="!isTableView() ? 'bold' : 'normal'">Kart Görünümü</span>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Filter toggle -->
+        <button type="button" class="btn" (click)="toggleFilters()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 12px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer; transition: all 0.2s;" [style.backgroundColor]="showFilters() ? '#F8FAFC' : '#FFFFFF'">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+          Filtrele
+        </button>
+
+        <!-- Sort Select Box redesigned as custom select -->
+        <div class="custom-select-wrapper" style="width: 190px;" (click)="$event.stopPropagation()">
+          <div class="custom-select-trigger" (click)="isSortDropdownOpen.update(v => !v); isViewDropdownOpen.set(false)" [class.open]="isSortDropdownOpen()" style="height: 38px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8rem; font-weight: 500; font-family: var(--font-body); padding: 0 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s ease;">
+            <span class="selected-text" style="display: flex; align-items: center; gap: 8px;">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
+              {{ 
+                productSortOption() === 'stock-desc' ? 'En Çok Stok' : 
+                productSortOption() === 'stock-asc' ? 'En Az Stok' : 
+                productSortOption() === 'price-asc' ? 'Fiyat ↑' : 
+                productSortOption() === 'price-desc' ? 'Fiyat ↓' : 
+                productSortOption() === 'name-asc' ? 'A-Z' : 'Varsayılan Sıralama' 
+              }}
+            </span>
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          @if (isSortDropdownOpen()) {
+            <div class="custom-select-dropdown" style="z-index: 2000; width: 100%; border-radius: 8px; position: absolute; top: calc(100% + 4px); left: 0; background: #FFFFFF; border: 1px solid #E2E8F0; box-shadow: var(--shadow-lg); max-height: 220px; overflow-y: auto;">
+              @for (opt of [
+                {id: 'default', label: 'Varsayılan Sıralama'},
+                {id: 'stock-desc', label: 'En Çok Stok'},
+                {id: 'stock-asc', label: 'En Az Stok'},
+                {id: 'price-asc', label: 'Fiyat ↑'},
+                {id: 'price-desc', label: 'Fiyat ↓'},
+                {id: 'name-asc', label: 'A-Z'}
+              ]; track opt.id) {
+                <div class="custom-option" (click)="productSortOption.set(opt.id); isSortDropdownOpen.set(false)" style="padding: 0.65rem 0.85rem; font-size: 0.8rem; font-family: var(--font-body); display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #F1F5F9;">
+                  <span class="opt-name" [style.fontWeight]="productSortOption() === opt.id ? 'bold' : 'normal'">{{ opt.label }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Show Statistics Toggle Redesigned -->
+        <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
+          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">İstatistikleri Göster</span>
+          <button type="button" (click)="toggleStats()" style="border: none; background: none; padding: 0; cursor: pointer; display: flex; align-items: center; width: 44px; height: 24px; border-radius: 12px; border: 1px solid #E2E8F0; transition: background-color 0.2s;" [style.backgroundColor]="showStats() ? '#FF5A1F' : '#E2E8F0'">
+            <div style="width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s;" [style.transform]="showStats() ? 'translateX(22px)' : 'translateX(2px)'"></div>
+          </button>
+        </div>
       </div>
-      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
-        <button class="btn btn-outline" (click)="fileInput.click()" title="CSV'den İçe Aktar">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+
+      <!-- Right side: Export, Customize, Add Product -->
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button type="button" class="btn" (click)="fileInput.click()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 14px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
           İçe Aktar
         </button>
         <input type="file" #fileInput accept=".csv" style="display: none" (change)="importFromCSV($event)" />
-        <button class="btn btn-outline" (click)="exportToCSV()" title="CSV Olarak İndir">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+
+        <button type="button" class="btn" (click)="exportToCSV()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 14px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Dışa Aktar
         </button>
-        <button class="btn btn-outline" (click)="printProducts()" title="Yazdır / PDF">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+
+        <button type="button" class="btn" (click)="printProducts()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 14px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
           Yazdır
         </button>
-        <button class="btn btn-primary" (click)="openAddProduct()">+ Yeni Ürün Ekle</button>
-        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
-        <button class="btn btn-outline" (click)="ui.toggleAiPanel()">
-          <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #9333ea; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          Yapay Zeka Asistanı
+
+        <button type="button" class="btn" (click)="openAddProduct()" style="border: none; background: #0F172A; color: #FFFFFF; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 16px; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm); transition: background-color 0.2s; cursor: pointer;" onmouseover="this.style.backgroundColor='#1F2937'" onmouseout="this.style.backgroundColor='#0F172A'">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Yeni Ürün Ekle
         </button>
       </div>
-    </header>
-
-    <!-- Search & Filter Bar -->
-    <div class="filter-bar" style="background-color: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 4px; padding: 12px; margin-bottom: 1rem;">
-      <div class="search-box" style="flex: 1;">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="text" placeholder="Ürün adı, SKU veya kategori ara..." [value]="productSearch()" (input)="onSearchInput($event)"/>
-      </div>
-      <button class="btn btn-outline btn-scan" (click)="openScanner()" title="Barkod Tara" style="border-radius: 20px; height: 38px;">
-        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
-        Tara
-      </button>
     </div>
+
+    <!-- Redesigned Mockup Statistics Grid (Collapsible) -->
+    @if (showStats()) {
+      <div class="stats-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 1.5rem;">
+        <!-- Card 1: Toplam Ürün -->
+        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">Toplam Ürün</span>
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 1.85rem; font-weight: bold; color: #0F172A;">{{ state.products().length }}</span>
+            <span class="badge-instock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">+3 yeni</span>
+          </div>
+          <span style="font-size: 0.72rem; color: #64748B;">geçen aya göre</span>
+        </div>
+
+        <!-- Card 2: Toplam Değer (Gelir) -->
+        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">Toplam Stok Değeri</span>
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 1.85rem; font-weight: bold; color: #0F172A; font-family: var(--font-mono);">₺{{ getTotalValue() | number:'1.0-0':'tr' }}</span>
+            <span class="badge-instock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">↑ 9%</span>
+          </div>
+          <span style="font-size: 0.72rem; color: #64748B;">geçen aya göre</span>
+        </div>
+
+        <!-- Card 3: Kritik Stoktaki Ürünler -->
+        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">Kritik Stok</span>
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 1.85rem; font-weight: bold; color: #F97316;">{{ state.lowStockCount() }}</span>
+            <span class="badge-lowstock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">↑ 7%</span>
+          </div>
+          <span style="font-size: 0.72rem; color: #64748B;">geçen aya göre</span>
+        </div>
+
+        <!-- Card 4: Tükenen Ürünler -->
+        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">Tükenen Ürün</span>
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 1.85rem; font-weight: bold; color: #EF4444;">{{ state.outOfStockCount() }}</span>
+            <span class="badge-outstock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">↓ 5%</span>
+          </div>
+          <span style="font-size: 0.72rem; color: #64748B;">geçen aya göre</span>
+        </div>
+      </div>
+    }
 
     <!-- Ecelon Style Two-Column Layout -->
     <div class="ecelon-search-layout" style="display: flex; gap: 1.5rem; align-items: start; width: 100%;">
-      <!-- Left Sidebar Refinements -->
-      <aside class="ecelon-refiner" style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1.25rem; background: var(--surface-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-        <!-- Category refinement -->
-        <div>
-          <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Kategoriler</h4>
-          <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
-            <li>
-              <a href="#" (click)="productSearch.set(''); $event.preventDefault()" [style.fontWeight]="!productSearch() ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">Tüm Kategoriler</a>
-            </li>
-            @for (cat of categories(); track cat.id) {
-              <li>
-                <a href="#" (click)="productSearch.set(cat.name); $event.preventDefault()" [style.fontWeight]="productSearch() === cat.name ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">{{ cat.name }}</a>
-              </li>
-            }
-          </ul>
-        </div>
-        
-        <!-- Stock status refinement -->
-        <div>
-          <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Stok Durumu</h4>
-          <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
-            @for (st of [{id:'all', label:'Tümü'}, {id:'In stock', label:'Stokta var'}, {id:'Low stock', label:'Azalıyor'}, {id:'Out of stock', label:'Tükendi'}]; track st.id) {
-              <li>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #0F1111; font-size: 13px;">
-                  <input type="radio" name="stockFilter" [checked]="productFilterStatus() === st.id" (change)="productFilterStatus.set($any(st.id))" style="cursor: pointer;" />
-                  <span>{{ st.label }}</span>
-                </label>
-              </li>
-            }
-          </ul>
-        </div>
-      </aside>
+      <!-- Left Sidebar Refinements (Collapsible) -->
+      @if (showFilters()) {
+        <aside class="ecelon-refiner" style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1.25rem; background: var(--surface-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
+          <!-- Arama Input inside filters -->
+          <div>
+            <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Arama</h4>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="text" placeholder="Ürün adı, SKU..." [value]="productSearch()" (input)="onSearchInput($event)" style="width:100%; border: 1px solid #E2E8F0; border-radius:6px; padding:6px 28px 6px 10px; font-size:13px; outline:none;"/>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="position: absolute; right: 8px; color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+          </div>
 
+          <!-- Category refinement -->
+          <div>
+            <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Kategoriler</h4>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
+              <li>
+                <a href="#" (click)="productSearch.set(''); $event.preventDefault()" [style.fontWeight]="!productSearch() ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">Tüm Kategoriler</a>
+              </li>
+              @for (cat of categories(); track cat.id) {
+                <li>
+                  <a href="#" (click)="productSearch.set(cat.name); $event.preventDefault()" [style.fontWeight]="productSearch() === cat.name ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">{{ cat.name }}</a>
+                </li>
+              }
+            </ul>
+          </div>
+          
+          <!-- Stock status refinement -->
+          <div>
+            <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">Stok Durumu</h4>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
+              @for (st of [{id:'all', label:'Tümü'}, {id:'In stock', label:'Stokta var'}, {id:'Low stock', label:'Azalıyor'}, {id:'Out of stock', label:'Tükendi'}]; track st.id) {
+                <li>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #0F1111; font-size: 13px;">
+                    <input type="radio" name="stockFilter" [checked]="productFilterStatus() === st.id" (change)="productFilterStatus.set($any(st.id))" style="cursor: pointer;" />
+                    <span>{{ st.label }}</span>
+                  </label>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <!-- Barkod Tara Button -->
+          <button class="btn btn-outline btn-scan" (click)="openScanner()" title="Barkod Tara" style="border-radius: 20px; height: 38px; justify-content: center; cursor: pointer;">
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+            Barkod Tara
+          </button>
+        </aside>
+      }
+
+      <!-- Right Main Content Panel -->
       <!-- Right Main Content Panel -->
       <div class="ecelon-results-main" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
         <!-- Header with item count and sorting selection -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; border: 1px solid #D5D9D9; border-radius: 8px; padding: 12px 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px 16px;">
           <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
             <div style="font-size: 14px; color: #565959;">
               En çok eşleşen <strong>{{ filteredProducts().length }} sonuç</strong> gösteriliyor
@@ -177,139 +298,289 @@ registerLocaleData(localeTr);
                 <button (click)="clearWarehouseFilter()" style="background: none; border: none; color: inherit; cursor: pointer; font-weight: bold; margin-left: 2px; font-size: 0.85rem; padding: 0 2px; line-height: 1;">✕</button>
               </div>
             }
-            <!-- Sorting Control -->
-            <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #0F1111;">
-              <span style="color: #565959;">Sıralama:</span>
-              <select [value]="productSortOption()" (change)="onSortChange($event)" style="padding: 4px 8px; border: 1px solid #D5D9D9; border-radius: 4px; background: #FFF; outline: none; font-size: 13px; cursor: pointer;">
-                <option value="default">Varsayılan</option>
-                <option value="stock-desc">En Çok Stok</option>
-                <option value="stock-asc">En Az Stok</option>
-                <option value="price-asc">Fiyat ↑</option>
-                <option value="price-desc">Fiyat ↓</option>
-                <option value="name-asc">A-Z</option>
-              </select>
-            </div>
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
             <!-- Select all checkbox -->
-            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: #007185;">
-              <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" style="cursor: pointer;" />
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: #0F172A; font-weight: 500;">
+              <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" style="cursor: pointer; accent-color: #FF5A1F;" />
               <span>Tümünü Seç</span>
             </label>
           </div>
         </div>
 
-        <!-- Sticky Column Headers -->
-        <div class="list-headers" style="display: flex; align-items: center; background: var(--canvas); border-bottom: 2px solid var(--border-color); padding: 8px 16px; margin-bottom: 4px; font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: none; letter-spacing: 0.05em;">
-          <div style="width: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">Seç</div>
-          <div style="width: 130px; flex-shrink: 0; text-align: center;">Görsel</div>
-          <div style="flex: 1; display: flex; padding-left: 16px;">
-            <div style="width: 45%; text-align: left;">Ürün & SKU & Kategori</div>
-            <div style="width: 25%; text-align: left; padding-left: 8px;">Stok durumu</div>
-            <div style="width: 30%; text-align: left; padding-left: 8px;">Mevcut / kritik</div>
+        @if (isTableView()) {
+          <!-- Sticky Column Headers -->
+          <div class="list-headers" style="display: flex; align-items: center; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; padding: 12px 16px; margin-bottom: 4px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 8px 8px 0 0;">
+            <div style="width: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">Seç</div>
+            <div style="flex: 2; text-align: left; padding-left: 12px; min-width: 240px;">Ürün</div>
+            <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px;">Fiyat</div>
+            <div style="flex: 0.8; text-align: right; padding-right: 12px; min-width: 80px;">Satış</div>
+            <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px;">Gelir</div>
+            <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px;">Stok</div>
+            <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 110px;">Durum</div>
+            <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px;">Değerlendirme</div>
+            <div style="width: 140px; text-align: right; padding-right: 8px; flex-shrink: 0;">İşlemler</div>
           </div>
-          <div style="width: 140px; text-align: right; padding-right: 16px; flex-shrink: 0;">Birim fiyat</div>
-          <div style="width: 180px; text-align: right; padding-right: 16px; flex-shrink: 0;">İşlemler</div>
-        </div>
 
-        <!-- Result Cards Stack -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          @for (p of filteredProducts(); track p.id) {
-            <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" style="display: flex; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-card); overflow: visible; position: relative; transition: all 0.2s; box-shadow: var(--shadow-sm);">
-              <!-- Checkbox on card -->
-              <div style="padding: 1rem 0.5rem 1rem 1rem; display: flex; align-items: center; justify-content: center;">
-                <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 16px; height: 16px;" />
-              </div>
-              
-              <!-- Product Image on Left -->
-              <div style="width: 130px; height: 130px; padding: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #FAFAFA; border-right: 1px solid #F0F2F2;">
-                @if (p.imageUrl) {
-                  <img [src]="p.imageUrl" alt="Ürün" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
-                } @else {
-                  <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #888; font-size: 11px; background: #EEE; border-radius: 4px;">
-                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity: 0.5; margin-bottom: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Görsel Yok
+          <!-- Result Cards Stack -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            @for (p of paginatedProducts(); track p.id) {
+              <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" 
+                   style="display: flex; align-items: center; padding: 10px 16px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; transition: all 0.2s; position: relative;"
+                   [style.borderLeft]="isProductSelected(p.id) ? '4px solid #FF5A1F' : '1px solid #E2E8F0'"
+                   [style.backgroundColor]="isProductSelected(p.id) ? '#FFF7F5' : '#FFFFFF'">
+                
+                <!-- Checkbox -->
+                <div style="width: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 15px; height: 15px; accent-color: #FF5A1F;" />
+                </div>
+                
+                <!-- Product (Görsel & Name & SKU & Kategori) -->
+                <div style="flex: 2; display: flex; align-items: center; gap: 12px; padding-left: 12px; min-width: 240px; overflow: hidden;">
+                  <!-- Product Image -->
+                  <div style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; overflow: hidden;">
+                    @if (p.imageUrl) {
+                      <img [src]="p.imageUrl" alt="Ürün" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                    } @else {
+                      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity: 0.3;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    }
                   </div>
-                }
-              </div>
-
-              <!-- Product Details in Center -->
-              <div style="flex: 1; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                <!-- Column 1: Name, SKU, Category -->
-                <div style="width: 45%; display: flex; flex-direction: column; gap: 4px;">
-                  <h3 style="font-size: 15px; font-weight: bold; margin: 0; line-height: 1.3;">
-                    <a href="#" (click)="$event.preventDefault(); openEditProduct(p)" style="color: #007185; text-decoration: none;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">
+                  <!-- Details -->
+                  <div style="display: flex; flex-direction: column; overflow: hidden;">
+                    <a href="#" (click)="$event.preventDefault(); openEditProduct(p)" style="font-size: 0.85rem; font-weight: 600; color: #0F172A; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" onmouseover="this.style.color='#FF5A1F'" onmouseout="this.style.color='#0F172A'">
                       {{ p.name }}
                     </a>
-                  </h3>
-                  <div style="font-size: 12px; color: #565959; display: flex; flex-direction: column; gap: 2px;">
-                    <span>SKU: <strong style="font-family: var(--font-mono); color: #0F1111;">{{ p.sku }}</strong></span>
-                    <span>Kategori: <strong>{{ getCategoryName(p.category) }}</strong></span>
+                    <span style="font-size: 0.72rem; color: #64748B; font-family: var(--font-mono); margin-top: 1px;">
+                      SKU: {{ p.sku }} • {{ getCategoryName(p.category) }}
+                    </span>
                   </div>
                 </div>
 
-                <!-- Column 2: Stock status -->
-                <div style="width: 25%; display: flex; justify-content: flex-start; align-items: center;">
+                <!-- Price -->
+                <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px; font-weight: 600; color: #0F172A; font-family: var(--font-mono); font-size: 0.85rem;">
+                  {{ p.price | currency:'TRY':'symbol':'1.2-2':'tr' }}
+                </div>
+
+                <!-- Sales (Mocked) -->
+                <div style="flex: 0.8; text-align: right; padding-right: 12px; min-width: 80px; font-size: 0.85rem; color: #475569; font-weight: 500;">
+                  {{ getMockSales(p) }}
+                </div>
+
+                <!-- Revenue (Mocked) -->
+                <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px; font-weight: 600; color: #0F172A; font-family: var(--font-mono); font-size: 0.85rem;">
+                  {{ getMockRevenue(p) | currency:'TRY':'symbol':'1.0-0':'tr' }}
+                </div>
+
+                <!-- Stock -->
+                <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px; font-size: 0.85rem; color: #475569; position: relative;">
+                  <span (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)" style="cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                    {{ p.quantity }} {{ p.unit || 'Adet' }}
+                    @if (p.quantity <= p.minQuantity && p.quantity > 0) {
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#F97316" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    } @else if (p.quantity === 0) {
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#EF4444" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    }
+                  </span>
+                  
+                  <!-- Warehouse Tooltip -->
+                  @if (p.warehouses && hoveredProductId() === p.id) {
+                    <div class="warehouse-tooltip" style="display:block; position: absolute; bottom: 25px; left: 12px;">
+                      <div class="wh-tooltip-title">Depo Dağılımı</div>
+                      @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
+                        <div class="wh-tooltip-row">
+                          <span>{{ wh.name }}</span>
+                          <strong>{{ wh.qty }}</strong>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+
+                <!-- Status -->
+                <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 110px;">
                   <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
                     {{ p.status === 'In stock' ? 'Stokta var' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
                   </span>
                 </div>
 
-                <!-- Column 3: Quantity / Critical -->
-                <div style="width: 30%; display: flex; justify-content: flex-start; align-items: center; position: relative;">
-                  <span style="font-size: 12px; color: #0F1111; font-weight: 500;" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
-                    Mevcut: <strong>{{ p.quantity }} {{ p.unit || 'Adet' }}</strong> <br/>
-                    <span style="font-size: 11px; color: var(--text-muted);">Kritik: {{ p.minQuantity }}</span>
-                    @if (p.warehouses && hoveredProductId() === p.id) {
-                      <div class="warehouse-tooltip" style="display:block; position: absolute; bottom: 25px; left: 50px;">
-                        <div class="wh-tooltip-title">Depo Dağılımı</div>
-                        @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
-                          <div class="wh-tooltip-row">
-                            <span>{{ wh.name }}</span>
-                            <strong>{{ wh.qty }}</strong>
-                          </div>
-                        }
-                      </div>
-                    }
+                <!-- Rating (Mocked Stars) -->
+                <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px; display: flex; align-items: center; gap: 2px;">
+                  @for (star of getMockStarsArray(p); track $index) {
+                    <svg width="13" height="13" fill="#FBBF24" viewBox="0 0 20 20" style="color: #FBBF24;">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                  }
+                  @if (getMockStarsRemainder(p)) {
+                    <svg width="13" height="13" fill="none" viewBox="0 0 20 20" stroke="#FBBF24" stroke-width="2" style="position: relative; display: inline-block;">
+                      <defs>
+                        <linearGradient id="halfStar">
+                          <stop offset="50%" stop-color="#FBBF24"/>
+                          <stop offset="50%" stop-color="transparent"/>
+                        </linearGradient>
+                      </defs>
+                      <path fill="url(#halfStar)" stroke="#FBBF24" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                  }
+                  <span style="font-size: 0.72rem; color: #64748B; margin-left: 2px;">{{ getMockRatingValue(p) }}</span>
+                </div>
+
+                <!-- Actions (circular buttons or mockup-themed options) -->
+                <div style="width: 140px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; padding-right: 8px;">
+                  <button type="button" (click)="openEditProduct(p)" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'" title="Düzenle">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                  </button>
+                  <button type="button" (click)="openTransferModal(p)" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'" title="Depo Transfer">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                  </button>
+                  <button type="button" (click)="promptDeleteProduct(p)" style="border: 1px solid #FEE2E2; background: #FFFFFF; color: #EF4444; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#FEF2F2'; this.style.borderColor='#FCA5A5'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#FEE2E2'" title="Sil">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+
+              </div>
+            }
+          </div>
+        } @else {
+          <!-- Card View Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            @for (p of paginatedProducts(); track p.id) {
+              <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" 
+                   style="display: flex; flex-direction: column; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; transition: all 0.2s; position: relative; gap: 12px;"
+                   [style.borderLeft]="isProductSelected(p.id) ? '4px solid #FF5A1F' : '1px solid #E2E8F0'"
+                   [style.backgroundColor]="isProductSelected(p.id) ? '#FFF7F5' : '#FFFFFF'">
+                
+                <!-- Card Header: Checkbox + Status badge -->
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 16px; height: 16px; accent-color: #FF5A1F;" />
+                  <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
+                    {{ p.status === 'In stock' ? 'Stokta var' : p.status === 'Low stock' ? 'Azalıyor' : 'Tükendi' }}
                   </span>
                 </div>
-              </div>
-
-              <!-- Product Price Column -->
-              <div style="width: 140px; padding: 16px; border-left: 1px solid #F0F2F2; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 4px; text-align: right; background: #FAFAFA; flex-shrink: 0;">
-                <div style="font-size: 16px; font-weight: bold; color: var(--text-primary, #0F1111); font-family: var(--font-mono);">
-                  {{ p.price | currency:'TRY':'symbol':'1.2-2':'tr' }}
+                
+                <!-- Card Body: Image + Title + SKU -->
+                <div style="display: flex; gap: 12px; align-items: center;">
+                  <!-- Product Image -->
+                  <div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; padding: 4px;">
+                    @if (p.imageUrl) {
+                      <img [src]="p.imageUrl" alt="Ürün" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                    } @else {
+                      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity: 0.3;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    }
+                  </div>
+                  <!-- Details -->
+                  <div style="display: flex; flex-direction: column; overflow: hidden; flex: 1;">
+                    <a href="#" (click)="$event.preventDefault(); openEditProduct(p)" style="font-size: 0.88rem; font-weight: 700; color: #0F172A; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" onmouseover="this.style.color='#FF5A1F'" onmouseout="this.style.color='#0F172A'">
+                      {{ p.name }}
+                    </a>
+                    <span style="font-size: 0.72rem; color: #64748B; font-family: var(--font-mono); margin-top: 2px;">
+                      {{ getCategoryName(p.category) }}
+                    </span>
+                    <span style="font-size: 0.68rem; color: #94A3B8; font-family: var(--font-mono); margin-top: 1px;">
+                      SKU: {{ p.sku }}
+                    </span>
+                  </div>
                 </div>
-                @if (p.status === 'Low stock') {
-                  <div style="font-size: 11px; color: #B12704; font-weight: bold; margin-top: 4px;">Sadece {{ p.quantity }} Adet Kaldı!</div>
-                }
-              </div>
+                
+                <!-- Card Divider -->
+                <div style="height: 1px; background: #F1F5F9; margin: 4px 0;"></div>
+                
+                <!-- Card Stats: Price, Stock, Sales, Revenue -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
+                  <div>
+                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">Birim Fiyat</span>
+                    <strong style="color: #0F172A; font-family: var(--font-mono);">{{ p.price | currency:'TRY':'symbol':'1.2-2':'tr' }}</strong>
+                  </div>
+                  <div>
+                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">Mevcut Stok</span>
+                    <strong style="color: #0F172A;">{{ p.quantity }} {{ p.unit || 'Adet' }}</strong>
+                  </div>
+                  <div>
+                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">Satış Miktarı</span>
+                    <strong style="color: #475569;">{{ getMockSales(p) }}</strong>
+                  </div>
+                  <div>
+                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">Toplam Gelir</span>
+                    <strong style="color: #0F172A; font-family: var(--font-mono);">{{ getMockRevenue(p) | currency:'TRY':'symbol':'1.0-0':'tr' }}</strong>
+                  </div>
+                </div>
 
-              <!-- Product Actions Column -->
-              <div style="width: 180px; padding: 16px; border-left: 1px solid #F0F2F2; display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 8px; text-align: right; background: #FAFAFA; flex-shrink: 0;">
-                <button class="btn btn-primary btn-sm" (click)="openEditProduct(p)" style="width: 100%; border-radius: 20px;">
-                  Düzenle
-                </button>
-                <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
-                  <button class="btn btn-outline btn-sm" (click)="openTransferModal(p)" title="Depolar Arası Transfer" style="flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;">
+                <!-- Card Rating -->
+                <div style="display: flex; align-items: center; gap: 4px; background: #F8FAFC; padding: 6px 10px; border-radius: 6px; justify-content: center;">
+                  <div style="display: flex; align-items: center; gap: 2px;">
+                    @for (star of getMockStarsArray(p); track $index) {
+                      <svg width="12" height="12" fill="#FBBF24" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                      </svg>
+                    }
+                    @if (getMockStarsRemainder(p)) {
+                      <svg width="12" height="12" fill="none" viewBox="0 0 20 20" stroke="#FBBF24" stroke-width="2" style="position: relative; display: inline-block;">
+                        <defs>
+                          <linearGradient id="halfStarCard">
+                            <stop offset="50%" stop-color="#FBBF24"/>
+                            <stop offset="50%" stop-color="transparent"/>
+                          </linearGradient>
+                        </defs>
+                        <path fill="url(#halfStarCard)" stroke="#FBBF24" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                      </svg>
+                    }
+                  </div>
+                  <span style="font-size: 0.72rem; color: #475569; font-weight: 600;">{{ getMockRatingValue(p) }} / 5.0</span>
+                </div>
+
+                <!-- Card Actions -->
+                <div style="display: flex; gap: 6px; margin-top: auto;">
+                  <button type="button" class="btn" (click)="openEditProduct(p)" style="flex: 1; border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; height: 32px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; padding: 0;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
+                    Düzenle
+                  </button>
+                  <button type="button" class="btn" (click)="openTransferModal(p)" style="flex: 1; border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; height: 32px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; padding: 0;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
                     Transfer
                   </button>
-                  <div style="width: 1px; height: 16px; background-color: var(--border-color, #E5E7EB);"></div>
-                  <button class="btn btn-outline-danger btn-sm" (click)="promptDeleteProduct(p)" title="Sil" style="color: #EF4444; border-color: #EF4444; flex: 1; padding: 4px 0; border-radius: 20px; font-size: 0.7rem;" onmouseover="this.style.backgroundColor='#FEF2F2'" onmouseout="this.style.backgroundColor='transparent'">
-                    Sil
+                  <button type="button" class="btn" (click)="promptDeleteProduct(p)" style="border: 1px solid #FEE2E2; background: #FFFFFF; color: #EF4444; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0;" onmouseover="this.style.backgroundColor='#FEF2F2'; this.style.borderColor='#FCA5A5'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#FEE2E2'">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                   </button>
                 </div>
+
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Pagination Footer -->
+        @if (filteredProducts().length > 0) {
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #FFFFFF; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px; padding: 12px 16px; flex-wrap: wrap; gap: 12px; margin-top: -12px;">
+            <div style="font-size: 0.8rem; color: #64748B;">
+              <strong>{{ (currentPage() - 1) * itemsPerPage() + 1 }}</strong> - <strong>{{ Math.min(currentPage() * itemsPerPage(), filteredProducts().length) }}</strong> / {{ filteredProducts().length }} ürün gösteriliyor
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <!-- Items per page -->
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.8rem; color: #64748B;">Sayfa başına:</span>
+                <select [ngModel]="itemsPerPage()" (ngModelChange)="itemsPerPage.set(+$event); currentPage.set(1)" style="border: 1px solid #E2E8F0; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; background: #FFFFFF; outline: none; cursor: pointer; color: #0F172A;">
+                  <option [value]="10">10</option>
+                  <option [value]="25">25</option>
+                  <option [value]="50">50</option>
+                </select>
+              </div>
+              <!-- Page selectors -->
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <button type="button" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)" style="width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #475569;" [style.opacity]="currentPage() === 1 ? '0.5' : '1'" [style.cursor]="currentPage() === 1 ? 'not-allowed' : 'pointer'">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                @for (pNum of getPagesArray(); track pNum) {
+                  <button type="button" (click)="goToPage(pNum)" style="width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; justify-content: center;"
+                          [style.backgroundColor]="currentPage() === pNum ? '#FF5A1F' : '#FFFFFF'"
+                          [style.borderColor]="currentPage() === pNum ? '#FF5A1F' : '#E2E8F0'"
+                          [style.color]="currentPage() === pNum ? '#FFFFFF' : '#475569'">
+                    {{ pNum }}
+                  </button>
+                }
+                <button type="button" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)" style="width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #475569;" [style.opacity]="currentPage() === totalPages() ? '0.5' : '1'" [style.cursor]="currentPage() === totalPages() ? 'not-allowed' : 'pointer'">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                </button>
               </div>
             </div>
-          }
-          
-          @if (filteredProducts().length === 0) {
-            <div class="empty-state" style="padding: 3rem; text-align: center; border: 1px dashed #D5D9D9; border-radius: 8px; background: #FFFFFF;">
-              <p style="font-size: 15px; color: #565959;">Arama kriterlerinize uygun ürün bulunamadı.</p>
-              <button class="btn btn-primary" (click)="openAddProduct()" style="margin-top: 12px;">Yeni Ürün Ekle</button>
-            </div>
-          }
-        </div>
+          </div>
+        }
       </div>
     </div>
 
@@ -563,6 +834,93 @@ export class ProductsComponent {
   router = inject(Router);
 
   categories = signal<any[]>([]);
+  
+  // Redesign state signals
+  showFilters = signal(false);
+  showStats = signal(true);
+  isTableView = signal(true);
+  isViewDropdownOpen = signal(false);
+  isSortDropdownOpen = signal(false);
+
+  // Pagination states
+  currentPage = signal(1);
+  itemsPerPage = signal(10);
+
+  paginatedProducts = computed(() => {
+    const start = (this.currentPage() - 1) * this.itemsPerPage();
+    return this.filteredProducts().slice(start, start + this.itemsPerPage());
+  });
+
+  totalPages = computed(() => Math.ceil(this.filteredProducts().length / this.itemsPerPage()) || 1);
+
+  goToPage(p: number) {
+    if (p >= 1 && p <= this.totalPages()) {
+      this.currentPage.set(p);
+    }
+  }
+
+  getPagesArray(): number[] {
+    const total = this.totalPages();
+    const arr = [];
+    for (let i = 1; i <= total; i++) {
+      arr.push(i);
+    }
+    return arr;
+  }
+
+  protected readonly Math = Math;
+
+  // Mock value generators for premium mockup
+  getMockSales(p: Product): number {
+    let seed = 0;
+    const name = p.name || '';
+    for (let i = 0; i < name.length; i++) {
+      seed += name.charCodeAt(i);
+    }
+    return (seed % 90) + 10;
+  }
+
+  getMockRevenue(p: Product): number {
+    return this.getMockSales(p) * p.price;
+  }
+
+  getMockRatingValue(p: Product): number {
+    let seed = 0;
+    const name = p.name || '';
+    for (let i = 0; i < name.length; i++) {
+      seed += name.charCodeAt(i);
+    }
+    const val = 4.0 + (seed % 11) * 0.1;
+    return Math.min(5.0, Math.max(3.5, Math.round(val * 10) / 10));
+  }
+
+  getMockStarsArray(p: Product): number[] {
+    const val = this.getMockRatingValue(p);
+    const fullStars = Math.floor(val);
+    return Array(fullStars).fill(0);
+  }
+
+  getMockStarsRemainder(p: Product): boolean {
+    const val = this.getMockRatingValue(p);
+    return (val % 1) >= 0.3;
+  }
+
+  resetPageEffect = effect(() => {
+    this.filteredProducts();
+    this.currentPage.set(1);
+  }, { allowSignalWrites: true });
+  
+  toggleFilters() {
+    this.showFilters.update(v => !v);
+  }
+  
+  toggleStats() {
+    this.showStats.update(v => !v);
+  }
+  
+  getTotalValue(): number {
+    return this.state.products().reduce((acc, p) => acc + (p.price * (p.quantity || 0)), 0);
+  }
 
   isCategoryDropdownOpen = signal(false);
   productSortOption = signal<string>('default');
@@ -796,6 +1154,8 @@ export class ProductsComponent {
     this.isCategoryDropdownOpen.set(false);
     this.isSupplierDropdownOpen.set(false);
     this.isBulkCategoryDropdownOpen.set(false);
+    this.isViewDropdownOpen.set(false);
+    this.isSortDropdownOpen.set(false);
   }
 
   // Suppliers

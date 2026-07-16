@@ -1,12 +1,13 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # compiled output
-dist
-tmp
-out-tsc
+dist/
+tmp/
+out-tsc/
 
 # dependencies
-node_modules
+node_modules/
+package-lock.json
 
 # IDEs and editors
 /.idea
@@ -27,7 +28,7 @@ node_modules
 # misc
 /.sass-cache
 /connect.lock
-/coverage
+/coverage/
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
@@ -37,20 +38,45 @@ testem.log
 # System Files
 .DS_Store
 Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
 
+# Nx
 .nx/cache
 .nx/workspace-data
-.claude/worktrees
-.claude/settings.local.json
 
-.angular
+# Angular
+.angular/
 
+# AI assistants
+.claude/
+.agents/
+.gemini/
+
+# Screenshots
 __screenshots__/
 
-# environment variables
+# Environment variables
 .env
 .env.local
 .env.development
 .env.production
 *.env
 !.env.example
+
+# Scratch / temp files
+scratch/
+
+# Generated / temporary files
+dashboard_mockup.png
+old-ai-service.ts
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

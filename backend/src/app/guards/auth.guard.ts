@@ -1,24 +1,30 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { DbService } from '../db.service';
+import { UserService } from '../modules/user/user.service';
+import { IS_PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
+    private reflector: Reflector,
     private jwtService: JwtService,
-    private dbService: DbService
+    private userService: UserService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    
-    // Skip if already authenticated by global guard
-    if (request['user']) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
       return true;
     }
 
+    const request = context.switchToHttp().getRequest();
+
     const url = request.url || '';
-    if (url.includes('/auth/login') || url === '/' || url === '/api') {
+    if (url === '/' || url === '/api') {
       return true;
     }
 
@@ -31,7 +37,7 @@ export class AuthGuard implements CanActivate {
         secret: process.env.JWT_SECRET
       });
       
-      const user = await this.dbService.getUserByUsername(payload.username);
+      const user = await this.userService.getUserByUsername(payload.username);
       if (!user || user.tokenVersion !== payload.tokenVersion) {
         throw new UnauthorizedException('Geçersiz veya süresi dolmuş oturum.');
       }
