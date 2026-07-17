@@ -55,7 +55,7 @@
     "@nx/node": "22.7.5",
     "@nx/playwright": "22.7.5",
     "@nx/web": "22.7.5",
-    "@nx/webpack": "22.7.5",
+    "@nx/webpack": "^22.7.5",
     "@nx/workspace": "22.7.5",
     "@playwright/test": "^1.36.0",
     "@schematics/angular": "~21.2.0",
@@ -87,6 +87,7 @@
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.40.0",
     "vitest": "^4.0.8",
+    "webpack": "^5.108.4",
     "webpack-cli": "^5.1.4"
   }
 }
