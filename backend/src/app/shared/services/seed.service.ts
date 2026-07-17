@@ -70,12 +70,38 @@ export class SeedService implements OnModuleInit {
             email: 'viewer@sirket.com',
             department: 'Gözlem Ekibi',
             tokenVersion: 0,
+          },
+          {
+            username: 'demo',
+            password: this.stockHelper.hashPassword('demo123'),
+            role: UserRole.VIEWER,
+            fullName: 'Demo Kullanıcısı',
+            email: 'demo@sirket.com',
+            department: 'Demo Modu',
+            tokenVersion: 0,
           }
         );
       }
 
       for (const u of initialUsers) {
         await this.userRepo.save(this.userRepo.create(u));
+      }
+    } else {
+      // Ensure demo account exists even if DB already seeded
+      const existingDemo = await this.userRepo.findOne({ where: { username: 'demo' } });
+      if (!existingDemo) {
+        this.logger.log('Seeding demo user account (demo / demo123)...');
+        await this.userRepo.save(
+          this.userRepo.create({
+            username: 'demo',
+            password: this.stockHelper.hashPassword('demo123'),
+            role: UserRole.VIEWER,
+            fullName: 'Demo Kullanıcısı',
+            email: 'demo@sirket.com',
+            department: 'Demo Modu',
+            tokenVersion: 0,
+          })
+        );
       }
     }
 

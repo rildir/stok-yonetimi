@@ -13,7 +13,7 @@ export class PurchaseOrderEntity {
   poNumber: string;
 
   @Index()
-  @Column()
+  @Column({ nullable: true })
   supplierId: string;
 
   @ManyToOne(() => SupplierEntity, { nullable: true, onDelete: 'SET NULL' })

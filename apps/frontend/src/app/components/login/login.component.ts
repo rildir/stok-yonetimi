@@ -29,7 +29,7 @@ import { environment } from '../../../environments/environment';
                 type="text" 
                 class="form-input"
                 #usernameInput 
-                value="admin" 
+                value="" 
                 placeholder="Kullanıcı adı" 
                 [disabled]="isLoginLoading()" 
                 id="loginUsername"
@@ -43,7 +43,7 @@ import { environment } from '../../../environments/environment';
                 type="password" 
                 class="form-input"
                 #passwordInput 
-                value="admin" 
+                value="" 
                 placeholder="••••••••" 
                 [disabled]="isLoginLoading()" 
                 id="loginPassword"
@@ -68,23 +68,6 @@ import { environment } from '../../../environments/environment';
               }
             </button>
           </form>
-        </div>
-
-        <!-- Demo Account Info -->
-        <div class="login-demo-box">
-          <div class="login-demo-header">Demo Kullanıcı Bilgileri</div>
-          <div class="login-demo-row">
-            <span class="login-demo-cred">admin / admin</span>
-            <span class="login-demo-role" style="color: var(--primary);">Yönetici</span>
-          </div>
-          <div class="login-demo-row">
-            <span class="login-demo-cred">manager / manager123</span>
-            <span class="login-demo-role" style="color: var(--status-instock);">Stok Sorumlusu</span>
-          </div>
-          <div class="login-demo-row last">
-            <span class="login-demo-cred">viewer / viewer123</span>
-            <span class="login-demo-role" style="color: var(--text-muted);">Gözlemci</span>
-          </div>
         </div>
 
         <p class="login-footer-text">© 2024 Ecelon · Tüm hakları saklıdır.</p>

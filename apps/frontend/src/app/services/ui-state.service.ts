@@ -42,6 +42,7 @@ export class UiStateService {
   isHistorySidebarOpen = signal(false);
   confirmConfig = signal<ConfirmConfig | null>(null);
   userProfile = signal<any>(null);
+  isReadonly = computed(() => this.userProfile()?.role === 'viewer');
 
   openConfirm(config: ConfirmConfig) {
     this.confirmConfig.set(config);

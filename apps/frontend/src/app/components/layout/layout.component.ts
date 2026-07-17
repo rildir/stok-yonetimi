@@ -352,6 +352,14 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
               </div>
             </div>
           } @else {
+            @if (ui.isReadonly()) {
+              <div style="background: #FFFBEB; border: 1px solid #FCD34D; color: #92400E; padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 0.84rem; font-weight: 500;">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: #F59E0B; flex-shrink: 0;">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span><strong>Demo Modundasınız:</strong> Sistemdeki tüm verileri inceleyebilirsiniz. Veri ekleme, güncelleme ve silme yetkileriniz kısıtlanmıştır.</span>
+              </div>
+            }
             <router-outlet></router-outlet>
           }
         </main>

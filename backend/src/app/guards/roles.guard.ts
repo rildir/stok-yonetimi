@@ -16,6 +16,9 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request['user'];
     if (!user || !requiredRoles.includes(user.role)) {
+      if (user?.role === 'viewer') {
+        throw new ForbiddenException('Demo modundasınız: Bu hesaptayken ekleme, güncelleme veya silme işlemi gerçekleştiremezsiniz.');
+      }
       throw new ForbiddenException('Bu işlemi gerçekleştirmek için yetkiniz bulunmamaktadır.');
     }
     return true;

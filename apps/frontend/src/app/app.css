@@ -6332,11 +6332,12 @@ tr.selected td {
    ═══════════════════════════════════════════════════════════ */
 .login-page {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 50%, #F8FAFC 100%);
-  padding-top: 5vh;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.85) 100%),
+              url('/assets/image/97eb72a1-bcd4-4078-831f-2095b726993a.png') center/cover no-repeat;
+  padding: 2rem 1rem;
   font-family: var(--font-body);
 }
 
@@ -6355,15 +6356,15 @@ tr.selected td {
 
 .login-brand {
   text-align: center;
-  margin-bottom: 2.5rem;
+  margin-bottom: 2rem;
 }
 
 .login-brand-text {
   font-family: 'Outfit', sans-serif;
-  font-size: 2.5rem;
+  font-size: 2.75rem;
   font-weight: 800;
   letter-spacing: -0.05em;
-  background: linear-gradient(135deg, #4F46E5 0%, #818CF8 50%, #6366F1 100%);
+  background: linear-gradient(135deg, #818CF8 0%, #A5B4FC 50%, #FFFFFF 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   line-height: 1;
@@ -6372,20 +6373,21 @@ tr.selected td {
 }
 
 .login-brand-tagline {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: #E2E8F0;
   margin: 0.5rem 0 0;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
 
 .login-card {
   width: 100%;
-  background: var(--surface-card);
-  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 16px;
   padding: 32px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.35);
 }
 
 .login-card-title {
