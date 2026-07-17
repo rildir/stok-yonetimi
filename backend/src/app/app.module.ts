@@ -62,7 +62,7 @@ import { ReportModule } from './modules/report/report.module';
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
-      migrationsRun: process.env.NODE_ENV === 'production',
+      migrationsRun: false,
     }),
     JwtModule.register({
       global: true,

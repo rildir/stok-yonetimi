@@ -11,6 +11,9 @@ npm install --legacy-peer-deps
 echo "2. Backend build..."
 npx nx build backend
 
+echo "2.5. Database migrations çalıştırılıyor..."
+npx nx run backend:migration:run
+
 echo "3. Frontend build..."
 npx nx build frontend --configuration=production
 

@@ -8,9 +8,9 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node_modules/.bin/webpack-cli build",
+        "command": "npx webpack-cli build",
         "args": ["--node-env=production"],
-        "cwd": "."
+        "cwd": "backend"
       },
       "configurations": {
         "development": {
@@ -64,6 +64,36 @@
     "test": {
       "options": {
         "passWithNoTests": true
+      }
+    },
+    "migration:generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx typeorm-ts-node-commonjs migration:generate src/app/migrations/{args.name} -d src/data-source.ts",
+        "cwd": "backend",
+        "env": {
+          "TS_NODE_PROJECT": "tsconfig.app.json"
+        }
+      }
+    },
+    "migration:run": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
+        "cwd": "backend",
+        "env": {
+          "TS_NODE_PROJECT": "tsconfig.app.json"
+        }
+      }
+    },
+    "migration:revert": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx typeorm-ts-node-commonjs migration:revert -d src/data-source.ts",
+        "cwd": "backend",
+        "env": {
+          "TS_NODE_PROJECT": "tsconfig.app.json"
+        }
       }
     }
   }
