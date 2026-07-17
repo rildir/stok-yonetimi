@@ -103,7 +103,7 @@ export class UiStateService {
     // Sync to backend DB
     const token = localStorage.getItem('smart_inventory_token');
     if (token) {
-      fetch('http://localhost:3000/api/user/subscription', {
+      fetch('/api/user/subscription', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +134,7 @@ export class UiStateService {
     // Sync to backend DB
     const token = localStorage.getItem('smart_inventory_token');
     if (token) {
-      fetch('http://localhost:3000/api/user/subscription', {
+      fetch('/api/user/subscription', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -478,7 +478,7 @@ export class UiStateService {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('http://localhost:3000/api/ai/query/stream', {
+      const response = await fetch('/api/ai/query/stream', {
         method: 'POST',
         headers,
         body: JSON.stringify({ prompt: promptText })
