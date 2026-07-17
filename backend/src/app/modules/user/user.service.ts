@@ -6,13 +6,31 @@ import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { CreateUserDto, UpdateUserDto } from '../../dto/user.dto';
 import { UserRole, SubscriptionPlan } from '../../entities/enums';
 
+import { AppGateway } from '../../app.gateway';
+
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     private readonly stockHelper: StockHelperService,
+    private readonly appGateway: AppGateway,
   ) {}
+
+  async requestPasswordReset(username: string): Promise<{ success: boolean; message: string }> {
+    const user = await this.getUserByUsername(username);
+    if (!user) {
+      throw new BadRequestException('Bu kullanıcı adı ile kayıtlı kullanıcı bulunamadı.');
+    }
+    this.appGateway.notifyPasswordResetRequest({
+      username: user.username,
+      fullName: user.fullName || user.username,
+    });
+    return {
+      success: true,
+      message: 'Şifre sıfırlama talebiniz sistem yöneticisine başarıyla iletildi.',
+    };
+  }
 
   private sanitizeUser(user: UserEntity): UserEntity {
     const { password, ...sanitized } = user;

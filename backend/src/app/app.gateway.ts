@@ -41,4 +41,10 @@ export class AppGateway implements OnGatewayInit, OnGatewayConnection, OnGateway
   handleDisconnect(client: any) {
     this.logger.log(`Client disconnected: ${client.id}`);
   }
+
+  notifyPasswordResetRequest(data: { username: string; fullName: string }) {
+    if (this.server) {
+      this.server.emit('password_reset_requested', data);
+    }
+  }
 }

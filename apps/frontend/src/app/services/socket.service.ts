@@ -138,6 +138,12 @@ export class SocketService {
         this.ui.showToast(`🗑️ Tedarikçi Silindi`, 'info');
       }
     });
+
+    this.socket.on('password_reset_requested', (data: { username: string; fullName: string }) => {
+      console.log('[SocketService] password_reset_requested event received', data);
+      this.notifications.addNotification(`🔑 Şifre Sıfırlama Talebi: ${data.fullName} (${data.username}) şifre sıfırlama talebinde bulundu.`, 'warning');
+      this.ui.showToast(`🔑 Şifre Sıfırlama Talebi: ${data.username}`, 'info');
+    });
   }
 
   connect() {

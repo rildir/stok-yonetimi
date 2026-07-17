@@ -4,12 +4,14 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { UserEntity } from '../../entities/user.entity';
 import { SharedModule } from '../../shared/shared.module';
+import { GatewayModule } from '../../shared/gateway.module';
 import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity]),
     SharedModule,
+    GatewayModule,
     JwtModule,
   ],
   controllers: [UserController],

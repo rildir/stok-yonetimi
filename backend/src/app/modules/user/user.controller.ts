@@ -5,7 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Roles } from '../../guards/roles.decorator';
 import { Public } from '../../guards/public.decorator';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
-import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto, LoginDto } from '../../dto/user.dto';
+import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto, LoginDto, ResetPasswordRequestDto } from '../../dto/user.dto';
 
 @Controller()
 export class UserController {
@@ -34,6 +34,12 @@ export class UserController {
     return {
       token: await this.jwtService.signAsync(payload),
     };
+  }
+
+  @Public()
+  @Post('auth/reset-password-request')
+  async resetPasswordRequest(@Body() dto: ResetPasswordRequestDto) {
+    return this.userService.requestPasswordReset(dto.username);
   }
 
   @Get('user/profile')

@@ -88,3 +88,9 @@ export class UpdatePasswordDto {
   @MinLength(6, { message: 'Yeni şifre en az 6 karakter olmalıdır.' })
   newPassword: string;
 }
+
+export class ResetPasswordRequestDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Kullanıcı adı boş olamaz.' })
+  username: string;
+}

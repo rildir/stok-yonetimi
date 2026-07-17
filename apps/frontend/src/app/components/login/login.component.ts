@@ -51,7 +51,7 @@ import { environment } from '../../../environments/environment';
               >
               <div class="form-label" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <span>Şifre</span>
-                <a href="#" class="forgot-link" (click)="$event.preventDefault()">Şifremi Unuttum</a>
+                <a href="#" class="forgot-link" (click)="$event.preventDefault(); showForgotModal.set(true)">Şifremi Unuttum</a>
               </div>
             </div>
             
@@ -72,6 +72,63 @@ import { environment } from '../../../environments/environment';
 
         <p class="login-footer-text">© 2024 Ecelon · Tüm hakları saklıdır.</p>
       </div>
+
+      @if (showForgotModal()) {
+        <div class="forgot-modal-overlay" (click)="closeForgotModal()">
+          <div class="forgot-modal-card" (click)="$event.stopPropagation()">
+            @if (isResetSubmitted()) {
+              <div class="forgot-modal-icon success">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+              </div>
+              <h3 class="forgot-modal-title">Talebiniz İletildi</h3>
+              <p class="forgot-modal-desc">
+                Şifre sıfırlama talebiniz sistem yöneticisine canlı olarak iletilmiştir. 
+                Yöneticiniz şifrenizi güncelledikten sonra sisteme giriş yapabilirsiniz.
+              </p>
+              <button type="button" class="btn btn-primary forgot-modal-btn" (click)="closeForgotModal()">Tamam</button>
+            } @else {
+              <div class="forgot-modal-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0110 0v4"></path>
+                </svg>
+              </div>
+              <h3 class="forgot-modal-title">Şifre Sıfırlama Talebi</h3>
+              <p class="forgot-modal-desc">
+                Şifrenizi sıfırlamak için kullanıcı adınızı girin. Sistem yöneticinize anlık bildirim iletilecektir.
+              </p>
+
+              <form style="width: 100%; text-align: left;" (submit)="doResetPassword(resetUsernameInput.value); $event.preventDefault()">
+                <div class="form-field" style="margin-bottom: 1.25rem;">
+                  <input 
+                    type="text" 
+                    class="form-input"
+                    #resetUsernameInput 
+                    placeholder="Kullanıcı adınız" 
+                    [disabled]="isResetLoading()" 
+                    id="resetUsername"
+                    required
+                  >
+                  <label for="resetUsername" class="form-label">Kullanıcı Adı</label>
+                </div>
+
+                <div style="display: flex; gap: 10px; width: 100%;">
+                  <button type="button" class="btn btn-secondary" style="flex: 1; height: 42px;" (click)="closeForgotModal()" [disabled]="isResetLoading()">İptal</button>
+                  <button type="submit" class="btn btn-primary" style="flex: 1; height: 42px;" [disabled]="isResetLoading()">
+                    @if (isResetLoading()) {
+                      Gönderiliyor...
+                    } @else {
+                      Talep Gönder
+                    }
+                  </button>
+                </div>
+              </form>
+            }
+          </div>
+        </div>
+      }
     </div>
   `
 })
@@ -81,6 +138,31 @@ export class LoginComponent {
   http = inject(HttpClient);
   socketService = inject(SocketService);
   isLoginLoading = signal(false);
+  showForgotModal = signal(false);
+  isResetLoading = signal(false);
+  isResetSubmitted = signal(false);
+
+  closeForgotModal() {
+    this.showForgotModal.set(false);
+    this.isResetSubmitted.set(false);
+    this.isResetLoading.set(false);
+  }
+
+  doResetPassword(username: string) {
+    if (!username || this.isResetLoading()) return;
+    this.isResetLoading.set(true);
+
+    this.http.post<{ success: boolean; message: string }>(`${environment.apiUrl}/auth/reset-password-request`, { username }).subscribe({
+      next: () => {
+        this.isResetLoading.set(false);
+        this.isResetSubmitted.set(true);
+      },
+      error: (err) => {
+        this.isResetLoading.set(false);
+        this.ui.showToast(err.error?.message || 'Şifre sıfırlama talebi gönderilemedi.', 'error');
+      }
+    });
+  }
 
   doLogin(u: string, p: string) {
     if (this.isLoginLoading()) return;
