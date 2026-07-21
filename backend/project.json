@@ -8,7 +8,7 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "../node_modules/.bin/webpack-cli build",
+        "command": "npx webpack-cli build",
         "args": ["--node-env=production"],
         "cwd": "backend"
       },
@@ -62,7 +62,10 @@
       }
     },
     "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/backend"],
       "options": {
+        "jestConfig": "backend/jest.config.cts",
         "passWithNoTests": true
       }
     },

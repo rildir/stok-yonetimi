@@ -1,73 +1,33 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-
-export interface Product {
-  id: string;
-  name: string;
-  sku: string;
-  category: string;
-  price: number;
-  quantity: number;
-  minQuantity: number;
-  status: 'In stock' | 'Low stock' | 'Out of stock' | string;
-  supplierId?: string;
-  imageUrl?: string;
-  unit?: string;
-  warehouses?: Record<string, number> | null;
-}
-
-export interface OrderItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  price: number;
-}
-
-export interface Order {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  date: string;
-  status: 'Completed' | 'Pending' | 'Cancelled';
-  totalAmount: number;
-  items: OrderItem[];
-  carrier?: string;
-  trackingNumber?: string;
-}
-
-export interface AiResponseCard {
-  title: string;
-  type: 'chart' | 'table' | 'metric' | 'list';
-  description: string;
-  chartType?: 'bar' | 'line' | 'pie' | 'doughnut';
-  chartData?: {
-    labels: string[];
-    datasets: {
-      label: string;
-      data: number[];
-      backgroundColor?: string[];
-      borderColor?: string[];
-    }[];
-  };
-  tableData?: {
-    headers: string[];
-    rows: any[][];
-  };
-  metrics?: {
-    label: string;
-    value: string | number;
-    change?: string;
-    isPositive?: boolean;
-  }[];
-  thinking?: string;
-  action?: {
-    type: string;
-    payload: any;
-  };
-}
-
 import { environment } from '../environments/environment';
+import {
+  Product,
+  Order,
+  Supplier,
+  PurchaseOrder,
+  Category,
+  Warehouse,
+  StockMovement,
+  StockCount,
+  AiResponseCard,
+} from './models/inventory.models';
+
+export type {
+  Product,
+  Order,
+  OrderItem,
+  Supplier,
+  PurchaseOrder,
+  PurchaseOrderItem,
+  Category,
+  Warehouse,
+  StockMovement,
+  StockCount,
+  StockCountItem,
+  AiResponseCard,
+} from './models/inventory.models';
 
 @Injectable({
   providedIn: 'root'
@@ -82,8 +42,8 @@ export class InventoryService {
     return this.http.get<Product[]>(`${this.apiUrl}/products`);
   }
 
-  bulkCreateProducts(products: any[]): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/products/bulk`, products);
+  bulkCreateProducts(products: Partial<Product>[]): Observable<Product[]> {
+    return this.http.post<Product[]>(`${this.apiUrl}/products/bulk`, products);
   }
 
   createProduct(product: Partial<Product>): Observable<Product> {
@@ -137,53 +97,52 @@ export class InventoryService {
     startDate?: string,
     endDate?: string,
     type?: string
-  ): Observable<{ data: any[], total: number }> {
+  ): Observable<{ data: StockMovement[], total: number }> {
     let url = `${this.apiUrl}/stock-movements?page=${page}&limit=${limit}`;
     if (productId) url += `&productId=${productId}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
     if (startDate) url += `&startDate=${startDate}`;
     if (endDate) url += `&endDate=${endDate}`;
     if (type) url += `&type=${type}`;
-    return this.http.get<{ data: any[], total: number }>(url);
+    return this.http.get<{ data: StockMovement[], total: number }>(url);
   }
 
-
-  createManualAdjustment(productId: string, newQuantity: number, note: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/stock-movements/adjust`, { productId, newQuantity, note });
+  createManualAdjustment(productId: string, newQuantity: number, note: string): Observable<StockMovement> {
+    return this.http.post<StockMovement>(`${this.apiUrl}/stock-movements/adjust`, { productId, newQuantity, note });
   }
 
   // Suppliers
-  getSuppliers(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/suppliers`);
+  getSuppliers(): Observable<Supplier[]> {
+    return this.http.get<Supplier[]>(`${this.apiUrl}/suppliers`);
   }
 
-  createSupplier(data: any): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/suppliers`, data);
+  createSupplier(data: Partial<Supplier>): Observable<Supplier> {
+    return this.http.post<Supplier>(`${this.apiUrl}/suppliers`, data);
   }
 
-  updateSupplier(id: string, data: any): Observable<any> {
-    return this.http.put<any>(`${this.apiUrl}/suppliers/${id}`, data);
+  updateSupplier(id: string, data: Partial<Supplier>): Observable<Supplier> {
+    return this.http.put<Supplier>(`${this.apiUrl}/suppliers/${id}`, data);
   }
 
-  deleteSupplier(id: string): Observable<any> {
-    return this.http.delete<any>(`${this.apiUrl}/suppliers/${id}`);
+  deleteSupplier(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/suppliers/${id}`);
   }
 
   // Purchase Orders
-  getPurchaseOrders(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/purchase-orders`);
+  getPurchaseOrders(): Observable<PurchaseOrder[]> {
+    return this.http.get<PurchaseOrder[]>(`${this.apiUrl}/purchase-orders`);
   }
 
-  createPurchaseOrder(data: any): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/purchase-orders`, data);
+  createPurchaseOrder(data: Partial<PurchaseOrder>): Observable<PurchaseOrder> {
+    return this.http.post<PurchaseOrder>(`${this.apiUrl}/purchase-orders`, data);
   }
 
-  updatePurchaseOrderStatus(id: string, status: string): Observable<any> {
-    return this.http.put<any>(`${this.apiUrl}/purchase-orders/${id}/status`, { status });
+  updatePurchaseOrderStatus(id: string, status: string): Observable<PurchaseOrder> {
+    return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}/status`, { status });
   }
 
-  updatePurchaseOrder(id: string, data: any): Observable<any> {
-    return this.http.put<any>(`${this.apiUrl}/purchase-orders/${id}`, data);
+  updatePurchaseOrder(id: string, data: Partial<PurchaseOrder>): Observable<PurchaseOrder> {
+    return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}`, data);
   }
 
   deletePurchaseOrder(id: string): Observable<{ success: boolean }> {
@@ -191,37 +150,37 @@ export class InventoryService {
   }
 
   // Categories
-  getCategories(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/categories`);
+  getCategories(): Observable<Category[]> {
+    return this.http.get<Category[]>(`${this.apiUrl}/categories`);
   }
 
-  createCategory(data: any): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/categories`, data);
+  createCategory(data: Partial<Category>): Observable<Category> {
+    return this.http.post<Category>(`${this.apiUrl}/categories`, data);
   }
 
-  updateCategory(id: string, data: any): Observable<any> {
-    return this.http.put<any>(`${this.apiUrl}/categories/${id}`, data);
+  updateCategory(id: string, data: Partial<Category>): Observable<Category> {
+    return this.http.put<Category>(`${this.apiUrl}/categories/${id}`, data);
   }
 
-  deleteCategory(id: string): Observable<any> {
-    return this.http.delete<any>(`${this.apiUrl}/categories/${id}`);
+  deleteCategory(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/categories/${id}`);
   }
 
   // Stock Counts
-  getStockCounts(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/stock-counts`);
+  getStockCounts(): Observable<StockCount[]> {
+    return this.http.get<StockCount[]>(`${this.apiUrl}/stock-counts`);
   }
 
-  createStockCount(notes?: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/stock-counts`, { notes });
+  createStockCount(notes?: string): Observable<StockCount> {
+    return this.http.post<StockCount>(`${this.apiUrl}/stock-counts`, { notes });
   }
 
-  updateStockCount(id: string, items: any[], notes?: string): Observable<any> {
-    return this.http.put<any>(`${this.apiUrl}/stock-counts/${id}`, { items, notes });
+  updateStockCount(id: string, items: any[], notes?: string): Observable<StockCount> {
+    return this.http.put<StockCount>(`${this.apiUrl}/stock-counts/${id}`, { items, notes });
   }
 
-  completeStockCount(id: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/stock-counts/${id}/complete`, {});
+  completeStockCount(id: string): Observable<StockCount> {
+    return this.http.post<StockCount>(`${this.apiUrl}/stock-counts/${id}/complete`, {});
   }
 
   // Reports
@@ -261,29 +220,28 @@ export class InventoryService {
   }
 
   // Auto Draft Purchase Orders
-  autoDraftPurchaseOrders(): Observable<{ success: boolean; count: number; orders: any[] }> {
-    return this.http.post<{ success: boolean; count: number; orders: any[] }>(`${this.apiUrl}/purchase-orders/auto-draft`, {});
+  autoDraftPurchaseOrders(): Observable<{ success: boolean; count: number; orders: PurchaseOrder[] }> {
+    return this.http.post<{ success: boolean; count: number; orders: PurchaseOrder[] }>(`${this.apiUrl}/purchase-orders/auto-draft`, {});
   }
 
   // Warehouse Management
-  getWarehouses(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/warehouses`);
+  getWarehouses(): Observable<Warehouse[]> {
+    return this.http.get<Warehouse[]>(`${this.apiUrl}/warehouses`);
   }
 
-  createWarehouse(data: any): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/warehouses`, data);
+  createWarehouse(data: Partial<Warehouse>): Observable<Warehouse> {
+    return this.http.post<Warehouse>(`${this.apiUrl}/warehouses`, data);
   }
 
-  updateWarehouse(id: string, data: any): Observable<any> {
-    return this.http.put<any>(`${this.apiUrl}/warehouses/${id}`, data);
+  updateWarehouse(id: string, data: Partial<Warehouse>): Observable<Warehouse> {
+    return this.http.put<Warehouse>(`${this.apiUrl}/warehouses/${id}`, data);
   }
 
-  deleteWarehouse(id: string): Observable<any> {
-    return this.http.delete<any>(`${this.apiUrl}/warehouses/${id}`);
+  deleteWarehouse(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/warehouses/${id}`);
   }
 
-  transferWarehouseStock(productId: string, fromWarehouse: string, toWarehouse: string, quantity: number): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/warehouses/transfer`, { productId, fromWarehouse, toWarehouse, quantity });
+  transferWarehouseStock(productId: string, fromWarehouse: string, toWarehouse: string, quantity: number): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/warehouses/transfer`, { productId, fromWarehouse, toWarehouse, quantity });
   }
 }
-

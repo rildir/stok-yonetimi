@@ -27,28 +27,57 @@ function loadEnv() {
 }
 loadEnv();
 
+import helmet from 'helmet';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
+
+  // Helmet HTTP security headers
+  app.use(helmet({
+    contentSecurityPolicy: false, // Allows Swagger UI to load scripts & inline styles cleanly
+  }));
+
+  // CORS configuration
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:4200'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
   });
+
   // Enforce DTO validation rules globally
   app.useGlobalPipes(new ValidationPipe({ 
     whitelist: true, 
     transform: true 
   }));
 
+  // Swagger Documentation Setup
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Smart Inventory Panel API')
+    .setDescription('Akıllı Stok Yönetimi ve Sipariş Takip Sistemi API Dokümantasyonu')
+    .setVersion('1.0')
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description: 'JWT authorization token',
+    })
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup(`${globalPrefix}/docs`, app, document);
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
   Logger.log(
     `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`,
   );
+  Logger.log(
+    `📚 Swagger API Docs available at: http://localhost:${port}/${globalPrefix}/docs`,
+  );
 }
 
 bootstrap();
+

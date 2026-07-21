@@ -1,0 +1,41 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run ESLint
+        run: npx nx affected:lint --all || npx nx lint backend
+
+      - name: Run Backend Unit Tests
+        run: npx nx test backend --passWithNoTests
+
+      - name: Build Backend & Frontend
+        run: |
+          npx nx build backend --configuration=production
+          npx nx build frontend --configuration=production
+
+      - name: Setup Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E Tests
+        run: npx nx e2e frontend-e2e --passWithNoTests

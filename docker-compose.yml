@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # MySQL Database Service
+  mysql:
+    image: mysql:8.0
+    container_name: stok_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: stok_yonetimi
+      MYSQL_USER: stok_user
+      MYSQL_PASSWORD: stok_password
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # NestJS Backend API Service
+  backend:
+    build:
+      context: .
+      target: backend-runner
+    container_name: stok_backend
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: stok_user
+      DB_PASSWORD: stok_password
+      DB_DATABASE: stok_yonetimi
+      JWT_SECRET: super_secret_jwt_key_2026_production
+      CORS_ORIGIN: http://localhost:80,http://localhost:4200
+    depends_on:
+      - mysql
+
+  # Angular Frontend Nginx Service
+  frontend:
+    build:
+      context: .
+      target: frontend-runner
+    container_name: stok_frontend
+    restart: always
+    ports:
+      - '80:80'
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
