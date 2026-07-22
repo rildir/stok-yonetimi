@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, HostListener, effect } from '@angular/core';
+import { Component, inject, signal, computed, HostListener, effect, OnInit } from '@angular/core';
 import { CommonModule, registerLocaleData } from '@angular/common';
 import localeTr from '@angular/common/locales/tr';
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
@@ -825,7 +825,7 @@ registerLocaleData(localeTr);
     }
   `
 })
-export class ProductsComponent {
+export class ProductsComponent implements OnInit {
   state = inject(AppStateService);
   ui = inject(UiStateService);
   inventoryService = inject(InventoryService);

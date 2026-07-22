@@ -35,7 +35,7 @@ export class ProductService {
     return this.productRepo.findOne({ where: { id, isDeleted: false } });
   }
 
-  async createProduct(data: Partial<ProductEntity>, performedBy: string = 'System'): Promise<ProductEntity> {
+  async createProduct(data: Partial<ProductEntity>, performedBy = 'System'): Promise<ProductEntity> {
     return await this.dataSource.transaction(async manager => {
       if (data.category) {
         const categoryExists = await manager.findOne(CategoryEntity, { where: { slug: data.category, isDeleted: false } });
@@ -86,7 +86,7 @@ export class ProductService {
     });
   }
 
-  async bulkCreateProducts(products: Partial<ProductEntity>[], performedBy: string = 'System'): Promise<ProductEntity[]> {
+  async bulkCreateProducts(products: Partial<ProductEntity>[], performedBy = 'System'): Promise<ProductEntity[]> {
     const skus = products.map(p => p.sku).filter(Boolean);
     const duplicateSkusInPayload = skus.filter((item, index) => skus.indexOf(item) !== index);
     if (duplicateSkusInPayload.length > 0) {
@@ -161,7 +161,7 @@ export class ProductService {
     return savedProducts;
   }
 
-  async updateProduct(id: string, updates: Partial<ProductEntity>, performedBy: string = 'System'): Promise<ProductEntity | null> {
+  async updateProduct(id: string, updates: Partial<ProductEntity>, performedBy = 'System'): Promise<ProductEntity | null> {
     const saved = await this.dataSource.transaction(async (manager) => {
       const current = await manager.findOne(ProductEntity, {
         where: { id, isDeleted: false },

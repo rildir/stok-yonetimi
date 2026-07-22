@@ -128,7 +128,7 @@ export class WarehouseService {
     fromWarehouse: string,
     toWarehouse: string,
     quantity: number,
-    performedBy: string = 'System'
+    performedBy = 'System'
   ): Promise<ProductEntity | null> {
     return this.dataSource.transaction(async (manager) => {
       const product = await manager.findOne(ProductEntity, {

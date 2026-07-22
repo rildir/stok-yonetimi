@@ -91,8 +91,8 @@ export class InventoryService {
   // Stock Movements
   getStockMovements(
     productId?: string,
-    page: number = 1,
-    limit: number = 20,
+    page = 1,
+    limit = 20,
     search?: string,
     startDate?: string,
     endDate?: string,

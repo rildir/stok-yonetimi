@@ -51,7 +51,7 @@ export class OrderService {
       trackingNumber?: string;
       date?: string;
     },
-    performedBy: string = 'System'
+    performedBy = 'System'
   ): Promise<OrderEntity> {
     if (data.status === OrderStatus.CANCELLED) {
       throw new BadRequestException('Yeni bir sipariş "İptal Edildi" (Cancelled) durumuyla oluşturulamaz.');
@@ -165,7 +165,7 @@ export class OrderService {
     return savedOrder;
   }
 
-  async updateOrderStatus(id: string, status: OrderStatus | string, performedBy: string = 'System'): Promise<OrderEntity | null> {
+  async updateOrderStatus(id: string, status: OrderStatus | string, performedBy = 'System'): Promise<OrderEntity | null> {
     const productsToEmit: ProductEntity[] = [];
 
     const savedOrder = await this.dataSource.transaction(async (manager) => {

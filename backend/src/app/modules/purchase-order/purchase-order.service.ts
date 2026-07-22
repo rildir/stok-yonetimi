@@ -121,7 +121,7 @@ export class PurchaseOrderService {
     });
   }
 
-  async updatePurchaseOrderStatus(id: string, status: PurchaseOrderStatus | string, performedBy: string = 'System'): Promise<PurchaseOrderEntity | null> {
+  async updatePurchaseOrderStatus(id: string, status: PurchaseOrderStatus | string, performedBy = 'System'): Promise<PurchaseOrderEntity | null> {
     const saved = await this.dataSource.transaction(async (manager) => {
       const po = await manager.findOne(PurchaseOrderEntity, {
         where: { id },

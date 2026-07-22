@@ -624,8 +624,8 @@ export class BillingComponent implements OnInit {
   }
 
   formatCardNumber() {
-    let val = this.cardNumber.replace(/\D/g, '');
-    let parts = [];
+    const val = this.cardNumber.replace(/\D/g, '');
+    const parts = [];
     for (let i = 0; i < val.length; i += 4) {
       parts.push(val.substring(i, i + 4));
     }
@@ -633,7 +633,7 @@ export class BillingComponent implements OnInit {
   }
 
   formatCardExpiry() {
-    let val = this.cardExpiry.replace(/\D/g, '');
+    const val = this.cardExpiry.replace(/\D/g, '');
     if (val.length >= 2) {
       this.cardExpiry = val.substring(0, 2) + '/' + val.substring(2, 4);
     } else {

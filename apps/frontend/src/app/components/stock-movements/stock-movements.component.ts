@@ -282,7 +282,7 @@ export class StockMovementsComponent implements OnInit {
 
   private searchTimeout: any;
 
-  loadMovements(page: number = 1) {
+  loadMovements(page = 1) {
     this.isLoading.set(true);
     const search = this.searchQuery();
     const typeParam = this.selectedTypes().length > 0 ? this.selectedTypes().join(',') : undefined;
@@ -431,7 +431,7 @@ export class StockMovementsComponent implements OnInit {
     const pages: number[] = [];
     
     let start = Math.max(1, current - 2);
-    let end = Math.min(total, start + 4);
+    const end = Math.min(total, start + 4);
     if (end - start < 4) {
       start = Math.max(1, end - 4);
     }

@@ -745,7 +745,7 @@ User Question: "${query}"`;
       const matchedProduct = products.find((p: any) => q.includes(p.name.toLowerCase()));
       
       if (matchedProduct) {
-        let cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
+        const cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
         let qty = 1;
         const qtyMatch = cleanQuery.match(/(\d+)\s*(adet|tane)/i) || cleanQuery.match(/(\d+)/);
         if (qtyMatch) {
@@ -802,7 +802,7 @@ User Question: "${query}"`;
 
     // 3. Kategori Ekleme
     if (q.includes('kategori ekle') || q.includes('kategori oluştur') || q.includes('yeni kategori')) {
-      const match = query.match(/(?:yeni kategori ekle|yeni kategori oluştur|kategori ekle|kategori oluştur|yeni kategori)\s*[:\-]?\s*(.+)/i);
+      const match = query.match(/(?:yeni kategori ekle|yeni kategori oluştur|kategori ekle|kategori oluştur|yeni kategori)\s*[:-]?\s*(.+)/i);
       const catName = match ? match[1].trim() : '';
       if (catName) {
         const actionResult = await this.executeAction({
@@ -826,7 +826,7 @@ User Question: "${query}"`;
 
     // 4. Tedarikçi Ekleme
     if (q.includes('tedarikçi ekle') || q.includes('tedarikçi oluştur') || q.includes('yeni tedarikçi')) {
-      const match = query.match(/(?:yeni tedarikçi ekle|yeni tedarikçi oluştur|tedarikçi ekle|tedarikçi oluştur|yeni tedarikçi)\s*[:\-]?\s*(.+)/i);
+      const match = query.match(/(?:yeni tedarikçi ekle|yeni tedarikçi oluştur|tedarikçi ekle|tedarikçi oluştur|yeni tedarikçi)\s*[:-]?\s*(.+)/i);
       const supplierName = match ? match[1].trim() : '';
       if (supplierName) {
         const actionResult = await this.executeAction({
@@ -853,7 +853,7 @@ User Question: "${query}"`;
       const products = await this.productService.getProducts();
       const matchedProduct = products.find((p: any) => q.includes(p.name.toLowerCase()));
       if (matchedProduct) {
-        let cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
+        const cleanQuery = query.toLowerCase().replace(matchedProduct.name.toLowerCase(), '');
         let targetQty = 0;
         const qtyMatch = cleanQuery.match(/(\d+)/);
         if (qtyMatch) {
@@ -893,7 +893,7 @@ User Question: "${query}"`;
       const matchedProduct = products.find((p: any) => q.includes(p.name.toLowerCase()));
       
       if (matchedSupplier && matchedProduct) {
-        let cleanQuery = query.toLowerCase()
+        const cleanQuery = query.toLowerCase()
           .replace(matchedProduct.name.toLowerCase(), '')
           .replace(matchedSupplier.name.toLowerCase(), '');
         let qty = 10;

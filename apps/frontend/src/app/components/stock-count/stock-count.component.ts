@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
@@ -479,7 +479,7 @@ interface StockCount {
     }
   `
 })
-export class StockCountComponent {
+export class StockCountComponent implements OnInit {
   inventoryService = inject(InventoryService);
   ui = inject(UiStateService);
   state = inject(AppStateService);

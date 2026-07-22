@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, HostListener, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray, FormsModule } from '@angular/forms';
@@ -405,7 +405,7 @@ import { tap } from 'rxjs';
 
   `
 })
-export class OrdersComponent {
+export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
   state = inject(AppStateService);
   ui = inject(UiStateService);
   inventoryService = inject(InventoryService);

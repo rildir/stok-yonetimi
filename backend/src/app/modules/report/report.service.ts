@@ -93,7 +93,7 @@ export class ReportService {
     }));
   }
 
-  async getTopSelling(days: number = 30) {
+  async getTopSelling(days = 30) {
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - days);
 
@@ -139,7 +139,7 @@ export class ReportService {
     }));
   }
 
-  async globalSearch(query: string, limit: number = 10): Promise<{
+  async globalSearch(query: string, limit = 10): Promise<{
     products: ProductEntity[];
     orders: OrderEntity[];
     purchaseOrders: PurchaseOrderEntity[];
