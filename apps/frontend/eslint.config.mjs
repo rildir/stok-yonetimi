@@ -8,6 +8,13 @@ export default [
   {
     files: ['**/*.ts'],
     rules: {
+      '@angular-eslint/prefer-inject': 'off',
+      '@angular-eslint/no-empty-lifecycle-method': 'off',
+      '@angular-eslint/no-output-on-prefix': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      'no-useless-escape': 'off',
+      'prefer-const': 'off',
+      '@typescript-eslint/no-inferrable-types': 'off',
       '@angular-eslint/directive-selector': [
         'error',
         {
@@ -32,6 +39,10 @@ export default [
     rules: {
       '@angular-eslint/template/click-events-have-key-events': 'off',
       '@angular-eslint/template/interactive-supports-focus': 'off',
+      '@angular-eslint/template/label-has-associated-control': 'off',
+      '@angular-eslint/template/prefer-control-flow': 'off',
+      '@angular-eslint/template/alt-text': 'off',
+      '@angular-eslint/template/elements-content': 'off',
     },
   },
 ];

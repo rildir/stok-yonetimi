@@ -491,7 +491,7 @@
         @for (line of newOrderLines(); track $index; let i = $index) {
           <div class="order-line-row">
             <div class="form-group" style="flex:2">
-              <select [ngModel]="line.productId" (ngModelChange)="onOrderLineProductChange(i); newOrderLines.update(l => { const c = [...l]; c[i] = {...c[i], productId: $event}; return c; })" [disabled]="isOrderSaving()">
+              <select [ngModel]="line.productId" (ngModelChange)="onOrderLineProductChange(i, $event)" [disabled]="isOrderSaving()">
                 <option value="">Ürün seçin...</option>
                 @for (p of products(); track p.id) {
                   @if (p.quantity > 0) {
