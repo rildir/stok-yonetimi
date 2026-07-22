@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
-  "defaultBase": "master",
+  "defaultBase": "main",
   "analytics": false,
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
@@ -22,15 +22,12 @@
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     },
-    "@nx/eslint:lint": {
+    "lint": {
       "cache": true,
       "inputs": [
         "default",
         "^default",
-        "{workspaceRoot}/.eslintrc.json",
-        "{workspaceRoot}/.eslintignore",
-        "{workspaceRoot}/eslint.config.mjs",
-        "{workspaceRoot}/tools/eslint-rules/**/*"
+        "{workspaceRoot}/eslint.config.mjs"
       ]
     },
     "@angular/build:unit-test": {
