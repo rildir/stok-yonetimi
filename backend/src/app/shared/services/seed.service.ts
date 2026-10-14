@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
+import { CompanyEntity, DEFAULT_COMPANY } from '../../entities/company.entity';
 import { CategoryEntity } from '../../entities/category.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { ProductEntity } from '../../entities/product.entity';
@@ -34,7 +35,18 @@ export class SeedService implements OnModuleInit {
     await this.seedMockDataIfEmpty();
   }
 
+  /** Ensures the default "Demo Şirketi" tenant exists and returns its id. */
+  private async ensureDefaultCompany(): Promise<string> {
+    const companyRepo = this.dataSource.getRepository(CompanyEntity);
+    const existing = await companyRepo.findOne({ where: [{ id: DEFAULT_COMPANY.id }, { slug: DEFAULT_COMPANY.slug }] });
+    if (existing) return existing.id;
+    this.logger.log(`Creating default company "${DEFAULT_COMPANY.name}"...`);
+    const saved = await companyRepo.save(companyRepo.create({ ...DEFAULT_COMPANY }));
+    return saved.id;
+  }
+
   private async seedMockDataIfEmpty() {
+    const companyId = await this.ensureDefaultCompany();
     const userCount = await this.userRepo.count();
     if (userCount === 0) {
       this.logger.log('Users table is empty. Seeding initial users...');
@@ -84,7 +96,7 @@ export class SeedService implements OnModuleInit {
       }
 
       for (const u of initialUsers) {
-        await this.userRepo.save(this.userRepo.create(u));
+        await this.userRepo.save(this.userRepo.create({ ...u, companyId }));
       }
     } else {
       // Ensure demo account exists even if DB already seeded
@@ -93,6 +105,7 @@ export class SeedService implements OnModuleInit {
         this.logger.log('Seeding demo user account (demo / demo123)...');
         await this.userRepo.save(
           this.userRepo.create({
+            companyId,
             username: 'demo',
             password: this.stockHelper.hashPassword('demo123'),
             role: UserRole.VIEWER,
@@ -105,7 +118,7 @@ export class SeedService implements OnModuleInit {
       }
     }
 
-    const categoryCount = await this.categoryRepo.count();
+    const categoryCount = await this.categoryRepo.count({ where: { companyId } });
     if (categoryCount === 0) {
       this.logger.log('Categories table is empty. Seeding initial categories...');
       const initialCategories = [
@@ -116,11 +129,11 @@ export class SeedService implements OnModuleInit {
         { name: 'Ofis Mobilyası', slug: 'Furniture' },
       ];
       for (const cat of initialCategories) {
-        await this.categoryRepo.save(this.categoryRepo.create(cat));
+        await this.categoryRepo.save(this.categoryRepo.create({ ...cat, companyId }));
       }
     }
 
-    const warehouseCount = await this.warehouseRepo.count();
+    const warehouseCount = await this.warehouseRepo.count({ where: { companyId } });
     if (warehouseCount === 0) {
       this.logger.log('Warehouses table is empty. Seeding initial warehouses...');
       const initialWarehouses = [
@@ -128,11 +141,11 @@ export class SeedService implements OnModuleInit {
         { name: 'Ataşehir Şube', code: 'WH-002', address: 'Ataşehir, İstanbul' },
       ];
       for (const wh of initialWarehouses) {
-        await this.warehouseRepo.save(this.warehouseRepo.create(wh));
+        await this.warehouseRepo.save(this.warehouseRepo.create({ ...wh, companyId }));
       }
     }
 
-    const productCount = await this.productRepo.count();
+    const productCount = await this.productRepo.count({ where: { companyId } });
     if (productCount > 0) return;
 
     this.logger.log('Database is empty. Seeding initial products & orders...');
@@ -154,6 +167,7 @@ export class SeedService implements OnModuleInit {
     for (const p of initialProducts) {
       p.status = this.stockHelper.calculateStatus(p.quantity!, p.minQuantity!);
       p.isDeleted = false;
+      p.companyId = companyId;
       const created = this.productRepo.create(p);
       savedProducts.push(await this.productRepo.save(created));
     }
@@ -168,7 +182,7 @@ export class SeedService implements OnModuleInit {
     ];
 
     await this.dataSource.transaction(async (manager) => {
-      const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+      const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId, isDeleted: false } });
       const activeNames = activeWarehouses.map((w) => w.name);
 
       for (let i = 0; i < mockOrderTemplates.length; i++) {
@@ -193,6 +207,7 @@ export class SeedService implements OnModuleInit {
             await manager.save(
               StockMovementEntity,
               manager.create(StockMovementEntity, {
+                companyId,
                 productId: prod.id,
                 productName: prod.name,
                 type: StockMovementType.ORDER,
@@ -220,6 +235,7 @@ export class SeedService implements OnModuleInit {
         }
 
         const newOrder = manager.create(OrderEntity, {
+          companyId,
           orderNumber: orderNum,
           customerName: template.customer,
           date: orderDate,

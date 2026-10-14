@@ -1,11 +1,20 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { CompanyEntity } from './company.entity';
 import { ProductEntity } from './product.entity';
 import { StockMovementType } from './enums';
 
 @Entity('stock_movements')
+@Index('IDX_stock_movements_companyId', ['companyId'])
 export class StockMovementEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ type: 'varchar', length: 36 })
+  companyId: string;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'companyId', foreignKeyConstraintName: 'FK_stock_movements_company' })
+  company?: CompanyEntity;
 
   @Index()
   @Column()

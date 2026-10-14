@@ -62,11 +62,65 @@ import { SocketService } from '../../services/socket.service';
                 <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">Ekip üyelerini davet edin, roller atayın, yetkileri güncelleyin ve limit durumunu izleyin.</p>
               </div>
             </div>
+
+            <!-- Card 4: Şirket Ayarları (Admin only) -->
+            <div class="ecelon-settings-card" (click)="changeTab('company')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
+              <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">🏢</div>
+              <div>
+                <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">Şirket Ayarları</h3>
+                <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">Şirket adı, ülke, varsayılan dil, para birimi ve saat dilimini yönetin.</p>
+              </div>
+            </div>
           }
         </div>
       }
 
       <div class="settings-content" style="width: 100%; display: flex; flex-direction: column; gap: 1.5rem;">
+
+        <!-- COMPANY SETTINGS TAB (Admin) -->
+        @if (activeTab() === 'company') {
+          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 720px;">
+            <h3 class="card-title">Şirket Bilgileri ve Yerel Ayarlar</h3>
+            <p class="card-subtitle" style="margin-bottom: 1.5rem;">Bu ayarlar şirketinizdeki tüm kullanıcılar için varsayılan olarak kullanılır.</p>
+            <form [formGroup]="companyForm" (ngSubmit)="saveCompany()">
+              <div class="form-group" [class.has-error]="companyForm.get('name')?.invalid && companyForm.get('name')?.touched">
+                <label for="">Şirket adı</label>
+                <input type="text" formControlName="name" />
+              </div>
+              <div class="settings-form-grid">
+                <div class="form-group">
+                  <label for="">Ülke</label>
+                  <select formControlName="country">
+                    @for (c of countries; track c.code) { <option [value]="c.code">{{ c.name }} ({{ c.code }})</option> }
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="">Varsayılan dil</label>
+                  <select formControlName="defaultLanguage">
+                    @for (l of languages; track l.code) { <option [value]="l.code">{{ l.name }}</option> }
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="">Ana para birimi</label>
+                  <select formControlName="baseCurrency">
+                    @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="">Saat dilimi</label>
+                  <select formControlName="timezone">
+                    @for (tz of timezones; track tz) { <option [value]="tz">{{ tz }}</option> }
+                  </select>
+                </div>
+              </div>
+              <div class="settings-divider">
+                <button type="submit" class="btn btn-primary" [disabled]="companyForm.invalid || companyForm.pristine || isSavingCompany()">
+                  @if (isSavingCompany()) { Kaydediliyor... } @else { Şirket Ayarlarını Kaydet }
+                </button>
+              </div>
+            </form>
+          </div>
+        }
 
         <!-- PROFILE & SECURITY TAB -->
         <ng-container *ngIf="activeTab() === 'profile'">
@@ -107,6 +161,22 @@ import { SocketService } from '../../services/socket.service';
                   <div class="form-group">
                     <label for="">Şirket / departman</label>
                     <input type="text" formControlName="department" placeholder="Örn: Depo Yönetimi" />
+                  </div>
+                  <div class="settings-form-grid">
+                    <div class="form-group">
+                      <label for="">Dil tercihi</label>
+                      <select formControlName="language">
+                        <option value="">Şirket varsayılanı ({{ ui.userProfile()?.company?.defaultLanguage }})</option>
+                        @for (l of languages; track l.code) { <option [value]="l.code">{{ l.name }}</option> }
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="">Saat dilimi tercihi</label>
+                      <select formControlName="timezone">
+                        <option value="">Şirket varsayılanı ({{ ui.userProfile()?.company?.timezone }})</option>
+                        @for (tz of timezones; track tz) { <option [value]="tz">{{ tz }}</option> }
+                      </select>
+                    </div>
                   </div>
                   
                   <div class="settings-divider">
@@ -559,13 +629,37 @@ export class SettingsComponent implements OnInit {
   
   @ViewChild(ToastComponent) toast!: ToastComponent;
 
-  activeTab = signal<'profile' | 'categories' | 'users' | 'dashboard'>('dashboard');
+  activeTab = signal<'profile' | 'categories' | 'users' | 'company' | 'dashboard'>('dashboard');
+
+  // Locale option lists (shared by profile overrides and company settings)
+  readonly languages = [{ code: 'tr', name: 'Türkçe' }, { code: 'en', name: 'English' }];
+  readonly countries = [
+    { code: 'TR', name: 'Türkiye' }, { code: 'US', name: 'United States' }, { code: 'GB', name: 'United Kingdom' },
+    { code: 'DE', name: 'Deutschland' }, { code: 'FR', name: 'France' }, { code: 'NL', name: 'Nederland' },
+    { code: 'AE', name: 'United Arab Emirates' }, { code: 'AZ', name: 'Azərbaycan' },
+  ];
+  readonly currencies = ['TRY', 'USD', 'EUR', 'GBP', 'AED', 'AZN'];
+  readonly timezones = [
+    'Europe/Istanbul', 'UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Amsterdam',
+    'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Baku',
+  ];
+
+  // Company settings (admin)
+  isSavingCompany = signal(false);
+  companyForm: FormGroup = this.fb.group({
+    name: ['', [Validators.required, Validators.maxLength(120)]],
+    country: ['TR', Validators.required],
+    defaultLanguage: ['tr', Validators.required],
+    baseCurrency: ['TRY', Validators.required],
+    timezone: ['Europe/Istanbul', Validators.required],
+  });
 
   getTabTitle(): string {
     switch (this.activeTab()) {
       case 'profile': return 'Giriş ve Güvenlik';
       case 'categories': return 'Kategori Yönetimi';
       case 'users': return 'Kullanıcı Yönetimi';
+      case 'company': return 'Şirket Ayarları';
       default: return 'Hesabınız';
     }
   }
@@ -575,7 +669,9 @@ export class SettingsComponent implements OnInit {
   profileForm: FormGroup = this.fb.group({
     fullName: ['', [Validators.required, Validators.minLength(3)]],
     email: ['', [Validators.required, Validators.email]],
-    department: ['']
+    department: [''],
+    language: [''],
+    timezone: ['']
   });
 
   // Password fields
@@ -630,7 +726,7 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (tab === 'profile' || tab === 'categories' || tab === 'users') {
+      if (tab === 'profile' || tab === 'categories' || tab === 'users' || tab === 'company') {
         this.activeTab.set(tab);
       } else {
         this.activeTab.set('dashboard');
@@ -638,7 +734,7 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  changeTab(tab: 'profile' | 'categories' | 'users' | 'dashboard') {
+  changeTab(tab: 'profile' | 'categories' | 'users' | 'company' | 'dashboard') {
     if (tab === 'dashboard') {
       this.router.navigate(['/settings']);
     } else {
@@ -653,8 +749,14 @@ export class SettingsComponent implements OnInit {
         this.profileForm.patchValue({
           fullName: profile.fullName,
           email: profile.email,
-          department: profile.department
+          department: profile.department,
+          language: profile.language || '',
+          timezone: profile.timezone || ''
         });
+        if (profile.company) {
+          this.companyForm.patchValue(profile.company);
+          this.companyForm.markAsPristine();
+        }
         if (profile.role === 'admin') {
           this.loadUsers();
         }
@@ -802,7 +904,12 @@ export class SettingsComponent implements OnInit {
     }
     
     this.isSavingProfile = true;
-    this.http.put(`${environment.apiUrl}/user/profile`, this.profileForm.value).subscribe({
+    const payload = {
+      ...this.profileForm.value,
+      language: this.profileForm.value.language || null,
+      timezone: this.profileForm.value.timezone || null,
+    };
+    this.http.put(`${environment.apiUrl}/user/profile`, payload).subscribe({
       next: (res: any) => {
         this.isSavingProfile = false;
         this.ui.userProfile.set(res.data);
@@ -812,6 +919,27 @@ export class SettingsComponent implements OnInit {
       error: (err) => {
         this.isSavingProfile = false;
         this.toast.show('Hata: ' + (err.error?.message || 'Kaydedilemedi.'), 'error');
+      }
+    });
+  }
+
+  saveCompany() {
+    if (this.companyForm.invalid) {
+      this.companyForm.markAllAsTouched();
+      return;
+    }
+    this.isSavingCompany.set(true);
+    this.http.put(`${environment.apiUrl}/company`, this.companyForm.value).subscribe({
+      next: () => {
+        this.isSavingCompany.set(false);
+        this.companyForm.markAsPristine();
+        this.toast.show('✓ Şirket ayarları kaydedildi.', 'success');
+        this.loadProfile();
+      },
+      error: (err) => {
+        this.isSavingCompany.set(false);
+        const msg = err.error?.message;
+        this.toast.show('Hata: ' + ((Array.isArray(msg) ? msg[0] : msg) || 'Kaydedilemedi.'), 'error');
       }
     });
   }

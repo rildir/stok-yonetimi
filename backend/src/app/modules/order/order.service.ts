@@ -9,6 +9,7 @@ import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
 import { OrderStatus, StockMovementType } from '../../entities/enums';
+import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
 export interface OrderItemInput {
   productId: string;
@@ -19,6 +20,7 @@ export interface OrderItemInput {
 @Injectable()
 export class OrderService {
   constructor(
+    private readonly tenant: TenantContext,
     @InjectRepository(OrderEntity)
     private readonly orderRepo: Repository<OrderEntity>,
     @InjectRepository(ProductEntity)
@@ -28,8 +30,13 @@ export class OrderService {
     private readonly dataSource: DataSource,
   ) {}
 
+  private get companyId(): string {
+    return this.tenant.companyId;
+  }
+
   async getOrders(): Promise<OrderEntity[]> {
     return this.orderRepo.find({
+      where: { companyId: this.companyId },
       relations: { items: true },
       order: { date: 'DESC' },
     });
@@ -37,7 +44,7 @@ export class OrderService {
 
   async getOrderById(id: string): Promise<OrderEntity | null> {
     return this.orderRepo.findOne({
-      where: { id },
+      where: { companyId: this.companyId, id },
       relations: { items: true },
     });
   }
@@ -66,7 +73,7 @@ export class OrderService {
 
       while (attempts < maxAttempts) {
         orderNumber = `ORD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        const existing = await manager.findOne(OrderEntity, { where: { orderNumber } });
+        const existing = await manager.findOne(OrderEntity, { where: { companyId: this.companyId, orderNumber } });
         if (!existing) break;
         attempts++;
       }
@@ -91,7 +98,7 @@ export class OrderService {
 
       for (const item of orderItems) {
         const prod = await manager.findOne(ProductEntity, {
-          where: { id: item.productId, isDeleted: false },
+          where: { companyId: this.companyId, id: item.productId, isDeleted: false },
           lock: { mode: 'pessimistic_write' },
         });
 
@@ -105,7 +112,7 @@ export class OrderService {
         if (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING) {
           const oldQty = prod.quantity;
 
-          const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+          const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
           const activeNames = activeWarehouses.map((w) => w.name);
           prod.warehouses = this.stockHelper.deductStockFromWarehouses(prod.warehouses, item.quantity, activeNames);
 
@@ -117,6 +124,7 @@ export class OrderService {
           await manager.save(
             StockMovementEntity,
             manager.create(StockMovementEntity, {
+              companyId: this.companyId,
               productId: savedProd.id,
               productName: savedProd.name,
               type: StockMovementType.ORDER,
@@ -144,6 +152,7 @@ export class OrderService {
       }
 
       const newOrder = manager.create(OrderEntity, {
+        companyId: this.companyId,
         customerName: data.customerName,
         status: data.status || OrderStatus.PENDING,
         carrier: data.carrier,
@@ -157,9 +166,9 @@ export class OrderService {
       return await manager.save(OrderEntity, newOrder);
     });
 
-    this.appGateway.server.emit('order_mutated', { type: 'create', order: savedOrder });
+    this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'create', order: savedOrder });
     for (const p of productsToEmit) {
-      this.appGateway.server.emit('product_mutated', { type: 'update', product: p });
+      this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: p });
     }
 
     return savedOrder;
@@ -170,7 +179,7 @@ export class OrderService {
 
     const savedOrder = await this.dataSource.transaction(async (manager) => {
       const order = await manager.findOne(OrderEntity, {
-        where: { id },
+        where: { companyId: this.companyId, id },
         relations: { items: true },
         lock: { mode: 'pessimistic_write' },
       });
@@ -190,13 +199,13 @@ export class OrderService {
         for (const item of order.items) {
           if (!item.productId) continue;
           const prod = await manager.findOne(ProductEntity, {
-            where: { id: item.productId },
+            where: { companyId: this.companyId, id: item.productId },
             lock: { mode: 'pessimistic_write' },
           });
           if (prod) {
             const oldQty = prod.quantity;
 
-            const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+            const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
             const activeNames = activeWarehouses.map((w) => w.name);
             prod.warehouses = this.stockHelper.addStockToWarehouses(prod.warehouses, item.quantity, activeNames);
 
@@ -208,6 +217,7 @@ export class OrderService {
             await manager.save(
               StockMovementEntity,
               manager.create(StockMovementEntity, {
+                companyId: this.companyId,
                 productId: savedProd.id,
                 productName: savedProd.name,
                 type: StockMovementType.RETURN,
@@ -229,22 +239,22 @@ export class OrderService {
     });
 
     if (savedOrder) {
-      this.appGateway.server.emit('order_mutated', { type: 'update', order: savedOrder });
+      this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'update', order: savedOrder });
       for (const p of productsToEmit) {
-        this.appGateway.server.emit('product_mutated', { type: 'update', product: p });
+        this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: p });
       }
     }
     return savedOrder;
   }
 
   async deleteOrder(id: string): Promise<boolean> {
-    const order = await this.orderRepo.findOne({ where: { id } });
+    const order = await this.orderRepo.findOne({ where: { companyId: this.companyId, id } });
     if (order) {
       if (order.status !== OrderStatus.CANCELLED) {
         throw new BadRequestException('Sadece iptal edilmiş siparişler silinebilir.');
       }
       await this.orderRepo.softRemove(order);
-      this.appGateway.server.emit('order_mutated', { type: 'delete', orderId: id });
+      this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'delete', orderId: id });
       return true;
     }
     return false;

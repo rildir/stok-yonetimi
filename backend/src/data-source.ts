@@ -15,6 +15,7 @@ import { StockCountEntity } from './app/entities/stock-count.entity';
 import { WarehouseEntity } from './app/entities/warehouse.entity';
 import { ProductWarehouseStockEntity } from './app/entities/product-warehouse-stock.entity';
 import { UserEntity } from './app/entities/user.entity';
+import { CompanyEntity } from './app/entities/company.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -40,6 +41,7 @@ export const AppDataSource = new DataSource({
     WarehouseEntity,
     ProductWarehouseStockEntity,
     UserEntity,
+    CompanyEntity,
   ],
   migrations: [path.join(__dirname, 'app/migrations/*{.ts,.js}')],
   synchronize: false,

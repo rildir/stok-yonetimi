@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, Check, Index, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { CompanyEntity } from './company.entity';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 import { CategoryEntity } from './category.entity';
 import { SupplierEntity } from './supplier.entity';
@@ -6,15 +7,23 @@ import { ProductWarehouseStockEntity } from './product-warehouse-stock.entity';
 import { ProductStatus } from './enums';
 
 @Entity('products')
+@Index('UQ_products_company_sku', ['companyId', 'sku'], { unique: true })
 @Check('quantity >= 0')
 export class ProductEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ type: 'varchar', length: 36 })
+  companyId: string;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'companyId', foreignKeyConstraintName: 'FK_products_company' })
+  company?: CompanyEntity;
+
   @Column()
   name: string;
 
-  @Column({ unique: true })
+  @Column()
   sku: string;
 
   @Index()

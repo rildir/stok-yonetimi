@@ -5,10 +5,12 @@ import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { AppGateway } from '../../app.gateway';
+import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
 @Injectable()
 export class WarehouseService {
   constructor(
+    private readonly tenant: TenantContext,
     @InjectRepository(WarehouseEntity)
     private readonly warehouseRepo: Repository<WarehouseEntity>,
     @InjectRepository(ProductEntity)
@@ -17,9 +19,13 @@ export class WarehouseService {
     private readonly dataSource: DataSource,
   ) {}
 
+  private get companyId(): string {
+    return this.tenant.companyId;
+  }
+
   async getWarehouses(): Promise<any[]> {
-    const activeWarehouses = await this.warehouseRepo.find({ where: { isDeleted: false } });
-    const products = await this.productRepo.find({ where: { isDeleted: false } });
+    const activeWarehouses = await this.warehouseRepo.find({ where: { companyId: this.companyId, isDeleted: false } });
+    const products = await this.productRepo.find({ where: { companyId: this.companyId, isDeleted: false } });
     const warehouseMap: Record<string, { id: string; name: string; code: string; address?: string; productCount: number; totalStock: number; totalValue: number }> = {};
 
     for (const wh of activeWarehouses) {
@@ -50,35 +56,35 @@ export class WarehouseService {
 
   async createWarehouse(data: Partial<WarehouseEntity>): Promise<WarehouseEntity> {
     if (data.name) {
-      const existing = await this.warehouseRepo.findOne({ where: { name: data.name, isDeleted: false } });
+      const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, name: data.name, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu isimde bir depo zaten mevcut: ${data.name}`);
       }
     }
     if (data.code) {
-      const existing = await this.warehouseRepo.findOne({ where: { code: data.code, isDeleted: false } });
+      const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, code: data.code, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu kodda bir depo zaten mevcut: ${data.code}`);
       }
     }
-    const newWarehouse = this.warehouseRepo.create(data);
+    const newWarehouse = this.warehouseRepo.create({ ...data, companyId: this.companyId });
     const saved = await this.warehouseRepo.save(newWarehouse);
-    this.appGateway.server.emit('warehouse_mutated', { type: 'create', warehouse: saved });
+    this.appGateway.emitToCompany(this.companyId, 'warehouse_mutated', { type: 'create', warehouse: saved });
     return saved;
   }
 
   async updateWarehouse(id: string, updates: Partial<WarehouseEntity>): Promise<WarehouseEntity | null> {
-    const warehouse = await this.warehouseRepo.findOne({ where: { id, isDeleted: false } });
+    const warehouse = await this.warehouseRepo.findOne({ where: { id, companyId: this.companyId, isDeleted: false } });
     if (!warehouse) return null;
 
     if (updates.name && updates.name !== warehouse.name) {
-      const existing = await this.warehouseRepo.findOne({ where: { name: updates.name, isDeleted: false } });
+      const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, name: updates.name, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu isimde bir depo zaten mevcut: ${updates.name}`);
       }
     }
     if (updates.code && updates.code !== warehouse.code) {
-      const existing = await this.warehouseRepo.findOne({ where: { code: updates.code, isDeleted: false } });
+      const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, code: updates.code, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu kodda bir depo zaten mevcut: ${updates.code}`);
       }
@@ -86,7 +92,7 @@ export class WarehouseService {
 
     await this.dataSource.transaction(async manager => {
       if (updates.name && updates.name !== warehouse.name) {
-        const products = await manager.find(ProductEntity, { where: { isDeleted: false } });
+        const products = await manager.find(ProductEntity, { where: { companyId: this.companyId, isDeleted: false } });
         for (const p of products) {
           if (p.warehouses && p.warehouses[warehouse.name] !== undefined) {
             const qty = p.warehouses[warehouse.name];
@@ -101,14 +107,14 @@ export class WarehouseService {
       await manager.save(WarehouseEntity, warehouse);
     });
 
-    this.appGateway.server.emit('warehouse_mutated', { type: 'update', warehouse });
+    this.appGateway.emitToCompany(this.companyId, 'warehouse_mutated', { type: 'update', warehouse });
     return warehouse;
   }
 
   async deleteWarehouse(id: string): Promise<boolean> {
-    const warehouse = await this.warehouseRepo.findOne({ where: { id, isDeleted: false } });
+    const warehouse = await this.warehouseRepo.findOne({ where: { id, companyId: this.companyId, isDeleted: false } });
     if (warehouse) {
-      const activeProducts = await this.productRepo.find({ where: { isDeleted: false } });
+      const activeProducts = await this.productRepo.find({ where: { companyId: this.companyId, isDeleted: false } });
       for (const p of activeProducts) {
         const qty = p.warehouses?.[warehouse.name] || 0;
         if (qty > 0) {
@@ -117,7 +123,7 @@ export class WarehouseService {
       }
       warehouse.isDeleted = true;
       await this.warehouseRepo.save(warehouse);
-      this.appGateway.server.emit('warehouse_mutated', { type: 'delete', warehouseId: id });
+      this.appGateway.emitToCompany(this.companyId, 'warehouse_mutated', { type: 'delete', warehouseId: id });
       return true;
     }
     return false;
@@ -132,14 +138,14 @@ export class WarehouseService {
   ): Promise<ProductEntity | null> {
     return this.dataSource.transaction(async (manager) => {
       const product = await manager.findOne(ProductEntity, {
-        where: { id: productId, isDeleted: false },
+        where: { id: productId, companyId: this.companyId, isDeleted: false },
         lock: { mode: 'pessimistic_write' }
       });
       if (!product) return null;
 
       let warehouses = product.warehouses || {};
       if (Object.keys(warehouses).length === 0 && product.quantity > 0) {
-        const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+        const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
         const defaultWarehouseName = activeWarehouses.length > 0 ? activeWarehouses[0].name : 'Merkez Depo';
         warehouses = { [defaultWarehouseName]: product.quantity };
       }
@@ -157,6 +163,7 @@ export class WarehouseService {
       const saved = await manager.save(ProductEntity, product);
 
       await manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+        companyId: this.companyId,
         productId: product.id,
         productName: product.name,
         type: 'TRANSFER',
@@ -168,7 +175,7 @@ export class WarehouseService {
         performedBy
       }));
 
-      this.appGateway.server.emit('product_mutated', { type: 'update', product: saved });
+      this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: saved });
       return saved;
     });
   }

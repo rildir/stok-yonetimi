@@ -5,6 +5,9 @@ import { JwtService } from '@nestjs/jwt';
 import { Roles } from '../../guards/roles.decorator';
 import { Public } from '../../guards/public.decorator';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
+import { CompanyService } from '../company/company.service';
+import { buildJwtPayload } from '../../guards/jwt-payload';
+import { UserEntity } from '../../entities/user.entity';
 import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto, LoginDto, ResetPasswordRequestDto } from '../../dto/user.dto';
 
 @ApiTags('Auth & Users')
@@ -14,7 +17,36 @@ export class UserController {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly stockHelper: StockHelperService,
+    private readonly companyService: CompanyService,
   ) {}
+
+  private async toProfile(user: UserEntity) {
+    const company = await this.companyService.getCompanyById(user.companyId);
+    if (!company) {
+      throw new BadRequestException('Şirket bulunamadı.');
+    }
+    return {
+      username: user.username,
+      role: user.role,
+      fullName: user.fullName,
+      email: user.email,
+      department: user.department,
+      avatar: user.avatar,
+      createdAt: user.createdAt,
+      language: user.language ?? null,
+      timezone: user.timezone ?? null,
+      company: {
+        id: company.id,
+        name: company.name,
+        slug: company.slug,
+        country: company.country,
+        defaultLanguage: company.defaultLanguage,
+        baseCurrency: company.baseCurrency,
+        timezone: company.timezone,
+      },
+      locale: this.companyService.resolveLocale(company, user),
+    };
+  }
 
   @Public()
   @Post('auth/login')
@@ -28,15 +60,14 @@ export class UserController {
       throw new BadRequestException('Kullanıcı adı veya şifre hatalı.');
     }
     const onMigration = async (plainPassword: string) => {
-      await this.userService.updateUser(user.id, { password: plainPassword });
+      await this.userService.migratePasswordHash(user, plainPassword);
     };
     const valid = await this.stockHelper.verifyPassword(password, user.password, onMigration);
     if (!valid) {
       throw new BadRequestException('Kullanıcı adı veya şifre hatalı.');
     }
-    const payload = { username: user.username, role: user.role, tokenVersion: user.tokenVersion };
     return {
-      token: await this.jwtService.signAsync(payload),
+      token: await this.jwtService.signAsync(buildJwtPayload(user)),
     };
   }
 
@@ -57,15 +88,7 @@ export class UserController {
     if (!user) {
       throw new BadRequestException('Kullanıcı bulunamadı.');
     }
-    return {
-      username: user.username,
-      role: user.role,
-      fullName: user.fullName,
-      email: user.email,
-      department: user.department,
-      avatar: user.avatar,
-      createdAt: user.createdAt
-    };
+    return this.toProfile(user);
   }
 
   @ApiBearerAuth()
@@ -77,14 +100,7 @@ export class UserController {
     return {
       success: true,
       message: 'Profil başarıyla güncellendi',
-      data: {
-        username: updatedUser.username,
-        role: updatedUser.role,
-        fullName: updatedUser.fullName,
-        email: updatedUser.email,
-        department: updatedUser.department,
-        avatar: updatedUser.avatar
-      }
+      data: await this.toProfile(updatedUser),
     };
   }
 

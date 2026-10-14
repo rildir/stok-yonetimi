@@ -3,13 +3,15 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../modules/user/user.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { TenantContext } from '../shared/tenant/tenant-context.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private jwtService: JwtService,
-    private userService: UserService
+    private userService: UserService,
+    private tenant: TenantContext,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -37,7 +39,13 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('Geçersiz veya süresi dolmuş oturum.');
       }
 
-      request['user'] = payload;
+      // The DB row is authoritative for the tenant; a token minted for a
+      // different company (or a tampered one) is rejected.
+      if (payload.companyId && payload.companyId !== user.companyId) {
+        throw new UnauthorizedException('Geçersiz oturum.');
+      }
+      request['user'] = { ...payload, sub: user.id, companyId: user.companyId };
+      this.tenant.set(user.companyId, user.username);
     } catch {
       throw new UnauthorizedException('Geçersiz veya süresi dolmuş oturum.');
     }

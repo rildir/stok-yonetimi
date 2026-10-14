@@ -9,10 +9,12 @@ import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { OrderStatus, PurchaseOrderStatus } from '../../entities/enums';
+import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
 @Injectable()
 export class ReportService {
   constructor(
+    private readonly tenant: TenantContext,
     @InjectRepository(OrderEntity)
     private readonly orderRepo: Repository<OrderEntity>,
     @InjectRepository(ProductEntity)
@@ -26,11 +28,15 @@ export class ReportService {
     private readonly dataSource: DataSource,
   ) {}
 
+  private get companyId(): string {
+    return this.tenant.companyId;
+  }
+
   async getStockSummary(startDate?: string, endDate?: string) {
     const query = this.stockMovementRepo.createQueryBuilder('sm')
       .select('COALESCE(SUM(CASE WHEN sm.quantity > 0 THEN sm.quantity ELSE 0 END), 0)', 'totalIn')
-      .select('COALESCE(SUM(CASE WHEN sm.quantity > 0 THEN sm.quantity ELSE 0 END), 0)', 'totalIn')
-      .addSelect('COALESCE(SUM(CASE WHEN sm.quantity < 0 THEN ABS(sm.quantity) ELSE 0 END), 0)', 'totalOut');
+      .addSelect('COALESCE(SUM(CASE WHEN sm.quantity < 0 THEN ABS(sm.quantity) ELSE 0 END), 0)', 'totalOut')
+      .where('sm.companyId = :companyId', { companyId: this.companyId });
 
     if (startDate) {
       query.andWhere('sm.createdAt >= :startDate', { startDate: new Date(startDate) });
@@ -56,7 +62,8 @@ export class ReportService {
       .addSelect('MAX(sm.productName)', 'productName')
       .addSelect('COALESCE(SUM(CASE WHEN sm.quantity > 0 THEN sm.quantity ELSE 0 END), 0)', 'totalIn')
       .addSelect('COALESCE(SUM(CASE WHEN sm.quantity < 0 THEN ABS(sm.quantity) ELSE 0 END), 0)', 'totalOut')
-      .where('sm.productId IS NOT NULL')
+      .where('sm.companyId = :companyId', { companyId: this.companyId })
+      .andWhere('sm.productId IS NOT NULL')
       .groupBy('sm.productId');
 
     if (startDate) {
@@ -81,7 +88,8 @@ export class ReportService {
       .addSelect('COUNT(p.id)', 'productCount')
       .addSelect('COALESCE(SUM(p.quantity), 0)', 'totalStock')
       .addSelect('COALESCE(SUM(p.quantity * p.price), 0)', 'totalValue')
-      .where('p.isDeleted = false')
+      .where('p.companyId = :companyId', { companyId: this.companyId })
+      .andWhere('p.isDeleted = false')
       .groupBy('p.category')
       .getRawMany();
 
@@ -104,7 +112,8 @@ export class ReportService {
       .addSelect('MAX(oi.productName)', 'productName')
       .addSelect('SUM(oi.quantity)', 'totalQty')
       .addSelect('SUM(oi.quantity * oi.price)', 'totalRevenue')
-      .where('o.status = :status', { status: OrderStatus.COMPLETED })
+      .where('o.companyId = :companyId', { companyId: this.companyId })
+      .andWhere('o.status = :status', { status: OrderStatus.COMPLETED })
       .andWhere('o.date >= :thresholdDate', { thresholdDate })
       .groupBy('oi.productId')
       .orderBy('SUM(oi.quantity)', 'DESC')
@@ -128,7 +137,8 @@ export class ReportService {
         `COALESCE(SUM(CASE WHEN po.status = '${PurchaseOrderStatus.RECEIVED}' THEN po.totalAmount ELSE 0 END), 0)`,
         'totalAmount'
       )
-      .where('po.status != :cancelledStatus', { cancelledStatus: PurchaseOrderStatus.CANCELLED })
+      .where('po.companyId = :companyId', { companyId: this.companyId })
+      .andWhere('po.status != :cancelledStatus', { cancelledStatus: PurchaseOrderStatus.CANCELLED })
       .groupBy('po.supplierId')
       .getRawMany();
 
@@ -149,34 +159,40 @@ export class ReportService {
     const escapedQuery = query.replace(/[%_]/g, '\\$&');
     const q = `%${escapedQuery.toLowerCase()}%`;
     const poRepo = this.dataSource.getRepository(PurchaseOrderEntity);
+    const companyId = this.companyId;
 
     const [products, orders, purchaseOrders, suppliers, warehouses] = await Promise.all([
       this.productRepo.createQueryBuilder('p')
-        .where('p.isDeleted = false')
+        .where('p.companyId = :companyId', { companyId })
+        .andWhere('p.isDeleted = false')
         .andWhere('(LOWER(p.name) LIKE :q OR LOWER(p.sku) LIKE :q)', { q })
         .take(limit)
         .getMany(),
 
       this.orderRepo.createQueryBuilder('o')
         .leftJoinAndSelect('o.items', 'items')
-        .where('(LOWER(o.customerName) LIKE :q OR LOWER(o.orderNumber) LIKE :q)', { q })
+        .where('o.companyId = :companyId', { companyId })
+        .andWhere('(LOWER(o.customerName) LIKE :q OR LOWER(o.orderNumber) LIKE :q)', { q })
         .take(limit)
         .getMany(),
 
       poRepo.createQueryBuilder('po')
         .leftJoinAndSelect('po.items', 'items')
-        .where('(LOWER(po.supplierName) LIKE :q OR LOWER(po.poNumber) LIKE :q)', { q })
+        .where('po.companyId = :companyId', { companyId })
+        .andWhere('(LOWER(po.supplierName) LIKE :q OR LOWER(po.poNumber) LIKE :q)', { q })
         .take(limit)
         .getMany(),
 
       this.supplierRepo.createQueryBuilder('s')
-        .where('s.isDeleted = false')
+        .where('s.companyId = :companyId', { companyId })
+        .andWhere('s.isDeleted = false')
         .andWhere('(LOWER(s.name) LIKE :q OR LOWER(s.contactPerson) LIKE :q OR LOWER(s.email) LIKE :q)', { q })
         .take(limit)
         .getMany(),
 
       this.warehouseRepo.createQueryBuilder('w')
-        .where('w.isDeleted = false')
+        .where('w.companyId = :companyId', { companyId })
+        .andWhere('w.isDeleted = false')
         .andWhere('(LOWER(w.name) LIKE :q OR LOWER(w.code) LIKE :q)', { q })
         .take(limit)
         .getMany(),

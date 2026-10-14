@@ -1,9 +1,18 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { CompanyEntity } from './company.entity';
 
 @Entity('suppliers')
+@Index('IDX_suppliers_companyId', ['companyId'])
 export class SupplierEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ type: 'varchar', length: 36 })
+  companyId: string;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'companyId', foreignKeyConstraintName: 'FK_suppliers_company' })
+  company?: CompanyEntity;
 
   @Column()
   name: string;

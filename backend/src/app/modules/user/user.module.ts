@@ -6,6 +6,7 @@ import { UserEntity } from '../../entities/user.entity';
 import { SharedModule } from '../../shared/shared.module';
 import { GatewayModule } from '../../shared/gateway.module';
 import { JwtModule } from '@nestjs/jwt';
+import { CompanyModule } from '../company/company.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { JwtModule } from '@nestjs/jwt';
     SharedModule,
     GatewayModule,
     JwtModule,
+    CompanyModule,
   ],
   controllers: [UserController],
   providers: [UserService],

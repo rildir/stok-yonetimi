@@ -7,22 +7,28 @@ import { CreateUserDto, UpdateUserDto } from '../../dto/user.dto';
 import { UserRole } from '../../entities/enums';
 
 import { AppGateway } from '../../app.gateway';
+import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
 @Injectable()
 export class UserService {
   constructor(
+    private readonly tenant: TenantContext,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     private readonly stockHelper: StockHelperService,
     private readonly appGateway: AppGateway,
   ) {}
 
+  private get companyId(): string {
+    return this.tenant.companyId;
+  }
+
   async requestPasswordReset(username: string): Promise<{ success: boolean; message: string }> {
     const user = await this.getUserByUsername(username);
     if (!user) {
       throw new BadRequestException('Bu kullanıcı adı ile kayıtlı kullanıcı bulunamadı.');
     }
-    this.appGateway.notifyPasswordResetRequest({
+    this.appGateway.notifyPasswordResetRequest(user.companyId, {
       username: user.username,
       fullName: user.fullName || user.username,
     });
@@ -50,6 +56,9 @@ export class UserService {
     if (updates.email !== undefined) user.email = updates.email;
     if (updates.department !== undefined) user.department = updates.department;
     if (updates.avatar !== undefined) user.avatar = updates.avatar;
+    // null clears the override (falls back to company default)
+    if (updates.language !== undefined) user.language = updates.language || null;
+    if (updates.timezone !== undefined) user.timezone = updates.timezone || null;
 
     const saved = await this.userRepo.save(user);
     return this.sanitizeUser(saved);
@@ -75,13 +84,13 @@ export class UserService {
   }
 
   async getAllUsers(): Promise<UserEntity[]> {
-    const users = await this.userRepo.find({ order: { fullName: 'ASC' } });
+    const users = await this.userRepo.find({ where: { companyId: this.companyId }, order: { fullName: 'ASC' } });
     return users.map((u) => this.sanitizeUser(u));
   }
 
   async createUser(adminUsername: string, data: CreateUserDto): Promise<UserEntity> {
     const admin = await this.getUserByUsername(adminUsername);
-    if (!admin) {
+    if (!admin || admin.companyId !== this.companyId) {
       throw new BadRequestException('Yönetici bulunamadı.');
     }
 
@@ -91,6 +100,7 @@ export class UserService {
     }
 
     const newUser = this.userRepo.create({
+      companyId: admin.companyId,
       username: data.username,
       password: this.stockHelper.hashPassword(data.password || '123456'),
       role: data.role || UserRole.VIEWER,
@@ -104,8 +114,14 @@ export class UserService {
     return this.sanitizeUser(saved);
   }
 
+  /** Transparent SHA-256 -> bcrypt upgrade during login (runs before tenant context exists). */
+  async migratePasswordHash(user: UserEntity, plainPassword: string): Promise<void> {
+    user.password = this.stockHelper.hashPassword(plainPassword);
+    await this.userRepo.update({ id: user.id }, { password: user.password });
+  }
+
   async updateUser(id: string, updates: UpdateUserDto): Promise<UserEntity> {
-    const user = await this.userRepo.findOne({ where: { id } });
+    const user = await this.userRepo.findOne({ where: { id, companyId: this.companyId } });
     if (!user) {
       throw new BadRequestException('Kullanıcı bulunamadı.');
     }
@@ -125,11 +141,11 @@ export class UserService {
   }
 
   async deleteUser(id: string): Promise<boolean> {
-    const user = await this.userRepo.findOne({ where: { id } });
+    const user = await this.userRepo.findOne({ where: { id, companyId: this.companyId } });
     if (!user) return false;
 
     if (user.role === UserRole.ADMIN) {
-      const adminCount = await this.userRepo.count({ where: { role: UserRole.ADMIN } });
+      const adminCount = await this.userRepo.count({ where: { companyId: this.companyId, role: UserRole.ADMIN } });
       if (adminCount <= 1) {
         throw new BadRequestException('Son yönetici hesabı silinemez.');
       }

@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { CompanyEntity } from './company.entity';
 
 export interface StockCountItem {
   productId: string;
@@ -11,11 +12,19 @@ export interface StockCountItem {
 }
 
 @Entity('stock_counts')
+@Index('UQ_stock_counts_company_countNumber', ['companyId', 'countNumber'], { unique: true })
 export class StockCountEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', length: 36 })
+  companyId: string;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'companyId', foreignKeyConstraintName: 'FK_stock_counts_company' })
+  company?: CompanyEntity;
+
+  @Column()
   countNumber: string;
 
   @Index()

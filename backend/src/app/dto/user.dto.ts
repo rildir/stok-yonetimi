@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, MinLength, IsIn, IsTimeZone, ValidateIf } from 'class-validator';
+import { SUPPORTED_LANGUAGES } from '../entities/company.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -94,6 +95,16 @@ export class UpdateProfileDto {
   @IsString()
   @IsOptional()
   avatar?: string;
+
+  @ApiPropertyOptional({ description: 'Kişisel dil tercihi (null = şirket varsayılanı)', enum: SUPPORTED_LANGUAGES, nullable: true })
+  @ValidateIf((o) => o.language !== null && o.language !== undefined)
+  @IsIn(SUPPORTED_LANGUAGES, { message: 'Dil "tr" veya "en" olmalıdır.' })
+  language?: string | null;
+
+  @ApiPropertyOptional({ description: 'Kişisel saat dilimi (IANA, null = şirket varsayılanı)', nullable: true })
+  @ValidateIf((o) => o.timezone !== null && o.timezone !== undefined)
+  @IsTimeZone({ message: 'Geçerli bir saat dilimi girin (ör. Europe/Istanbul).' })
+  timezone?: string | null;
 }
 
 export class UpdatePasswordDto {

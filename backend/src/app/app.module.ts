@@ -19,6 +19,7 @@ import { StockCountEntity } from './entities/stock-count.entity';
 import { WarehouseEntity } from './entities/warehouse.entity';
 import { ProductWarehouseStockEntity } from './entities/product-warehouse-stock.entity';
 import { UserEntity } from './entities/user.entity';
+import { CompanyEntity } from './entities/company.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -26,6 +27,8 @@ import { AuthGuard } from './guards/auth.guard';
 
 // Feature Modules
 import { SharedModule } from './shared/shared.module';
+import { TenantModule } from './shared/tenant/tenant.module';
+import { CompanyModule } from './modules/company/company.module';
 import { GatewayModule } from './shared/gateway.module';
 import { CategoryModule } from './modules/category/category.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
@@ -60,6 +63,7 @@ import { ReportModule } from './modules/report/report.module';
         WarehouseEntity,
         ProductWarehouseStockEntity,
         UserEntity,
+        CompanyEntity,
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
@@ -74,8 +78,10 @@ import { ReportModule } from './modules/report/report.module';
       ttl: 60000,
       limit: 60,
     }]),
+    TenantModule,
     SharedModule,
     GatewayModule,
+    CompanyModule,
     CategoryModule,
     SupplierModule,
     ProductModule,

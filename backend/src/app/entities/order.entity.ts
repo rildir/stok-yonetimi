@@ -1,14 +1,23 @@
-import { Entity, Column, PrimaryGeneratedColumn, Index, DeleteDateColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Index, DeleteDateColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { CompanyEntity } from './company.entity';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 import { OrderItemEntity } from './order-item.entity';
 import { OrderStatus } from './enums';
 
 @Entity('orders')
+@Index('UQ_orders_company_orderNumber', ['companyId', 'orderNumber'], { unique: true })
 export class OrderEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', length: 36 })
+  companyId: string;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'companyId', foreignKeyConstraintName: 'FK_orders_company' })
+  company?: CompanyEntity;
+
+  @Column()
   orderNumber: string;
 
   @Column()

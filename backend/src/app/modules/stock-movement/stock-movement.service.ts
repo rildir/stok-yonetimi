@@ -6,10 +6,12 @@ import { ProductEntity } from '../../entities/product.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
+import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
 @Injectable()
 export class StockMovementService {
   constructor(
+    private readonly tenant: TenantContext,
     @InjectRepository(StockMovementEntity)
     private readonly stockMovementRepo: Repository<StockMovementEntity>,
     @InjectRepository(ProductEntity)
@@ -18,6 +20,10 @@ export class StockMovementService {
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
+
+  private get companyId(): string {
+    return this.tenant.companyId;
+  }
 
   async getStockMovements(
     productId?: string,
@@ -29,7 +35,7 @@ export class StockMovementService {
     type?: string
   ): Promise<{ data: StockMovementEntity[], total: number }> {
     const query = this.stockMovementRepo.createQueryBuilder('sm').orderBy('sm.createdAt', 'DESC');
-    query.where('1=1');
+    query.where('sm.companyId = :companyId', { companyId: this.companyId });
 
     if (productId) {
       query.andWhere('sm.productId = :productId', { productId });
@@ -67,7 +73,7 @@ export class StockMovementService {
   async createManualAdjustment(productId: string, newQuantity: number, note: string, performedBy: string): Promise<StockMovementEntity> {
     const saved = await this.dataSource.transaction(async (manager) => {
       const prod = await manager.findOne(ProductEntity, {
-        where: { id: productId, isDeleted: false },
+        where: { companyId: this.companyId, id: productId, isDeleted: false },
         lock: { mode: 'pessimistic_write' }
       });
       if (!prod) throw new BadRequestException('Ürün bulunamadı');
@@ -76,7 +82,7 @@ export class StockMovementService {
       const diff = newQuantity - oldQty;
       
       if (diff !== 0) {
-        const activeWarehouses = await manager.find(WarehouseEntity, { where: { isDeleted: false } });
+        const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
         const activeNames = activeWarehouses.map(w => w.name);
         if (diff > 0) {
           prod.warehouses = this.stockHelper.addStockToWarehouses(prod.warehouses, diff, activeNames);
@@ -90,6 +96,7 @@ export class StockMovementService {
       const savedProd = await manager.save(ProductEntity, prod);
 
       const movement = manager.create(StockMovementEntity, {
+        companyId: this.companyId,
         productId: savedProd.id,
         productName: savedProd.name,
         type: 'ADJUSTMENT',
@@ -103,9 +110,9 @@ export class StockMovementService {
       return await manager.save(StockMovementEntity, movement);
     });
 
-    const updatedProduct = await this.productRepo.findOne({ where: { id: productId, isDeleted: false } });
+    const updatedProduct = await this.productRepo.findOne({ where: { companyId: this.companyId, id: productId, isDeleted: false } });
     if (updatedProduct) {
-      this.appGateway.server.emit('product_mutated', { type: 'update', product: updatedProduct });
+      this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: updatedProduct });
     }
     return saved;
   }

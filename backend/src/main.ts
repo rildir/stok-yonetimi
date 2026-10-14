@@ -30,11 +30,15 @@ loadEnv();
 import helmet from 'helmet';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app/app.module';
+import { TenantContext } from './app/shared/tenant/tenant-context.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
+
+  // Per-request tenant context (filled by AuthGuard, read by services)
+  app.use(TenantContext.middleware);
 
   // Helmet HTTP security headers
   app.use(helmet({

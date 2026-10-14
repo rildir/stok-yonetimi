@@ -5,10 +5,12 @@ import { SupplierEntity } from '../../entities/supplier.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { AppGateway } from '../../app.gateway';
+import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
 @Injectable()
 export class SupplierService {
   constructor(
+    private readonly tenant: TenantContext,
     @InjectRepository(SupplierEntity)
     private readonly supplierRepo: Repository<SupplierEntity>,
     @InjectRepository(ProductEntity)
@@ -19,30 +21,34 @@ export class SupplierService {
     private readonly dataSource: DataSource,
   ) {}
 
+  private get companyId(): string {
+    return this.tenant.companyId;
+  }
+
   async getSuppliers(): Promise<SupplierEntity[]> {
-    return this.supplierRepo.find({ where: { isDeleted: false }, order: { name: 'ASC' } });
+    return this.supplierRepo.find({ where: { companyId: this.companyId, isDeleted: false }, order: { name: 'ASC' } });
   }
 
   async getSupplierById(id: string): Promise<SupplierEntity | null> {
-    return this.supplierRepo.findOne({ where: { id, isDeleted: false } });
+    return this.supplierRepo.findOne({ where: { id, companyId: this.companyId, isDeleted: false } });
   }
 
   async createSupplier(data: Partial<SupplierEntity>): Promise<SupplierEntity> {
     if (data.name) {
-      const existing = await this.supplierRepo.findOne({ where: { name: data.name, isDeleted: false } });
+      const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, name: data.name, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu isimde bir tedarikçi zaten mevcut: ${data.name}`);
       }
     }
     if (data.email) {
-      const existing = await this.supplierRepo.findOne({ where: { email: data.email, isDeleted: false } });
+      const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, email: data.email, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu e-posta adresine sahip bir tedarikçi zaten mevcut: ${data.email}`);
       }
     }
-    const newSupplier = this.supplierRepo.create(data);
+    const newSupplier = this.supplierRepo.create({ ...data, companyId: this.companyId });
     const saved = await this.supplierRepo.save(newSupplier);
-    this.appGateway.server.emit('supplier_mutated', { type: 'create', supplier: saved });
+    this.appGateway.emitToCompany(this.companyId, 'supplier_mutated', { type: 'create', supplier: saved });
     return saved;
   }
 
@@ -51,13 +57,13 @@ export class SupplierService {
     if (!supplier) return null;
 
     if (updates.name && updates.name !== supplier.name) {
-      const existing = await this.supplierRepo.findOne({ where: { name: updates.name, isDeleted: false } });
+      const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, name: updates.name, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu isimde bir tedarikçi zaten mevcut: ${updates.name}`);
       }
     }
     if (updates.email && updates.email !== supplier.email) {
-      const existing = await this.supplierRepo.findOne({ where: { email: updates.email, isDeleted: false } });
+      const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, email: updates.email, isDeleted: false } });
       if (existing) {
         throw new BadRequestException(`Bu e-posta adresine sahip bir tedarikçi zaten mevcut: ${updates.email}`);
       }
@@ -65,7 +71,7 @@ export class SupplierService {
     
     Object.assign(supplier, updates);
     const saved = await this.supplierRepo.save(supplier);
-    this.appGateway.server.emit('supplier_mutated', { type: 'update', supplier: saved });
+    this.appGateway.emitToCompany(this.companyId, 'supplier_mutated', { type: 'update', supplier: saved });
     return saved;
   }
 
@@ -74,8 +80,8 @@ export class SupplierService {
     if (supplier) {
       const activePoCount = await this.poRepo.count({
         where: [
-          { supplierId: id, status: 'Draft' },
-          { supplierId: id, status: 'Sent' }
+          { companyId: this.companyId, supplierId: id, status: 'Draft' },
+          { companyId: this.companyId, supplierId: id, status: 'Sent' }
         ]
       });
       if (activePoCount > 0) {
@@ -84,13 +90,13 @@ export class SupplierService {
 
       await this.dataSource.transaction(async manager => {
         // Set linked products' supplierId to null
-        await manager.update(ProductEntity, { supplierId: id }, { supplierId: null as any });
+        await manager.update(ProductEntity, { companyId: this.companyId, supplierId: id }, { supplierId: null as any });
 
         supplier.isDeleted = true;
         await manager.save(SupplierEntity, supplier);
       });
 
-      this.appGateway.server.emit('supplier_mutated', { type: 'delete', supplierId: id });
+      this.appGateway.emitToCompany(this.companyId, 'supplier_mutated', { type: 'delete', supplierId: id });
       return true;
     }
     return false;

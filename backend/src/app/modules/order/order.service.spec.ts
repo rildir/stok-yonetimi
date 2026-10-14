@@ -8,6 +8,9 @@ import { OrderEntity } from '../../entities/order.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
+import { TenantContext } from '../../shared/tenant/tenant-context.service';
+
+const COMPANY_ID = 'company-1';
 import { OrderStatus } from '../../entities/enums';
 
 describe('OrderService', () => {
@@ -35,7 +38,7 @@ describe('OrderService', () => {
     };
 
     appGatewayMock = {
-      server: { emit: jest.fn() },
+      emitToCompany: jest.fn(),
     };
 
     dataSourceMock = {
@@ -46,6 +49,7 @@ describe('OrderService', () => {
             return Promise.resolve({ id: 'p-1', name: 'Laptop', price: 1000, quantity: 10, minQuantity: 2, warehouses: { 'Ana Depo': 10 } });
           }),
           find: jest.fn().mockResolvedValue([{ name: 'Ana Depo' }]),
+          exists: jest.fn().mockResolvedValue(false),
           create: jest.fn().mockImplementation((entity, obj) => ({ id: 'order-1', ...obj })),
           save: jest.fn().mockImplementation((entity, obj) => Promise.resolve({ id: 'order-1', ...obj })),
         })
@@ -59,6 +63,7 @@ describe('OrderService', () => {
         { provide: getRepositoryToken(ProductEntity), useValue: productRepoMock },
         { provide: StockHelperService, useValue: stockHelperMock },
         { provide: AppGateway, useValue: appGatewayMock },
+        { provide: TenantContext, useValue: { companyId: COMPANY_ID } },
         { provide: DataSource, useValue: dataSourceMock },
       ],
     }).compile();
@@ -78,6 +83,7 @@ describe('OrderService', () => {
       const result = await service.getOrders();
       expect(result).toEqual(mockOrders);
       expect(orderRepoMock.find).toHaveBeenCalledWith({
+        where: { companyId: COMPANY_ID },
         relations: { items: true },
         order: { date: 'DESC' },
       });
@@ -107,7 +113,7 @@ describe('OrderService', () => {
       expect(result).toBeDefined();
       expect(result.customerName).toEqual('Ahmet Yılmaz');
       expect(dataSourceMock.transaction).toHaveBeenCalled();
-      expect(appGatewayMock.server.emit).toHaveBeenCalledWith('order_mutated', expect.any(Object));
+      expect(appGatewayMock.emitToCompany).toHaveBeenCalledWith(COMPANY_ID, 'order_mutated', expect.any(Object));
     });
   });
 });
