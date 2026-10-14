@@ -15,6 +15,11 @@ import {
   TaxRate,
   ExchangeRate,
   DashboardSummary,
+  Unit,
+  StockLot,
+  SerialNumber,
+  BarcodeLookupResult,
+  ExpiringLot,
 } from './models/inventory.models';
 
 export type {
@@ -35,6 +40,17 @@ export type {
   ExchangeRate,
   DashboardSummary,
   DocumentAmounts,
+  Unit,
+  ProductUnit,
+  StockLot,
+  SerialNumber,
+  SerialStatus,
+  TrackingEntry,
+  TrackingType,
+  BarcodeType,
+  LineUnitInfo,
+  BarcodeLookupResult,
+  ExpiringLot,
 } from './models/inventory.models';
 
 /** Payload for POST /orders (customerId preferred; customerName used when no customer is linked). */
@@ -46,7 +62,25 @@ export interface CreateOrderPayload {
   warehouseId?: string;
   carrier?: string;
   trackingNumber?: string;
-  items: { productId: string; productName?: string; quantity: number; unitPrice?: number; warehouseId?: string }[];
+  /** quantity is in unitId (base unit when omitted); unitPrice is per that unit.
+   *  lots (base-unit quantities) / serials are optional: omitted => FEFO/FIFO auto allocation. */
+  items: {
+    productId: string;
+    productName?: string;
+    quantity: number;
+    unitId?: string;
+    unitPrice?: number;
+    warehouseId?: string;
+    lots?: { lotId: string; quantity: number }[];
+    serials?: string[];
+  }[];
+}
+
+/** Lot/serial capture for one PO line when receiving (quantities in base units). */
+export interface PurchaseOrderReceipt {
+  itemId: string;
+  lots?: { lotNumber: string; expiryDate?: string | null; quantity: number }[];
+  serials?: string[];
 }
 
 /** Payload for POST/PUT /purchase-orders */
@@ -55,7 +89,8 @@ export interface PurchaseOrderPayload {
   currency?: string;
   warehouseId?: string;
   notes?: string;
-  items?: { productId: string; quantity: number; unitPrice?: number }[];
+  /** quantity in unitId (base unit when omitted); unitPrice per that unit */
+  items?: { productId: string; quantity: number; unitId?: string; unitPrice?: number }[];
 }
 
 @Injectable({
@@ -163,8 +198,12 @@ export class InventoryService {
   }
 
   /** warehouseId: receiving warehouse when status becomes Received (default warehouse if omitted) */
-  updatePurchaseOrderStatus(id: string, status: string, warehouseId?: string): Observable<PurchaseOrder> {
-    return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}/status`, warehouseId ? { status, warehouseId } : { status });
+  /** receipts are required for lot/serial tracked lines when status = Received */
+  updatePurchaseOrderStatus(id: string, status: string, warehouseId?: string, receipts?: PurchaseOrderReceipt[]): Observable<PurchaseOrder> {
+    const body: any = { status };
+    if (warehouseId) body.warehouseId = warehouseId;
+    if (receipts?.length) body.receipts = receipts;
+    return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}/status`, body);
   }
 
   updatePurchaseOrder(id: string, data: PurchaseOrderPayload | Partial<PurchaseOrder>): Observable<PurchaseOrder> {
@@ -266,8 +305,9 @@ export class InventoryService {
    * Transactional warehouse-to-warehouse transfer (TRANSFER_OUT + TRANSFER_IN movements).
    * from/to are warehouse ids (names still accepted by the API for older callers). Returns the updated product.
    */
-  transferWarehouseStock(productId: string, fromWarehouseId: string, toWarehouseId: string, quantity: number, note?: string): Observable<Product> {
-    return this.http.post<Product>(`${this.apiUrl}/warehouses/transfer`, { productId, fromWarehouseId, toWarehouseId, quantity, note });
+  /** lotId (lot-tracked) / serials (serial-tracked) are optional; omitted => FEFO/FIFO */
+  transferWarehouseStock(productId: string, fromWarehouseId: string, toWarehouseId: string, quantity: number, note?: string, lotId?: string, serials?: string[]): Observable<Product> {
+    return this.http.post<Product>(`${this.apiUrl}/warehouses/transfer`, { productId, fromWarehouseId, toWarehouseId, quantity, note, lotId, serials });
   }
 
   getWarehouseStock(id: string): Observable<{ productId: string; productName: string; sku: string; quantity: number }[]> {
@@ -334,5 +374,46 @@ export class InventoryService {
   /** Dashboard headline numbers, all converted to the company base currency. */
   getDashboardSummary(): Observable<DashboardSummary> {
     return this.http.get<DashboardSummary>(`${this.apiUrl}/reports/dashboard-summary`);
+  }
+
+  // Units of measure (write: admin/manager)
+  getUnits(): Observable<Unit[]> {
+    return this.http.get<Unit[]>(`${this.apiUrl}/units`);
+  }
+
+  createUnit(data: Partial<Unit>): Observable<Unit> {
+    return this.http.post<Unit>(`${this.apiUrl}/units`, data);
+  }
+
+  updateUnit(id: string, data: Partial<Unit>): Observable<Unit> {
+    return this.http.put<Unit>(`${this.apiUrl}/units/${id}`, data);
+  }
+
+  deleteUnit(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/units/${id}`);
+  }
+
+  // Barcodes, lots, serials
+  /** Finds a product by its barcode, an alternate-unit barcode, or a serial number (404 when unknown). */
+  lookupBarcode(code: string): Observable<BarcodeLookupResult> {
+    return this.http.get<BarcodeLookupResult>(`${this.apiUrl}/products/lookup/barcode/${encodeURIComponent(code)}`);
+  }
+
+  /** In-stock lots in FEFO order (optionally for one warehouse). */
+  getProductLots(productId: string, warehouseId?: string): Observable<StockLot[]> {
+    const q = warehouseId ? `?warehouseId=${warehouseId}` : '';
+    return this.http.get<StockLot[]>(`${this.apiUrl}/products/${productId}/lots${q}`);
+  }
+
+  getProductSerials(productId: string, status: string = 'in_stock', warehouseId?: string): Observable<SerialNumber[]> {
+    let q = `?status=${status}`;
+    if (warehouseId) q += `&warehouseId=${warehouseId}`;
+    return this.http.get<SerialNumber[]>(`${this.apiUrl}/products/${productId}/serials${q}`);
+  }
+
+  /** Lots expiring within `days` (default: company expiryAlertDays), expired ones included. */
+  getExpiringLots(days?: number): Observable<{ days: number; items: ExpiringLot[] }> {
+    const q = days !== undefined ? `?days=${days}` : '';
+    return this.http.get<{ days: number; items: ExpiringLot[] }>(`${this.apiUrl}/reports/expiring${q}`);
   }
 }

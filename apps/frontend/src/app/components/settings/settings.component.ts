@@ -8,13 +8,13 @@ import { ToastComponent } from '../shared/toast/toast.component';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { SocketService } from '../../services/socket.service';
-import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe } from '../../i18n';
-import { TaxRate, ExchangeRate } from '../../models/inventory.models';
+import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe } from '../../i18n';
+import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe],
   template: `
     <!-- Amazon Header Style -->
     <header class="page-header" style="border-bottom: none; margin-bottom: 1.5rem; display: block;">
@@ -52,6 +52,15 @@ import { TaxRate, ExchangeRate } from '../../models/inventory.models';
             <div>
               <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.categories' | t }}</h3>
               <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.categoriesDesc' | t }}</p>
+            </div>
+          </div>
+
+          <!-- Card: Units of measure -->
+          <div class="ecelon-settings-card" (click)="changeTab('units')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
+            <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">📏</div>
+            <div>
+              <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.units' | t }}</h3>
+              <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.unitsDesc' | t }}</p>
             </div>
           </div>
 
@@ -138,6 +147,11 @@ import { TaxRate, ExchangeRate } from '../../models/inventory.models';
                 <label for="pricesIncludeTax" style="margin: 0;">{{ 'settings.company.pricesIncludeTax' | t }}</label>
               </div>
               <p class="text-muted" style="font-size: 12px; margin-top: -8px;">{{ 'settings.company.pricesIncludeTaxHint' | t }}</p>
+              <div class="form-group" [class.has-error]="companyForm.get('expiryAlertDays')?.invalid && companyForm.get('expiryAlertDays')?.touched" style="max-width: 260px;">
+                <label for="expiryAlertDays">{{ 'settings.company.expiryAlertDays' | t }}</label>
+                <input id="expiryAlertDays" type="number" min="0" max="3650" step="1" formControlName="expiryAlertDays" />
+                <span class="text-muted" style="font-size: 12px;">{{ 'settings.company.expiryAlertDaysHint' | t }}</span>
+              </div>
               <div class="settings-divider">
                 <button type="submit" class="btn btn-primary" [disabled]="companyForm.invalid || companyForm.pristine || isSavingCompany()">
                   @if (isSavingCompany()) { {{ 'settings.saving' | t }} } @else { {{ 'settings.company.save' | t }} }
@@ -212,6 +226,71 @@ import { TaxRate, ExchangeRate } from '../../models/inventory.models';
                           <button class="edit-btn" [title]="'common.edit' | t" (click)="editTax(tr)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                           <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteTax(tr)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                         </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- UNITS TAB -->
+        @if (activeTab() === 'units') {
+          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 900px;">
+            <h3 class="card-title">{{ 'settings.units.title' | t }}</h3>
+            <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.units.subtitle' | t }}</p>
+            @if (canManageUnits()) {
+              <form [formGroup]="unitForm" (ngSubmit)="saveUnit()">
+                <div class="settings-form-grid">
+                  <div class="form-group" [class.has-error]="unitForm.get('code')?.invalid && unitForm.get('code')?.touched">
+                    <label for="unitCode">{{ 'settings.units.code' | t }}</label>
+                    <input id="unitCode" type="text" formControlName="code" [placeholder]="'settings.units.codePh' | t" [readonly]="editUnitStandard()" />
+                    @if (editUnitStandard()) { <span class="text-muted" style="font-size: 12px;">{{ 'settings.units.codeLocked' | t }}</span> }
+                  </div>
+                  <div class="form-group" [class.has-error]="unitForm.get('name')?.invalid && unitForm.get('name')?.touched">
+                    <label for="unitName">{{ 'settings.units.name' | t }}</label>
+                    <input id="unitName" type="text" formControlName="name" [placeholder]="'settings.units.namePh' | t" />
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button type="submit" class="btn btn-primary" [disabled]="unitForm.invalid || isSavingUnit()">
+                    @if (isSavingUnit()) { {{ 'settings.saving' | t }} } @else { {{ (editUnitId() ? 'common.save' : 'settings.units.add') | t }} }
+                  </button>
+                  @if (editUnitId()) { <button type="button" class="btn btn-secondary" (click)="resetUnitForm()">{{ 'common.cancel' | t }}</button> }
+                </div>
+              </form>
+            }
+            <div class="table-scroll" style="margin-top: 1.5rem;">
+              @if (isLoadingUnits()) {
+                <div class="loading-state">{{ 'common.loading' | t }}</div>
+              } @else if (units().length === 0) {
+                <div class="empty-state"><p>{{ 'settings.units.empty' | t }}</p></div>
+              } @else {
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{{ 'settings.units.code' | t }}</th>
+                      <th>{{ 'settings.units.name' | t }}</th>
+                      <th>{{ 'settings.units.type' | t }}</th>
+                      @if (canManageUnits()) { <th class="th-actions">{{ 'common.actions' | t }}</th> }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (u of units(); track u.id) {
+                      <tr>
+                        <td><code>{{ u.code }}</code></td>
+                        <td><strong>{{ u | unitLabel }}</strong></td>
+                        <td>
+                          @if (u.isStandard) { <span class="badge badge-instock">{{ 'settings.units.standard' | t }}</span> }
+                          @else { <span class="badge">{{ 'settings.units.custom' | t }}</span> }
+                        </td>
+                        @if (canManageUnits()) {
+                          <td class="td-actions">
+                            <button class="edit-btn" [title]="'common.edit' | t" (click)="editUnit(u)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                            <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteUnit(u)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                          </td>
+                        }
                       </tr>
                     }
                   </tbody>
@@ -811,7 +890,7 @@ export class SettingsComponent implements OnInit {
   
   @ViewChild(ToastComponent) toast!: ToastComponent;
 
-  activeTab = signal<'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'dashboard'>('dashboard');
+  activeTab = signal<'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard'>('dashboard');
 
   // Locale option lists (shared by profile overrides and company settings)
   // Labels are translated in the template via settings.lang.<code> / settings.country.<code> / settings.tz.<tz>
@@ -835,6 +914,7 @@ export class SettingsComponent implements OnInit {
     baseCurrency: ['TRY', Validators.required],
     timezone: ['Europe/Istanbul', Validators.required],
     pricesIncludeTax: [false],
+    expiryAlertDays: [30, [Validators.required, Validators.min(0), Validators.max(3650)]],
   });
 
   isAdmin(): boolean { return this.ui.userProfile()?.role === 'admin'; }
@@ -917,6 +997,82 @@ export class SettingsComponent implements OnInit {
             this.loadTaxRates();
           },
           error: (err) => this.toast.show(this.errMsg(err, 'settings.taxRates.deleteFailed'), 'error'),
+        });
+      },
+    });
+  }
+
+  // Units of measure
+  units = signal<Unit[]>([]);
+  isLoadingUnits = signal(false);
+  isSavingUnit = signal(false);
+  editUnitId = signal<string | null>(null);
+  editUnitStandard = signal(false);
+  unitForm: FormGroup = this.fb.group({
+    code: ['', [Validators.required, Validators.maxLength(20)]],
+    name: ['', [Validators.required, Validators.maxLength(60)]],
+  });
+
+  canManageUnits(): boolean {
+    const role = this.ui.userProfile()?.role;
+    return role === 'admin' || role === 'manager';
+  }
+
+  loadUnits() {
+    this.isLoadingUnits.set(true);
+    this.inventoryService.getUnits().subscribe({
+      next: (list) => { this.units.set(list); this.isLoadingUnits.set(false); },
+      error: (err) => { this.isLoadingUnits.set(false); this.toast.show(this.errMsg(err, 'settings.units.loadFailed'), 'error'); },
+    });
+  }
+
+  resetUnitForm() {
+    this.editUnitId.set(null);
+    this.editUnitStandard.set(false);
+    this.unitForm.reset({ code: '', name: '' });
+  }
+
+  editUnit(u: Unit) {
+    this.editUnitId.set(u.id);
+    this.editUnitStandard.set(!!u.isStandard);
+    this.unitForm.reset({ code: u.code, name: u.name });
+  }
+
+  saveUnit() {
+    if (this.unitForm.invalid) { this.unitForm.markAllAsTouched(); return; }
+    const v = this.unitForm.value;
+    const id = this.editUnitId();
+    const payload: Partial<Unit> = { name: String(v.name).trim() };
+    if (!this.editUnitStandard()) payload.code = String(v.code).trim();
+    this.isSavingUnit.set(true);
+    (id ? this.inventoryService.updateUnit(id, payload) : this.inventoryService.createUnit(payload)).subscribe({
+      next: () => {
+        this.isSavingUnit.set(false);
+        this.toast.show('✓ ' + this.i18n.t('settings.units.saved'), 'success');
+        this.resetUnitForm();
+        this.loadUnits();
+      },
+      error: (err) => { this.isSavingUnit.set(false); this.toast.show(this.errMsg(err, 'settings.toast.saveFailed'), 'error'); },
+    });
+  }
+
+  deleteUnit(u: Unit) {
+    this.ui.openConfirm({
+      title: this.i18n.t('settings.units.deleteTitle'),
+      message: this.i18n.t('settings.units.deleteConfirm', { name: u.name || u.code }),
+      confirmText: this.i18n.t('common.delete'),
+      cancelText: this.i18n.t('common.cancel'),
+      onConfirm: () => {
+        this.inventoryService.deleteUnit(u.id).subscribe({
+          next: () => {
+            this.toast.show('✓ ' + this.i18n.t('settings.units.deleted'), 'success');
+            if (this.editUnitId() === u.id) this.resetUnitForm();
+            this.loadUnits();
+          },
+          error: (err) => {
+            const code = err?.error?.code || err?.error?.error;
+            this.toast.show(code === 'UNIT_IN_USE' ? this.i18n.t('settings.units.inUse') : this.errMsg(err, 'settings.units.deleteFailed'), 'error');
+          },
         });
       },
     });
@@ -1012,6 +1168,7 @@ export class SettingsComponent implements OnInit {
       case 'company': return this.i18n.t('settings.tab.company');
       case 'taxRates': return this.i18n.t('settings.tab.taxRates');
       case 'exchangeRates': return this.i18n.t('settings.tab.exchangeRates');
+      case 'units': return this.i18n.t('settings.tab.units');
       default: return this.i18n.t('settings.account');
     }
   }
@@ -1078,15 +1235,16 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (tab === 'profile' || tab === 'categories' || tab === 'users' || tab === 'company' || tab === 'taxRates' || tab === 'exchangeRates') {
+      if (tab === 'profile' || tab === 'categories' || tab === 'users' || tab === 'company' || tab === 'taxRates' || tab === 'exchangeRates' || tab === 'units') {
         this.activeTab.set(tab);
+        if (tab === 'units') this.loadUnits();
       } else {
         this.activeTab.set('dashboard');
       }
     });
   }
 
-  changeTab(tab: 'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'dashboard') {
+  changeTab(tab: 'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard') {
     if (tab === 'dashboard') {
       this.router.navigate(['/settings']);
     } else {
@@ -1107,7 +1265,7 @@ export class SettingsComponent implements OnInit {
           timezone: profile.timezone || ''
         });
         if (profile.company) {
-          this.companyForm.patchValue({ ...profile.company, pricesIncludeTax: !!profile.company.pricesIncludeTax });
+          this.companyForm.patchValue({ ...profile.company, pricesIncludeTax: !!profile.company.pricesIncludeTax, expiryAlertDays: profile.company.expiryAlertDays ?? 30 });
           this.companyForm.markAsPristine();
         }
         if (profile.role === 'admin') {
@@ -1298,7 +1456,7 @@ export class SettingsComponent implements OnInit {
       return;
     }
     this.isSavingCompany.set(true);
-    this.http.put(`${environment.apiUrl}/company`, this.companyForm.value).subscribe({
+    this.http.put(`${environment.apiUrl}/company`, { ...this.companyForm.value, expiryAlertDays: Number(this.companyForm.value.expiryAlertDays) }).subscribe({
       next: () => {
         this.isSavingCompany.set(false);
         this.companyForm.markAsPristine();

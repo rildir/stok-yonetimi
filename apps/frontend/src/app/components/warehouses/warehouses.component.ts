@@ -6,7 +6,8 @@ import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs';
-import { Warehouse } from '../../models/inventory.models';
+import { Warehouse, StockLot, SerialNumber, TrackingType } from '../../models/inventory.models';
+import { AppStateService } from '../../services/app-state.service';
 
 type WarehouseStockItem = { productId: string; productName: string; sku: string; quantity: number };
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
@@ -298,8 +299,43 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                   @if (isTransferInvalid('toWarehouseId')) { <div class="form-error">⚠ {{ 'warehouses.transfer.targetRequired' | t }}</div> }
                 </div>
 
+                @if (selectedTracking() === 'lot') {
+                  <div class="form-field">
+                    <select id="trLot" class="form-input has-value" [ngModel]="selectedLotId()" [ngModelOptions]="{ standalone: true }" (ngModelChange)="onLotChange($event)">
+                      <option value="">{{ 'warehouses.transfer.selectLot' | t }}</option>
+                      @for (l of transferLots(); track l.id) {
+                        <option [value]="l.id">{{ l.lotNumber }}{{ l.expiryDate ? ' · ' + l.expiryDate : '' }} — {{ 'warehouses.transfer.available' | t: { qty: l.quantity } }}</option>
+                      }
+                    </select>
+                    <label for="trLot" class="form-label">{{ 'warehouses.transfer.lot' | t }}</label>
+                    @if (trackingLoading()) { <div class="dim-text" style="margin-top: 4px;">{{ 'common.loading' | t }}</div> }
+                    @else if (transferLots().length === 0) { <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.noLots' | t }}</div> }
+                    @else if (!selectedLotId()) { <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
+                  </div>
+                }
+                @if (selectedTracking() === 'serial') {
+                  <div class="form-field">
+                    <div class="form-label" style="position: static; margin-bottom: 6px;">{{ 'warehouses.transfer.serials' | t }} ({{ selectedSerials().size }})</div>
+                    @if (trackingLoading()) {
+                      <div class="dim-text">{{ 'common.loading' | t }}</div>
+                    } @else if (transferSerials().length === 0) {
+                      <div class="dim-text">{{ 'warehouses.transfer.noSerials' | t }}</div>
+                    } @else {
+                      <div style="max-height: 180px; overflow-y: auto; border: 1px solid var(--secondary); border-radius: 6px; padding: 6px 10px;">
+                        @for (s of transferSerials(); track s.id) {
+                          <label style="display:flex; align-items:center; gap:8px; padding: 3px 0; cursor:pointer;">
+                            <input type="checkbox" [checked]="selectedSerials().has(s.serial)" (change)="toggleSerial(s.serial)" />
+                            <span class="mono">{{ s.serial }}</span>
+                          </label>
+                        }
+                      </div>
+                      <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.serialsHint' | t }}</div>
+                    }
+                  </div>
+                }
+
                 <div class="form-field">
-                  <input id="trQty" type="number" min="1" [max]="availableQty()" step="1" formControlName="quantity" class="form-input has-value" />
+                  <input id="trQty" type="number" min="1" [max]="availableQty()" step="1" formControlName="quantity" class="form-input has-value" [readonly]="selectedTracking() === 'serial'" />
                   <label for="trQty" class="form-label">{{ 'warehouses.transfer.quantity' | t }}</label>
                   @if (selectedTransferItem()) {
                     <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.available' | t: { qty: availableQty() } }}</div>
@@ -355,7 +391,22 @@ export class WarehousesComponent implements OnInit {
     return src ? this.warehouses().filter(w => w.id !== src.id) : [];
   });
   selectedTransferItem = computed(() => this.transferItems().find(i => i.productId === this.selectedProductId()) || null);
-  availableQty = computed(() => this.selectedTransferItem()?.quantity ?? 0);
+  appState = inject(AppStateService);
+  transferLots = signal<StockLot[]>([]);
+  transferSerials = signal<SerialNumber[]>([]);
+  selectedLotId = signal<string>('');
+  selectedSerials = signal<Set<string>>(new Set());
+  trackingLoading = signal(false);
+  selectedTracking = computed<TrackingType>(() => {
+    const id = this.selectedProductId();
+    return (this.appState.products().find(p => p.id === id)?.trackingType as TrackingType) || 'none';
+  });
+  availableQty = computed(() => {
+    if (this.selectedTracking() === 'lot' && this.selectedLotId()) {
+      return this.transferLots().find(l => l.id === this.selectedLotId())?.quantity ?? 0;
+    }
+    return this.selectedTransferItem()?.quantity ?? 0;
+  });
 
   transferForm: FormGroup = this.fb.group({
     productId: ['', Validators.required],
@@ -575,6 +626,45 @@ export class WarehousesComponent implements OnInit {
 
   onTransferProductChange() {
     this.selectedProductId.set(this.transferForm.get('productId')?.value || '');
+    this.transferLots.set([]);
+    this.transferSerials.set([]);
+    this.selectedLotId.set('');
+    this.selectedSerials.set(new Set());
+    const src = this.transferSource();
+    const productId = this.selectedProductId();
+    const tracking = this.selectedTracking();
+    if (src && productId && tracking === 'lot') {
+      this.trackingLoading.set(true);
+      this.inventory.getProductLots(productId, src.id).subscribe({
+        next: (lots) => { this.transferLots.set((lots || []).filter(l => l.quantity > 0)); this.trackingLoading.set(false); },
+        error: () => this.trackingLoading.set(false)
+      });
+    } else if (src && productId && tracking === 'serial') {
+      this.trackingLoading.set(true);
+      this.inventory.getProductSerials(productId, 'in_stock', src.id).subscribe({
+        next: (serials) => { this.transferSerials.set(serials || []); this.trackingLoading.set(false); },
+        error: () => this.trackingLoading.set(false)
+      });
+      this.transferForm.get('quantity')!.setValue(0);
+    }
+    this.applyQtyMax();
+  }
+
+  onLotChange(lotId: string) {
+    this.selectedLotId.set(lotId || '');
+    this.applyQtyMax();
+  }
+
+  toggleSerial(serial: string) {
+    const next = new Set(this.selectedSerials());
+    if (next.has(serial)) next.delete(serial); else next.add(serial);
+    this.selectedSerials.set(next);
+    const qtyCtrl = this.transferForm.get('quantity')!;
+    qtyCtrl.setValue(next.size);
+    qtyCtrl.markAsTouched();
+  }
+
+  private applyQtyMax() {
     const max = this.availableQty();
     const qtyCtrl = this.transferForm.get('quantity')!;
     qtyCtrl.setValidators([Validators.required, Validators.min(1), Validators.max(max)]);
@@ -600,9 +690,16 @@ export class WarehousesComponent implements OnInit {
       this.transferError.set(this.i18n.t('warehouses.transfer.quantityInvalid', { max: this.availableQty() }));
       return;
     }
+    const tracking = this.selectedTracking();
+    const lotId = tracking === 'lot' && this.selectedLotId() ? this.selectedLotId() : undefined;
+    const serials = tracking === 'serial' ? [...this.selectedSerials()] : undefined;
+    if (serials && serials.length !== qty) {
+      this.transferError.set(this.i18n.t('warehouses.transfer.serialsMismatch'));
+      return;
+    }
     this.isTransferring.set(true);
     this.transferError.set(null);
-    this.inventory.transferWarehouseStock(productId, src.id, toWarehouseId, qty, note?.trim() || undefined).subscribe({
+    this.inventory.transferWarehouseStock(productId, src.id, toWarehouseId, qty, note?.trim() || undefined, lotId, serials).subscribe({
       next: () => {
         this.isTransferring.set(false);
         this.closeTransfer();

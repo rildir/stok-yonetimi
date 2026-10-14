@@ -11,6 +11,14 @@ import { FinanceService } from '../../shared/services/finance.service';
 import { AppGateway } from '../../app.gateway';
 import { PurchaseOrderStatus, StockMovementType } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
+import { UnitService } from '../../shared/services/unit.service';
+import { isTracked, LotReceiptInput } from '../../shared/services/warehouse-stock.service';
+
+export interface PoReceiptInput {
+  itemId: string;
+  lots?: LotReceiptInput[];
+  serials?: string[];
+}
 
 export interface PurchaseOrderItemInput {
   productId: string;
@@ -19,6 +27,8 @@ export interface PurchaseOrderItemInput {
   /** Legacy alias of unitPrice */
   price?: number;
   unitPrice?: number;
+  /** Unit quantity/unitPrice refer to (default: base unit) */
+  unitId?: string | null;
 }
 
 @Injectable()
@@ -33,6 +43,7 @@ export class PurchaseOrderService {
     private readonly supplierRepo: Repository<SupplierEntity>,
     private readonly warehouseStock: WarehouseStockService,
     private readonly finance: FinanceService,
+    private readonly unitService: UnitService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -66,7 +77,7 @@ export class PurchaseOrderService {
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
     }
-    const priced: { product: ProductEntity; quantity: number; unitPrice?: number | null }[] = [];
+    const priced: { product: ProductEntity; quantity: number; unitPrice?: number | null; factor: number; unitId: string | null; unitCode: string; baseQty: number }[] = [];
     for (const item of items) {
       if (!item.productId) {
         throw new BadRequestException(err('PO_ITEM_PRODUCT_REQUIRED'));
@@ -75,7 +86,10 @@ export class PurchaseOrderService {
       if (!product) {
         throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id: item.productId }));
       }
-      priced.push({ product, quantity: item.quantity || 0, unitPrice: item.unitPrice ?? item.price });
+      const lu = await this.unitService.resolveLineUnit(manager, product, item.unitId);
+      const qty = item.quantity || 0;
+      const baseQty = qty > 0 ? this.unitService.toBase(product, qty, lu) : 0;
+      priced.push({ product, quantity: qty, unitPrice: item.unitPrice ?? item.price, factor: lu.factor, unitId: lu.unitId, unitCode: lu.unitCode, baseQty });
     }
     const { lines, totals, exchangeRate } = await this.finance.priceLines(priced, currency, date, manager);
     return {
@@ -83,7 +97,11 @@ export class PurchaseOrderService {
         manager.create(PurchaseOrderItemEntity, {
           productId: p.product.id,
           productName: p.product.name,
-          quantity: p.quantity,
+          quantity: p.baseQty,
+          unitId: p.unitId,
+          unitCode: p.unitCode,
+          unitFactor: p.factor,
+          unitQuantity: p.quantity,
           price: lines[i].unitPrice,
           unitPrice: lines[i].unitPrice,
           taxRate: lines[i].taxRate,
@@ -166,6 +184,7 @@ export class PurchaseOrderService {
     status: PurchaseOrderStatus | string,
     performedBy = 'System',
     warehouseId?: string | null,
+    receipts: PoReceiptInput[] = [],
   ): Promise<PurchaseOrderEntity | null> {
     const productsToEmit: ProductEntity[] = [];
     const saved = await this.dataSource.transaction(async (manager) => {
@@ -188,12 +207,20 @@ export class PurchaseOrderService {
 
       if (status === PurchaseOrderStatus.RECEIVED) {
         const targetWarehouse = warehouseId || po.warehouseId || null;
+        for (const r of receipts || []) {
+          if (!po.items.some((i) => i.id === r.itemId)) throw new BadRequestException(err('PO_RECEIPT_ITEM_NOT_FOUND', { id: r.itemId }));
+        }
         for (const item of po.items) {
           if (!item.productId) continue;
           const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId }, lock: { mode: 'pessimistic_write' } });
           if (!prod) continue;
           const oldQty = prod.quantity;
-          const allocations = await this.warehouseStock.add(manager, prod, item.quantity, targetWarehouse);
+          const receipt = (receipts || []).find((r) => r.itemId === item.id);
+          const allocations = await this.warehouseStock.receive(manager, prod, item.quantity, targetWarehouse, {
+            lots: receipt?.lots,
+            serials: receipt?.serials,
+          });
+          if (isTracked(prod)) item.tracking = this.warehouseStock.toTracking(allocations);
           await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
             type: StockMovementType.IN,
             referenceId: po.poNumber,
@@ -207,7 +234,11 @@ export class PurchaseOrderService {
       }
 
       po.status = status;
-      return await manager.save(PurchaseOrderEntity, po);
+      const out = await manager.save(PurchaseOrderEntity, po);
+      for (const item of po.items) {
+        if (item.tracking) await manager.update(PurchaseOrderItemEntity, { id: item.id }, { tracking: item.tracking });
+      }
+      return out;
     });
 
     if (saved) {
@@ -246,7 +277,7 @@ export class PurchaseOrderService {
       if (updates.items || currencyChanged) {
         const source: PurchaseOrderItemInput[] =
           updates.items ||
-          po.items.map((i) => ({ productId: i.productId, quantity: i.quantity })); // re-price in the new currency
+          po.items.map((i) => ({ productId: i.productId, quantity: i.unitId && i.unitFactor !== 1 ? Number(i.unitQuantity) : i.quantity, unitId: i.unitId })); // re-price in the new currency
         const built = await this.buildItems(manager, source, po.currency, new Date());
         await manager.delete(PurchaseOrderItemEntity, { purchaseOrderId: po.id });
         po.items = built.items;

@@ -39,7 +39,7 @@ export class PurchaseOrderController {
     @Req() req: any
   ): Promise<PurchaseOrderEntity | null> {
     const user = req.user?.username || 'System';
-    return this.poService.updatePurchaseOrderStatus(id, dto.status, user, dto.warehouseId);
+    return this.poService.updatePurchaseOrderStatus(id, dto.status, user, dto.warehouseId, dto.receipts || []);
   }
 
   @Roles('admin', 'manager')

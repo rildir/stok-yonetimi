@@ -8,6 +8,7 @@ import { OrderEntity } from '../../entities/order.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { FinanceService } from '../../shared/services/finance.service';
+import { UnitService } from '../../shared/services/unit.service';
 import { calculateLine, calculateTotals } from '../../shared/finance/tax';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -40,6 +41,11 @@ describe('OrderService', () => {
         return [{ warehouseId: 'w1', delta: -qty }];
       }),
       add: jest.fn().mockResolvedValue([{ warehouseId: 'w1', delta: 1 }]),
+      issue: jest.fn().mockImplementation(async (_m: any, p: any, qty: number) => {
+        p.quantity -= qty;
+        return [{ warehouseId: 'w1', delta: -qty }];
+      }),
+      toTracking: jest.fn().mockReturnValue([]),
       apply: jest.fn(),
       recordMovements: jest.fn().mockResolvedValue([]),
     };
@@ -77,6 +83,13 @@ describe('OrderService', () => {
         { provide: getRepositoryToken(ProductEntity), useValue: productRepoMock },
         { provide: WarehouseStockService, useValue: stockHelperMock },
         { provide: FinanceService, useValue: financeMock },
+        {
+          provide: UnitService,
+          useValue: {
+            resolveLineUnit: jest.fn().mockResolvedValue({ unitId: null, unitCode: 'pcs', factor: 1 }),
+            toBase: jest.fn().mockImplementation((_p: any, q: number, lu: any) => q * lu.factor),
+          },
+        },
         { provide: AppGateway, useValue: appGatewayMock },
         { provide: TenantContext, useValue: { companyId: COMPANY_ID } },
         { provide: DataSource, useValue: dataSourceMock },
@@ -133,7 +146,7 @@ describe('OrderService', () => {
       expect(result.taxTotal).toBe(333.33);
       expect(result.subtotal).toBe(1666.67);
       expect(result.currency).toBe('TRY');
-      expect(stockHelperMock.deduct).toHaveBeenCalled();
+      expect(stockHelperMock.issue).toHaveBeenCalled();
       expect(dataSourceMock.transaction).toHaveBeenCalled();
       expect(appGatewayMock.emitToCompany).toHaveBeenCalledWith(COMPANY_ID, 'order_mutated', expect.any(Object));
     });

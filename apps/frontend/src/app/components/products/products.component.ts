@@ -5,17 +5,21 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Product } from '../../inventory.service';
-import { TaxRate, Warehouse } from '../../models/inventory.models';
+import { TaxRate, Warehouse, Unit, StockLot, SerialNumber, BarcodeType } from '../../models/inventory.models';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import JsBarcode from 'jsbarcode';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { tap } from 'rxjs';
-import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 
 @Component({
   selector: 'app-products',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
   styleUrls: ['../../drawer.css'],
   styles: [`
+/* TRACKING BADGE */
+.tracking-badge { display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; white-space: nowrap; }
 /* SCAN BUTTON */
 .btn-scan {
   flex-shrink: 0;
@@ -312,7 +316,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
             <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px;">{{ 'products.col.stock' | t }}</div>
             <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 110px;">{{ 'products.col.status' | t }}</div>
             <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px;">{{ 'products.col.rating' | t }}</div>
-            <div style="width: 140px; text-align: right; padding-right: 8px; flex-shrink: 0;">{{ 'common.actions' | t }}</div>
+            <div style="width: 178px; text-align: right; padding-right: 8px; flex-shrink: 0;">{{ 'common.actions' | t }}</div>
           </div>
 
           <!-- Result Cards Stack -->
@@ -320,6 +324,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
             @for (p of paginatedProducts(); track p.id) {
               <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" 
                    style="display: flex; align-items: center; padding: 10px 16px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; transition: all 0.2s; position: relative;"
+                   [style.boxShadow]="highlightedProductId() === p.id ? '0 0 0 2px #FF5A1F' : 'none'"
                    [style.borderLeft]="isProductSelected(p.id) ? '4px solid #FF5A1F' : '1px solid #E2E8F0'"
                    [style.backgroundColor]="isProductSelected(p.id) ? '#FFF7F5' : '#FFFFFF'">
                 
@@ -346,6 +351,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                     <span style="font-size: 0.72rem; color: #64748B; font-family: var(--font-mono); margin-top: 1px;">
                       SKU: {{ p.sku }} • {{ getCategoryName(p.category) }}
                     </span>
+                    @if (p.barcode || isTracked(p)) {
+                      <span style="display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 0.68rem; color: #64748B;">
+                        @if (p.barcode) { <span style="font-family: var(--font-mono);">▮▯ {{ p.barcode }}</span> }
+                        @if (isTracked(p)) { <span class="tracking-badge">{{ trackingBadgeLabel(p) }}</span> }
+                      </span>
+                    }
                   </div>
                 </div>
 
@@ -367,7 +378,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                 <!-- Stock -->
                 <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px; font-size: 0.85rem; color: #475569; position: relative;">
                   <span (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)" style="cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                    {{ p.quantity | num }} {{ unitLabel(p.unit) }}
+                    {{ p.quantity | num }} {{ productUnitLabel(p) }}
                     @if (p.quantity <= p.minQuantity && p.quantity > 0) {
                       <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#F97316" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                     } @else if (p.quantity === 0) {
@@ -418,7 +429,10 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                 </div>
 
                 <!-- Actions (circular buttons or mockup-themed options) -->
-                <div style="width: 140px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; padding-right: 8px;">
+                <div style="width: 178px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; padding-right: 8px;">
+                  <button type="button" (click)="openLabelModal([p])" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'" [title]="'products.label.print' | t">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6v12M7 6v12M10 6v12M14 6v12M16 6v12M20 6v12"/></svg>
+                  </button>
                   <button type="button" (click)="openEditProduct(p)" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'" [title]="'common.edit' | t">
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                   </button>
@@ -439,6 +453,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
             @for (p of paginatedProducts(); track p.id) {
               <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" 
                    style="display: flex; flex-direction: column; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; transition: all 0.2s; position: relative; gap: 12px;"
+                   [style.boxShadow]="highlightedProductId() === p.id ? '0 0 0 2px #FF5A1F' : 'none'"
                    [style.borderLeft]="isProductSelected(p.id) ? '4px solid #FF5A1F' : '1px solid #E2E8F0'"
                    [style.backgroundColor]="isProductSelected(p.id) ? '#FFF7F5' : '#FFFFFF'">
                 
@@ -471,6 +486,10 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                     <span style="font-size: 0.68rem; color: #94A3B8; font-family: var(--font-mono); margin-top: 1px;">
                       SKU: {{ p.sku }}
                     </span>
+                    @if (p.barcode) {
+                      <span style="font-size: 0.68rem; color: #94A3B8; font-family: var(--font-mono); margin-top: 1px;">▮▯ {{ p.barcode }}</span>
+                    }
+                    @if (isTracked(p)) { <span class="tracking-badge" style="align-self: flex-start; margin-top: 3px;">{{ trackingBadgeLabel(p) }}</span> }
                   </div>
                 </div>
                 
@@ -485,7 +504,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                   </div>
                   <div>
                     <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.currentStock' | t }}</span>
-                    <strong style="color: #0F172A;">{{ p.quantity | num }} {{ unitLabel(p.unit) }}</strong>
+                    <strong style="color: #0F172A;">{{ p.quantity | num }} {{ productUnitLabel(p) }}</strong>
                   </div>
                   <div>
                     <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.salesQty' | t }}</span>
@@ -527,6 +546,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                   </button>
                   <button type="button" class="btn" (click)="openTransferModal(p)" style="flex: 1; border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; height: 32px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; padding: 0;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
                     {{ 'products.transfer' | t }}
+                  </button>
+                  <button type="button" class="btn" (click)="openLabelModal([p])" [title]="'products.label.print' | t" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0;">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6v12M7 6v12M10 6v12M14 6v12M16 6v12M20 6v12"/></svg>
                   </button>
                   <button type="button" class="btn" (click)="promptDeleteProduct(p)" style="border: 1px solid #FEE2E2; background: #FFFFFF; color: #EF4444; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0;" onmouseover="this.style.backgroundColor='#FEF2F2'; this.style.borderColor='#FCA5A5'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#FEE2E2'">
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -600,18 +622,33 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                 @if (isFieldInvalid('sku')) { <div class="form-error">⚠ {{ 'products.form.required' | t }}</div> }
               </div>
 
-              <!-- Visual Barcode Block -->
-              @if (productForm.get('sku')?.value) {
-                <div class="barcode-container" style="background: #ffffff; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                  <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 6px;">{{ 'products.form.visualBarcode' | t }}</div>
-                  <div style="display: flex; align-items: stretch; justify-content: center; height: 36px; background: #fff; width: 100%; max-width: 200px;">
-                    @for (bar of getBarcodeBars(productForm.get('sku')?.value); track $index) {
-                      <div [style.flex-grow]="bar.width" [style.background-color]="bar.isBar ? '#000000' : 'transparent'" style="height: 100%;"></div>
-                    }
-                  </div>
-                  <div style="font-family: 'Courier New', Courier, monospace; font-size: 11px; font-weight: bold; margin-top: 4px; letter-spacing: 2px; color: #111;">*{{ productForm.get('sku')?.value }}*</div>
+              <!-- Barcode -->
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <div class="form-field" style="flex: 1;">
+                  <input id="productBarcode" type="text" formControlName="barcode" class="form-input" [class.has-value]="hasValue('barcode')" autocomplete="off" />
+                  <label for="productBarcode" class="form-label">{{ 'products.barcode.label' | t }}</label>
+                </div>
+                <div class="form-field" style="width: 130px;">
+                  <select id="productBarcodeType" formControlName="barcodeType" class="form-input form-select has-value">
+                    <option value="">{{ 'products.barcode.auto' | t }}</option>
+                    @for (bt of barcodeTypes; track bt) { <option [value]="bt">{{ bt }}</option> }
+                  </select>
+                  <label for="productBarcodeType" class="form-label">{{ 'products.barcode.type' | t }}</label>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: -8px; gap: 8px;">
+                @if (barcodeHint(); as hint) {
+                  <span style="font-size: 12px;" [style.color]="hint.ok ? '#059669' : '#DC2626'">{{ hint.ok ? '✓' : '⚠' }} {{ hint.key | t }}</span>
+                } @else { <span></span> }
+                <button type="button" class="btn btn-outline" style="padding: 2px 10px; font-size: 12px;" (click)="generateEan13()">{{ 'products.barcode.generate' | t }}</button>
+              </div>
+              @if (barcodePreview(); as svg) {
+                <div class="barcode-container" style="background: #ffffff; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; align-items: center;">
+                  <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 4px;">{{ 'products.form.visualBarcode' | t }}</div>
+                  <div [innerHTML]="svg" style="max-width: 100%; overflow: hidden;"></div>
                 </div>
               }
+
               <div class="form-field">
                 <div class="custom-select-wrapper" (click)="toggleCategoryDropdown($event)">
                   <div class="custom-select-trigger" [class.open]="isCategoryDropdownOpen()" [class.disabled]="isSaveLoading()">
@@ -684,9 +721,10 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
               </div>
 
               <div class="form-field">
-                <input id="productQuantity" type="number" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" min="0" [disabled]="isSaveLoading()" />
+                <input id="productQuantity" type="number" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" min="0" />
                 <label for="productQuantity" class="form-label">{{ 'products.form.currentStock' | t }}</label>
                 @if (isFieldInvalid('quantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
+                @if (formTracked()) { <div style="font-size: 12px; color: #64748B; margin-top: 4px;">ⓘ {{ 'products.tracking.qtyLockedHint' | t }}</div> }
               </div>
 
               @if (!editingProductId()) {
@@ -701,13 +739,58 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
               }
 
               <div class="form-field">
-                <select id="productUnit" formControlName="unit" class="form-input form-select" [class.has-value]="hasValue('unit')" [disabled]="isSaveLoading()">
-                  @for (u of units; track u) {
-                    <option [value]="u">{{ unitLabel(u) }}</option>
+                <select id="productBaseUnit" formControlName="baseUnitId" class="form-input form-select has-value">
+                  <option [ngValue]="null">{{ unitLabel(productForm.get('unit')?.value) }}</option>
+                  @for (u of unitsList(); track u.id) {
+                    <option [ngValue]="u.id">{{ u | unitLabel }}</option>
                   }
                 </select>
-                <label for="productUnit" class="form-label">{{ 'products.form.unit' | t }}</label>
-                @if (isFieldInvalid('unit')) { <div class="form-error">⚠ {{ 'products.form.unitRequired' | t }}</div> }
+                <label for="productBaseUnit" class="form-label">{{ 'products.form.unit' | t }}</label>
+              </div>
+
+              <!-- Tracking -->
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="form-field" style="flex: 1;">
+                  <select id="productTracking" formControlName="trackingType" class="form-input form-select has-value">
+                    <option value="none">{{ 'products.tracking.none' | t }}</option>
+                    <option value="lot">{{ 'products.tracking.lot' | t }}</option>
+                    <option value="serial">{{ 'products.tracking.serial' | t }}</option>
+                  </select>
+                  <label for="productTracking" class="form-label">{{ 'products.tracking.label' | t }}</label>
+                </div>
+                @if (productForm.get('trackingType')?.value === 'lot') {
+                  <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; white-space: nowrap;">
+                    <input type="checkbox" formControlName="hasExpiry" style="accent-color: #FF5A1F;" />
+                    {{ 'products.tracking.hasExpiry' | t }}
+                  </label>
+                }
+              </div>
+
+              <!-- Alternate units -->
+              <div style="border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <strong style="font-size: 13px;">{{ 'products.altUnits.title' | t }}</strong>
+                  <button type="button" class="btn btn-outline" style="padding: 2px 10px; font-size: 12px;" (click)="addAltUnit()">+ {{ 'products.altUnits.add' | t }}</button>
+                </div>
+                @if (altUnits().length === 0) {
+                  <span style="font-size: 12px; color: #94A3B8;">{{ 'products.altUnits.empty' | t }}</span>
+                }
+                @for (au of altUnits(); track $index; let i = $index) {
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <select class="form-input form-select" style="flex: 1.2; height: 34px; padding: 4px 8px;" (change)="updateAltUnit(i, 'unitId', $any($event.target).value)">
+                      <option value="" [selected]="!au.unitId">{{ 'products.altUnits.selectUnit' | t }}</option>
+                      @for (u of unitsList(); track u.id) {
+                        <option [value]="u.id" [selected]="u.id === au.unitId">{{ u | unitLabel }}</option>
+                      }
+                    </select>
+                    <input type="number" min="1" step="1" class="form-input" style="width: 80px; height: 34px; padding: 4px 8px;" [value]="au.factor" (input)="updateAltUnit(i, 'factor', $any($event.target).value)" [title]="'products.altUnits.factorHint' | t" [placeholder]="'products.altUnits.factor' | t" />
+                    <input type="text" class="form-input" style="flex: 1.4; height: 34px; padding: 4px 8px;" [value]="au.barcode || ''" (input)="updateAltUnit(i, 'barcode', $any($event.target).value)" [placeholder]="'products.altUnits.barcode' | t" />
+                    <button type="button" (click)="removeAltUnit(i)" style="border: 1px solid #FEE2E2; background: #fff; color: #EF4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer;" [title]="'common.delete' | t">✕</button>
+                  </div>
+                  @if (au.unitId && au.factor > 0) {
+                    <span style="font-size: 11px; color: #64748B; margin-top: -4px;">1 {{ unitNameById(au.unitId) }} = {{ au.factor | num }} {{ baseUnitName() }}</span>
+                  }
+                }
               </div>
               
               <div class="form-field">
@@ -720,6 +803,59 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                 <input id="productImageUrl" type="text" formControlName="imageUrl" class="form-input" [class.has-value]="hasValue('imageUrl')" [disabled]="isSaveLoading()" />
                 <label for="productImageUrl" class="form-label">{{ 'products.form.imageUrl' | t }}</label>
               </div>
+
+              @if (editingProductId() && editingTrackingType() !== 'none') {
+                <div style="border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px;">
+                  <strong style="font-size: 13px; display: block; margin-bottom: 8px;">
+                    {{ (editingTrackingType() === 'lot' ? 'products.lots.title' : 'products.serials.title') | t }}
+                  </strong>
+                  @if (isLoadingTracking()) {
+                    <span style="font-size: 12px; color: #94A3B8;">{{ 'common.loading' | t }}</span>
+                  } @else if (editingTrackingType() === 'lot') {
+                    @if (productLots().length === 0) {
+                      <span style="font-size: 12px; color: #94A3B8;">{{ 'products.lots.empty' | t }}</span>
+                    } @else {
+                      <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                        <thead>
+                          <tr style="color: #64748B; text-align: left;">
+                            <th style="padding: 4px;">{{ 'products.lots.lot' | t }}</th>
+                            <th style="padding: 4px;">{{ 'products.lots.warehouse' | t }}</th>
+                            <th style="padding: 4px;">{{ 'products.lots.expiry' | t }}</th>
+                            <th style="padding: 4px; text-align: right;">{{ 'products.lots.qty' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (lot of productLots(); track lot.id) {
+                            <tr style="border-top: 1px solid #F1F5F9;" [style.background]="lotStatus(lot) === 'expired' ? '#FEF2F2' : lotStatus(lot) === 'soon' ? '#FFFBEB' : 'transparent'">
+                              <td style="padding: 4px; font-family: var(--font-mono);">{{ lot.lotNumber }}</td>
+                              <td style="padding: 4px;">{{ lot.warehouseName || warehouseNameById(lot.warehouseId) }}</td>
+                              <td style="padding: 4px;">
+                                @if (lot.expiryDate) {
+                                  {{ lot.expiryDate | appDate }}
+                                  @if (lotStatus(lot) === 'expired') { <span style="color: #DC2626; font-weight: 600;"> · {{ 'products.lots.expired' | t }}</span> }
+                                  @else if (lotStatus(lot) === 'soon') { <span style="color: #D97706; font-weight: 600;"> · {{ 'products.lots.expiringSoon' | t }}</span> }
+                                } @else { - }
+                              </td>
+                              <td style="padding: 4px; text-align: right; font-weight: 600;">{{ lot.quantity | num }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    }
+                  } @else {
+                    @if (productSerials().length === 0) {
+                      <span style="font-size: 12px; color: #94A3B8;">{{ 'products.serials.empty' | t }}</span>
+                    } @else {
+                      <div style="font-size: 12px; color: #64748B; margin-bottom: 6px;">{{ 'products.serials.count' | t: { count: productSerials().length } }}</div>
+                      <div style="display: flex; flex-wrap: wrap; gap: 4px; max-height: 160px; overflow-y: auto;">
+                        @for (sn of productSerials(); track sn.id) {
+                          <span style="font-family: var(--font-mono); font-size: 11px; background: #F1F5F9; border-radius: 4px; padding: 2px 6px;" [title]="sn.warehouseName || warehouseNameById(sn.warehouseId)">{{ sn.serial }}</span>
+                        }
+                      </div>
+                    }
+                  }
+                </div>
+              }
             </div>
             
             <div class="drawer-footer">
@@ -756,6 +892,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
               </div>
             }
           </div>
+          <button class="btn-outline-light" (click)="openLabelModal(selectedProducts())">
+            {{ 'products.label.printSelected' | t }}
+          </button>
           <button class="btn-danger-dark" (click)="promptBulkDelete()">
             {{ 'products.bulk.deleteSelected' | t }}
           </button>
@@ -767,6 +906,47 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
     }
 
 
+
+    <!-- ─── Barcode Label Print Drawer ─── -->
+    @if (labelProducts().length > 0) {
+      <div class="drawer-overlay" (click)="closeLabelModal()">
+        <div class="drawer-panel" (click)="$event.stopPropagation()">
+          <div class="drawer-header">
+            <span class="drawer-title">{{ 'products.label.title' | t }}</span>
+            <button class="drawer-close" (click)="closeLabelModal()">×</button>
+          </div>
+          <div class="drawer-body">
+            <p style="font-size: 13px; color: #64748B; margin: 0;">{{ 'products.label.productCount' | t: { count: labelProducts().length } }}</p>
+            <div class="form-field">
+              <input id="labelCopies" type="number" min="1" max="500" class="form-input has-value" [ngModel]="labelCopies()" (ngModelChange)="labelCopies.set(+$event)" />
+              <label for="labelCopies" class="form-label">{{ 'products.label.copies' | t }}</label>
+            </div>
+            @if (labelHasAltBarcodes()) {
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" [ngModel]="labelIncludeAltUnits()" (ngModelChange)="labelIncludeAltUnits.set($event)" style="accent-color: #FF5A1F;" />
+                {{ 'products.label.includeAltUnits' | t }}
+              </label>
+            }
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="checkbox" [ngModel]="labelShowPrice()" (ngModelChange)="labelShowPrice.set($event)" style="accent-color: #FF5A1F;" />
+              {{ 'products.label.showPrice' | t }}
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto;">
+              @for (lp of labelProducts(); track lp.id) {
+                <div style="border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 10px; font-size: 12px;">
+                  <strong>{{ lp.name }}</strong> <span style="color: #64748B; font-family: var(--font-mono);">({{ lp.sku }})</span>
+                  @if (!lp.barcode) { <div style="color: #D97706;">{{ 'products.label.skuFallback' | t }}</div> }
+                </div>
+              }
+            </div>
+          </div>
+          <div class="drawer-footer">
+            <button type="button" class="btn btn-secondary" (click)="closeLabelModal()">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-primary" (click)="printLabels()" [disabled]="!(labelCopies() >= 1)">{{ 'products.label.printBtn' | t }}</button>
+          </div>
+        </div>
+      </div>
+    }
 
     <!-- Barcode Scanner Modal -->
     @if (showScanner()) {
@@ -1093,6 +1273,318 @@ export class ProductsComponent implements OnInit {
     return bars;
   }
 
+  // ─── Units, barcode & tracking ─────────────────────────────
+  private sanitizer = inject(DomSanitizer);
+  private unitLabelPipe = new UnitLabelPipe();
+  readonly barcodeTypes: BarcodeType[] = ['EAN13', 'EAN8', 'UPCA', 'CODE128'];
+  unitsList = signal<Unit[]>([]);
+  altUnits = signal<{ unitId: string; factor: number; barcode: string }[]>([]);
+  highlightedProductId = signal<string | null>(null);
+  private highlightTimer: any = null;
+
+  // Lots / serials of the product being edited
+  editingTrackingType = signal<'none' | 'lot' | 'serial'>('none');
+  productLots = signal<StockLot[]>([]);
+  productSerials = signal<SerialNumber[]>([]);
+  isLoadingTracking = signal(false);
+
+  // Label printing
+  labelProducts = signal<Product[]>([]);
+  labelCopies = signal(1);
+  labelIncludeAltUnits = signal(true);
+  labelShowPrice = signal(true);
+  labelHasAltBarcodes = computed(() => this.labelProducts().some(p => (p.units || []).some(u => !!u.barcode)));
+  selectedProducts = computed(() => {
+    const ids = this.selectedProductIds();
+    return this.state.products().filter(p => ids.includes(p.id));
+  });
+
+  loadUnits() {
+    this.inventoryService.getUnits().subscribe({
+      next: (list) => {
+        this.unitsList.set(list);
+        if (!this.editingProductId() && !this.productForm.get('baseUnitId')?.value) {
+          this.productForm.get('baseUnitId')?.setValue(this.defaultUnitId(), { emitEvent: false });
+        }
+      }
+    });
+  }
+
+  defaultUnitId(): string | null {
+    const list = this.unitsList();
+    return (list.find(u => u.code === 'pcs') || list[0])?.id ?? null;
+  }
+
+  formTracked(): boolean {
+    const t = this.productForm.get('trackingType')?.value;
+    return !!t && t !== 'none';
+  }
+
+  private applyTrackingLock() {
+    const qty = this.productForm.get('quantity');
+    if (!qty) return;
+    if (this.formTracked()) {
+      if (!this.editingProductId()) qty.setValue(0, { emitEvent: false });
+      if (qty.enabled) qty.disable({ emitEvent: false });
+    } else if (qty.disabled) {
+      qty.enable({ emitEvent: false });
+    }
+  }
+
+  isTracked(p: Product): boolean {
+    return !!p.trackingType && p.trackingType !== 'none';
+  }
+
+  trackingBadgeLabel(p: Product): string {
+    if (p.trackingType === 'serial') return this.i18n.t('products.tracking.serial');
+    const lot = this.i18n.t('products.tracking.lot');
+    return p.hasExpiry ? `${lot} + ${this.i18n.t('products.tracking.expiry')}` : lot;
+  }
+
+  productUnitLabel(p: Product): string {
+    if (p.baseUnit) return this.unitLabelPipe.transform(p.baseUnit);
+    const byId = p.baseUnitId ? this.unitsList().find(u => u.id === p.baseUnitId) : null;
+    return byId ? this.unitLabelPipe.transform(byId) : this.unitLabel(p.unit);
+  }
+
+  unitNameById(id: string | null | undefined): string {
+    const u = this.unitsList().find(x => x.id === id);
+    return u ? this.unitLabelPipe.transform(u) : '';
+  }
+
+  baseUnitName(): string {
+    const id = this.productForm.get('baseUnitId')?.value;
+    return id ? this.unitNameById(id) : this.unitLabel(this.productForm.get('unit')?.value);
+  }
+
+  warehouseNameById(id: string | null | undefined): string {
+    return this.allWarehouses().find(w => w.id === id)?.name || '';
+  }
+
+  addAltUnit() {
+    this.altUnits.update(list => [...list, { unitId: '', factor: 1, barcode: '' }]);
+    this.productForm.markAsDirty();
+  }
+
+  removeAltUnit(index: number) {
+    this.altUnits.update(list => list.filter((_, i) => i !== index));
+    this.productForm.markAsDirty();
+  }
+
+  updateAltUnit(index: number, field: 'unitId' | 'factor' | 'barcode', value: string) {
+    this.altUnits.update(list => list.map((u, i) => i !== index ? u : { ...u, [field]: field === 'factor' ? Number(value) : value }));
+    this.productForm.markAsDirty();
+  }
+
+  /** GS1 mod-10 check digit validation for EAN-8 / UPC-A / EAN-13. */
+  static gtinValid(code: string): boolean {
+    if (!/^\d+$/.test(code)) return false;
+    const digits = code.split('').map(Number);
+    const check = digits.pop()!;
+    let sum = 0;
+    digits.reverse().forEach((d, i) => { sum += d * (i % 2 === 0 ? 3 : 1); });
+    return (10 - (sum % 10)) % 10 === check;
+  }
+
+  private static gtinCheckDigit(body: string): number {
+    let sum = 0;
+    body.split('').map(Number).reverse().forEach((d, i) => { sum += d * (i % 2 === 0 ? 3 : 1); });
+    return (10 - (sum % 10)) % 10;
+  }
+
+  barcodeHint(): { key: string; ok: boolean } | null {
+    const code = String(this.productForm.get('barcode')?.value || '').trim();
+    if (!code) return null;
+    const type = this.productForm.get('barcodeType')?.value as string;
+    const len: Record<string, number> = { EAN13: 13, EAN8: 8, UPCA: 12 };
+    if (type && len[type]) {
+      if (!new RegExp(`^\\d{${len[type]}}$`).test(code)) return { key: 'products.barcode.lengthInvalid', ok: false };
+      return ProductsComponent.gtinValid(code) ? { key: 'products.barcode.checksumOk', ok: true } : { key: 'products.barcode.checksumInvalid', ok: false };
+    }
+    if (!type && /^(\d{8}|\d{12}|\d{13})$/.test(code)) {
+      return ProductsComponent.gtinValid(code) ? { key: 'products.barcode.checksumOk', ok: true } : { key: 'products.barcode.checksumInvalid', ok: false };
+    }
+    return null;
+  }
+
+  generateEan13() {
+    // Prefix 2 = GS1 restricted circulation (in-store) numbers
+    let body = '2';
+    for (let i = 0; i < 11; i++) body += Math.floor(Math.random() * 10);
+    const code = body + ProductsComponent.gtinCheckDigit(body);
+    this.productForm.patchValue({ barcode: code, barcodeType: 'EAN13' });
+    this.productForm.get('barcode')?.markAsDirty();
+  }
+
+  /** JsBarcode format for a stored barcode type (or auto-detected from the code). */
+  private jsFormat(code: string, type: string | null | undefined): string {
+    switch (type) {
+      case 'EAN13': return 'EAN13';
+      case 'EAN8': return 'EAN8';
+      case 'UPCA': return 'UPC';
+      case 'CODE128': return 'CODE128';
+    }
+    if (/^\d{13}$/.test(code)) return 'EAN13';
+    if (/^\d{12}$/.test(code)) return 'UPC';
+    if (/^\d{8}$/.test(code)) return 'EAN8';
+    return 'CODE128';
+  }
+
+  /** Renders a barcode as an SVG string; falls back to CODE128 when the value is invalid for its format. */
+  barcodeSvg(code: string, type?: string | null, opts: { height?: number; width?: number; fontSize?: number } = {}): string {
+    const render = (format: string) => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      JsBarcode(svg, code, { format, height: opts.height ?? 50, width: opts.width ?? 2, fontSize: opts.fontSize ?? 14, margin: 4, displayValue: true });
+      return svg.outerHTML;
+    };
+    try {
+      return render(this.jsFormat(code, type));
+    } catch {
+      try { return render('CODE128'); } catch { return ''; }
+    }
+  }
+
+  private previewCache: { key: string; html: SafeHtml | null } = { key: '', html: null };
+  barcodePreview(): SafeHtml | null {
+    const barcode = String(this.productForm.get('barcode')?.value || '').trim();
+    const sku = String(this.productForm.get('sku')?.value || '').trim();
+    const type = barcode ? (this.productForm.get('barcodeType')?.value || null) : 'CODE128';
+    const code = barcode || sku;
+    const key = `${code}|${type}`;
+    if (key === this.previewCache.key) return this.previewCache.html;
+    const svg = code ? this.barcodeSvg(code, type, { height: 40, width: 1.6, fontSize: 12 }) : '';
+    this.previewCache = { key, html: svg ? this.sanitizer.bypassSecurityTrustHtml(svg) : null };
+    return this.previewCache.html;
+  }
+
+  private highlightProduct(id: string) {
+    this.highlightedProductId.set(id);
+    if (this.highlightTimer) clearTimeout(this.highlightTimer);
+    this.highlightTimer = setTimeout(() => this.highlightedProductId.set(null), 5000);
+  }
+
+  private resetTrackingDetail() {
+    this.editingTrackingType.set('none');
+    this.productLots.set([]);
+    this.productSerials.set([]);
+    this.isLoadingTracking.set(false);
+  }
+
+  private loadTrackingDetail(p: Product) {
+    this.resetTrackingDetail();
+    const type = (p.trackingType || 'none') as 'none' | 'lot' | 'serial';
+    this.editingTrackingType.set(type);
+    if (type === 'none') return;
+    this.isLoadingTracking.set(true);
+    const done = () => this.isLoadingTracking.set(false);
+    if (type === 'lot') {
+      this.inventoryService.getProductLots(p.id).subscribe({
+        next: (lots) => {
+          this.productLots.set([...lots].filter(l => l.quantity > 0).sort((a, b) => (a.expiryDate || '9999').localeCompare(b.expiryDate || '9999')));
+          done();
+        },
+        error: done,
+      });
+    } else {
+      this.inventoryService.getProductSerials(p.id, 'in_stock').subscribe({
+        next: (list) => { this.productSerials.set(list); done(); },
+        error: done,
+      });
+    }
+  }
+
+  private expiryAlertDays(): number {
+    const d = Number(this.ui.userProfile()?.company?.expiryAlertDays);
+    return Number.isFinite(d) && d >= 0 ? d : 30;
+  }
+
+  lotStatus(lot: StockLot): 'expired' | 'soon' | 'ok' {
+    if (!lot.expiryDate) return 'ok';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const exp = new Date(lot.expiryDate + 'T00:00:00');
+    const days = Math.round((exp.getTime() - today.getTime()) / 86400000);
+    if (days < 0) return 'expired';
+    return days <= this.expiryAlertDays() ? 'soon' : 'ok';
+  }
+
+  private saveErrorMessage(err: any, fallbackKey: string): string {
+    const code = err?.error?.code || err?.error?.error;
+    const map: Record<string, string> = {
+      BARCODE_TAKEN: 'products.errors.barcodeTaken',
+      BARCODE_INVALID_CHECKSUM: 'products.errors.barcodeChecksum',
+      PRODUCT_TRACKED_QTY_LOCKED: 'products.errors.trackedQtyLocked',
+    };
+    if (code && map[code]) return this.i18n.t(map[code]);
+    const msg = err?.error?.message;
+    return (Array.isArray(msg) ? msg[0] : msg) || this.i18n.t(fallbackKey);
+  }
+
+  openLabelModal(products: Product[]) {
+    if (!products || products.length === 0) {
+      this.ui.showToast(this.i18n.t('products.toast.nothingToPrint'), 'error');
+      return;
+    }
+    this.labelProducts.set(products);
+    this.labelCopies.set(1);
+    this.labelIncludeAltUnits.set(true);
+  }
+
+  closeLabelModal() {
+    this.labelProducts.set([]);
+  }
+
+  printLabels() {
+    const products = this.labelProducts();
+    const copies = Math.max(1, Math.min(500, Math.floor(Number(this.labelCopies()) || 1)));
+    const esc = (v: string) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const showPrice = this.labelShowPrice();
+    const labels: string[] = [];
+    for (const p of products) {
+      const entries: { code: string; type: string | null | undefined; sub: string; price: number }[] = [
+        { code: p.barcode || p.sku, type: p.barcode ? p.barcodeType : 'CODE128', sub: this.productUnitLabel(p), price: p.price },
+      ];
+      if (this.labelIncludeAltUnits()) {
+        for (const u of p.units || []) {
+          if (!u.barcode) continue;
+          const unitName = u.unit ? this.unitLabelPipe.transform(u.unit) : this.unitNameById(u.unitId);
+          entries.push({ code: u.barcode, type: null, sub: `${unitName} (×${this.i18n.formatNumber(u.factor)})`, price: p.price * u.factor });
+        }
+      }
+      for (const e of entries) {
+        const svg = this.barcodeSvg(e.code, e.type, { height: 40, width: 1.6, fontSize: 12 });
+        const html = `<div class="label">
+          <div class="name">${esc(p.name)}</div>
+          <div class="meta">SKU: ${esc(p.sku)} · ${esc(e.sub)}</div>
+          <div class="bc">${svg}</div>
+          ${showPrice ? `<div class="price">${esc(this.i18n.formatMoney(e.price, p.currency || undefined))}</div>` : ''}
+        </div>`;
+        for (let i = 0; i < copies; i++) labels.push(html);
+      }
+    }
+    const w = window.open('', '_blank');
+    if (!w) {
+      this.ui.showToast(this.i18n.t('products.toast.popupBlocked'), 'error');
+      return;
+    }
+    w.document.open();
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(this.i18n.t('products.label.title'))}</title>
+      <style>
+        @page { margin: 6mm; }
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; }
+        .sheet { display: flex; flex-wrap: wrap; gap: 3mm; }
+        .label { width: 60mm; height: 38mm; box-sizing: border-box; border: 1px dashed #bbb; padding: 2mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
+        .name { font-size: 10pt; font-weight: bold; text-align: center; max-height: 2.4em; overflow: hidden; }
+        .meta { font-size: 7pt; color: #333; }
+        .bc svg { max-width: 56mm; height: auto; display: block; }
+        .price { font-size: 11pt; font-weight: bold; }
+        @media print { .label { border-color: transparent; } }
+      </style></head><body><div class="sheet">${labels.join('')}</div>
+      <script>window.onload = function () { setTimeout(function () { window.focus(); window.print(); }, 150); };<\/script>
+      </body></html>`);
+    w.document.close();
+    this.closeLabelModal();
+  }
+
   // Bulk selection & operation states
   selectedProductIds = signal<string[]>([]);
   isBulkCategoryDropdownOpen = signal(false);
@@ -1267,7 +1759,12 @@ export class ProductsComponent implements OnInit {
     price: [0, [Validators.required, Validators.min(0)]],
     quantity: [0, [Validators.required, Validators.min(0)]],
     minQuantity: [5, [Validators.required, Validators.min(0)]],
-    unit: ['Adet', Validators.required],
+    unit: ['Adet'],
+    baseUnitId: [null as string | null],
+    barcode: [''],
+    barcodeType: [''],
+    trackingType: ['none'],
+    hasExpiry: [false],
     supplierId: [null],
     imageUrl: [''],
     currency: ['TRY', Validators.required],
@@ -1302,6 +1799,8 @@ export class ProductsComponent implements OnInit {
       list = list.filter(p =>
         p.name.toLowerCase().includes(search) ||
         p.sku.toLowerCase().includes(search) ||
+        (p.barcode || '').toLowerCase().includes(search) ||
+        (p.units || []).some(u => (u.barcode || '').toLowerCase() === search) ||
         p.category.toLowerCase().includes(search) ||
         this.getCategoryName(p.category).toLowerCase().includes(search)
       );
@@ -1334,6 +1833,8 @@ export class ProductsComponent implements OnInit {
     this.loadCategories();
     this.loadWarehouses();
     this.loadTaxRates();
+    this.loadUnits();
+    this.productForm.get('trackingType')!.valueChanges.subscribe(() => this.applyTrackingLock());
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
@@ -1387,8 +1888,11 @@ export class ProductsComponent implements OnInit {
     const defaultCat = this.categories().length > 0 ? this.categories()[0].slug : '';
     this.productForm.reset({
       name: '', sku: '', category: defaultCat, price: 0, quantity: 0, minQuantity: 5, unit: 'Adet', supplierId: null, imageUrl: '',
-      currency: this.i18n.currency(), taxRateId: null, warehouseId: this.defaultWarehouseId()
+      currency: this.i18n.currency(), taxRateId: null, warehouseId: this.defaultWarehouseId(),
+      baseUnitId: this.defaultUnitId(), barcode: '', barcodeType: '', trackingType: 'none', hasExpiry: false
     });
+    this.altUnits.set([]);
+    this.resetTrackingDetail();
     this.showProductFormModal.set(true);
   }
 
@@ -1406,8 +1910,16 @@ export class ProductsComponent implements OnInit {
       imageUrl: p.imageUrl || '',
       currency: p.currency || this.i18n.currency(),
       taxRateId: p.taxRateId ?? null,
-      warehouseId: null
+      warehouseId: null,
+      baseUnitId: p.baseUnitId ?? p.baseUnit?.id ?? null,
+      barcode: p.barcode || '',
+      barcodeType: p.barcodeType || '',
+      trackingType: p.trackingType || 'none',
+      hasExpiry: !!p.hasExpiry
     });
+    this.productForm.markAsPristine();
+    this.altUnits.set((p.units || []).map(u => ({ unitId: u.unitId || u.unit?.id || '', factor: Number(u.factor) || 1, barcode: u.barcode || '' })));
+    this.loadTrackingDetail(p);
     this.showProductFormModal.set(true);
   }
 
@@ -1432,6 +1944,23 @@ export class ProductsComponent implements OnInit {
     const payload: any = { ...rest };
     delete payload.warehouses;
     if (!editingId && warehouseId) payload.warehouseId = warehouseId;
+    payload.barcode = String(rest.barcode || '').trim() || null;
+    payload.barcodeType = payload.barcode ? (rest.barcodeType || null) : null;
+    payload.trackingType = rest.trackingType || 'none';
+    payload.hasExpiry = payload.trackingType === 'lot' && !!rest.hasExpiry;
+    payload.baseUnitId = rest.baseUnitId || null;
+    if (payload.baseUnitId) {
+      // Legacy `unit` mirrors the base unit code (server keeps it in sync)
+      const bu = this.unitsList().find(u => u.id === payload.baseUnitId);
+      if (bu) payload.unit = bu.code;
+    }
+    payload.units = this.altUnits()
+      .filter(u => u.unitId && Number(u.factor) > 0)
+      .map(u => ({ unitId: u.unitId, factor: Number(u.factor), barcode: (u.barcode || '').trim() || null }));
+    if (payload.trackingType !== 'none') {
+      // Stock of tracked products only changes via PO receipt / stock count / orders.
+      if (editingId) delete payload.quantity; else payload.quantity = 0;
+    }
 
     if (editingId) {
       // Edit mode
@@ -1442,9 +1971,9 @@ export class ProductsComponent implements OnInit {
           this.closeProductForm();
           this.ui.showToast(this.i18n.t('products.toast.updated'), 'success');
         },
-        error: () => {
+        error: (err) => {
           this.isSaveLoading.set(false);
-          this.ui.showToast(this.i18n.t('products.toast.updateError'), 'error');
+          this.ui.showToast(this.saveErrorMessage(err, 'products.toast.updateError'), 'error');
         }
       });
     } else {
@@ -1459,9 +1988,9 @@ export class ProductsComponent implements OnInit {
           this.isSaveLoading.set(false);
           this.ui.showToast(this.i18n.t('products.toast.created'), 'success');
         },
-        error: () => {
+        error: (err) => {
           this.isSaveLoading.set(false);
-          this.ui.showToast(this.i18n.t('products.toast.createError'), 'error');
+          this.ui.showToast(this.saveErrorMessage(err, 'products.toast.createError'), 'error');
         }
       });
     }
@@ -1606,8 +2135,26 @@ export class ProductsComponent implements OnInit {
     this.showScanner.set(true);
   }
 
-  onBarcodeScanned(sku: string) {
+  onBarcodeScanned(code: string) {
     this.showScanner.set(false);
+    const trimmed = (code || '').trim();
+    if (!trimmed) return;
+    this.inventoryService.lookupBarcode(trimmed).subscribe({
+      next: (res) => {
+        const prod = this.state.products().find(p => p.id === res.product.id) || res.product;
+        this.productSearch.set(prod.sku);
+        this.highlightProduct(prod.id);
+        let msg = this.i18n.t('products.toast.scanFound', { name: prod.name, sku: prod.sku });
+        if (res.unitCode && res.factor && res.factor !== 1) msg += ' · ' + this.i18n.t('products.toast.scanUnit', { unit: this.unitLabelPipe.transform(res.unitCode), factor: res.factor });
+        if (res.serial) msg += ' · ' + this.i18n.t('products.toast.scanSerial', { serial: res.serial });
+        this.ui.showToast(msg, 'success');
+        this.openEditProduct(prod);
+      },
+      error: () => this.fallbackScanSearch(trimmed),
+    });
+  }
+
+  private fallbackScanSearch(sku: string) {
     this.productSearch.set(sku);
     // Check if the scanned product exists
     const found = this.state.products().find(p => p.sku === sku);

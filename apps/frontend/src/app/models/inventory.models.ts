@@ -15,9 +15,109 @@ export interface Product {
   taxRateId?: string | null;
   /** Read-only per-warehouse stock (name -> qty), derived from product_warehouse_stocks */
   warehouses?: Record<string, number> | null;
+  /** Primary barcode (unique per company) */
+  barcode?: string | null;
+  barcodeType?: BarcodeType | null;
+  trackingType?: TrackingType;
+  hasExpiry?: boolean;
+  /** Base (stock) unit; `unit` holds its code for legacy display */
+  baseUnitId?: string | null;
+  baseUnit?: Unit | null;
+  /** Alternate units (factor = base units per 1 alternate unit) */
+  units?: ProductUnit[];
 }
 
-export interface OrderItem {
+export type BarcodeType = 'EAN13' | 'EAN8' | 'UPCA' | 'CODE128';
+export type TrackingType = 'none' | 'lot' | 'serial';
+
+/** Unit of measure. Standard units (isStandard) are shown via i18n key `units.<code>`. */
+export interface Unit {
+  id: string;
+  code: string;
+  name: string;
+  isStandard: boolean;
+}
+
+export interface ProductUnit {
+  id?: string;
+  unitId: string;
+  /** Base units contained in 1 of this unit, e.g. 12 for a box of 12 */
+  factor: number;
+  barcode?: string | null;
+  unit?: Unit;
+}
+
+export interface StockLot {
+  id: string;
+  productId: string;
+  warehouseId: string;
+  warehouseName?: string;
+  lotNumber: string;
+  /** YYYY-MM-DD */
+  expiryDate?: string | null;
+  quantity: number;
+  createdAt?: string;
+}
+
+export type SerialStatus = 'in_stock' | 'sold' | 'returned' | 'lost';
+
+export interface SerialNumber {
+  id: string;
+  productId: string;
+  warehouseId?: string | null;
+  warehouseName?: string;
+  serial: string;
+  status: SerialStatus;
+  lotId?: string | null;
+  createdAt?: string;
+}
+
+/** Lot/serial detail of a document line or movement (quantities in base units). */
+export interface TrackingEntry {
+  warehouseId: string;
+  lotId?: string | null;
+  lotNumber?: string | null;
+  expiryDate?: string | null;
+  quantity: number;
+  serials?: string[];
+}
+
+/** Line unit info shared by order and PO lines. `quantity` is always in base units. */
+export interface LineUnitInfo {
+  unitId?: string | null;
+  unitCode?: string | null;
+  /** Base units per entered unit */
+  unitFactor?: number;
+  /** Quantity as entered, in unitCode (unitPrice is per this unit) */
+  unitQuantity?: number;
+  tracking?: TrackingEntry[] | null;
+}
+
+export interface BarcodeLookupResult {
+  product: Product;
+  /** Set when the code matched an alternate unit barcode */
+  unitId: string | null;
+  unitCode: string | null;
+  factor: number;
+  /** Set when the code matched a serial number */
+  serial: string | null;
+}
+
+export interface ExpiringLot {
+  lotId: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  warehouseId: string;
+  warehouseName: string;
+  lotNumber: string;
+  expiryDate: string;
+  quantity: number;
+  /** Negative when already expired */
+  daysLeft: number;
+}
+
+export interface OrderItem extends LineUnitInfo {
   productId: string;
   productName: string;
   quantity: number;
@@ -65,7 +165,8 @@ export interface Supplier {
   leadTimeDays?: number;
 }
 
-export interface PurchaseOrderItem {
+export interface PurchaseOrderItem extends LineUnitInfo {
+  id?: string;
   productId: string;
   productName: string;
   quantity: number;
@@ -178,6 +279,9 @@ export interface StockMovement {
   referenceType?: string;
   performedBy?: string;
   createdAt: string;
+  lotId?: string | null;
+  lotNumber?: string | null;
+  serials?: string[] | null;
 }
 
 export interface StockCountItem {
@@ -189,6 +293,11 @@ export interface StockCountItem {
   difference: number;
   unit: string;
   isModified?: boolean;
+  trackingType?: TrackingType;
+  /** Lot-tracked: per-lot counts; countedQuantity is their sum */
+  lots?: { lotId: string; lotNumber: string; expiryDate?: string | null; warehouseId: string; warehouseName?: string; systemQuantity: number; countedQuantity: number }[];
+  /** Serial-tracked: present=false marks a missing serial; countedQuantity = present count */
+  serials?: { serial: string; warehouseId: string; warehouseName?: string; present: boolean }[];
 }
 
 export interface StockCount {

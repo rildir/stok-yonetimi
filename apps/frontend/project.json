@@ -15,6 +15,7 @@
         "outputPath": "dist/apps/frontend",
         "browser": "apps/frontend/src/main.ts",
         "tsConfig": "apps/frontend/tsconfig.app.json",
+        "allowedCommonJsDependencies": ["jsbarcode"],
         "assets": [
           {
             "glob": "**/*",

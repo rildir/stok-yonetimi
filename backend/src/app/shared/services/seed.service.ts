@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
 import { CompanyEntity, DEFAULT_COMPANY } from '../../entities/company.entity';
 import { CategoryEntity } from '../../entities/category.entity';
@@ -15,6 +15,14 @@ import { TaxRateEntity } from '../../entities/tax-rate.entity';
 import { defaultTaxRatesFor } from '../finance/tax-defaults';
 import { calculateLine, calculateTotals } from '../finance/tax';
 import { UserRole, OrderStatus, StockMovementType } from '../../entities/enums';
+import { UnitEntity } from '../../entities/unit.entity';
+import { ProductUnitEntity } from '../../entities/product-unit.entity';
+import { SerialNumberEntity, SerialStatus } from '../../entities/serial-number.entity';
+import { ProductWarehouseStockEntity } from '../../entities/product-warehouse-stock.entity';
+import { TrackingType } from '../../entities/tracking';
+import { STANDARD_UNITS, legacyUnitCode } from '../inventory/units';
+import { makeEan13 } from '../inventory/barcode';
+import { todayKey } from '../inventory/lot-allocation';
 
 @Injectable()
 export class SeedService implements OnModuleInit {
@@ -38,6 +46,136 @@ export class SeedService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedMockDataIfEmpty();
+    await this.ensureUnits();
+    await this.seedTrackingDemo(DEFAULT_COMPANY.id);
+  }
+
+  /**
+   * Every company gets the standard units and every product a base unit
+   * (mapped from the legacy `unit` text). Mirrors migration 1784274125000 for
+   * databases created by schema sync; idempotent.
+   */
+  private async ensureUnits() {
+    const m = this.dataSource.manager;
+    for (const c of await m.find(CompanyEntity)) {
+      const units = await m.find(UnitEntity, { where: { companyId: c.id } });
+      for (const u of STANDARD_UNITS) {
+        if (!units.some((x) => x.code === u.code)) {
+          units.push(await m.save(UnitEntity, m.create(UnitEntity, { ...u, companyId: c.id, isStandard: true })));
+        }
+      }
+      const orphans = await m.find(ProductEntity, { where: { companyId: c.id, baseUnitId: IsNull() } });
+      for (const p of orphans) {
+        const code = legacyUnitCode(p.unit) || (p.unit || 'pcs').trim().toLowerCase().slice(0, 20);
+        let unit = units.find((u) => u.code === code);
+        if (!unit) {
+          unit = await m.save(UnitEntity, m.create(UnitEntity, { companyId: c.id, code, name: p.unit, isStandard: false }));
+          units.push(unit);
+        }
+        await m.update(ProductEntity, { id: p.id }, { baseUnitId: unit.id, unit: unit.code });
+      }
+    }
+  }
+
+  /**
+   * Demo data for barcodes / lots / serials / units (demo company only, runs
+   * once: guarded by the TP-GEL demo SKU). Stock goes through
+   * WarehouseStockService so lots, serials, warehouse rows and movements agree.
+   */
+  private async seedTrackingDemo(companyId: string) {
+    const m = this.dataSource.manager;
+    if (!(await m.exists(CompanyEntity, { where: { id: companyId } }))) return;
+    if (await m.exists(ProductEntity, { where: { companyId, sku: 'TP-GEL' } })) return;
+    const warehouses = await this.warehouseStock.activeWarehouses(m, companyId);
+    if (warehouses.length === 0) return;
+    this.logger.log('Seeding barcode / lot / serial / unit demo data...');
+    const units = await m.find(UnitEntity, { where: { companyId } });
+    const unit = (code: string) => units.find((u) => u.code === code) as UnitEntity;
+    const company = await m.findOneByOrFail(CompanyEntity, { id: companyId });
+    const day = (offset: number) => {
+      const d = new Date(`${todayKey()}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + offset);
+      return d.toISOString().slice(0, 10);
+    };
+    const wh1 = warehouses[0].id;
+    const wh2 = (warehouses[1] || warehouses[0]).id;
+
+    await this.dataSource.transaction(async (manager) => {
+      // Barcodes (EAN-13, Turkish GS1 prefix 869) for existing demo products without one.
+      const products = await manager.find(ProductEntity, { where: { companyId, isDeleted: false }, order: { createdAt: 'ASC' } });
+      let seq = 1;
+      for (const p of products) {
+        if (p.barcode) continue;
+        const code = makeEan13(`869100${String(seq++).padStart(6, '0')}`);
+        await manager.update(ProductEntity, { id: p.id }, { barcode: code, barcodeType: 'EAN13' });
+        p.barcode = code;
+      }
+
+      // Box units: MS-320 (box of 10) and HB-81 (box of 5), each with its own barcode.
+      for (const [sku, factor, n] of [['MS-320', 10, 1], ['HB-81', 5, 2]] as const) {
+        const p = products.find((x) => x.sku === sku);
+        if (!p || (await manager.exists(ProductUnitEntity, { where: { productId: p.id, unitId: unit('box').id } }))) continue;
+        await manager.save(ProductUnitEntity, manager.create(ProductUnitEntity, {
+          companyId, productId: p.id, unitId: unit('box').id, factor, barcode: makeEan13(`869200${String(n).padStart(6, '0')}`),
+        }));
+      }
+
+      // Lot + expiry demo products.
+      const lotProducts = [
+        {
+          name: 'Thermal Paste Gel 4g', sku: 'TP-GEL', price: 9.99, minQuantity: 20, barcode: makeEan13('869300000001'),
+          box: { factor: 12, barcode: makeEan13('869300000002') },
+          lots: [
+            { wh: wh1, lotNumber: 'TPG-2405', expiryDate: day(20), quantity: 24 },
+            { wh: wh1, lotNumber: 'TPG-2409', expiryDate: day(200), quantity: 36 },
+            { wh: wh2, lotNumber: 'TPG-2407', expiryDate: day(90), quantity: 12 },
+          ],
+        },
+        {
+          name: 'Screen Cleaning Wipes (50)', sku: 'SC-WIPE', price: 5.99, minQuantity: 15, barcode: makeEan13('869300000003'),
+          box: { factor: 24, barcode: makeEan13('869300000004') },
+          lots: [
+            { wh: wh1, lotNumber: 'SCW-0921', expiryDate: day(10), quantity: 10 },
+            { wh: wh1, lotNumber: 'SCW-1102', expiryDate: day(150), quantity: 40 },
+            { wh: wh2, lotNumber: 'SCW-0815', expiryDate: day(-5), quantity: 4 },
+          ],
+        },
+      ];
+      for (const lp of lotProducts) {
+        const prod = await manager.save(ProductEntity, manager.create(ProductEntity, {
+          companyId, name: lp.name, sku: lp.sku, category: 'Accessories', price: lp.price, minQuantity: lp.minQuantity,
+          currency: company.baseCurrency, quantity: 0, status: this.stockHelper.calculateStatus(0, lp.minQuantity),
+          unit: 'pcs', baseUnitId: unit('pcs').id, barcode: lp.barcode, barcodeType: 'EAN13',
+          trackingType: TrackingType.LOT, hasExpiry: true, isDeleted: false,
+        }));
+        await manager.save(ProductUnitEntity, manager.create(ProductUnitEntity, {
+          companyId, productId: prod.id, unitId: unit('box').id, factor: lp.box.factor, barcode: lp.box.barcode,
+        }));
+        for (const wh of [...new Set(lp.lots.map((l) => l.wh))]) {
+          const lots = lp.lots.filter((l) => l.wh === wh);
+          const before = prod.quantity;
+          const allocs = await this.warehouseStock.receive(manager, prod, lots.reduce((s, l) => s + l.quantity, 0), wh, { lots });
+          await this.warehouseStock.recordMovements(manager, prod, before, allocs, {
+            type: StockMovementType.IN, referenceType: 'manual', note: 'Demo lot stock', performedBy: 'SeedSystem',
+          });
+        }
+      }
+
+      // Serial demo: Noise Cancelling Headphones become serial-tracked; one serial per unit already in stock.
+      const hp = products.find((x) => x.sku === 'HP-NC4');
+      if (hp && (hp.trackingType || TrackingType.NONE) === TrackingType.NONE) {
+        const rows = await manager.find(ProductWarehouseStockEntity, { where: { companyId, productId: hp.id } });
+        let n = 1;
+        for (const r of rows) {
+          for (let i = 0; i < r.quantity; i++) {
+            await manager.save(SerialNumberEntity, manager.create(SerialNumberEntity, {
+              companyId, productId: hp.id, warehouseId: r.warehouseId, serial: `HPNC4-${String(n++).padStart(5, '0')}`, status: SerialStatus.IN_STOCK,
+            }));
+          }
+        }
+        await manager.update(ProductEntity, { id: hp.id }, { trackingType: TrackingType.SERIAL });
+      }
+    });
   }
 
   /** Ensures the default "Demo Şirketi" tenant exists and returns its id. */
@@ -245,7 +383,7 @@ export class SeedService implements OnModuleInit {
           const line = calculateLine({ quantity: item.qty, unitPrice: prod.price, taxRate: taxPct }, company.pricesIncludeTax);
           lines.push(line);
           itemEntities.push(manager.create(OrderItemEntity, {
-            productId: prod.id, productName: prod.name, quantity: item.qty,
+            productId: prod.id, productName: prod.name, quantity: item.qty, unitQuantity: item.qty, unitFactor: 1, unitCode: 'pcs',
             price: line.unitPrice, unitPrice: line.unitPrice, taxRate: line.taxRate, taxAmount: line.taxAmount, lineTotal: line.lineTotal,
           }));
         }

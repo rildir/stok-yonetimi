@@ -1,0 +1,12 @@
+{
+  "units.pcs": "Piece",
+  "units.box": "Box",
+  "units.pack": "Pack",
+  "units.pallet": "Pallet",
+  "units.kg": "Kilogram",
+  "units.g": "Gram",
+  "units.lb": "Pound",
+  "units.l": "Liter",
+  "units.ml": "Milliliter",
+  "units.m": "Meter"
+}

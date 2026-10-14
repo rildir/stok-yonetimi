@@ -59,5 +59,13 @@
   "warehouses.transfer.submit": "Transfer Et",
   "warehouses.transfer.submitting": "Transfer ediliyor...",
   "warehouses.transfer.success": "Stok başarıyla transfer edildi.",
-  "warehouses.transfer.error": "Stok transfer edilirken hata oluştu."
+  "warehouses.transfer.error": "Stok transfer edilirken hata oluştu.",
+  "warehouses.transfer.lot": "Parti",
+  "warehouses.transfer.selectLot": "Otomatik (SKT sırasına göre)",
+  "warehouses.transfer.noLots": "Bu depoda parti yok",
+  "warehouses.transfer.lotAutoHint": "Parti seçilmezse sistem otomatik seçer",
+  "warehouses.transfer.serials": "Seri numaraları",
+  "warehouses.transfer.noSerials": "Bu depoda stokta seri numarası yok",
+  "warehouses.transfer.serialsHint": "Miktar seçilen seri sayısına eşitlenir",
+  "warehouses.transfer.serialsMismatch": "Seçilen seri sayısı miktara eşit olmalı"
 }

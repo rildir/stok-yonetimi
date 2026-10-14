@@ -50,5 +50,19 @@
   "reports.csv.supplierName": "Tedarikçi Adı",
   "reports.csv.orderCount": "Sipariş Sayısı",
   "reports.csv.totalPaid": "Toplam Ödeme ({currency})",
-  "reports.baseCurrencyNote": "Tüm tutarlar şirket ana para birimine ({currency}) çevrilmiştir."
+  "reports.baseCurrencyNote": "Tüm tutarlar şirket ana para birimine ({currency}) çevrilmiştir.",
+  "reports.expiring.title": "SKT'si Yaklaşan Partiler",
+  "reports.expiring.desc": "Belirtilen gün içinde süresi dolacak veya dolmuş partiler",
+  "reports.expiring.days": "Gün",
+  "reports.expiring.export": "CSV İndir",
+  "reports.expiring.col.product": "Ürün",
+  "reports.expiring.col.lot": "Parti",
+  "reports.expiring.col.warehouse": "Depo",
+  "reports.expiring.col.expiry": "SKT",
+  "reports.expiring.col.qty": "Miktar",
+  "reports.expiring.col.daysLeft": "Kalan gün",
+  "reports.expiring.expired": "Süresi geçti",
+  "reports.expiring.empty": "Bu aralıkta SKT'si yaklaşan parti yok",
+  "reports.expiring.loadError": "SKT raporu yüklenemedi",
+  "reports.expiring.filePrefix": "SKT_Raporu"
 }

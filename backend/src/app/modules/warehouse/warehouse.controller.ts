@@ -47,6 +47,6 @@ export class WarehouseController {
     const from = dto.fromWarehouseId || dto.fromWarehouse;
     const to = dto.toWarehouseId || dto.toWarehouse;
     if (!from || !to) throw new BadRequestException(err('WAREHOUSE_NOT_FOUND'));
-    return this.warehouseService.transferWarehouseStock(dto.productId, from, to, dto.quantity, user, dto.note);
+    return this.warehouseService.transferWarehouseStock(dto.productId, from, to, dto.quantity, user, dto.note, { lotId: dto.lotId, serials: dto.serials });
   }
 }

@@ -37,6 +37,10 @@ export class CompanyEntity {
   @Column({ default: false })
   pricesIncludeTax: boolean;
 
+  /** Lots expiring within this many days are flagged (dashboard / report). */
+  @Column('int', { default: 30 })
+  expiryAlertDays: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -22,5 +22,15 @@
   "dashboard.units": "{qty} units",
   "dashboard.stat.taxCollected": "Tax collected",
   "dashboard.stat.inventoryValue": "Inventory value",
-  "dashboard.unconverted": "No exchange rate for: {currencies}"
+  "dashboard.unconverted": "No exchange rate for: {currencies}",
+  "dashboard.expiring.title": "Expiring Soon",
+  "dashboard.expiring.viewAll": "View report",
+  "dashboard.expiring.product": "Product",
+  "dashboard.expiring.lot": "Lot",
+  "dashboard.expiring.warehouse": "Warehouse",
+  "dashboard.expiring.expiry": "Expiry",
+  "dashboard.expiring.qty": "Qty",
+  "dashboard.expiring.daysLeft": "Days left",
+  "dashboard.expiring.expired": "Expired",
+  "dashboard.expiring.days": "{n} days"
 }

@@ -6,9 +6,13 @@ import { SupplierEntity } from './supplier.entity';
 import { ProductWarehouseStockEntity } from './product-warehouse-stock.entity';
 import { ProductStatus } from './enums';
 import { TaxRateEntity } from './tax-rate.entity';
+import { UnitEntity } from './unit.entity';
+import { ProductUnitEntity } from './product-unit.entity';
+import { TrackingType } from './tracking';
 
 @Entity('products')
 @Index('UQ_products_company_sku', ['companyId', 'sku'], { unique: true })
+@Index('UQ_products_company_barcode', ['companyId', 'barcode'], { unique: true })
 @Check('quantity >= 0')
 export class ProductEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -51,8 +55,35 @@ export class ProductEntity {
   @Column({ type: 'varchar', default: ProductStatus.IN_STOCK })
   status: ProductStatus | string;
 
-  @Column({ default: 'Adet' })
+  /** Legacy display string; kept equal to the base unit's code. */
+  @Column({ default: 'pcs' })
   unit: string;
+
+  /** Base (stock) unit. All quantities are stored in this unit. */
+  @Index('IDX_products_baseUnitId')
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  baseUnitId?: string | null;
+
+  @ManyToOne(() => UnitEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'baseUnitId', foreignKeyConstraintName: 'FK_products_base_unit' })
+  baseUnit?: UnitEntity | null;
+
+  @OneToMany(() => ProductUnitEntity, (pu) => pu.product)
+  units?: ProductUnitEntity[];
+
+  /** Primary barcode, unique per company (across product and unit barcodes). */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  barcode?: string | null;
+
+  /** EAN13 | EAN8 | UPCA | CODE128 */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  barcodeType?: string | null;
+
+  @Column({ type: 'varchar', length: 10, default: TrackingType.NONE })
+  trackingType: TrackingType | string;
+
+  @Column({ default: false })
+  hasExpiry: boolean;
 
   @Index()
   @Column({ default: false })

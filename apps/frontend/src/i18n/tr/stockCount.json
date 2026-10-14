@@ -42,5 +42,21 @@
   "stockCount.toast.draftError": "Taslak kaydedilirken hata oluştu.",
   "stockCount.toast.completed": "Sayım tamamlandı ve farklar stoklara uygulandı.",
   "stockCount.toast.completeError": "Sayım tamamlanırken hata oluştu.",
-  "stockCount.toast.saveError": "Sayım kaydedilirken hata oluştu."
+  "stockCount.toast.saveError": "Sayım kaydedilirken hata oluştu.",
+  "stockCount.scan": "Barkod Tara",
+  "stockCount.toggleDetails": "Detayları aç/kapat",
+  "stockCount.lotTracked": "Parti takipli",
+  "stockCount.serialTracked": "Seri no takipli",
+  "stockCount.trackedSumHint": "Parti/seri sayımlarının toplamı",
+  "stockCount.lot": "Parti",
+  "stockCount.noLots": "Bu ürün için parti yok",
+  "stockCount.noSerials": "Bu ürün için seri numarası yok",
+  "stockCount.serialPresent": "Mevcut",
+  "stockCount.serialMissing": "Eksik",
+  "stockCount.toast.scanNotInCount": "{name} bu sayımda yok",
+  "stockCount.toast.scanSerialRequired": "Seri takipli ürün: lütfen seri numarasını okutun veya listeden işaretleyin",
+  "stockCount.toast.scanSerialMarked": "{serial} mevcut olarak işaretlendi",
+  "stockCount.toast.scanLotHint": "Parti takipli ürün: miktarı ilgili partiye girin",
+  "stockCount.toast.scanAdded": "{name}: +{qty}",
+  "stockCount.toast.scanNotFound": "Barkod bulunamadı: {code}"
 }

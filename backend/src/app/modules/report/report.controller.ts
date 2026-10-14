@@ -45,6 +45,11 @@ export class ReportController {
     return this.reportService.getDashboardSummary();
   }
 
+  @Get('reports/expiring')
+  async getExpiring(@Query('days') days?: string) {
+    return this.reportService.getExpiringLots(days !== undefined && days !== '' ? parseInt(days, 10) : undefined);
+  }
+
   @Get('reports/supplier-summary')
   async getSupplierSummary() {
     return this.reportService.getSupplierSummary();

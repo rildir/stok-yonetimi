@@ -49,6 +49,18 @@ export class StockMovementEntity {
   @JoinColumn({ name: 'warehouseId', foreignKeyConstraintName: 'FK_stock_movements_warehouse' })
   warehouse?: WarehouseEntity | null;
 
+  /** Lot affected (lot-tracked products); lotNumber is a snapshot. */
+  @Index('IDX_stock_movements_lotId')
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  lotId?: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  lotNumber?: string | null;
+
+  /** Serial numbers moved (serial-tracked products). */
+  @Column({ type: 'simple-json', nullable: true })
+  serials?: string[] | null;
+
   @Column({ nullable: true })
   referenceId: string;
 

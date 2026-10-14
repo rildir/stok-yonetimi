@@ -5,14 +5,15 @@ import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray, For
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Order, CreateOrderPayload } from '../../inventory.service';
-import { Customer, TaxRate, OrderItem } from '../../models/inventory.models';
+import { Customer, TaxRate, OrderItem, Product, StockLot, SerialNumber, BarcodeLookupResult } from '../../models/inventory.models';
+import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { tap } from 'rxjs';
-import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe],
+  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -125,7 +126,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                 @for (item of o.items; track item.productName) {
                   <div style="display: flex; justify-content: space-between; width: 100%; max-width: 450px; font-size: 13px;">
                     <span style="color: #007185; font-weight: 500;">{{ item.productName }}</span>
-                    <span style="color: #565959;">{{ 'orders.card.itemLine' | t: { qty: (item.quantity | num), price: ((item.unitPrice ?? item.price) | money: o.currency) } }}</span>
+                    <span style="color: #565959;">{{ 'orders.card.itemLine' | t: { qty: itemQtyLabel(item, false), price: ((item.unitPrice ?? item.price) | money: o.currency) } }}</span>
                   </div>
                 }
               </div>
@@ -230,12 +231,17 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
               <div style="margin-top: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                   <h3 style="font-size: 14px; font-weight: 600; margin: 0;">{{ 'orders.items' | t }}</h3>
-                  <button type="button" class="btn btn-sm btn-outline" (click)="addOrderLine()" [disabled]="isOrderSaving()">+ {{ 'orders.create.addProduct' | t }}</button>
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-sm btn-outline" (click)="showScanner.set(true)" [disabled]="isOrderSaving() || scanning()">
+                      @if (scanning()) { <span class="spinner-sm"></span> } {{ 'orders.create.scan' | t }}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline" (click)="addOrderLine()" [disabled]="isOrderSaving()">+ {{ 'orders.create.addProduct' | t }}</button>
+                  </div>
                 </div>
 
                 <div formArrayName="lines" style="display: flex; flex-direction: column; gap: 10px;">
                   @for (line of linesArray.controls; track $index; let i = $index) {
-                    <div [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i" style="display: flex; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px; position: relative;">
+                    <div [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px; position: relative;">
                       <div style="flex: 2;">
                         <div class="custom-select-wrapper" (click)="toggleDropdown(i); $event.stopPropagation()">
                           <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()" style="height: 40px; padding: 0 12px; font-size: 13px;">
@@ -268,9 +274,21 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                       <div style="flex: 1;" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
                         <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'orders.create.quantity' | t" min="1" [max]="line.get('maxQuantity')?.value" (input)="enforceMaxQuantity($event, i)" [disabled]="isOrderSaving()"/>
                         @if (line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)) {
-                          <span class="error-msg-small" style="color: var(--status-outstock); font-size: 10px; display: block; margin-top: 2px;">{{ 'orders.create.max' | t }}: {{ line.get('maxQuantity')?.value | num }}</span>
+                          <span class="error-msg-small" style="color: var(--status-outstock); font-size: 10px; display: block; margin-top: 2px;">{{ 'orders.create.max' | t }}: {{ maxForLine(line) | num }}</span>
                         }
                       </div>
+                      @if (lineProduct(line); as lp) {
+                        @if (lp.units?.length) {
+                          <div style="flex: 0.9;">
+                            <select class="form-input" style="height: 40px; padding: 0 8px; font-size: 13px;" formControlName="unitId" (change)="onLineUnitChange(i)" [title]="'orders.create.unit' | t">
+                              <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
+                              @for (u of lp.units; track u.unitId) {
+                                <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
+                              }
+                            </select>
+                          </div>
+                        }
+                      }
                       <div style="flex: 1;">
                         <input type="number" formControlName="unitPrice" class="form-input mono" style="height: 40px; padding: 0 12px; font-size: 13px;" min="0" step="0.01" [placeholder]="productPricePlaceholder(line)" [title]="'orders.create.unitPriceOverride' | t"/>
                       </div>
@@ -285,11 +303,79 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                       <button type="button" class="delete-btn" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()" style="padding: 6px;">
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                       </button>
+                      @if (lineProduct(line); as lp) {
+                        <div style="flex-basis: 100%; font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
+                          @if (lineFactor(line) !== 1) {
+                            <span>{{ 'orders.create.baseQtyHint' | t: { qty: (lineBaseQty(line) | num), unit: ((lp.baseUnit || lp.unit || 'pcs') | unitLabel) } }}</span>
+                          }
+                          @if (lp.trackingType === 'lot') {
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                              <span>{{ 'orders.tracking.lots' | t }}:</span>
+                              @if (line.get('trackMode')?.value !== 'manual') {
+                                <span>{{ 'orders.tracking.autoFefo' | t }}</span>
+                                <button type="button" class="btn btn-sm btn-outline" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickLots' | t }}</button>
+                              } @else {
+                                <button type="button" class="btn btn-sm btn-outline" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
+                                <span [style.color]="lotsSum(line) === lineBaseQty(line) ? 'var(--status-instock)' : 'var(--status-outstock)'">{{ 'orders.tracking.selectedOf' | t: { selected: (lotsSum(line) | num), total: (lineBaseQty(line) | num) } }}</span>
+                              }
+                            </div>
+                            @if (line.get('trackMode')?.value === 'manual') {
+                              @if (lotsCache()[lp.id]; as lots) {
+                                @for (lot of lots; track lot.id) {
+                                  <div style="display: flex; gap: 8px; align-items: center;">
+                                    <span class="mono" style="flex: 2;">{{ lot.lotNumber }}{{ lot.warehouseName ? ' · ' + lot.warehouseName : '' }}</span>
+                                    <span style="flex: 1.5;">{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</span>
+                                    <span style="flex: 1;">{{ 'orders.tracking.available' | t }}: {{ lot.quantity | num }}</span>
+                                    <input type="number" class="form-input" style="flex: 1; height: 30px; padding: 0 8px; font-size: 12px;" min="0" [max]="lot.quantity"
+                                      [value]="lotQty(line, lot.id)" (input)="setLotQty(i, lot, $event)"/>
+                                  </div>
+                                } @empty {
+                                  <span>{{ 'orders.tracking.noLots' | t }}</span>
+                                }
+                              } @else {
+                                <span class="spinner-sm"></span>
+                              }
+                            }
+                          }
+                          @if (lp.trackingType === 'serial') {
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                              <span>{{ 'orders.tracking.serials' | t }}:</span>
+                              @if (line.get('trackMode')?.value !== 'manual') {
+                                <span>{{ 'orders.tracking.autoSerial' | t }}</span>
+                                <button type="button" class="btn btn-sm btn-outline" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickSerials' | t }}</button>
+                              } @else {
+                                <button type="button" class="btn btn-sm btn-outline" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
+                                <span [style.color]="lineSerials(line).length === lineBaseQty(line) ? 'var(--status-instock)' : 'var(--status-outstock)'">{{ 'orders.tracking.selectedOf' | t: { selected: lineSerials(line).length, total: (lineBaseQty(line) | num) } }}</span>
+                              }
+                            </div>
+                            @if (line.get('trackMode')?.value === 'manual') {
+                              @if (serialsCache()[lp.id]; as serials) {
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto;">
+                                  @for (sn of serials; track sn.id) {
+                                    <label style="display: inline-flex; gap: 4px; align-items: center; padding: 2px 6px; border: 1px solid var(--secondary); border-radius: 6px; cursor: pointer;">
+                                      <input type="checkbox" [checked]="lineSerials(line).includes(sn.serial)" (change)="toggleSerial(i, sn.serial)"/>
+                                      <span class="mono">{{ sn.serial }}</span>
+                                      @if (sn.warehouseName) { <span>· {{ sn.warehouseName }}</span> }
+                                    </label>
+                                  } @empty {
+                                    <span>{{ 'orders.tracking.noSerials' | t }}</span>
+                                  }
+                                </div>
+                              } @else {
+                                <span class="spinner-sm"></span>
+                              }
+                            }
+                          }
+                        </div>
+                      }
                     </div>
                   }
                 </div>
                 @if (linesArray.invalid && (linesArray.dirty || linesArray.touched)) {
                   <span class="form-error" style="display:block;margin-top:0.5rem;">{{ 'orders.create.linesInvalid' | t }}</span>
+                }
+                @if (trackingInvalid()) {
+                  <span class="form-error" style="display:block;margin-top:0.5rem;">{{ 'orders.tracking.mismatch' | t }}</span>
                 }
               </div>
 
@@ -318,7 +404,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
             
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeCreateOrder()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="orderForm.invalid || isOrderSaving()">
+              <button type="submit" class="btn btn-primary" [disabled]="orderForm.invalid || isOrderSaving() || trackingInvalid()">
                 @if (isOrderSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'orders.create.creating' | t }} } @else { {{ 'orders.create.submit' | t }} }
               </button>
             </div>
@@ -395,10 +481,21 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                         <div class="detail-item-info">
                           <span class="detail-item-name" style="font-weight:600; font-size:14px;">{{ item.productName }}</span>
                           <span class="detail-item-calc" style="font-size:12px; color:var(--text-muted);">
-                            {{ item.quantity | num }}x · {{ 'finance.unitPrice' | t }}: {{ (item.unitPrice ?? item.price) | money: order.currency }}
+                            {{ itemQtyLabel(item, true) }} · {{ 'finance.unitPrice' | t }}: {{ (item.unitPrice ?? item.price) | money: order.currency }}
                             · {{ 'finance.taxRate' | t }}: %{{ (item.taxRate ?? 0) | num }}
                             · {{ 'finance.taxAmount' | t }}: {{ (item.taxAmount ?? 0) | money: order.currency }}
                           </span>
+                          @for (tr of item.tracking || []; track $index) {
+                            <span style="font-size:11px; color:var(--text-muted);">
+                              @if (tr.lotNumber) {
+                                {{ 'orders.tracking.lotLine' | t: { lot: tr.lotNumber, qty: (tr.quantity | num) } }}
+                                @if (tr.expiryDate) { · {{ 'orders.tracking.expiry' | t }}: {{ tr.expiryDate | appDate }} }
+                              }
+                              @if (tr.serials?.length) {
+                                {{ 'orders.tracking.serials' | t }}: <span class="mono">{{ tr.serials!.join(', ') }}</span>
+                              }
+                            </span>
+                          }
                         </div>
                         <span class="detail-item-total mono" style="font-weight:600; font-size:14px;">{{ itemLineTotal(item) | money: order.currency }}</span>
                       </div>
@@ -480,7 +577,13 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
       </div>
     }
 
-
+    @if (showScanner()) {
+      <app-barcode-scanner
+        [products]="state.products()"
+        (scanResult)="onBarcodeScanned($event)"
+        (closeScanner)="showScanner.set(false)"
+      />
+    }
   `
 })
 export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -724,7 +827,11 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
       price: [0],
       unitPrice: [null as number | null, [Validators.min(0)]],
       quantity: [1, [Validators.required, Validators.min(1)]],
-      maxQuantity: [0]
+      maxQuantity: [0],
+      unitId: [''],
+      trackMode: ['auto'],
+      lots: this.fb.control([] as { lotId: string; quantity: number }[]),
+      serials: this.fb.control([] as string[])
     });
   }
 
@@ -773,17 +880,199 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
       productName: product.name,
       price: product.price,
       quantity: 1,
-      maxQuantity: product.quantity
+      maxQuantity: product.quantity,
+      unitId: '',
+      trackMode: 'auto',
+      lots: [],
+      serials: []
     });
-    // Set max validator dynamically based on current stock
-    lineGroup.get('quantity')?.setValidators([Validators.required, Validators.min(1), Validators.max(product.quantity)]);
-    lineGroup.get('quantity')?.updateValueAndValidity();
+    this.applyMaxValidator(index);
+  }
+
+  // ─── Units ───
+  lineProduct(line: any): Product | undefined {
+    const id = line.get('productId')?.value;
+    return id ? this.state.products().find(p => p.id === id) : undefined;
+  }
+
+  lineFactor(line: any): number {
+    const unitId = line.get('unitId')?.value;
+    if (!unitId) return 1;
+    const pu = this.lineProduct(line)?.units?.find(u => u.unitId === unitId);
+    return pu ? Number(pu.factor) || 1 : 1;
+  }
+
+  lineBaseQty(line: any): number {
+    return (Number(line.get('quantity')?.value) || 0) * this.lineFactor(line);
+  }
+
+  maxForLine(line: any): number {
+    return Math.floor((Number(line.get('maxQuantity')?.value) || 0) / this.lineFactor(line));
+  }
+
+  private applyMaxValidator(index: number) {
+    const line = this.linesArray.at(index);
+    const ctrl = line.get('quantity');
+    ctrl?.setValidators([Validators.required, Validators.min(1), Validators.max(this.maxForLine(line))]);
+    ctrl?.updateValueAndValidity();
+  }
+
+  onLineUnitChange(index: number) {
+    const line = this.linesArray.at(index);
+    const max = this.maxForLine(line);
+    if ((Number(line.get('quantity')?.value) || 0) > max) line.patchValue({ quantity: Math.max(1, max) });
+    this.applyMaxValidator(index);
+  }
+
+  /** "3 Box (= 36)" when entered in an alternate unit, else "5x" */
+  itemQtyLabel(item: OrderItem, withX: boolean): string {
+    const nf = (n: number) => this.i18n.formatNumber(n);
+    if (item.unitFactor != null && Number(item.unitFactor) !== 1 && item.unitQuantity != null) {
+      const unit = item.unitCode ? this.unitLabelText(item.unitCode) : '';
+      return `${nf(item.unitQuantity)} ${unit} (= ${nf(item.quantity)})`;
+    }
+    return withX ? `${nf(item.quantity)}x` : nf(item.quantity);
+  }
+
+  private unitLabelText(code: string): string {
+    const key = `units.${code}`;
+    const tr = this.i18n.t(key);
+    return tr && tr !== key ? tr : code;
+  }
+
+  // ─── Lot / serial tracking ───
+  lotsCache = signal<Record<string, StockLot[]>>({});
+  serialsCache = signal<Record<string, SerialNumber[]>>({});
+
+  private ensureTrackingData(product: Product) {
+    if (product.trackingType === 'lot' && !this.lotsCache()[product.id]) {
+      this.inventoryService.getProductLots(product.id).subscribe({
+        next: lots => this.lotsCache.update(c => ({ ...c, [product.id]: lots })),
+        error: () => this.lotsCache.update(c => ({ ...c, [product.id]: [] }))
+      });
+    }
+    if (product.trackingType === 'serial' && !this.serialsCache()[product.id]) {
+      this.inventoryService.getProductSerials(product.id, 'in_stock').subscribe({
+        next: sn => this.serialsCache.update(c => ({ ...c, [product.id]: sn })),
+        error: () => this.serialsCache.update(c => ({ ...c, [product.id]: [] }))
+      });
+    }
+  }
+
+  enableManualTracking(index: number) {
+    const line = this.linesArray.at(index);
+    const product = this.lineProduct(line);
+    if (!product) return;
+    this.ensureTrackingData(product);
+    line.patchValue({ trackMode: 'manual' });
+  }
+
+  disableManualTracking(index: number) {
+    this.linesArray.at(index).patchValue({ trackMode: 'auto', lots: [], serials: [] });
+  }
+
+  lotQty(line: any, lotId: string): number {
+    return (line.get('lots')?.value || []).find((l: any) => l.lotId === lotId)?.quantity || 0;
+  }
+
+  lotsSum(line: any): number {
+    return (line.get('lots')?.value || []).reduce((sum: number, l: any) => sum + (Number(l.quantity) || 0), 0);
+  }
+
+  setLotQty(index: number, lot: StockLot, event: Event) {
+    const line = this.linesArray.at(index);
+    let qty = Math.floor(Number((event.target as HTMLInputElement).value) || 0);
+    qty = Math.max(0, Math.min(qty, lot.quantity));
+    const lots = (line.get('lots')?.value || []).filter((l: any) => l.lotId !== lot.id);
+    if (qty > 0) lots.push({ lotId: lot.id, quantity: qty });
+    line.patchValue({ lots });
+  }
+
+  lineSerials(line: any): string[] {
+    return line.get('serials')?.value || [];
+  }
+
+  toggleSerial(index: number, serial: string) {
+    const line = this.linesArray.at(index);
+    const cur = this.lineSerials(line);
+    line.patchValue({ serials: cur.includes(serial) ? cur.filter(x => x !== serial) : [...cur, serial] });
+  }
+
+  trackingInvalid(): boolean {
+    return this.linesArray.controls.some(line => {
+      if (line.get('trackMode')?.value !== 'manual') return false;
+      const p = this.lineProduct(line);
+      if (p?.trackingType === 'lot') return this.lotsSum(line) !== this.lineBaseQty(line);
+      if (p?.trackingType === 'serial') return this.lineSerials(line).length !== this.lineBaseQty(line);
+      return false;
+    });
+  }
+
+  // ─── Barcode scan ───
+  showScanner = signal(false);
+  scanning = signal(false);
+
+  onBarcodeScanned(code: string) {
+    this.showScanner.set(false);
+    const trimmed = (code || '').trim();
+    if (!trimmed) return;
+    this.scanning.set(true);
+    this.inventoryService.lookupBarcode(trimmed).subscribe({
+      next: res => { this.scanning.set(false); this.applyScan(res); },
+      error: () => {
+        this.scanning.set(false);
+        this.ui.showToast(this.i18n.t('orders.scan.notFound', { code: trimmed }), 'error');
+      }
+    });
+  }
+
+  private applyScan(res: BarcodeLookupResult) {
+    const product = this.state.products().find(p => p.id === res.product.id) || res.product;
+    if ((product.quantity ?? 0) <= 0) {
+      this.ui.showToast(this.i18n.t('orders.scan.outOfStock', { name: product.name }), 'error');
+      return;
+    }
+    // Serials are always counted in the base unit
+    const unitId = res.serial ? '' : (res.unitId || '');
+    let index = this.linesArray.controls.findIndex(c => c.get('productId')?.value === product.id && (c.get('unitId')?.value || '') === unitId);
+    if (index === -1) {
+      index = this.linesArray.controls.findIndex(c => !c.get('productId')?.value);
+      if (index === -1) { this.addOrderLine(); index = this.linesArray.length - 1; }
+      const line = this.linesArray.at(index);
+      line.patchValue({ productId: product.id, productName: product.name, price: product.price, quantity: 1, maxQuantity: product.quantity, unitId, trackMode: 'auto', lots: [], serials: [] });
+      if (res.serial) {
+        this.ensureTrackingData(product);
+        line.patchValue({ trackMode: 'manual', serials: [res.serial] });
+      }
+      this.applyMaxValidator(index);
+    } else {
+      const line = this.linesArray.at(index);
+      const curQty = Number(line.get('quantity')?.value) || 0;
+      if (res.serial) {
+        const manual = line.get('trackMode')?.value === 'manual';
+        const cur = manual ? this.lineSerials(line) : [];
+        if (cur.includes(res.serial)) {
+          this.ui.showToast(this.i18n.t('orders.scan.serialAlready', { serial: res.serial }), 'info');
+        } else {
+          const serials = [...cur, res.serial];
+          this.ensureTrackingData(product);
+          // Switching from auto to manual: the scanned serials define the line quantity
+          line.patchValue({ trackMode: 'manual', serials, quantity: manual ? Math.max(curQty, serials.length) : serials.length });
+        }
+      } else {
+        line.patchValue({ quantity: Math.min(curQty + 1, this.maxForLine(line)) });
+      }
+      line.get('quantity')?.markAsDirty();
+      line.get('quantity')?.updateValueAndValidity();
+    }
+    this.highlightLineIndex.set(index);
+    setTimeout(() => this.highlightLineIndex.set(null), 600);
   }
 
   enforceMaxQuantity(event: Event, index: number) {
     const input = event.target as HTMLInputElement;
     const lineGroup = this.linesArray.at(index);
-    const max = lineGroup.get('maxQuantity')?.value || 0;
+    const max = this.maxForLine(lineGroup);
     
     if (input.value !== '' && parseInt(input.value) > max) {
       input.value = max.toString();
@@ -854,7 +1143,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     const product = this.state.products().find(p => p.id === line.get('productId')?.value);
     if (!product) return this.i18n.t('finance.unitPrice');
     const cur = product.currency || this.i18n.currency();
-    return cur === this.orderCurrency() ? String(product.price) : this.i18n.t('finance.unitPrice');
+    return cur === this.orderCurrency() ? String(this.round2((Number(product.price) || 0) * this.lineFactor(line))) : this.i18n.t('finance.unitPrice');
   }
 
   linePreview(line: any): { rate: number; net: number; tax: number; total: number } | null {
@@ -865,7 +1154,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     if (price === null) {
       const product = this.state.products().find(p => p.id === productId);
       if (!product || (product.currency || this.i18n.currency()) !== this.orderCurrency()) return null;
-      price = Number(product.price) || 0;
+      price = (Number(product.price) || 0) * this.lineFactor(line);
     }
     const rate = this.rateForProduct(productId);
     let net: number, tax: number, total: number;
@@ -949,24 +1238,36 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const formValue = this.orderForm.value;
 
-    // Merge duplicate lines by summing their quantities
-    const mergedMap = new Map<string, { productName: string; quantity: number; unitPrice?: number }>();
+    // Merge duplicate lines (same product + unit) by summing their quantities
+    type Item = CreateOrderPayload['items'][number];
+    const mergedMap = new Map<string, Item>();
     formValue.lines.forEach((l: any) => {
-      const existing = mergedMap.get(l.productId);
+      const unitId: string = l.unitId || '';
+      const key = `${l.productId}|${unitId}`;
       const override = this.parsePrice(l.unitPrice);
+      const manual = l.trackMode === 'manual';
+      const lots: { lotId: string; quantity: number }[] = manual ? (l.lots || []) : [];
+      const serials: string[] = manual ? (l.serials || []) : [];
+      const existing = mergedMap.get(key);
       if (existing) {
         existing.quantity += Number(l.quantity);
         if (existing.unitPrice === undefined && override !== null) existing.unitPrice = override;
+        if (lots.length) existing.lots = [...(existing.lots || []), ...lots];
+        if (serials.length) existing.serials = [...(existing.serials || []), ...serials];
       } else {
-        mergedMap.set(l.productId, {
+        mergedMap.set(key, {
+          productId: l.productId,
           productName: l.productName,
           quantity: Number(l.quantity),
-          ...(override !== null ? { unitPrice: override } : {})
+          ...(unitId ? { unitId } : {}),
+          ...(override !== null ? { unitPrice: override } : {}),
+          ...(lots.length ? { lots } : {}),
+          ...(serials.length ? { serials } : {}),
         });
       }
     });
 
-    const items = Array.from(mergedMap.entries()).map(([productId, data]) => ({ productId, ...data }));
+    const items = Array.from(mergedMap.values());
     const customerId: string = formValue.customerId || '';
 
     const orderPayload: CreateOrderPayload = {

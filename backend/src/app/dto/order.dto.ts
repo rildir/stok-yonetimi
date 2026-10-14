@@ -4,6 +4,16 @@ import { Transform, Type } from 'class-transformer';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 
+export class OrderLotPickDto {
+  @IsString()
+  @IsNotEmpty()
+  lotId: string;
+
+  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
+  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  quantity: number;
+}
+
 export class OrderItemDto {
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_PRODUCT_ID_REQUIRED' })
@@ -26,6 +36,24 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   warehouseId?: string;
+
+  /** Unit the quantity is entered in (default: product base unit) */
+  @IsString()
+  @IsOptional()
+  unitId?: string;
+
+  /** Explicit lot picks (base units); omitted => FEFO/FIFO */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderLotPickDto)
+  lots?: OrderLotPickDto[];
+
+  /** Explicit serials; omitted => oldest in stock */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  serials?: string[];
 }
 
 export class CreateOrderDto {

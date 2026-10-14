@@ -155,6 +155,7 @@ export class WarehouseService {
     quantity: number,
     performedBy = 'System',
     note?: string,
+    details: { lotId?: string; serials?: string[] } = {},
   ): Promise<ProductEntity | null> {
     const qty = Number(quantity);
     if (!Number.isInteger(qty) || qty <= 0) {
@@ -173,34 +174,34 @@ export class WarehouseService {
       }
 
       const total = product.quantity;
-      await this.warehouseStock.apply(manager, product, [
-        { warehouseId: from.id, delta: -qty },
-        { warehouseId: to.id, delta: qty },
-      ]);
+      const moved = await this.warehouseStock.transfer(manager, product, from.id, to.id, qty, details);
       const ref = `TRF-${Date.now()}`;
       const text = note || `Depo transferi: ${from.name} -> ${to.name} (${qty})`;
-      const pair: [WarehouseEntity, string, number][] = [
-        [from, StockMovementType.TRANSFER_OUT, -qty],
-        [to, StockMovementType.TRANSFER_IN, qty],
-      ];
-      for (const [wh, type, delta] of pair) {
-        await manager.save(
-          StockMovementEntity,
-          manager.create(StockMovementEntity, {
-            companyId: this.companyId,
-            productId: product.id,
-            productName: product.name,
-            warehouseId: wh.id,
-            type,
-            quantity: delta,
-            previousQuantity: total,
-            newQuantity: total,
-            referenceId: ref,
-            referenceType: 'warehouse_transfer',
-            note: text,
-            performedBy,
-          })
-        );
+      const info = { referenceId: ref, referenceType: 'warehouse_transfer', note: text, performedBy };
+      // Totals are unchanged by a transfer, so previous/new both equal the product total.
+      for (const [allocs, type] of [
+        [moved.out, StockMovementType.TRANSFER_OUT],
+        [moved.in, StockMovementType.TRANSFER_IN],
+      ] as const) {
+        for (const a of allocs) {
+          await manager.save(
+            StockMovementEntity,
+            manager.create(StockMovementEntity, {
+              companyId: this.companyId,
+              productId: product.id,
+              productName: product.name,
+              warehouseId: a.warehouseId,
+              type,
+              quantity: a.delta,
+              previousQuantity: total,
+              newQuantity: total,
+              lotId: a.lotId ?? null,
+              lotNumber: a.lotNumber ?? null,
+              serials: a.serials?.length ? a.serials : null,
+              ...info,
+            }),
+          );
+        }
       }
       await this.warehouseStock.attachWarehouseMap(manager, this.companyId, [product]);
       return product;

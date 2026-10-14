@@ -63,5 +63,9 @@
   "stockMovements.col.warehouse": "Warehouse",
   "stockMovements.csv.warehouse": "Warehouse",
   "stockMovements.filter.warehouse": "Warehouse",
-  "stockMovements.filter.allWarehouses": "All warehouses"
+  "stockMovements.filter.allWarehouses": "All warehouses",
+  "stockMovements.col.lotSerial": "Lot / Serial",
+  "stockMovements.lot": "Lot",
+  "stockMovements.serials": "Serials",
+  "stockMovements.moreSerials": "+{count} more"
 }

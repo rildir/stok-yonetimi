@@ -12,10 +12,17 @@ import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { FinanceService } from '../../shared/services/finance.service';
+import { UnitService } from '../../shared/services/unit.service';
 
 const financeStub = { getCompany: jest.fn().mockResolvedValue({ baseCurrency: 'TRY' }), assertTaxRate: jest.fn() };
+const unitStub = {
+  attachUnits: jest.fn().mockImplementation(async (_m: any, _c: string, ps: any[]) => ps),
+  defaultUnit: jest.fn().mockResolvedValue({ id: 'u-pcs', code: 'pcs' }),
+  requireUnit: jest.fn().mockResolvedValue({ id: 'u-pcs', code: 'pcs' }),
+};
 const stockStub = () => ({
   add: jest.fn().mockResolvedValue([{ warehouseId: 'w1', delta: 3 }]),
+  receive: jest.fn().mockResolvedValue([{ warehouseId: 'w1', delta: 3 }]),
   recordMovements: jest.fn().mockImplementation(async (m: any, p: any, prev: number, alloc: any[]) =>
     Promise.all(alloc.map((a) => m.save('StockMovement', m.create('StockMovement', { companyId: p.companyId, productId: p.id, quantity: a.delta }))))),
   attachWarehouseMap: jest.fn().mockImplementation(async (_m: any, _c: string, ps: any[]) => ps),
@@ -83,6 +90,7 @@ describe('ProductService', () => {
         { provide: StockHelperService, useValue: stockHelperMock },
         { provide: WarehouseStockService, useValue: stockStub() },
         { provide: FinanceService, useValue: financeStub },
+        { provide: UnitService, useValue: unitStub },
         { provide: AppGateway, useValue: appGatewayMock },
         { provide: TenantContext, useValue: { companyId: COMPANY_ID } },
         { provide: DataSource, useValue: dataSourceMock },
@@ -166,6 +174,7 @@ describe('ProductService tenant isolation', () => {
         { provide: StockHelperService, useValue: { calculateStatus: () => 'In stock' } },
         { provide: WarehouseStockService, useValue: stockStub() },
         { provide: FinanceService, useValue: financeStub },
+        { provide: UnitService, useValue: unitStub },
         { provide: AppGateway, useValue: { emitToCompany: jest.fn() } },
         { provide: TenantContext, useValue: { companyId: 'tenant-A' } },
         { provide: DataSource, useValue: { transaction: (cb: any) => cb(manager) } },

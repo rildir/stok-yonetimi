@@ -1,12 +1,88 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize, IsIn, IsBoolean, MaxLength, IsPositive } from 'class-validator';
+import { BARCODE_TYPES } from '../shared/inventory/barcode';
 import { Transform, Type } from 'class-transformer';
 import { IsISO4217CurrencyCode } from 'class-validator';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class CreateProductDto {
+
+export class ProductUnitDto {
+  @ApiProperty({ description: 'Birim ID' })
+  @IsString()
+  @IsNotEmpty()
+  unitId: string;
+
+  @ApiProperty({ description: '1 birim = factor temel birim', example: 12 })
+  @IsNumber({}, { message: 'UNIT_FACTOR_INVALID' })
+  @IsPositive({ message: 'UNIT_FACTOR_INVALID' })
+  factor: number;
+
+  @ApiPropertyOptional({ description: 'Bu birime ait barkod' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  barcode?: string | null;
+}
+
+export class LotReceiptDto {
+  @ApiProperty({ example: 'L2401' })
+  @IsString()
+  @IsNotEmpty({ message: 'LOT_NUMBER_REQUIRED' })
+  @MaxLength(64)
+  lotNumber: string;
+
+  @ApiPropertyOptional({ description: 'YYYY-MM-DD' })
+  @IsOptional()
+  @IsString()
+  expiryDate?: string | null;
+
+  @ApiProperty({ description: 'Temel birim cinsinden miktar' })
+  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
+  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  quantity: number;
+}
+
+const TRACKING_TYPES = ['none', 'lot', 'serial'];
+
+/** Barcode / tracking / unit fields shared by create and update. */
+class ProductTrackingFieldsDto {
+  @ApiPropertyOptional({ description: 'Barkod (EAN-13/EAN-8/UPC-A/Code128)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  barcode?: string | null;
+
+  @ApiPropertyOptional({ enum: BARCODE_TYPES, description: 'Boşsa otomatik algılanır' })
+  @IsOptional()
+  @IsIn([...BARCODE_TYPES, null, ''])
+  barcodeType?: string | null;
+
+  @ApiPropertyOptional({ enum: TRACKING_TYPES })
+  @IsOptional()
+  @IsIn(TRACKING_TYPES, { message: 'PRODUCT_TRACKING_INVALID' })
+  trackingType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  hasExpiry?: boolean;
+
+  @ApiPropertyOptional({ description: 'Temel birim ID' })
+  @IsOptional()
+  @IsString()
+  baseUnitId?: string;
+
+  @ApiPropertyOptional({ type: [ProductUnitDto], description: 'Alternatif birimler (tüm liste yer değiştirir)' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductUnitDto)
+  units?: ProductUnitDto[];
+}
+
+export class CreateProductDto extends ProductTrackingFieldsDto {
   @ApiProperty({ description: 'Ürün adı', example: 'Kablosuz Klavye' })
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_PRODUCT_NAME_REQUIRED' })
@@ -67,9 +143,22 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   warehouseId?: string;
+
+  @ApiPropertyOptional({ type: [LotReceiptDto], description: 'Lot takipli ürünün açılış stoğu' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LotReceiptDto)
+  lots?: LotReceiptDto[];
+
+  @ApiPropertyOptional({ description: 'Seri takipli ürünün açılış seri numaraları' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  serials?: string[];
 }
 
-export class UpdateProductDto {
+export class UpdateProductDto extends ProductTrackingFieldsDto {
   @ApiPropertyOptional({ description: 'Ürün adı' })
   @IsString()
   @IsNotEmpty()

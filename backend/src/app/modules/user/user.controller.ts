@@ -44,6 +44,7 @@ export class UserController {
         defaultLanguage: company.defaultLanguage,
         baseCurrency: company.baseCurrency,
         timezone: company.timezone,
+        expiryAlertDays: company.expiryAlertDays,
       },
       locale: this.companyService.resolveLocale(company, user),
     };

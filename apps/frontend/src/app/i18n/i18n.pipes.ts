@@ -46,4 +46,22 @@ export class AppDatePipe implements PipeTransform {
   }
 }
 
-export const I18N_PIPES = [TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe] as const;
+/**
+ * {{ unit | unitLabel }} — accepts a Unit object or a unit code string.
+ * Standard units (pcs, box, kg, ...) are translated via `units.<code>`;
+ * custom units show their own name (or the raw code).
+ */
+@Pipe({ name: 'unitLabel', standalone: true, pure: false })
+export class UnitLabelPipe implements PipeTransform {
+  private i18n = inject(I18nService);
+  transform(value: { code?: string | null; name?: string | null; isStandard?: boolean } | string | null | undefined): string {
+    if (!value) return '';
+    const code = typeof value === 'string' ? value : value.code || '';
+    const key = `units.${code}`;
+    const tr = code ? this.i18n.t(key) : '';
+    if (tr && tr !== key) return tr;
+    return typeof value === 'string' ? value : value.name || code;
+  }
+}
+
+export const I18N_PIPES = [TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe] as const;

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, ParseArrayPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, ParseArrayPipe, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { CreateProductDto, UpdateProductDto, BulkDeleteProductsDto, BulkUpdateProductsDto } from '../../dto/product.dto';
@@ -16,6 +16,24 @@ export class ProductController {
   @ApiResponse({ status: 200, description: 'Ürün listesi' })
   async getProducts(): Promise<ProductEntity[]> {
     return this.productService.getProducts();
+  }
+
+  @Get('lookup/barcode/:code')
+  @ApiOperation({ summary: 'Barkod / birim barkodu / SKU / seri no ile ürün bul' })
+  async lookupBarcode(@Param('code') code: string) {
+    return this.productService.lookupByBarcode(code);
+  }
+
+  @Get(':id/lots')
+  @ApiOperation({ summary: 'Ürünün stoktaki lotları (FEFO sıralı)' })
+  async getLots(@Param('id') id: string, @Query('warehouseId') warehouseId?: string) {
+    return this.productService.getLots(id, warehouseId);
+  }
+
+  @Get(':id/serials')
+  @ApiOperation({ summary: 'Ürünün seri numaraları' })
+  async getSerials(@Param('id') id: string, @Query('status') status?: string, @Query('warehouseId') warehouseId?: string) {
+    return this.productService.getSerials(id, status || 'in_stock', warehouseId);
   }
 
   @Get(':id')

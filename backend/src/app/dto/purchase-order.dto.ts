@@ -23,6 +23,11 @@ export class PurchaseOrderItemDto {
   @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
   @IsOptional()
   unitPrice?: number;
+
+  /** Unit the quantity / unitPrice refer to (default: product base unit) */
+  @IsString()
+  @IsOptional()
+  unitId?: string;
 }
 
 export class CreatePurchaseOrderDto {
@@ -83,6 +88,38 @@ export class UpdatePurchaseOrderDto {
   expectedDate?: string;
 }
 
+export class PoReceiptLotDto {
+  @IsString()
+  @IsNotEmpty({ message: 'LOT_NUMBER_REQUIRED' })
+  lotNumber: string;
+
+  @IsOptional()
+  @IsString()
+  expiryDate?: string | null;
+
+  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
+  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  quantity: number;
+}
+
+/** Lot / serial capture for one PO line (quantities in base units). */
+export class PoReceiptDto {
+  @IsString()
+  @IsNotEmpty()
+  itemId: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PoReceiptLotDto)
+  lots?: PoReceiptLotDto[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  serials?: string[];
+}
+
 export class UpdatePurchaseOrderStatusDto {
   @IsString()
   @IsNotEmpty()
@@ -92,4 +129,11 @@ export class UpdatePurchaseOrderStatusDto {
   @IsString()
   @IsOptional()
   warehouseId?: string;
+
+  /** Required for lot/serial tracked lines when receiving */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PoReceiptDto)
+  receipts?: PoReceiptDto[];
 }

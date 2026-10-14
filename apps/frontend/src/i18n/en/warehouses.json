@@ -59,5 +59,13 @@
   "warehouses.transfer.submit": "Transfer",
   "warehouses.transfer.submitting": "Transferring...",
   "warehouses.transfer.success": "Stock transferred successfully.",
-  "warehouses.transfer.error": "Failed to transfer stock."
+  "warehouses.transfer.error": "Failed to transfer stock.",
+  "warehouses.transfer.lot": "Lot",
+  "warehouses.transfer.selectLot": "Automatic (by expiry order)",
+  "warehouses.transfer.noLots": "No lots in this warehouse",
+  "warehouses.transfer.lotAutoHint": "If no lot is selected, the system picks automatically",
+  "warehouses.transfer.serials": "Serial numbers",
+  "warehouses.transfer.noSerials": "No in-stock serial numbers in this warehouse",
+  "warehouses.transfer.serialsHint": "Quantity equals the number of selected serials",
+  "warehouses.transfer.serialsMismatch": "Selected serial count must equal the quantity"
 }

@@ -63,5 +63,9 @@
   "stockMovements.col.warehouse": "Depo",
   "stockMovements.csv.warehouse": "Depo",
   "stockMovements.filter.warehouse": "Depo",
-  "stockMovements.filter.allWarehouses": "Tüm depolar"
+  "stockMovements.filter.allWarehouses": "Tüm depolar",
+  "stockMovements.col.lotSerial": "Lot / Seri",
+  "stockMovements.lot": "Lot",
+  "stockMovements.serials": "Seri",
+  "stockMovements.moreSerials": "+{count} daha"
 }

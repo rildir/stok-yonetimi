@@ -42,5 +42,21 @@
   "stockCount.toast.draftError": "Failed to save draft.",
   "stockCount.toast.completed": "Count completed and differences applied to stock.",
   "stockCount.toast.completeError": "Failed to complete count.",
-  "stockCount.toast.saveError": "Failed to save count."
+  "stockCount.toast.saveError": "Failed to save count.",
+  "stockCount.scan": "Scan Barcode",
+  "stockCount.toggleDetails": "Toggle details",
+  "stockCount.lotTracked": "Lot tracked",
+  "stockCount.serialTracked": "Serial tracked",
+  "stockCount.trackedSumHint": "Sum of lot/serial counts",
+  "stockCount.lot": "Lot",
+  "stockCount.noLots": "No lots for this product",
+  "stockCount.noSerials": "No serial numbers for this product",
+  "stockCount.serialPresent": "Present",
+  "stockCount.serialMissing": "Missing",
+  "stockCount.toast.scanNotInCount": "{name} is not in this count",
+  "stockCount.toast.scanSerialRequired": "Serial-tracked product: scan the serial number or tick it in the list",
+  "stockCount.toast.scanSerialMarked": "{serial} marked as present",
+  "stockCount.toast.scanLotHint": "Lot-tracked product: enter the quantity on the matching lot",
+  "stockCount.toast.scanAdded": "{name}: +{qty}",
+  "stockCount.toast.scanNotFound": "Barcode not found: {code}"
 }

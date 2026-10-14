@@ -12,6 +12,9 @@ import { FinanceService } from '../../shared/services/finance.service';
 import { AppGateway } from '../../app.gateway';
 import { OrderStatus, StockMovementType } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
+import { UnitService, LineUnit } from '../../shared/services/unit.service';
+import { isTracked, StockAllocation } from '../../shared/services/warehouse-stock.service';
+import { TrackingEntry } from '../../entities/tracking';
 
 export interface OrderItemInput {
   productId: string;
@@ -21,6 +24,12 @@ export interface OrderItemInput {
   unitPrice?: number | null;
   /** Source warehouse (optional; otherwise taken greedily across warehouses) */
   warehouseId?: string | null;
+  /** Unit `quantity`/`unitPrice` refer to (default: base unit) */
+  unitId?: string | null;
+  /** Explicit lot picks in base units (default FEFO/FIFO) */
+  lots?: { lotId: string; quantity: number }[];
+  /** Explicit serials (default: oldest in stock) */
+  serials?: string[];
 }
 
 export interface CreateOrderInput {
@@ -45,6 +54,7 @@ export class OrderService {
     private readonly productRepo: Repository<ProductEntity>,
     private readonly warehouseStock: WarehouseStockService,
     private readonly finance: FinanceService,
+    private readonly unitService: UnitService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -111,17 +121,19 @@ export class OrderService {
       // Merge duplicates in payload (same product + same source warehouse)
       const mergedMap = new Map<string, OrderItemInput>();
       for (const item of data.items) {
-        const key = `${item.productId}|${item.warehouseId || data.warehouseId || ''}`;
+        const key = `${item.productId}|${item.warehouseId || data.warehouseId || ''}|${item.unitId || ''}`;
         const existing = mergedMap.get(key);
         if (existing) {
           existing.quantity += item.quantity;
+          if (item.lots?.length) existing.lots = [...(existing.lots || []), ...item.lots];
+          if (item.serials?.length) existing.serials = [...(existing.serials || []), ...item.serials];
         } else {
           mergedMap.set(key, { ...item });
         }
       }
       const orderItems = Array.from(mergedMap.values());
 
-      const priced: { product: ProductEntity; quantity: number; unitPrice?: number | null }[] = [];
+      const priced: { product: ProductEntity; quantity: number; unitPrice?: number | null; factor: number; lu: LineUnit; baseQty: number; tracking: TrackingEntry[] | null }[] = [];
       for (const item of orderItems) {
         const prod = await manager.findOne(ProductEntity, {
           where: { companyId: this.companyId, id: item.productId, isDeleted: false },
@@ -131,13 +143,19 @@ export class OrderService {
         if (!prod) {
           throw new BadRequestException(err('PRODUCT_NOT_FOUND_NAME', { name: item.productName || item.productId }));
         }
-        if (prod.quantity < item.quantity) {
+        const lu = await this.unitService.resolveLineUnit(manager, prod, item.unitId);
+        const baseQty = this.unitService.toBase(prod, item.quantity, lu);
+        if (prod.quantity < baseQty) {
           throw new BadRequestException(err('ORDER_INSUFFICIENT_STOCK', { name: prod.name, available: prod.quantity }));
         }
 
+        let allocations: StockAllocation[] = [];
         if (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING) {
           const oldQty = prod.quantity;
-          const allocations = await this.warehouseStock.deduct(manager, prod, item.quantity, item.warehouseId || data.warehouseId);
+          allocations = await this.warehouseStock.issue(manager, prod, baseQty, item.warehouseId || data.warehouseId, {
+            lots: item.lots,
+            serials: item.serials,
+          });
           await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
             type: StockMovementType.ORDER,
             referenceId: orderNumber,
@@ -147,7 +165,15 @@ export class OrderService {
           });
           productsToEmit.push(prod);
         }
-        priced.push({ product: prod, quantity: item.quantity, unitPrice: item.unitPrice });
+        priced.push({
+          product: prod,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          factor: lu.factor,
+          lu,
+          baseQty,
+          tracking: isTracked(prod) ? this.warehouseStock.toTracking(allocations) : null,
+        });
       }
 
       const { lines, totals, exchangeRate } = await this.finance.priceLines(priced, currency, orderDate, manager);
@@ -156,7 +182,12 @@ export class OrderService {
         manager.create(OrderItemEntity, {
           productId: p.product.id,
           productName: p.product.name,
-          quantity: p.quantity,
+          quantity: p.baseQty,
+          unitId: p.lu.unitId,
+          unitCode: p.lu.unitCode,
+          unitFactor: p.lu.factor,
+          unitQuantity: p.quantity,
+          tracking: p.tracking,
           price: lines[i].unitPrice,
           unitPrice: lines[i].unitPrice,
           taxRate: lines[i].taxRate,
@@ -224,6 +255,20 @@ export class OrderService {
           });
           if (!prod) continue;
           const oldQty = prod.quantity;
+
+          if (isTracked(prod)) {
+            // Lots / serials go back exactly where they were taken from.
+            const restored = await this.warehouseStock.restore(manager, prod, item.tracking || []);
+            await this.warehouseStock.recordMovements(manager, prod, oldQty, restored, {
+              type: StockMovementType.RETURN,
+              referenceId: order.orderNumber,
+              referenceType: 'order',
+              note: `Sipariş iptal edildi: ${order.orderNumber}`,
+              performedBy,
+            });
+            productsToEmit.push(prod);
+            continue;
+          }
 
           // Put stock back into the warehouses it was taken from (else the default one).
           const outs = await manager.find(StockMovementEntity, {

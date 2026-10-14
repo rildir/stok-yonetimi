@@ -73,7 +73,8 @@ export class FinanceService {
    * price, which is otherwise converted from the product's own currency.
    */
   async priceLines(
-    items: { product: ProductEntity; quantity: number; unitPrice?: number | null }[],
+    /** quantity/unitPrice are in the entered unit; `factor` = base units per entered unit (default 1) */
+    items: { product: ProductEntity; quantity: number; unitPrice?: number | null; factor?: number }[],
     currency: string,
     date?: Date | string | null,
     manager?: EntityManager,
@@ -91,7 +92,7 @@ export class FinanceService {
       const entered =
         it.unitPrice !== undefined && it.unitPrice !== null && it.unitPrice > 0
           ? Number(it.unitPrice)
-          : Number(it.product.price) * rateOrThrow(it.product.currency || company.baseCurrency, currency);
+          : Number(it.product.price) * (it.factor || 1) * rateOrThrow(it.product.currency || company.baseCurrency, currency);
       const taxRate = await this.taxRateForProduct(it.product, manager);
       lines.push(calculateLine({ quantity: it.quantity, unitPrice: entered, taxRate }, company.pricesIncludeTax));
     }

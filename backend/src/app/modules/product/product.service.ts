@@ -1,21 +1,37 @@
 import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, Not, MoreThan } from 'typeorm';
 import { ProductEntity } from '../../entities/product.entity';
 import { CategoryEntity } from '../../entities/category.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
+import { ProductWarehouseStockEntity } from '../../entities/product-warehouse-stock.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { FinanceService } from '../../shared/services/finance.service';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { StockMovementType } from '../../entities/enums';
+import { UnitService } from '../../shared/services/unit.service';
+import { ProductUnitEntity } from '../../entities/product-unit.entity';
+import { StockLotEntity } from '../../entities/stock-lot.entity';
+import { SerialNumberEntity, SerialStatus } from '../../entities/serial-number.entity';
+import { TrackingType } from '../../entities/tracking';
+import { BarcodeType, validateBarcode } from '../../shared/inventory/barcode';
+import { todayKey } from '../../shared/inventory/lot-allocation';
+import { isTracked, LotReceiptInput } from '../../shared/services/warehouse-stock.service';
+import { NotFoundException } from '@nestjs/common';
 
 /** Input accepted for create/update; `quantity` is applied through warehouse stock. */
-export type ProductInput = Partial<Omit<ProductEntity, 'warehouses'>> & { warehouseId?: string | null };
+export type ProductInput = Partial<Omit<ProductEntity, 'warehouses' | 'units'>> & {
+  warehouseId?: string | null;
+  units?: { unitId: string; factor: number; barcode?: string | null }[];
+  /** Opening stock details for tracked products */
+  lots?: LotReceiptInput[];
+  serials?: string[];
+};
 
 @Injectable()
 export class ProductService {
@@ -34,6 +50,7 @@ export class ProductService {
     private readonly stockHelper: StockHelperService,
     private readonly warehouseStock: WarehouseStockService,
     private readonly finance: FinanceService,
+    private readonly unitService: UnitService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -44,15 +61,205 @@ export class ProductService {
 
   async getProducts(): Promise<ProductEntity[]> {
     const products = await this.productRepo.find({ where: { companyId: this.companyId, isDeleted: false } });
+    await this.unitService.attachUnits(this.dataSource.manager, this.companyId, products);
     return this.warehouseStock.attachWarehouseMap(this.dataSource.manager, this.companyId, products);
   }
 
   async getProductById(id: string): Promise<ProductEntity | null> {
     const product = await this.productRepo.findOne({ where: { companyId: this.companyId, id, isDeleted: false } });
     if (!product) return null;
-    await this.warehouseStock.attachWarehouseMap(this.dataSource.manager, this.companyId, [product]);
+    return this.decorate(this.dataSource.manager, product);
+  }
+
+  /** Adds units + warehouse map for API responses. */
+  private async decorate(manager: EntityManager, product: ProductEntity): Promise<ProductEntity> {
+    await this.unitService.attachUnits(manager, this.companyId, [product]);
+    await this.warehouseStock.attachWarehouseMap(manager, this.companyId, [product]);
     return product;
   }
+
+  // ─── Barcodes ───
+
+  private normBarcode(code: unknown): string | null {
+    const c = typeof code === 'string' ? code.trim() : '';
+    return c ? c : null;
+  }
+
+  /** Throws when `code` is used by another product or another product's unit. */
+  private async assertBarcodeFree(manager: EntityManager, code: string, productId?: string): Promise<void> {
+    const p = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, barcode: code } });
+    const u = await manager.findOne(ProductUnitEntity, { where: { companyId: this.companyId, barcode: code } });
+    if ((p && p.id !== productId) || (u && u.productId !== productId)) {
+      throw new BadRequestException(err('BARCODE_TAKEN', { code }));
+    }
+  }
+
+  private checkBarcode(code: string, type?: string | null): BarcodeType {
+    const r = validateBarcode(code, (type || null) as BarcodeType | null);
+    if (r.error) throw new BadRequestException(err(r.error, { code, type: r.type }));
+    return r.type;
+  }
+
+  /** Product lookup by product barcode, alternate-unit barcode, SKU or in-stock serial. */
+  async lookupByBarcode(rawCode: string) {
+    const code = String(rawCode || '').trim();
+    const m = this.dataSource.manager;
+    const base = { companyId: this.companyId, isDeleted: false };
+    let product = code ? await m.findOne(ProductEntity, { where: { ...base, barcode: code } }) : null;
+    let unitId: string | null = null;
+    let unitCode: string | null = null;
+    let factor = 1;
+    let serial: string | null = null;
+    if (!product && code) {
+      const pu = await m.findOne(ProductUnitEntity, { where: { companyId: this.companyId, barcode: code }, relations: { unit: true } });
+      if (pu) {
+        product = await m.findOne(ProductEntity, { where: { ...base, id: pu.productId } });
+        unitId = pu.unitId;
+        unitCode = pu.unit?.code || null;
+        factor = Number(pu.factor);
+      }
+    }
+    if (!product && code) product = await m.findOne(ProductEntity, { where: { ...base, sku: code } });
+    if (!product && code) {
+      const sn = await m.findOne(SerialNumberEntity, { where: { companyId: this.companyId, serial: code, status: SerialStatus.IN_STOCK } });
+      if (sn) {
+        product = await m.findOne(ProductEntity, { where: { ...base, id: sn.productId } });
+        serial = sn.serial;
+      }
+    }
+    if (!product) throw new NotFoundException(err('PRODUCT_BARCODE_NOT_FOUND', { code }));
+    await this.decorate(m, product);
+    return { product, unitId, unitCode, factor, serial };
+  }
+
+  // ─── Lots / serials ───
+
+  private async requireProduct(id: string): Promise<ProductEntity> {
+    const product = await this.productRepo.findOne({ where: { companyId: this.companyId, id, isDeleted: false } });
+    if (!product) throw new NotFoundException(err('PRODUCT_NOT_FOUND'));
+    return product;
+  }
+
+  /** In-stock lots, FEFO ordered, with warehouse names and days to expiry. */
+  async getLots(productId: string, warehouseId?: string) {
+    await this.requireProduct(productId);
+    const lots = await this.dataSource.manager.find(StockLotEntity, {
+      where: { companyId: this.companyId, productId, quantity: MoreThan(0), ...(warehouseId ? { warehouseId } : {}) },
+      relations: { warehouse: true },
+    });
+    const today = todayKey();
+    return lots
+      .filter((l) => l.warehouse && !l.warehouse.isDeleted)
+      .sort((a, b) => String(a.expiryDate || '9999').localeCompare(String(b.expiryDate || '9999')) || +a.createdAt - +b.createdAt)
+      .map(({ warehouse, ...l }) => ({
+        ...l,
+        warehouseName: warehouse?.name,
+        expired: !!l.expiryDate && String(l.expiryDate) < today,
+      }));
+  }
+
+  async getSerials(productId: string, status?: string, warehouseId?: string) {
+    await this.requireProduct(productId);
+    const rows = await this.dataSource.manager.find(SerialNumberEntity, {
+      where: {
+        companyId: this.companyId,
+        productId,
+        ...(status && status !== 'all' ? { status } : {}),
+        ...(warehouseId ? { warehouseId } : {}),
+      },
+      relations: { warehouse: true },
+      order: { createdAt: 'ASC', serial: 'ASC' },
+    });
+    return rows.map(({ warehouse, ...r }) => ({ ...r, warehouseName: warehouse?.name }));
+  }
+
+  // ─── Units / tracking on save ───
+
+  /** Validates barcode/unit/tracking fields of the payload and normalizes them onto `target`. */
+  private async applyCatalogFields(manager: EntityManager, target: ProductEntity, data: ProductInput, isNew: boolean): Promise<void> {
+    if (data.barcode !== undefined || data.barcodeType !== undefined) {
+      const code = this.normBarcode(data.barcode !== undefined ? data.barcode : target.barcode);
+      if (code) {
+        target.barcodeType = this.checkBarcode(code, data.barcodeType ?? (data.barcode !== undefined ? null : target.barcodeType));
+        await this.assertBarcodeFree(manager, code, isNew ? undefined : target.id);
+      } else {
+        target.barcodeType = null;
+      }
+      target.barcode = code;
+    }
+    if (data.baseUnitId !== undefined || isNew || !target.baseUnitId) {
+      const unit = data.baseUnitId
+        ? await this.unitService.requireUnit(data.baseUnitId, manager)
+        : target.baseUnitId
+          ? await this.unitService.requireUnit(target.baseUnitId, manager)
+          : await this.unitService.defaultUnit(this.companyId, manager);
+      target.baseUnitId = unit.id;
+      target.unit = unit.code;
+    }
+    if (data.hasExpiry !== undefined) target.hasExpiry = !!data.hasExpiry;
+  }
+
+  /** Replaces the product's alternate units. */
+  private async saveUnits(manager: EntityManager, product: ProductEntity, units: ProductInput['units']): Promise<void> {
+    if (units === undefined) return;
+    const list = units || [];
+    const seenUnits = new Set<string>();
+    const seenCodes = new Set<string>(product.barcode ? [product.barcode] : []);
+    for (const u of list) {
+      await this.unitService.requireUnit(u.unitId, manager);
+      if (u.unitId === product.baseUnitId) throw new BadRequestException(err('UNIT_BASE_AS_ALTERNATE'));
+      if (seenUnits.has(u.unitId)) throw new BadRequestException(err('UNIT_DUPLICATE'));
+      seenUnits.add(u.unitId);
+      if (!(Number(u.factor) > 0)) throw new BadRequestException(err('UNIT_FACTOR_INVALID'));
+      const code = this.normBarcode(u.barcode);
+      if (code) {
+        this.checkBarcode(code);
+        if (seenCodes.has(code)) throw new BadRequestException(err('BARCODE_DUPLICATE_IN_PAYLOAD', { code }));
+        seenCodes.add(code);
+        await this.assertBarcodeFree(manager, code, product.id);
+      }
+    }
+    await manager.delete(ProductUnitEntity, { companyId: this.companyId, productId: product.id });
+    for (const u of list) {
+      await manager.save(
+        ProductUnitEntity,
+        manager.create(ProductUnitEntity, {
+          companyId: this.companyId,
+          productId: product.id,
+          unitId: u.unitId,
+          factor: Number(u.factor),
+          barcode: this.normBarcode(u.barcode),
+        }),
+      );
+    }
+  }
+
+  /**
+   * Tracking type changes: none -> lot converts existing warehouse stock into
+   * one opening lot per warehouse; every other change needs zero stock.
+   */
+  private async changeTracking(manager: EntityManager, product: ProductEntity, next: string): Promise<void> {
+    const current = product.trackingType || TrackingType.NONE;
+    if (next === current) return;
+    if (!Object.values(TrackingType).includes(next as TrackingType)) throw new BadRequestException(err('PRODUCT_TRACKING_INVALID'));
+    if (product.quantity > 0) {
+      if (!(current === TrackingType.NONE && next === TrackingType.LOT)) {
+        throw new BadRequestException(err('PRODUCT_TRACKING_CHANGE_STOCK', { name: product.name }));
+      }
+      const rows = await manager.find(ProductWarehouseStockEntity, { where: { companyId: this.companyId, productId: product.id, quantity: MoreThan(0) } });
+      const lotNumber = `OPEN-${todayKey().replace(/-/g, '')}`;
+      for (const r of rows) {
+        await manager.save(
+          StockLotEntity,
+          manager.create(StockLotEntity, { companyId: this.companyId, productId: product.id, warehouseId: r.warehouseId, lotNumber, expiryDate: null, quantity: r.quantity }),
+        );
+      }
+    } else if (current === TrackingType.LOT) {
+      await manager.delete(StockLotEntity, { companyId: this.companyId, productId: product.id, quantity: 0 });
+    }
+    product.trackingType = next;
+  }
+
 
   private async validateRefs(manager: EntityManager, data: ProductInput): Promise<void> {
     if (data.category) {
@@ -75,21 +282,24 @@ export class ProductService {
   /** Inserts a product with zero stock, then books the initial quantity into a warehouse. */
   private async insertProduct(manager: EntityManager, data: ProductInput, performedBy: string, note: string): Promise<ProductEntity> {
     await this.validateRefs(manager, data);
-    const { warehouseId, quantity, ...rest } = data;
+    const { warehouseId, quantity, units, lots, serials, baseUnit: _bu, ...rest } = data as any;
     const company = await this.finance.getCompany(manager);
-    const product = await manager.save(
-      ProductEntity,
-      manager.create(ProductEntity, {
-        ...rest,
-        companyId: this.companyId,
-        currency: (rest.currency || company.baseCurrency).toUpperCase(),
-        quantity: 0,
-        status: this.stockHelper.calculateStatus(0, rest.minQuantity ?? 5),
-      })
-    );
+    const draft = manager.create(ProductEntity, {
+      ...rest,
+      companyId: this.companyId,
+      currency: (rest.currency || company.baseCurrency).toUpperCase(),
+      trackingType: rest.trackingType || TrackingType.NONE,
+      hasExpiry: rest.trackingType === TrackingType.LOT ? !!rest.hasExpiry : false,
+      quantity: 0,
+      status: this.stockHelper.calculateStatus(0, rest.minQuantity ?? 5),
+    }) as unknown as ProductEntity;
+    await this.applyCatalogFields(manager, draft, data, true);
+    if (draft.trackingType !== TrackingType.LOT) draft.hasExpiry = false;
+    const product = await manager.save(ProductEntity, draft);
+    await this.saveUnits(manager, product, units);
     const initial = Number(quantity) || 0;
     if (initial > 0) {
-      const allocations = await this.warehouseStock.add(manager, product, initial, warehouseId);
+      const allocations = await this.warehouseStock.receive(manager, product, initial, warehouseId, { lots, serials });
       await this.warehouseStock.recordMovements(manager, product, 0, allocations, {
         type: StockMovementType.IN,
         referenceType: 'manual',
@@ -106,7 +316,7 @@ export class ProductService {
         throw new BadRequestException(err('PRODUCT_SKU_TAKEN', { sku: data.sku }));
       }
       const product = await this.insertProduct(manager, data, performedBy, 'Yeni ürün oluşturma stok girişi');
-      return this.warehouseStock.attachWarehouseMap(manager, this.companyId, [product]).then(([p]) => p);
+      return this.decorate(manager, product);
     });
     this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'create', product: saved });
     return saved;
@@ -148,11 +358,25 @@ export class ProductService {
   /** Applies field updates; a quantity change goes through warehouse stock + ADJUSTMENT movement(s). */
   private async applyUpdate(manager: EntityManager, current: ProductEntity, updates: ProductInput, performedBy: string, note: string) {
     await this.validateRefs(manager, updates);
-    const { warehouseId, quantity, id: _id, companyId: _c, status: _s, ...fields } = updates as any;
+    const { warehouseId, quantity, id: _id, companyId: _c, status: _s, units, lots: _l, serials: _sr, trackingType, ...fields } = updates as any;
     delete fields.warehouses;
     delete fields.warehouseStocks;
+    delete fields.baseUnit;
+    delete fields.barcode;
+    delete fields.barcodeType;
+    delete fields.baseUnitId;
+    delete fields.hasExpiry;
+    delete fields.unit; // derived from the base unit
     if (fields.currency) fields.currency = String(fields.currency).toUpperCase();
     Object.assign(current, fields);
+    if (updates.baseUnitId && updates.baseUnitId !== current.baseUnitId && current.quantity > 0) {
+      // Stock is stored in the base unit; changing it with stock would silently rescale quantities.
+      throw new BadRequestException(err('PRODUCT_TRACKING_CHANGE_STOCK', { name: current.name }));
+    }
+    await this.applyCatalogFields(manager, current, updates, false);
+    if (trackingType !== undefined) await this.changeTracking(manager, current, trackingType);
+    if (current.trackingType !== TrackingType.LOT) current.hasExpiry = false;
+    await this.saveUnits(manager, current, units);
     current.status = this.stockHelper.calculateStatus(current.quantity, current.minQuantity);
     let saved = await manager.save(ProductEntity, current);
 
@@ -178,7 +402,7 @@ export class ProductService {
       });
       if (!current) return null;
       const p = await this.applyUpdate(manager, current, updates, performedBy, 'Stock update');
-      return this.warehouseStock.attachWarehouseMap(manager, this.companyId, [p]).then(([x]) => x);
+      return this.decorate(manager, p);
     });
 
     if (saved) {

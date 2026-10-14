@@ -25,6 +25,8 @@ export interface EffectiveLocale {
   country: string;
 }
 
+import { UnitEntity } from '../../entities/unit.entity';
+import { STANDARD_UNITS } from '../../shared/inventory/units';
 @Injectable()
 export class CompanyService {
   constructor(
@@ -53,6 +55,7 @@ export class CompanyService {
     if (dto.baseCurrency !== undefined) company.baseCurrency = dto.baseCurrency;
     if (dto.timezone !== undefined) company.timezone = dto.timezone;
     if (dto.pricesIncludeTax !== undefined) company.pricesIncludeTax = dto.pricesIncludeTax;
+    if (dto.expiryAlertDays !== undefined) company.expiryAlertDays = dto.expiryAlertDays;
     return this.companyRepo.save(company);
   }
 
@@ -117,6 +120,11 @@ export class CompanyService {
       // Starter tax rates for the company's country (e.g. KDV for TR).
       for (const t of defaultTaxRatesFor(company.country)) {
         await manager.save(TaxRateEntity, manager.create(TaxRateEntity, { ...t, companyId: company.id }));
+      }
+
+      // Standard units of measure (pcs, box, kg, ...).
+      for (const u of STANDARD_UNITS) {
+        await manager.save(UnitEntity, manager.create(UnitEntity, { ...u, companyId: company.id, isStandard: true }));
       }
 
       return { company, admin };

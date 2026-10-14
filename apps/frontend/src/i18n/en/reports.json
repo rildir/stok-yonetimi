@@ -50,5 +50,19 @@
   "reports.csv.supplierName": "Supplier Name",
   "reports.csv.orderCount": "Order Count",
   "reports.csv.totalPaid": "Total Paid ({currency})",
-  "reports.baseCurrencyNote": "All amounts are converted to the company base currency ({currency})."
+  "reports.baseCurrencyNote": "All amounts are converted to the company base currency ({currency}).",
+  "reports.expiring.title": "Expiring Lots",
+  "reports.expiring.desc": "Lots expiring within the given number of days, including expired ones",
+  "reports.expiring.days": "Days",
+  "reports.expiring.export": "Export CSV",
+  "reports.expiring.col.product": "Product",
+  "reports.expiring.col.lot": "Lot",
+  "reports.expiring.col.warehouse": "Warehouse",
+  "reports.expiring.col.expiry": "Expiry date",
+  "reports.expiring.col.qty": "Quantity",
+  "reports.expiring.col.daysLeft": "Days left",
+  "reports.expiring.expired": "Expired",
+  "reports.expiring.empty": "No lots expiring in this period",
+  "reports.expiring.loadError": "Failed to load expiring lots",
+  "reports.expiring.filePrefix": "Expiring_Lots"
 }

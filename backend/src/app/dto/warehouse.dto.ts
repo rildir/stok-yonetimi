@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsArray } from 'class-validator';
 
 export class CreateWarehouseDto {
   @IsString()
@@ -57,4 +57,15 @@ export class TransferStockDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  /** Lot-tracked products: lot to move (default FEFO/FIFO) */
+  @IsString()
+  @IsOptional()
+  lotId?: string;
+
+  /** Serial-tracked products: serials to move (default oldest) */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  serials?: string[];
 }

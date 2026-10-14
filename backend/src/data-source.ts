@@ -19,6 +19,10 @@ import { CompanyEntity } from './app/entities/company.entity';
 import { CustomerEntity } from './app/entities/customer.entity';
 import { TaxRateEntity } from './app/entities/tax-rate.entity';
 import { ExchangeRateEntity } from './app/entities/exchange-rate.entity';
+import { UnitEntity } from './app/entities/unit.entity';
+import { ProductUnitEntity } from './app/entities/product-unit.entity';
+import { StockLotEntity } from './app/entities/stock-lot.entity';
+import { SerialNumberEntity } from './app/entities/serial-number.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -48,6 +52,10 @@ export const AppDataSource = new DataSource({
     CustomerEntity,
     TaxRateEntity,
     ExchangeRateEntity,
+    UnitEntity,
+    ProductUnitEntity,
+    StockLotEntity,
+    SerialNumberEntity,
   ],
   migrations: [path.join(__dirname, 'app/migrations/*{.ts,.js}')],
   synchronize: false,

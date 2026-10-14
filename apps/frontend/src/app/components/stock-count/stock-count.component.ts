@@ -5,34 +5,13 @@ import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { AppStateService } from '../../services/app-state.service';
 import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
-
-interface StockCountItem {
-  productId: string;
-  productName: string;
-  sku: string;
-  systemQuantity: number;
-  countedQuantity: number;
-  difference: number;
-  unit: string;
-  isModified?: boolean;
-}
-
-interface StockCount {
-  id: string;
-  countNumber: string;
-  status: 'InProgress' | 'Completed';
-  items: StockCountItem[];
-  startedAt: string;
-  completedAt?: string;
-  performedBy: string;
-  notes?: string;
-  createdAt: string;
-}
+import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
+import { StockCount, StockCountItem } from '../../models/inventory.models';
 
 @Component({
   selector: 'app-stock-count',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, BarcodeScannerComponent],
   styles: [`
     /* OVERLAY */
     .drawer-overlay {
@@ -218,6 +197,11 @@ interface StockCount {
       border-color: var(--primary);
     }
 
+    .scan-highlight td { background-color: #dbeafe !important; transition: background-color 0.3s; }
+    .expand-btn { border: none; background: transparent; cursor: pointer; font-size: 0.75rem; color: var(--text-muted); padding: 0 4px; }
+    .track-sub td { background: var(--canvas); font-size: 0.8rem; }
+    .serial-missing { text-decoration: line-through; color: #dc2626; }
+
     .zero-stock-row {
       background-color: #fffbeb !important;
     }
@@ -262,6 +246,7 @@ interface StockCount {
             </span>
           </div>
           <div style="display:flex; gap:8px">
+            <button class="btn btn-outline btn-sm" (click)="showScanner.set(true)" [disabled]="isActionLoading()">{{ 'stockCount.scan' | t }}</button>
             <button class="btn btn-outline btn-sm" (click)="saveDraft()" [disabled]="isActionLoading()">{{ 'stockCount.saveCount' | t }}</button>
             <button class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()">{{ 'stockCount.completeCount' | t }}</button>
           </div>
@@ -302,10 +287,15 @@ interface StockCount {
               </thead>
               <tbody>
                 @for (item of activeItems(); track item.productId) {
-                  <tr [class.zero-stock-row]="item.systemQuantity === 0">
+                  <tr [id]="'sc-row-' + item.productId" [class.zero-stock-row]="item.systemQuantity === 0" [class.scan-highlight]="highlightedId() === item.productId">
                     <td>
                       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        @if (isTracked(item)) {
+                          <button class="expand-btn" (click)="toggleExpand(item.productId)" [attr.aria-label]="'stockCount.toggleDetails' | t">{{ expanded().has(item.productId) ? '▼' : '▶' }}</button>
+                        }
                         <strong>{{ item.productName }}</strong>
+                        @if (item.trackingType === 'lot') { <span class="badge">{{ 'stockCount.lotTracked' | t }}</span> }
+                        @if (item.trackingType === 'serial') { <span class="badge">{{ 'stockCount.serialTracked' | t }}</span> }
                         @if (item.systemQuantity === 0) {
                           <span class="zero-stock-badge">{{ 'stockCount.noSystemStock' | t }}</span>
                         }
@@ -315,7 +305,11 @@ interface StockCount {
                     <td>{{ item.unit || ('stockCount.defaultUnit' | t) }}</td>
                     <td class="mono">{{ item.systemQuantity }}</td>
                     <td style="text-align: center;">
-                      <input type="number" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
+                      @if (isTracked(item)) {
+                        <span class="mono" [title]="'stockCount.trackedSumHint' | t">{{ item.countedQuantity }}</span>
+                      } @else {
+                        <input type="number" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
+                      }
                     </td>
                     <td>
                       <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
@@ -323,12 +317,52 @@ interface StockCount {
                       </span>
                     </td>
                   </tr>
+                  @if (isTracked(item) && expanded().has(item.productId)) {
+                    @if (item.trackingType === 'lot') {
+                      @for (lot of item.lots || []; track lot.lotId) {
+                        <tr class="track-sub">
+                          <td style="padding-left: 32px;">{{ 'stockCount.lot' | t }}: <span class="mono">{{ lot.lotNumber }}</span></td>
+                          <td>{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</td>
+                          <td>{{ lot.warehouseName || '' }}</td>
+                          <td class="mono">{{ lot.systemQuantity }}</td>
+                          <td style="text-align: center;">
+                            <input type="number" [(ngModel)]="lot.countedQuantity" (ngModelChange)="recomputeTracked(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
+                          </td>
+                          <td class="mono">{{ lot.countedQuantity - lot.systemQuantity }}</td>
+                        </tr>
+                      } @empty {
+                        <tr class="track-sub"><td colspan="6" style="padding-left: 32px;">{{ 'stockCount.noLots' | t }}</td></tr>
+                      }
+                    } @else {
+                      @for (sn of item.serials || []; track sn.serial) {
+                        <tr class="track-sub">
+                          <td style="padding-left: 32px;" colspan="3">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                              <input type="checkbox" [(ngModel)]="sn.present" (ngModelChange)="recomputeTracked(item)" [disabled]="isActionLoading()" />
+                              <span class="mono" [class.serial-missing]="!sn.present">{{ sn.serial }}</span>
+                            </label>
+                          </td>
+                          <td colspan="3">{{ sn.warehouseName || '' }} · {{ (sn.present ? 'stockCount.serialPresent' : 'stockCount.serialMissing') | t }}</td>
+                        </tr>
+                      } @empty {
+                        <tr class="track-sub"><td colspan="6" style="padding-left: 32px;">{{ 'stockCount.noSerials' | t }}</td></tr>
+                      }
+                    }
+                  }
                 }
               </tbody>
             </table>
           </div>
         </div>
       </div>
+    }
+
+    @if (showScanner()) {
+      <app-barcode-scanner
+        [products]="state.products()"
+        (scanResult)="onScan($event)"
+        (closeScanner)="showScanner.set(false)"
+      ></app-barcode-scanner>
     }
 
     <!-- ─── Count History ─── -->
@@ -494,6 +528,10 @@ export class StockCountComponent implements OnInit {
   selectedCount = signal<StockCount | null>(null);
 
   isActionLoading = signal(false);
+  showScanner = signal(false);
+  expanded = signal<Set<string>>(new Set());
+  highlightedId = signal<string | null>(null);
+  private highlightTimer: ReturnType<typeof setTimeout> | null = null;
   showCompleteModal = signal(false);
 
   countedItemsCount = computed(() => {
@@ -562,6 +600,72 @@ export class StockCountComponent implements OnInit {
     item.difference = counted - item.systemQuantity;
     item.isModified = true;
     this.activeItems.set([...this.activeItems()]);
+  }
+
+  isTracked(item: StockCountItem): boolean {
+    return item.trackingType === 'lot' || item.trackingType === 'serial';
+  }
+
+  toggleExpand(productId: string) {
+    const next = new Set(this.expanded());
+    if (next.has(productId)) next.delete(productId); else next.add(productId);
+    this.expanded.set(next);
+  }
+
+  recomputeTracked(item: StockCountItem) {
+    if (item.trackingType === 'lot') {
+      item.countedQuantity = (item.lots || []).reduce((sum, l) => sum + (Number(l.countedQuantity) || 0), 0);
+    } else if (item.trackingType === 'serial') {
+      item.countedQuantity = (item.serials || []).filter((s) => s.present).length;
+    }
+    item.difference = item.countedQuantity - item.systemQuantity;
+    item.isModified = true;
+    this.activeItems.set([...this.activeItems()]);
+  }
+
+  onScan(code: string) {
+    this.showScanner.set(false);
+    const trimmed = (code || '').trim();
+    if (!trimmed) return;
+    this.inventoryService.lookupBarcode(trimmed).subscribe({
+      next: (res) => {
+        const item = this.activeItems().find((i) => i.productId === res.product.id);
+        if (!item) {
+          this.ui.showToast(this.i18n.t('stockCount.toast.scanNotInCount', { name: res.product.name }), 'error');
+          return;
+        }
+        if (item.trackingType === 'serial') {
+          const sn = res.serial ? (item.serials || []).find((s) => s.serial === res.serial) : undefined;
+          if (!sn) {
+            this.ui.showToast(this.i18n.t('stockCount.toast.scanSerialRequired'), 'error');
+            this.focusItem(item, true);
+            return;
+          }
+          sn.present = true;
+          this.recomputeTracked(item);
+          this.ui.showToast(this.i18n.t('stockCount.toast.scanSerialMarked', { serial: sn.serial }), 'success');
+        } else if (item.trackingType === 'lot') {
+          this.ui.showToast(this.i18n.t('stockCount.toast.scanLotHint'), 'info');
+        } else {
+          const factor = Number(res.factor) || 1;
+          item.countedQuantity = (Number(item.countedQuantity) || 0) + factor;
+          this.onCountedChange(item);
+          this.ui.showToast(this.i18n.t('stockCount.toast.scanAdded', { name: item.productName, qty: factor }), 'success');
+        }
+        this.focusItem(item, item.trackingType === 'lot');
+      },
+      error: () => {
+        this.ui.showToast(this.i18n.t('stockCount.toast.scanNotFound', { code: trimmed }), 'error');
+      }
+    });
+  }
+
+  private focusItem(item: StockCountItem, expand: boolean) {
+    if (expand && !this.expanded().has(item.productId)) this.toggleExpand(item.productId);
+    this.highlightedId.set(item.productId);
+    if (this.highlightTimer) clearTimeout(this.highlightTimer);
+    this.highlightTimer = setTimeout(() => this.highlightedId.set(null), 2000);
+    setTimeout(() => document.getElementById('sc-row-' + item.productId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }
 
   saveDraft() {

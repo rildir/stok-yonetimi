@@ -4,6 +4,7 @@ import { StockHelperService } from './services/stock-helper.service';
 import { SeedService } from './services/seed.service';
 import { WarehouseStockService } from './services/warehouse-stock.service';
 import { FinanceService } from './services/finance.service';
+import { UnitService } from './services/unit.service';
 import { UserEntity } from '../entities/user.entity';
 import { CategoryEntity } from '../entities/category.entity';
 import { WarehouseEntity } from '../entities/warehouse.entity';
@@ -14,7 +15,7 @@ import { OrderEntity } from '../entities/order.entity';
   imports: [
     TypeOrmModule.forFeature([UserEntity, CategoryEntity, WarehouseEntity, ProductEntity, OrderEntity]),
   ],
-  providers: [StockHelperService, SeedService, WarehouseStockService, FinanceService],
-  exports: [StockHelperService, SeedService, WarehouseStockService, FinanceService],
+  providers: [StockHelperService, SeedService, WarehouseStockService, FinanceService, UnitService],
+  exports: [StockHelperService, SeedService, WarehouseStockService, FinanceService, UnitService],
 })
 export class SharedModule {}

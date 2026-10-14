@@ -12,6 +12,8 @@ import { OrderStatus, PurchaseOrderStatus } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { FinanceService } from '../../shared/services/finance.service';
 import { convertAmount } from '../../shared/finance/currency';
+import { StockLotEntity } from '../../entities/stock-lot.entity';
+import { daysUntil, todayKey } from '../../shared/inventory/lot-allocation';
 
 @Injectable()
 export class ReportService {
@@ -247,5 +249,29 @@ export class ReportService {
     ]);
 
     return { products, orders, purchaseOrders, suppliers, warehouses };
+  }
+
+  /** Lots with stock expiring within `days` (default company.expiryAlertDays); expired ones included. */
+  async getExpiringLots(days?: number) {
+    const company = await this.finance.getCompany();
+    const window = Number.isFinite(days) && (days as number) >= 0 ? (days as number) : company.expiryAlertDays || 30;
+    const today = todayKey();
+    const until = new Date(`${today}T00:00:00Z`);
+    until.setUTCDate(until.getUTCDate() + window);
+    const rows = await this.dataSource
+      .getRepository(StockLotEntity)
+      .createQueryBuilder('l')
+      .innerJoin(ProductEntity, 'p', 'p.id = l.productId AND p.isDeleted = false')
+      .innerJoin(WarehouseEntity, 'w', 'w.id = l.warehouseId AND w.isDeleted = false')
+      .select(['l.id AS lotId', 'l.productId AS productId', 'p.name AS productName', 'p.sku AS sku', 'l.warehouseId AS warehouseId'])
+      .addSelect(['w.name AS warehouseName', 'l.lotNumber AS lotNumber', "DATE_FORMAT(l.expiryDate, '%Y-%m-%d') AS expiryDate", 'l.quantity AS quantity'])
+      .where('l.companyId = :companyId', { companyId: this.companyId })
+      .andWhere('l.quantity > 0 AND l.expiryDate IS NOT NULL AND l.expiryDate <= :until', { until: until.toISOString().slice(0, 10) })
+      .orderBy('l.expiryDate', 'ASC')
+      .getRawMany();
+    return {
+      days: window,
+      items: rows.map((r) => ({ ...r, quantity: Number(r.quantity), daysLeft: daysUntil(r.expiryDate, today) })),
+    };
   }
 }

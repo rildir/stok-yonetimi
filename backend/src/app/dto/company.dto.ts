@@ -12,6 +12,9 @@ import {
   IsTimeZone,
   Matches,
   IsBoolean,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -51,6 +54,13 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @IsOptional()
   @IsBoolean()
   pricesIncludeTax?: boolean;
+
+  @ApiPropertyOptional({ description: 'SKT uyarısı gün sayısı', example: 30 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(3650)
+  expiryAlertDays?: number;
 
   @ApiPropertyOptional({ description: 'Şirket adı' })
   @IsOptional()

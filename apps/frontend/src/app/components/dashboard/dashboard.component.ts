@@ -1,4 +1,5 @@
-import { Component, inject, ViewChild, ElementRef, computed, effect, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, inject, ViewChild, ElementRef, computed, effect, signal, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
+import { ExpiringLot } from '../../models/inventory.models';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -202,6 +203,42 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
           }
         </div>
       </div>
+
+      <!-- SKT YAKLAŞAN PARTİLER -->
+      @if (expiringCount() > 0) {
+        <div class="sidebar-card" style="grid-column: 1 / -1; display: flex; flex-direction: column; padding: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="card-title">{{ 'dashboard.expiring.title' | t }} <span class="badge badge-lowstock" style="margin-left: 6px;">{{ expiringCount() }}</span></h3>
+            <a routerLink="/reports" [queryParams]="{ tab: 'expiring' }" style="font-size: 0.8rem;">{{ 'dashboard.expiring.viewAll' | t }} →</a>
+          </div>
+          <div class="table-scroll" style="margin-top: 0.5rem;">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{ 'dashboard.expiring.product' | t }}</th>
+                  <th>{{ 'dashboard.expiring.lot' | t }}</th>
+                  <th>{{ 'dashboard.expiring.warehouse' | t }}</th>
+                  <th>{{ 'dashboard.expiring.expiry' | t }}</th>
+                  <th>{{ 'dashboard.expiring.qty' | t }}</th>
+                  <th>{{ 'dashboard.expiring.daysLeft' | t }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of expiringTop(); track l.lotId) {
+                  <tr [style.color]="l.daysLeft < 0 ? '#dc2626' : null">
+                    <td><strong>{{ l.productName }}</strong> <span class="mono" style="color: var(--text-muted);">{{ l.sku }}</span></td>
+                    <td class="mono">{{ l.lotNumber }}</td>
+                    <td>{{ l.warehouseName }}</td>
+                    <td>{{ l.expiryDate | appDate }}</td>
+                    <td class="mono">{{ l.quantity | num }}</td>
+                    <td class="mono">{{ l.daysLeft < 0 ? ('dashboard.expiring.expired' | t) : ('dashboard.expiring.days' | t: { n: l.daysLeft }) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
     </div>
   `
 })
@@ -259,7 +296,18 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
+    this.inventoryService.getExpiringLots().subscribe({
+      next: (res) => {
+        const items = [...(res?.items || [])].sort((a, b) => a.daysLeft - b.daysLeft);
+        this.expiringCount.set(items.length);
+        this.expiringTop.set(items.slice(0, 5));
+      },
+      error: () => { /* widget is optional; fail silently */ }
+    });
   }
+
+  expiringCount = signal(0);
+  expiringTop = signal<ExpiringLot[]>([]);
 
   dismissBanner(event: Event) {
     event.stopPropagation();

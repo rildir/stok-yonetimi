@@ -23,6 +23,10 @@ import { CompanyEntity } from './entities/company.entity';
 import { CustomerEntity } from './entities/customer.entity';
 import { TaxRateEntity } from './entities/tax-rate.entity';
 import { ExchangeRateEntity } from './entities/exchange-rate.entity';
+import { UnitEntity } from './entities/unit.entity';
+import { ProductUnitEntity } from './entities/product-unit.entity';
+import { StockLotEntity } from './entities/stock-lot.entity';
+import { SerialNumberEntity } from './entities/serial-number.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -45,6 +49,7 @@ import { UserModule } from './modules/user/user.module';
 import { ReportModule } from './modules/report/report.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { UnitModule } from './modules/unit/unit.module';
 
 @Module({
   imports: [
@@ -72,6 +77,10 @@ import { FinanceModule } from './modules/finance/finance.module';
         CustomerEntity,
         TaxRateEntity,
         ExchangeRateEntity,
+        UnitEntity,
+        ProductUnitEntity,
+        StockLotEntity,
+        SerialNumberEntity,
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
@@ -102,6 +111,7 @@ import { FinanceModule } from './modules/finance/finance.module';
     ReportModule,
     CustomerModule,
     FinanceModule,
+    UnitModule,
     HealthModule,
   ],
   providers: [

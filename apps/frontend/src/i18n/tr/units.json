@@ -1,0 +1,12 @@
+{
+  "units.pcs": "Adet",
+  "units.box": "Kutu",
+  "units.pack": "Paket",
+  "units.pallet": "Palet",
+  "units.kg": "Kilogram",
+  "units.g": "Gram",
+  "units.lb": "Libre",
+  "units.l": "Litre",
+  "units.ml": "Mililitre",
+  "units.m": "Metre"
+}

@@ -22,5 +22,15 @@
   "dashboard.units": "{qty} Adet",
   "dashboard.stat.taxCollected": "Tahsil edilen vergi",
   "dashboard.stat.inventoryValue": "Stok değeri",
-  "dashboard.unconverted": "Kur bulunamayan para birimleri: {currencies}"
+  "dashboard.unconverted": "Kur bulunamayan para birimleri: {currencies}",
+  "dashboard.expiring.title": "SKT'si Yaklaşan Partiler",
+  "dashboard.expiring.viewAll": "Raporu gör",
+  "dashboard.expiring.product": "Ürün",
+  "dashboard.expiring.lot": "Parti",
+  "dashboard.expiring.warehouse": "Depo",
+  "dashboard.expiring.expiry": "SKT",
+  "dashboard.expiring.qty": "Miktar",
+  "dashboard.expiring.daysLeft": "Kalan",
+  "dashboard.expiring.expired": "Süresi geçti",
+  "dashboard.expiring.days": "{n} gün"
 }

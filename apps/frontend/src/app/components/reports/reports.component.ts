@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
+import { ActivatedRoute } from '@angular/router';
+import { ExpiringLot } from '../../models/inventory.models';
 import { Chart } from 'chart.js/auto';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
 
@@ -154,6 +156,57 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
 
       </div>
     }
+
+    <!-- Expiring lots -->
+    <div id="expiring-report" class="table-card" style="margin-top: 1.5rem; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #D5D9D9; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div>
+          <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">{{ 'reports.expiring.title' | t }}</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">{{ 'reports.expiring.desc' | t }}</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label for="expDays" style="font-size: 0.8rem; color: var(--text-muted);">{{ 'reports.expiring.days' | t }}</label>
+          <input id="expDays" type="number" min="1" step="1" [(ngModel)]="expiringDays" class="form-input" style="width: 80px; height: 36px;" (keyup.enter)="loadExpiring()" />
+          <button class="btn btn-outline btn-sm" (click)="loadExpiring()" [disabled]="expiringLoading()">{{ 'reports.apply' | t }}</button>
+          <button class="btn btn-outline btn-sm" (click)="exportExpiringCsv()" [disabled]="expiringLots().length === 0">{{ 'reports.expiring.export' | t }}</button>
+        </div>
+      </div>
+      <div class="table-scroll" style="max-height: 400px;">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ 'reports.expiring.col.product' | t }}</th>
+              <th>SKU</th>
+              <th>{{ 'reports.expiring.col.lot' | t }}</th>
+              <th>{{ 'reports.expiring.col.warehouse' | t }}</th>
+              <th>{{ 'reports.expiring.col.expiry' | t }}</th>
+              <th class="text-right">{{ 'reports.expiring.col.qty' | t }}</th>
+              <th class="text-right">{{ 'reports.expiring.col.daysLeft' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (expiringLoading()) {
+              <tr><td colspan="7" class="text-muted text-center" style="padding: 1.5rem;">{{ 'common.loading' | t }}</td></tr>
+            } @else {
+              @for (l of expiringLots(); track l.lotId) {
+                <tr [style.background-color]="l.daysLeft < 0 ? 'rgba(220, 38, 38, 0.08)' : null" [class.text-danger]="l.daysLeft < 0">
+                  <td class="font-medium">{{ l.productName }}</td>
+                  <td class="mono">{{ l.sku }}</td>
+                  <td class="mono">{{ l.lotNumber }}</td>
+                  <td>{{ l.warehouseName }}</td>
+                  <td class="mono">{{ l.expiryDate }}</td>
+                  <td class="text-right mono">{{ l.quantity | num }}</td>
+                  <td class="text-right mono">{{ l.daysLeft < 0 ? ('reports.expiring.expired' | t) : l.daysLeft }}</td>
+                </tr>
+              }
+              @if (expiringLots().length === 0) {
+                <tr><td colspan="7" class="text-muted text-center" style="padding: 1.5rem;">{{ 'reports.expiring.empty' | t }}</td></tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
   `,
   styles: [`
     .reports-grid-metrics {
@@ -249,9 +302,55 @@ export class ReportsComponent implements OnInit, AfterViewInit {
   supplierSummary = signal<any[]>([]);
   categories = signal<any[]>([]);
 
+  // Expiring lots report
+  route = inject(ActivatedRoute);
+  expiringDays = 30;
+  expiringLots = signal<ExpiringLot[]>([]);
+  expiringLoading = signal(false);
+
   ngOnInit() {
     this.loadCategories();
     this.loadReports();
+    this.loadExpiring();
+    if (this.route.snapshot.queryParamMap.get('tab') === 'expiring') {
+      setTimeout(() => document.getElementById('expiring-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
+  }
+
+  loadExpiring() {
+    const days = Math.max(1, Math.floor(Number(this.expiringDays) || 30));
+    this.expiringDays = days;
+    this.expiringLoading.set(true);
+    this.inventoryService.getExpiringLots(days).subscribe({
+      next: (res) => {
+        this.expiringLots.set([...(res?.items || [])].sort((a, b) => a.daysLeft - b.daysLeft));
+        this.expiringLoading.set(false);
+      },
+      error: () => {
+        this.expiringLots.set([]);
+        this.expiringLoading.set(false);
+        this.ui.showToast(this.i18n.t('reports.expiring.loadError'), 'error');
+      }
+    });
+  }
+
+  exportExpiringCsv() {
+    const t = (k: string, p?: Record<string, unknown>) => this.i18n.t(k, p as any);
+    const esc = (v: unknown) => String(v ?? '').replace(/;/g, ',');
+    let csv = '﻿';
+    csv += [t('reports.expiring.col.product'), 'SKU', t('reports.expiring.col.lot'), t('reports.expiring.col.warehouse'),
+      t('reports.expiring.col.expiry'), t('reports.expiring.col.qty'), t('reports.expiring.col.daysLeft')].join(';') + '\r\n';
+    for (const l of this.expiringLots()) {
+      csv += [l.productName, l.sku, l.lotNumber, l.warehouseName, l.expiryDate, l.quantity, l.daysLeft].map(esc).join(';') + '\r\n';
+    }
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Smart_Inventory_${t('reports.expiring.filePrefix')}_${this.expiringDays}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   ngAfterViewInit() {

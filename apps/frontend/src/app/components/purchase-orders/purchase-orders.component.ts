@@ -2,18 +2,19 @@ import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormArray, FormsModule } from '@angular/forms';
-import { InventoryService, PurchaseOrderPayload } from '../../inventory.service';
-import { TaxRate, Warehouse } from '../../models/inventory.models';
+import { InventoryService, PurchaseOrderPayload, PurchaseOrderReceipt } from '../../inventory.service';
+import { TaxRate, Warehouse, Product, BarcodeLookupResult, TrackingEntry } from '../../models/inventory.models';
+import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs/operators';
-import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -112,10 +113,10 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                 
                 <!-- Item detail rows -->
                 <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
-                  @for (item of getGroupedItems(o.items); track item.productId) {
+                  @for (item of getGroupedItems(o.items); track item.key) {
                     <div style="display: flex; justify-content: space-between; width: 100%; max-width: 550px; font-size: 13px;">
                       <span style="color: #0F1111; font-weight: 500;">
-                        {{ item.productName }} — {{ 'purchaseOrders.itemLine' | t: { qty: (item.quantity | num), price: (item.price | money: o.currency), total: (item.lineTotal | money: o.currency) } }}
+                        {{ item.productName }} — {{ 'purchaseOrders.itemLine' | t: { qty: qtyLabel(item), price: (item.price | money: o.currency), total: (item.lineTotal | money: o.currency) } }}
                       </span>
                     </div>
                   }
@@ -218,12 +219,17 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
               <div style="margin-top: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                   <h3 style="font-size: 14px; font-weight: 600; margin: 0;">{{ 'purchaseOrders.orderItems' | t }}</h3>
-                  <button type="button" class="btn btn-sm btn-outline" (click)="addItem()">+ {{ 'purchaseOrders.addProduct' | t }}</button>
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-sm btn-outline" (click)="openLineScanner()" [disabled]="scanning()">
+                      @if (scanning()) { <span class="spinner-sm"></span> } {{ 'purchaseOrders.scan' | t }}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline" (click)="addItem()">+ {{ 'purchaseOrders.addProduct' | t }}</button>
+                  </div>
                 </div>
 
                 <div formArrayName="items" style="display: flex; flex-direction: column; gap: 10px;">
                   @for (item of itemsArray.controls; track i; let i = $index) {
-                    <div [formGroupName]="i" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px;">
+                    <div [formGroupName]="i" [style.outline]="highlightIndex() === i ? '2px solid var(--primary)' : null" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px;">
                       <div style="flex: 2;">
                         <select formControlName="productId" class="form-input form-select" (change)="onProductChange(i)" style="height: 40px; padding: 0 12px; font-size: 13px;">
                           <option value="" disabled selected>{{ 'purchaseOrders.selectProduct' | t }}</option>
@@ -235,6 +241,18 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                       <div style="flex: 1;">
                         <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'purchaseOrders.quantity' | t" min="1" />
                       </div>
+                      @if (productById(item.get('productId')?.value); as lp) {
+                        @if (lp.units?.length) {
+                          <div style="flex: 0.9;">
+                            <select formControlName="unitId" class="form-input form-select" style="height: 40px; padding: 0 8px; font-size: 13px;" (change)="onUnitChange(i)" [title]="'purchaseOrders.unit' | t">
+                              <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
+                              @for (u of lp.units; track u.unitId) {
+                                <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
+                              }
+                            </select>
+                          </div>
+                        }
+                      }
                       <div style="flex: 1;">
                         <input type="number" formControlName="unitPrice" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'finance.unitPrice' | t" min="0" step="0.01" [title]="'finance.unitPrice' | t" />
                       </div>
@@ -243,6 +261,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                       </button>
                       @if (preview().lines[i]; as ln) {
                         <div style="flex-basis:100%; font-size:12px; color:#565959; display:flex; gap:12px; flex-wrap:wrap;">
+                          @if (factorFor(item.get('productId')?.value, item.get('unitId')?.value) !== 1) {
+                            <span>{{ 'purchaseOrders.baseQtyHint' | t: { qty: ((item.get('quantity')?.value || 0) * factorFor(item.get('productId')?.value, item.get('unitId')?.value) | num), unit: (baseUnitOf(item.get('productId')?.value) | unitLabel) } }}</span>
+                          }
                           @if (ln.hasPrice) {
                             <span>{{ 'finance.taxRate' | t }}: {{ ln.rate | num }}%</span>
                             <span>{{ 'finance.taxAmount' | t }}: {{ ln.tax | money: formCurrency() }}</span>
@@ -317,16 +338,31 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
             
             <h3 class="detail-items-title">{{ 'purchaseOrders.items' | t }}</h3>
             <div style="display: flex; flex-direction: column; gap: 8px;">
-              @for (item of getGroupedItems(detailOrder().items); track item.productId) {
-                <div class="detail-item-row">
+              @for (item of getGroupedItems(detailOrder().items); track item.key) {
+                <div class="detail-item-row" style="flex-wrap: wrap;">
                   <span class="detail-item-name">
                     {{ item.productName }}
                   </span>
                   <span class="detail-item-qty" style="font-size: 13px; font-weight: normal; color: #565959; text-align:right;">
-                    {{ 'purchaseOrders.itemQtyPrice' | t: { qty: (item.quantity | num), price: (item.price | money: detailOrder().currency) } }}
+                    {{ 'purchaseOrders.itemQtyPrice' | t: { qty: qtyLabel(item), price: (item.price | money: detailOrder().currency) } }}
                     · {{ 'finance.taxRate' | t }} {{ item.taxRate | num }}% · {{ 'finance.tax' | t }} {{ item.taxAmount | money: detailOrder().currency }}
                     = <strong style="color: #0f1111; font-weight: bold;">{{ item.lineTotal | money: detailOrder().currency }}</strong>
                   </span>
+                  @if (item.tracking.length) {
+                    <div style="flex-basis: 100%; font-size: 12px; color: #565959; margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">
+                      @for (tr of item.tracking; track $index) {
+                        <span>
+                          @if (tr.lotNumber) {
+                            {{ 'purchaseOrders.tracking.lotLine' | t: { lot: tr.lotNumber, qty: (tr.quantity | num) } }}
+                            @if (tr.expiryDate) { · {{ 'purchaseOrders.tracking.expiry' | t }}: {{ tr.expiryDate | appDate }} }
+                          }
+                          @if (tr.serials?.length) {
+                            {{ 'purchaseOrders.tracking.serials' | t }}: <span class="mono">{{ tr.serials.join(', ') }}</span>
+                          }
+                        </span>
+                      }
+                    </div>
+                  }
                 </div>
               }
             </div>
@@ -384,7 +420,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
     
     @if (receiveTarget()) {
       <div class="drawer-overlay" (click)="receiveTarget.set(null)" style="display:flex; align-items:center; justify-content:center;">
-        <div (click)="$event.stopPropagation()" style="background:var(--surface-card, #fff); border-radius:12px; padding:20px; width:min(420px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:12px;">
+        <div (click)="$event.stopPropagation()" style="background:var(--surface-card, #fff); border-radius:12px; padding:20px; width:min(receiveLines().length ? 640px : 420px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:12px;">
           <h3 style="margin:0; font-size:16px;">{{ 'purchaseOrders.receive' | t }}</h3>
           <p style="margin:0; font-size:13px; color:#565959;">{{ 'purchaseOrders.receiveMessage' | t: { no: formatPoNumber(receiveTarget().poNumber) } }}</p>
           <label style="font-size:12px; font-weight:600;">{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
@@ -392,12 +428,55 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
             <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
             @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
           </select>
+          @if (receiveLines().length) {
+            <div style="font-size:12px; color:#565959;">{{ 'purchaseOrders.receiveDialog.trackedInfo' | t }}</div>
+            <div style="display:flex; flex-direction:column; gap:12px; max-height:55vh; overflow-y:auto;">
+              @for (rl of receiveLines(); track rl.itemId) {
+                <div style="border:1px solid var(--secondary); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px; font-size:12px;">
+                  <div style="display:flex; justify-content:space-between; gap:8px;">
+                    <strong style="font-size:13px;">{{ rl.productName }}</strong>
+                    <span [style.color]="receiveLineValid(rl) ? 'var(--status-instock)' : 'var(--status-outstock)'">
+                      {{ 'purchaseOrders.receiveDialog.progress' | t: { entered: receiveLineCount(rl), total: rl.quantity } }}
+                    </span>
+                  </div>
+                  @if (rl.trackingType === 'lot') {
+                    @for (lot of rl.lots; track $index; let li = $index) {
+                      <div style="display:flex; gap:6px; align-items:center;">
+                        <input class="form-input" style="flex:2; height:32px; padding:0 8px; font-size:12px;" [placeholder]="'purchaseOrders.receiveDialog.lotNumber' | t" [(ngModel)]="lot.lotNumber" (ngModelChange)="touchReceive()"/>
+                        <input type="date" class="form-input" style="flex:1.6; height:32px; padding:0 8px; font-size:12px;" [title]="'purchaseOrders.receiveDialog.expiryDate' | t" [(ngModel)]="lot.expiryDate" (ngModelChange)="touchReceive()"/>
+                        <input type="number" min="1" class="form-input" style="flex:1; height:32px; padding:0 8px; font-size:12px;" [placeholder]="'purchaseOrders.receiveDialog.quantity' | t" [(ngModel)]="lot.quantity" (ngModelChange)="touchReceive()"/>
+                        <button type="button" class="delete-btn" style="padding:4px;" (click)="removeReceiveLot(rl, li)" [disabled]="rl.lots.length <= 1">×</button>
+                      </div>
+                    }
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <button type="button" class="btn btn-sm btn-outline" (click)="addReceiveLot(rl)">+ {{ 'purchaseOrders.receiveDialog.addLot' | t }}</button>
+                      @if (rl.hasExpiry) { <span>{{ 'purchaseOrders.receiveDialog.expiryRequired' | t }}</span> }
+                    </div>
+                  } @else {
+                    <textarea class="form-input" rows="4" style="font-family:var(--font-mono); font-size:12px; padding:6px 8px;" [placeholder]="'purchaseOrders.receiveDialog.serialsPlaceholder' | t" [(ngModel)]="rl.serialsText" (ngModelChange)="touchReceive()"></textarea>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <button type="button" class="btn btn-sm btn-outline" (click)="openSerialScanner(rl.itemId)">{{ 'purchaseOrders.receiveDialog.scanSerial' | t }}</button>
+                      @if (hasDuplicateSerials(rl)) { <span style="color:var(--status-outstock);">{{ 'purchaseOrders.receiveDialog.duplicateSerials' | t }}</span> }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
           <div style="display:flex; justify-content:flex-end; gap:8px;">
             <button class="btn btn-secondary" (click)="receiveTarget.set(null)">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" [disabled]="isSaving()" (click)="confirmReceive()">{{ 'purchaseOrders.receive' | t }}</button>
+            <button class="btn btn-primary" [disabled]="isSaving() || !receiveValid()" (click)="confirmReceive()">{{ 'purchaseOrders.receive' | t }}</button>
           </div>
         </div>
       </div>
+    }
+
+    @if (scannerMode()) {
+      <app-barcode-scanner
+        [products]="state.products()"
+        (scanResult)="onBarcodeScanned($event)"
+        (closeScanner)="scannerMode.set(null)"
+      />
     }
 
     <app-toast></app-toast>
@@ -564,17 +643,159 @@ export class PurchaseOrdersComponent implements OnInit {
     return id ? (this.warehouses().find(w => w.id === id)?.name || '') : '';
   }
 
-  /** Prefill unit price only when product currency matches PO currency */
-  private suggestedPrice(productId: string): number | null {
+  /** Prefill unit price (per chosen unit) only when product currency matches PO currency */
+  private suggestedPrice(productId: string, unitId?: string | null): number | null {
     const p: any = this.state.products().find(x => x.id === productId);
     if (!p) return null;
     const pc = p.currency || this.i18n.currency();
-    return pc === this.formCurrency() ? Number(p.price) : null;
+    return pc === this.formCurrency() ? this.round(Number(p.price) * this.factorFor(productId, unitId)) : null;
   }
 
   onProductChange(i: number) {
     const g = this.itemsArray.at(i);
+    g.patchValue({ unitId: '' });
     g.patchValue({ unitPrice: this.suggestedPrice(g.get('productId')?.value) });
+  }
+
+  onUnitChange(i: number) {
+    const g = this.itemsArray.at(i);
+    g.patchValue({ unitPrice: this.suggestedPrice(g.get('productId')?.value, g.get('unitId')?.value) });
+  }
+
+  productById(id: string | null | undefined): Product | undefined {
+    return id ? this.state.products().find(p => p.id === id) : undefined;
+  }
+
+  factorFor(productId: string | null | undefined, unitId: string | null | undefined): number {
+    if (!unitId) return 1;
+    const pu = this.productById(productId)?.units?.find(u => u.unitId === unitId);
+    return pu ? Number(pu.factor) || 1 : 1;
+  }
+
+  baseUnitOf(productId: string | null | undefined): any {
+    const p = this.productById(productId);
+    return p?.baseUnit || p?.unit || 'pcs';
+  }
+
+  private unitLabelText(code: string): string {
+    const key = `units.${code}`;
+    const tr = this.i18n.t(key);
+    return tr && tr !== key ? tr : code;
+  }
+
+  /** "3 Box (= 36)" for alternate-unit lines, else the base quantity */
+  qtyLabel(item: any): string {
+    const nf = (n: number) => this.i18n.formatNumber(n);
+    if (item.unitFactor != null && Number(item.unitFactor) !== 1 && item.unitQuantity != null) {
+      return `${nf(item.unitQuantity)} ${item.unitCode ? this.unitLabelText(item.unitCode) : ''} (= ${nf(item.quantity)})`;
+    }
+    return nf(item.quantity);
+  }
+
+  // ─── Barcode scanning ───
+  scannerMode = signal<'line' | 'serial' | null>(null);
+  scanning = signal(false);
+  highlightIndex = signal<number | null>(null);
+  private serialScanItemId: string | null = null;
+
+  openLineScanner() {
+    this.scannerMode.set('line');
+  }
+
+  openSerialScanner(itemId: string) {
+    this.serialScanItemId = itemId;
+    this.scannerMode.set('serial');
+  }
+
+  onBarcodeScanned(code: string) {
+    const mode = this.scannerMode();
+    this.scannerMode.set(null);
+    const trimmed = (code || '').trim();
+    if (!trimmed) return;
+    if (mode === 'serial') {
+      const rl = this.receiveLines().find(l => l.itemId === this.serialScanItemId);
+      if (!rl) return;
+      const list = this.parseSerials(rl.serialsText);
+      if (list.includes(trimmed)) {
+        this.ui.showToast(this.i18n.t('purchaseOrders.receiveDialog.serialAlready', { serial: trimmed }), 'info');
+        return;
+      }
+      rl.serialsText = [...list, trimmed].join('\n');
+      this.touchReceive();
+      return;
+    }
+    this.scanning.set(true);
+    this.inventory.lookupBarcode(trimmed).subscribe({
+      next: res => { this.scanning.set(false); this.applyLineScan(res); },
+      error: () => {
+        this.scanning.set(false);
+        this.ui.showToast(this.i18n.t('purchaseOrders.scanNotFound', { code: trimmed }), 'error');
+      }
+    });
+  }
+
+  private applyLineScan(res: BarcodeLookupResult) {
+    const productId = res.product.id;
+    const unitId = res.unitId || '';
+    let index = this.itemsArray.controls.findIndex(c => c.get('productId')?.value === productId && (c.get('unitId')?.value || '') === unitId);
+    if (index !== -1) {
+      const g = this.itemsArray.at(index);
+      g.patchValue({ quantity: (Number(g.get('quantity')?.value) || 0) + 1 });
+    } else {
+      index = this.itemsArray.controls.findIndex(c => !c.get('productId')?.value);
+      if (index === -1) { this.addItem(); index = this.itemsArray.length - 1; }
+      this.itemsArray.at(index).patchValue({ productId, unitId, quantity: 1, unitPrice: this.suggestedPrice(productId, unitId) });
+    }
+    this.highlightIndex.set(index);
+    setTimeout(() => this.highlightIndex.set(null), 600);
+  }
+
+  // ─── Receive with lot / serial capture ───
+  receiveLines = signal<{
+    itemId: string; productName: string; quantity: number; trackingType: 'lot' | 'serial'; hasExpiry: boolean;
+    lots: { lotNumber: string; expiryDate: string; quantity: number | null }[]; serialsText: string;
+  }[]>([]);
+  private receiveVersion = signal(0);
+
+  touchReceive() {
+    this.receiveVersion.update(v => v + 1);
+  }
+
+  private parseSerials(text: string): string[] {
+    return (text || '').split(/[\r\n,;]+/).map(x => x.trim()).filter(Boolean);
+  }
+
+  hasDuplicateSerials(rl: { serialsText: string }): boolean {
+    const list = this.parseSerials(rl.serialsText);
+    return new Set(list).size !== list.length;
+  }
+
+  receiveLineCount(rl: { trackingType: string; lots: { quantity: number | null }[]; serialsText: string }): number {
+    if (rl.trackingType === 'lot') return rl.lots.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
+    return this.parseSerials(rl.serialsText).length;
+  }
+
+  receiveLineValid(rl: any): boolean {
+    if (rl.trackingType === 'lot') {
+      const rowsOk = rl.lots.every((l: any) => (l.lotNumber || '').trim() && Number(l.quantity) > 0 && Number.isInteger(Number(l.quantity)) && (!rl.hasExpiry || l.expiryDate));
+      return rowsOk && this.receiveLineCount(rl) === rl.quantity;
+    }
+    return !this.hasDuplicateSerials(rl) && this.receiveLineCount(rl) === rl.quantity;
+  }
+
+  receiveValid(): boolean {
+    this.receiveVersion();
+    return this.receiveLines().every(rl => this.receiveLineValid(rl));
+  }
+
+  addReceiveLot(rl: { lots: any[] }) {
+    rl.lots.push({ lotNumber: '', expiryDate: '', quantity: null });
+    this.touchReceive();
+  }
+
+  removeReceiveLot(rl: { lots: any[] }, index: number) {
+    rl.lots.splice(index, 1);
+    this.touchReceive();
   }
 
   // Filter Signals
@@ -721,6 +942,7 @@ export class PurchaseOrdersComponent implements OnInit {
   addItem() {
     this.itemsArray.push(this.fb.group({
       productId: ['', Validators.required],
+      unitId: [''],
       quantity: [1, [Validators.required, Validators.min(1)]],
       unitPrice: [null as number | null, [Validators.min(0)]]
     }));
@@ -740,13 +962,16 @@ export class PurchaseOrdersComponent implements OnInit {
     const data = this.poForm.value;
     
     // Merge duplicate items by summing their quantities
-    const mergedMap = new Map<string, { productId: string; quantity: number; unitPrice?: number }>();
+    type Line = { productId: string; quantity: number; unitId?: string; unitPrice?: number };
+    const mergedMap = new Map<string, Line>();
     data.items.forEach((it: any) => {
-      const e: { productId: string; quantity: number; unitPrice?: number } = mergedMap.get(it.productId) || { productId: it.productId, quantity: 0 };
+      const unitId: string = it.unitId || '';
+      const key = `${it.productId}|${unitId}`;
+      const e: Line = mergedMap.get(key) || { productId: it.productId, quantity: 0, ...(unitId ? { unitId } : {}) };
       e.quantity += Number(it.quantity);
       const hasPrice = it.unitPrice !== null && it.unitPrice !== '' && it.unitPrice !== undefined;
       if (hasPrice && e.unitPrice === undefined) e.unitPrice = Number(it.unitPrice);
-      mergedMap.set(it.productId, e);
+      mergedMap.set(key, e);
     });
 
     const payload: PurchaseOrderPayload & { expectedDate?: string } = {
@@ -790,9 +1015,11 @@ export class PurchaseOrdersComponent implements OnInit {
     });
     this.itemsArray.clear();
     order.items.forEach((it: any) => {
+      const inUnit = !!it.unitId && it.unitQuantity != null;
       this.itemsArray.push(this.fb.group({
         productId: [it.productId, Validators.required],
-        quantity: [it.quantity, [Validators.required, Validators.min(1)]],
+        unitId: [it.unitId || ''],
+        quantity: [inUnit ? it.unitQuantity : it.quantity, [Validators.required, Validators.min(1)]],
         unitPrice: [it.unitPrice ?? it.price ?? null, [Validators.min(0)]]
       }));
     });
@@ -844,14 +1071,35 @@ export class PurchaseOrdersComponent implements OnInit {
 
   receivePurchaseOrder(order: any) {
     this.receiveWarehouseId.set(order.warehouseId || this.defaultWarehouseId());
+    const lines = (order.items || [])
+      .map((it: any) => ({ it, p: this.productById(it.productId) }))
+      .filter(({ it, p }: any) => it.id && (p?.trackingType === 'lot' || p?.trackingType === 'serial'))
+      .map(({ it, p }: any) => ({
+        itemId: it.id as string,
+        productName: it.productName || p.name,
+        quantity: Number(it.quantity) || 0,
+        trackingType: p.trackingType as 'lot' | 'serial',
+        hasExpiry: !!p.hasExpiry,
+        lots: [{ lotNumber: '', expiryDate: '', quantity: Number(it.quantity) || null }],
+        serialsText: ''
+      }));
+    this.receiveLines.set(lines);
+    this.touchReceive();
     this.receiveTarget.set(order);
+  }
+
+  private buildReceipts(): PurchaseOrderReceipt[] {
+    return this.receiveLines().map(rl => rl.trackingType === 'lot'
+      ? { itemId: rl.itemId, lots: rl.lots.map(l => ({ lotNumber: l.lotNumber.trim(), expiryDate: l.expiryDate || null, quantity: Number(l.quantity) })) }
+      : { itemId: rl.itemId, serials: this.parseSerials(rl.serialsText) });
   }
 
   confirmReceive() {
     const order = this.receiveTarget();
-    if (!order) return;
+    if (!order || !this.receiveValid()) return;
     this.isSaving.set(true);
-    this.inventory.updatePurchaseOrderStatus(order.id, 'Received', this.receiveWarehouseId() || undefined).subscribe({
+    const receipts = this.buildReceipts();
+    this.inventory.updatePurchaseOrderStatus(order.id, 'Received', this.receiveWarehouseId() || undefined, receipts.length ? receipts : undefined).subscribe({
       next: () => {
         this.isSaving.set(false);
         this.receiveTarget.set(null);
@@ -909,11 +1157,16 @@ export class PurchaseOrdersComponent implements OnInit {
     if (!items) return [];
     const grouped: { [key: string]: any } = {};
     for (const item of items) {
-      const productId = item.productId;
+      const productId = `${item.productId}|${item.unitId || ''}`;
       if (!grouped[productId]) {
-        const p = this.state.products().find(x => x.id === productId);
+        const p = this.state.products().find(x => x.id === item.productId);
         const price = item.unitPrice ?? item.price ?? item.unitCost ?? 0;
         grouped[productId] = {
+          key: productId,
+          unitCode: item.unitCode ?? null,
+          unitFactor: item.unitFactor ?? 1,
+          unitQuantity: 0,
+          tracking: [] as TrackingEntry[],
           productId: item.productId,
           productName: item.productName || p?.name || this.i18n.t('purchaseOrders.unknownProduct'),
           quantity: 0,
@@ -925,6 +1178,8 @@ export class PurchaseOrdersComponent implements OnInit {
         };
       }
       grouped[productId].quantity += item.quantity;
+      grouped[productId].unitQuantity += Number(item.unitQuantity ?? item.quantity) || 0;
+      if (item.tracking?.length) grouped[productId].tracking.push(...item.tracking);
       grouped[productId].taxAmount += Number(item.taxAmount) || 0;
       grouped[productId].lineTotal += Number(item.lineTotal ?? item.quantity * grouped[productId].price) || 0;
       grouped[productId].occurrenceCount += 1;

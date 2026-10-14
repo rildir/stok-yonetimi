@@ -89,6 +89,7 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                 <th>{{ 'stockMovements.col.productName' | t }}</th>
                 <th>{{ 'stockMovements.col.type' | t }}</th>
                 <th>{{ 'stockMovements.col.warehouse' | t }}</th>
+                <th>{{ 'stockMovements.col.lotSerial' | t }}</th>
                 <th style="text-align: right;">{{ 'stockMovements.col.quantity' | t }}</th>
                 <th style="text-align: right;">{{ 'stockMovements.col.previousStock' | t }}</th>
                 <th style="text-align: right;">{{ 'stockMovements.col.newStock' | t }}</th>
@@ -107,6 +108,17 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                     </span>
                   </td>
                   <td>{{ getWarehouseName(m.warehouseId) }}</td>
+                  <td>
+                    @if (m.lotNumber) {
+                      <span class="badge badge-muted" [title]="'stockMovements.lot' | t">{{ 'stockMovements.lot' | t }}: {{ m.lotNumber }}</span>
+                    }
+                    @if (m.serials?.length) {
+                      <div class="text-xs text-muted" [title]="m.serials!.join(', ')" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono);">
+                        {{ 'stockMovements.serials' | t }}: {{ formatSerials(m.serials) }}
+                      </div>
+                    }
+                    @if (!m.lotNumber && !m.serials?.length) { <span class="text-muted">-</span> }
+                  </td>
                   <td style="text-align: right;">
                     <span [class.text-success]="m.quantity > 0" [class.text-danger]="m.quantity < 0">
                       {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
@@ -439,6 +451,13 @@ export class StockMovementsComponent implements OnInit {
     const wid = this.selectedWarehouseId();
     const list = this.movements();
     return wid ? list.filter(m => m.warehouseId === wid) : list;
+  }
+
+  /** Comma list of serials, truncated after 3 entries. */
+  formatSerials(serials: string[] | null | undefined): string {
+    const list = serials || [];
+    if (list.length <= 3) return list.join(', ');
+    return list.slice(0, 3).join(', ') + ' ' + this.i18n.t('stockMovements.moreSerials', { count: list.length - 3 });
   }
 
   getWarehouseName(id: string | null | undefined): string {
