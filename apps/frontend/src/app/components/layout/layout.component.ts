@@ -15,52 +15,49 @@ import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/
 import { SearchService, GlobalSearchResult } from '../../services/search.service';
 import { Title } from '@angular/platform-browser';
 import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '../../i18n';
+import { ThemeService } from '../../services/theme.service';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe],
   template: `
-    <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()">
-      <aside class="sidebar">
-        <div style="display: flex; flex-direction: column; justify-content: space-between; height: 100%; width: 100%; overflow: hidden;">
-          <div>
-            <div class="sidebar-logo" style="justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                @if (!isSidebarCollapsed()) {
-                  <div class="logo-text" style="display: flex; flex-direction: column;">
-                    <h2 style="font-family: var(--font-heading); font-size: 0.95rem; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.1;">ecelon</h2>
-                  </div>
-                } @else {
-                  <span style="font-family: var(--font-heading); font-size: 1.15rem; font-weight: 900; color: #0F172A; padding-left: 2px;">e</span>
-                }
-              </div>
-              <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" style="border: 1px solid #E2E8F0; border-radius: 50%; width: 28px; height: 28px; background: #FFFFFF; color: #64748B; display: flex; align-items: center; justify-content: center; margin: 0;">
-                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
-              </button>
-            </div>
-            
-            <!-- Sidebar Search Input matching Mockup -->
-            @if (!isSidebarCollapsed()) {
-              <div style="padding: 12px 16px 4px 16px; position: relative;">
-                <div style="display: flex; align-items: center; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; padding: 6px 12px; gap: 8px; height: 38px;">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #64748B; stroke-width: 2.5;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                  <input 
-                    #searchInput
-                    type="text" 
-                    style="border: none; background: transparent; outline: none; font-size: 0.82rem; color: #0F172A; width: 100%; font-family: var(--font-body);"
-                    [placeholder]="'layout.search.placeholder' | t: { shortcut: searchShortcut }" 
-                    [ngModel]="navbarSearchQuery()" 
-                    (ngModelChange)="onSearchQueryChange($event)"
-                    (keyup.enter)="triggerNavbarSearch()"
-                    (keydown.arrowdown)="onArrowDown($event)"
-                    (keydown.arrowup)="onArrowUp($event)"
-                    (focus)="onSearchFocus()"
-                    (blur)="onSearchBlur()"
-                  />
-                  <kbd style="font-size: 0.65rem; color: #94A3B8; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 1px 4px; border-radius: 4px; font-family: var(--font-mono); pointer-events: none;">{{ searchShortcut }}</kbd>
-                </div>
+    <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()" [class.mobile-nav-open]="isMobileNavOpen()">
+      <div class="sidebar-backdrop" (click)="isMobileNavOpen.set(false)"></div>
+      <aside class="sidebar" [attr.aria-label]="'layout.group.main' | t">
+        <div class="sidebar-inner">
+          <div class="sidebar-logo">
+            <a routerLink="/dashboard" class="brand">
+              <span class="brand-mark" aria-hidden="true">e</span>
+              <span class="brand-name">ecelon</span>
+            </a>
+            <button type="button" class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" [attr.aria-label]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+            </button>
+            <button type="button" class="topbar-icon-btn show-mobile" (click)="isMobileNavOpen.set(false)" [attr.aria-label]="'layout.closeMenu' | t">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
 
+          @if (!isSidebarCollapsed() || isMobileNavOpen()) {
+            <div class="sidebar-search">
+              <div class="sidebar-search-field">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input
+                  #searchInput
+                  type="text"
+                  [attr.aria-label]="'layout.search.placeholder' | t: { shortcut: searchShortcut }"
+                  [placeholder]="'layout.search.placeholder' | t: { shortcut: searchShortcut }"
+                  [ngModel]="navbarSearchQuery()"
+                  (ngModelChange)="onSearchQueryChange($event)"
+                  (keyup.enter)="triggerNavbarSearch()"
+                  (keydown.arrowdown)="onArrowDown($event)"
+                  (keydown.arrowup)="onArrowUp($event)"
+                  (focus)="onSearchFocus()"
+                  (blur)="onSearchBlur()"
+                />
+                <kbd class="kbd hide-mobile">{{ searchShortcut }}</kbd>
+              </div>
                 <!-- Autocomplete suggestions floating dropdown overlay -->
                 @if (isSearchFocused() && navbarSearchQuery().trim() !== '' && allVisibleSuggestions().length > 0) {
                   <div class="search-suggestions-dropdown">
@@ -129,136 +126,134 @@ import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '
                     }
                   </div>
                 }
-              </div>
+            </div>
+          }
+
+          <nav class="nav-list" (click)="isMobileNavOpen.set(false)">
+            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
+              <div class="nav-group-label">{{ 'layout.group.main' | t }}</div>
+            } @else {
+              <div class="nav-group-divider"></div>
             }
-            <nav class="nav-list">
-              <!-- GENEL -->
-              @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.main' | t }}</div>
-              } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
-              }
-              <a routerLink="/dashboard" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.dashboard' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
-                <span class="nav-text">{{ 'layout.nav.dashboard' | t }}</span>
-              </a>
+            <a routerLink="/dashboard" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.dashboard' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+              <span class="nav-text">{{ 'layout.nav.dashboard' | t }}</span>
+            </a>
 
-              <!-- STOK YÖNETİMİ -->
-              @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.stock' | t }}</div>
-              } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
-              }
-              <a routerLink="/products" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.products' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                <span class="nav-text">{{ 'layout.nav.products' | t }}</span>
-              </a>
-              <a routerLink="/stock-movements" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockMovements' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                <span class="nav-text">{{ 'layout.nav.stockMovements' | t }}</span>
-              </a>
-              <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockCount' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-                </svg>
-                <span class="nav-text">{{ 'layout.nav.stockCount' | t }}</span>
-              </a>
-              <a routerLink="/warehouses" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.warehouses' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                <span class="nav-text">{{ 'layout.nav.warehouses' | t }}</span>
-              </a>
+            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
+              <div class="nav-group-label">{{ 'layout.group.stock' | t }}</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
+            <a routerLink="/products" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.products' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+              <span class="nav-text">{{ 'layout.nav.products' | t }}</span>
+            </a>
+            <a routerLink="/stock-movements" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockMovements' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+              <span class="nav-text">{{ 'layout.nav.stockMovements' | t }}</span>
+            </a>
+            <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockCount' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+              <span class="nav-text">{{ 'layout.nav.stockCount' | t }}</span>
+            </a>
+            <a routerLink="/warehouses" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.warehouses' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><rect x="6" y="10" width="12" height="12"/></svg>
+              <span class="nav-text">{{ 'layout.nav.warehouses' | t }}</span>
+            </a>
 
-              <!-- OPERASYONLAR -->
-              @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.operations' | t }}</div>
-              } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
-              }
-              <a routerLink="/orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.orders' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-                <span class="nav-text">{{ 'layout.nav.orders' | t }}</span>
-              </a>
-              <a routerLink="/customers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.customers' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                <span class="nav-text">{{ 'layout.nav.customers' | t }}</span>
-              </a>
-              <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.purchaseOrders' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                <span class="nav-text">{{ 'layout.nav.purchaseOrders' | t }}</span>
-              </a>
-              <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.suppliers' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                <span class="nav-text">{{ 'layout.nav.suppliers' | t }}</span>
-              </a>
+            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
+              <div class="nav-group-label">{{ 'layout.group.operations' | t }}</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
+            <a routerLink="/orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.orders' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+              <span class="nav-text">{{ 'layout.nav.orders' | t }}</span>
+            </a>
+            <a routerLink="/customers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.customers' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span class="nav-text">{{ 'layout.nav.customers' | t }}</span>
+            </a>
+            <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.purchaseOrders' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+              <span class="nav-text">{{ 'layout.nav.purchaseOrders' | t }}</span>
+            </a>
+            <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.suppliers' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62L18.3 9.38a1 1 0 0 0-.78-.38H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+              <span class="nav-text">{{ 'layout.nav.suppliers' | t }}</span>
+            </a>
 
-              <!-- SİSTEM -->
-              @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.system' | t }}</div>
-              } @else {
-                <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
-              }
-              <a routerLink="/reports" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.reports' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                <span class="nav-text">{{ 'layout.nav.reports' | t }}</span>
+            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
+              <div class="nav-group-label">{{ 'layout.group.system' | t }}</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
+            <a routerLink="/reports" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.reports' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+              <span class="nav-text">{{ 'layout.nav.reports' | t }}</span>
+            </a>
+            <a routerLink="/settings" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.settings' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span class="nav-text">{{ 'layout.nav.settings' | t }}</span>
+            </a>
+            @if (currentUser().role === 'admin') {
+              <a routerLink="/audit-log" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.auditLog' | t">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                <span class="nav-text">{{ 'layout.nav.auditLog' | t }}</span>
               </a>
-              <a routerLink="/settings" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.settings' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="nav-text">{{ 'layout.nav.settings' | t }}</span>
+              <a routerLink="/integrations" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.integrations' | t">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                <span class="nav-text">{{ 'layout.nav.integrations' | t }}</span>
               </a>
-              @if (currentUser().role === 'admin') {
-                <a routerLink="/audit-log" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.auditLog' | t">
-                  <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                  <span class="nav-text">{{ 'layout.nav.auditLog' | t }}</span>
-                </a>
-                <a routerLink="/integrations" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.integrations' | t">
-                  <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-                  <span class="nav-text">{{ 'layout.nav.integrations' | t }}</span>
-                </a>
-              }
-            </nav>
-          </div>
+            }
+          </nav>
         </div>
       </aside>
 
       <div class="main-layout-wrapper">
         <header class="top-navbar">
           <div class="navbar-left">
-            <h1 style="font-size: 1.45rem; font-weight: 700; color: #0F172A; font-family: var(--font-heading); margin: 0; letter-spacing: -0.025em;">
-              {{ getBreadcrumbs().page }}
-            </h1>
+            <button type="button" class="topbar-icon-btn mobile-menu-btn" (click)="isMobileNavOpen.set(true)" [attr.aria-label]="'layout.openMenu' | t">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+            </button>
+            <nav class="breadcrumbs" [attr.aria-label]="'layout.breadcrumb' | t">
+              <span class="hide-mobile">{{ getBreadcrumbs().category }}</span>
+              <svg class="crumb-sep hide-mobile" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <span class="crumb-current" aria-current="page">{{ getBreadcrumbs().page }}</span>
+            </nav>
           </div>
 
-          <div class="navbar-right" style="gap: 1.25rem;">
-            <!-- Language switcher (TR / EN) -->
-            <div class="lang-switch" role="group" [attr.aria-label]="'common.language' | t" style="display: flex; align-items: center; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; padding: 2px; gap: 2px;">
+          <div class="navbar-right">
+            <div class="lang-switch" role="group" [attr.aria-label]="'common.language' | t">
               @for (l of languages; track l) {
                 <button type="button"
                         (click)="changeLanguage(l)"
                         [disabled]="isLangSaving()"
                         [attr.aria-pressed]="i18n.lang() === l"
-                        [attr.title]="('layout.lang.' + l) | t"
-                        [style.background]="i18n.lang() === l ? '#FFFFFF' : 'transparent'"
-                        [style.color]="i18n.lang() === l ? '#0F172A' : '#64748B'"
-                        [style.box-shadow]="i18n.lang() === l ? '0 1px 2px rgba(15,23,42,0.08)' : 'none'"
-                        style="border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.72rem; font-weight: 700; cursor: pointer; font-family: var(--font-body); letter-spacing: 0.03em; transition: all 0.2s;">
+                        [attr.title]="('layout.lang.' + l) | t">
                   {{ l.toUpperCase() }}
                 </button>
               }
             </div>
 
-            <!-- Shopping Cart styled Notification Widget -->
+            <button type="button" class="topbar-icon-btn" (click)="theme.toggle()"
+                    [attr.aria-label]="(theme.theme() === 'dark' ? 'layout.theme.toLight' : 'layout.theme.toDark') | t"
+                    [attr.title]="(theme.theme() === 'dark' ? 'layout.theme.toLight' : 'layout.theme.toDark') | t">
+              @if (theme.theme() === 'dark') {
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+              } @else {
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+              }
+            </button>
+
             <div class="notification-widget">
-              <button class="notif-btn" (click)="toggleNotifDropdown($event)" [attr.aria-label]="'layout.notifications.title' | t">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
+              <button type="button" class="notif-btn" (click)="toggleNotifDropdown($event)" [attr.aria-label]="'layout.notifications.title' | t">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
                 @if (notifService.unreadCount() > 0) {
-                  <span class="notif-badge" style="border: 2px solid #FFFFFF;">{{ notifService.unreadCount() }}</span>
+                  <span class="notif-badge">{{ notifService.unreadCount() }}</span>
                 }
               </button>
-
               @if (isNotifOpen()) {
                 <div class="notif-dropdown" (click)="$event.stopPropagation()">
                   <div class="notif-header">
@@ -295,33 +290,23 @@ import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '
               }
             </div>
 
-            <!-- Avatars stack + Invite button from mockup -->
-            <div style="display: flex; align-items: center; margin-right: -4px;">
-              <div style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #FFFFFF; background: #E2E8F0; overflow: hidden; margin-right: -8px; z-index: 3;"><img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" style="width: 100%; height: 100%; object-fit: cover;"/></div>
-              <div style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #FFFFFF; background: #CBD5E1; overflow: hidden; margin-right: -8px; z-index: 2;"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" style="width: 100%; height: 100%; object-fit: cover;"/></div>
-              <div style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid #FFFFFF; background: #FF5A1F; color: #FFFFFF; font-size: 0.65rem; font-weight: bold; display: flex; align-items: center; justify-content: center; margin-right: -8px; z-index: 1;">+3</div>
-              <button style="width: 28px; height: 28px; border-radius: 50%; border: 1.5px dashed #CBD5E1; background: #FFFFFF; color: #64748B; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-left: 12px; transition: all 0.2s;" onmouseover="this.style.borderColor='#94A3B8'; this.style.color='#0F172A'" onmouseout="this.style.borderColor='#CBD5E1'; this.style.color='#64748B'"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg></button>
-            </div>
+            <span class="topbar-divider"></span>
 
-            <!-- Profile Widget -->
             <div class="profile-widget" (click)="toggleProfileDropdown($event)">
               <div class="avatar-circle">
                 @if (currentUser().avatar) {
-                  <img [src]="currentUser().avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
+                  <img [src]="currentUser().avatar" alt="" />
                 } @else {
                   {{ currentUser().name.charAt(0) }}
                 }
               </div>
               <div class="user-info">
                 <span class="user-name">{{ 'layout.profile.greeting' | t: { name: currentUser().name } }}</span>
-                <span class="user-role" style="display: flex; align-items: center; gap: 2px;">
+                <span class="user-role">
                   {{ 'layout.profile.account' | t }}
-                  <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/>
-                  </svg>
+                  <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </span>
               </div>
-
               @if (isProfileOpen()) {
                 <div class="profile-dropdown" (click)="$event.stopPropagation()">
                   <div class="dropdown-header">
@@ -345,10 +330,8 @@ import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '
 
         <main class="main-content">
           @if (ui.isReadonly()) {
-            <div style="background: #FFFBEB; border: 1px solid #FCD34D; color: #92400E; padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 0.84rem; font-weight: 500;">
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: #F59E0B; flex-shrink: 0;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div class="readonly-banner">
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
               <span><strong>{{ 'layout.demo.title' | t }}</strong> {{ 'layout.demo.message' | t }}</span>
             </div>
           }
@@ -356,38 +339,22 @@ import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '
         </main>
       </div>
 
-
       @if (ui.confirmConfig()?.isDelete) {
         <app-modal [isOpen]="!!ui.confirmConfig()" [title]="''" [isDelete]="true" (onClose)="isConfirmLoading() ? null : ui.closeConfirm()">
-          <div style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 0;">
-            <!-- Red background circle trash icon -->
-            <div style="width: 48px; height: 48px; border-radius: 50%; background-color: #FEE2E2; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; color: #DC2626;">
-              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-              </svg>
+          <div class="confirm-dialog">
+            <div class="confirm-dialog-icon">
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
             </div>
-            
-            <h3 style="font-size: 18px; font-weight: 700; color: #0F172A; margin: 0 0 8px 0;">{{ ui.confirmConfig()?.title }}</h3>
-            
-            <p style="font-size: 14px; line-height: 1.5; color: #475569; margin: 0;">
-              {{ ui.confirmConfig()?.message }}
-            </p>
+            <h3 class="confirm-dialog-title">{{ ui.confirmConfig()?.title }}</h3>
+            <p class="confirm-dialog-text">{{ ui.confirmConfig()?.message }}</p>
           </div>
-          <div footer style="display: flex; gap: 8px; justify-content: flex-end; width: 100%;">
-            <!-- Sol: Vazgeç - ghost/outline, nötr renk -->
-            <button class="btn btn-outline" 
-                    (click)="ui.closeConfirm()" 
-                    [disabled]="isConfirmLoading()"
-                    style="border: 1px solid #D1D5DB; background: transparent; color: #4B5563; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; cursor: pointer;">
+          <div footer class="modal-actions">
+            <button type="button" class="btn btn-secondary" (click)="ui.closeConfirm()" [disabled]="isConfirmLoading()">
               {{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}
             </button>
-            <!-- Sağ: Sil - dolu, kırmızı/danger renk -->
-            <button class="btn" 
-                    (click)="confirmGlobalAction()" 
-                    [disabled]="isConfirmLoading()"
-                    style="background-color: #DC2626; color: #FFFFFF; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <button type="button" class="btn btn-danger" (click)="confirmGlobalAction()" [disabled]="isConfirmLoading()">
               @if (isConfirmLoading()) {
-                <span class="spinner-sm spinner-light" style="width: 14px; height: 14px; border-width: 2px;"></span> {{ 'layout.confirm.deleting' | t }}
+                <span class="spinner-sm spinner-light"></span> {{ 'layout.confirm.deleting' | t }}
               } @else {
                 {{ ui.confirmConfig()?.confirmText || ('common.delete' | t) }}
               }
@@ -396,12 +363,10 @@ import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '
         </app-modal>
       } @else {
         <app-modal [isOpen]="!!ui.confirmConfig()" [title]="ui.confirmConfig()?.title || ''" (onClose)="ui.closeConfirm()">
-          <div style="font-size: 14px; line-height: 1.5; color: var(--text-primary);">
-            {{ ui.confirmConfig()?.message }}
-          </div>
-          <div footer style="display: flex; gap: 8px;">
-            <button class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}</button>
-            <button class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || ('common.confirm' | t) }}</button>
+          <p class="confirm-dialog-text">{{ ui.confirmConfig()?.message }}</p>
+          <div footer class="modal-actions">
+            <button type="button" class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}</button>
+            <button type="button" class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || ('common.confirm' | t) }}</button>
           </div>
         </app-modal>
       }
@@ -875,7 +840,7 @@ export class LayoutComponent implements OnInit {
 
   constructor() {
     this.router.events.subscribe(e => {
-      if (e instanceof NavigationEnd) this.currentUrl.set(e.urlAfterRedirects);
+      if (e instanceof NavigationEnd) { this.currentUrl.set(e.urlAfterRedirects); this.isMobileNavOpen.set(false); }
     });
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
@@ -919,6 +884,8 @@ export class LayoutComponent implements OnInit {
 
   notifService = inject(NotificationService);
   isSidebarCollapsed = signal(false);
+  isMobileNavOpen = signal(false);
+  theme = inject(ThemeService);
   isProfileOpen = signal(false);
   isNotifOpen = signal(false);
 

@@ -1,5 +1,6 @@
 {
   "dashboard.title": "Panel Özeti",
+  "dashboard.subtitle": "Stok, sipariş ve satış durumunuzun güncel özeti.",
   "dashboard.stat.totalProducts": "Toplam Ürün",
   "dashboard.stat.lowStock": "Kritik Stok",
   "dashboard.stat.outOfStock": "Tükenen Ürün",

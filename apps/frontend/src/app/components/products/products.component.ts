@@ -18,579 +18,435 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
   imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
   styleUrls: ['../../drawer.css'],
   styles: [`
-/* TRACKING BADGE */
-.tracking-badge { display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; white-space: nowrap; }
-/* SCAN BUTTON */
-.btn-scan {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.tracking-badge { display: inline-flex; align-items: center; font-size: var(--text-2xs); font-weight: var(--weight-semibold); padding: 1px 6px; border-radius: var(--radius-full); background: var(--color-primary-subtle); color: var(--color-primary-text); border: 1px solid var(--color-primary-border); white-space: nowrap; }
+.btn-scan { flex-shrink: 0; justify-content: center; }
+.pr-toolbar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.pr-toolbar .segmented button { display: inline-flex; align-items: center; gap: var(--space-1); }
+.btn.is-active { background: var(--color-surface-muted); border-color: var(--color-border-strong); }
+.pr-sort { position: relative; width: 224px; }
+.pr-sort-trigger { width: 100%; justify-content: flex-start; }
+.pr-menu { position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; right: 0; background: var(--color-surface-raised, var(--color-surface)); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: var(--space-1); }
+.pr-menu-item { display: block; width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: 0; background: none; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--color-text); cursor: pointer; }
+.pr-menu-item:hover { background: var(--color-surface-muted); }
+.pr-menu-item.active { color: var(--color-primary-text); font-weight: var(--weight-semibold); }
+.pr-stats-toggle { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer; }
+.pr-kpis { margin-bottom: var(--space-4); }
+.pr-kpi { flex-direction: column; gap: var(--space-2); }
+.pr-kpi-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); width: 100%; }
+.pr-layout { display: flex; gap: var(--space-4); align-items: flex-start; }
+.pr-refiner { width: 232px; flex-shrink: 0; gap: var(--space-5); }
+.pr-ref-group h4 { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 var(--space-2); }
+.pr-ref-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
+.pr-ref-list a { display: block; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); color: var(--color-text-secondary); text-decoration: none; }
+.pr-ref-list a:hover { background: var(--color-surface-muted); color: var(--color-text); }
+.pr-ref-list a.active { background: var(--color-primary-subtle); color: var(--color-primary-text); font-weight: var(--weight-medium); }
+.pr-radio { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); cursor: pointer; color: var(--color-text); }
+.pr-radio input, .pr-check-label input, .pr-col-check input, .pr-card-top input { accent-color: var(--color-primary); width: 16px; height: 16px; cursor: pointer; }
+.pr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.pr-resultbar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-sm); }
+.pr-strong { color: var(--color-text); font-weight: var(--weight-semibold); }
+.pr-chip-x { display: inline-grid; place-items: center; border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 var(--space-1); }
+.pr-check-label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; color: var(--color-text-secondary); }
+.pr-table td { vertical-align: middle; }
+.pr-table .num { white-space: nowrap; }
+.pr-col-check { width: 44px; text-align: center; }
+.pr-table tr.is-selected td { background: var(--color-primary-subtle); }
+.pr-table tr.is-highlighted td { box-shadow: inset 0 2px 0 var(--color-primary), inset 0 -2px 0 var(--color-primary); }
+.pr-prod { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.pr-prod-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.pr-thumb { width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; overflow: hidden; border-radius: var(--radius-sm); background: var(--color-surface-subtle); border: 1px solid var(--color-border-subtle); color: var(--color-text-subtle); }
+.pr-thumb-lg { width: 56px; height: 56px; border-radius: var(--radius-md); }
+.pr-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.pr-name { font-weight: var(--weight-semibold); color: var(--color-text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.pr-name:hover { color: var(--color-primary-text); }
+.pr-meta { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
+.pr-stock-cell { position: relative; }
+.pr-stock { display: inline-flex; align-items: center; gap: var(--space-1); cursor: default; font-weight: var(--weight-semibold); }
+.pr-rating { display: inline-flex; align-items: center; gap: 2px; color: var(--color-warning); }
+.pr-rating-val { margin-left: var(--space-1); font-size: var(--text-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.warehouse-tooltip { position: absolute; z-index: 60; bottom: calc(100% - 4px); right: var(--space-3); min-width: 180px; text-align: left; background: var(--color-surface-raised, var(--color-surface)); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); box-shadow: var(--shadow-lg); }
+.wh-tooltip-title { font-size: var(--text-2xs); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); padding-bottom: var(--space-1); margin-bottom: var(--space-1); border-bottom: 1px solid var(--color-border-subtle); }
+.wh-tooltip-row { display: flex; justify-content: space-between; gap: var(--space-3); padding: 2px 0; font-size: var(--text-xs); color: var(--color-text); }
+.wh-tooltip-row strong { font-variant-numeric: tabular-nums; }
+.pr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
+.pr-card { gap: var(--space-3); padding: var(--space-4); }
+.pr-card.is-selected { border-color: var(--color-primary-border); background: var(--color-primary-subtle); }
+.pr-card.is-highlighted { box-shadow: 0 0 0 2px var(--color-primary); }
+.pr-card-top { display: flex; justify-content: space-between; align-items: center; }
+.pr-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
+.pr-card-stats dt { font-size: var(--text-xs); color: var(--color-text-muted); }
+.pr-card-stats dd { margin: 0; font-weight: var(--weight-semibold); color: var(--color-text); font-variant-numeric: tabular-nums; }
+.pr-card-actions { display: flex; gap: var(--space-2); margin-top: auto; }
+.pr-card-actions .btn { flex: 1; }
+.pr-range, .pr-perpage { font-size: var(--text-sm); }
+.pr-perpage .select { width: auto; height: 32px; padding-top: 0; padding-bottom: 0; }
+.pr-pages { gap: var(--space-1); }
+@media (max-width: 900px) {
+  .pr-layout { flex-direction: column; align-items: stretch; }
+  .pr-refiner { width: 100%; }
 }
-
-/* TRANSFER BUTTON */
-.transfer-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0.25rem;
-  border-radius: 4px;
-  transition: all 0.15s;
-  margin-right: 0.25rem;
-}
-.transfer-btn:hover {
-  color: var(--brand, #3ecf8e);
-  background: rgba(62, 207, 142, 0.08);
-}
-.transfer-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* WAREHOUSE TOOLTIP */
-.warehouse-tooltip {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  background: var(--bg-overlay, #2a2a2a);
-  border: 1px solid var(--border-default, #383838);
-  border-radius: 8px;
-  padding: 8px 12px;
-  min-width: 180px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  animation: tooltipIn 0.15s ease;
-}
-@keyframes tooltipIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-.wh-tooltip-title {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-muted, #6b6b6b);
-  margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border-default, #383838);
-}
-.wh-tooltip-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 3px 0;
-  font-size: 12px;
-  color: var(--text-primary, #ededed);
-}
-.wh-tooltip-row strong {
-  font-family: var(--font-mono, monospace);
-  color: var(--brand, #3ecf8e);
+@media (max-width: 640px) {
+  .pr-sort { flex: 1 1 auto; width: auto; }
+  .pr-stats-toggle { margin-left: 0; }
+  .pr-table td.pr-col-check { display: none; }
+  .pr-table td.pr-actions-cell .td-actions { justify-content: flex-start; }
+  .pr-name { max-width: none; white-space: normal; }
+  .warehouse-tooltip { right: 0; }
 }
   `],
   template: `
-    <!-- Redesigned Mockup Sub-Header Controls Toolbar -->
-    <div class="toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px 16px;">
-      <!-- Left side: Dropdown selectors & toggles -->
-      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-        <!-- Table View / Grid View Selector Dropdown -->
-        <div class="custom-select-wrapper" style="width: 170px;" (click)="$event.stopPropagation()">
-          <div class="custom-select-trigger" (click)="isViewDropdownOpen.update(v => !v); isSortDropdownOpen.set(false)" [class.open]="isViewDropdownOpen()" style="height: 38px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8rem; font-weight: 500; font-family: var(--font-body); padding: 0 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s ease;">
-            <span class="selected-text" style="display: flex; align-items: center; gap: 8px;">
-              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-              {{ (isTableView() ? 'products.view.table' : 'products.view.card') | t }}
-            </span>
-            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-          </div>
-          @if (isViewDropdownOpen()) {
-            <div class="custom-select-dropdown" style="z-index: 2000; width: 100%; border-radius: 8px; position: absolute; top: calc(100% + 4px); left: 0; background: #FFFFFF; border: 1px solid #E2E8F0; box-shadow: var(--shadow-lg); max-height: 220px; overflow-y: auto;">
-              <div class="custom-option" (click)="isTableView.set(true); isViewDropdownOpen.set(false)" style="padding: 0.65rem 0.85rem; font-size: 0.8rem; font-family: var(--font-body); display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #F1F5F9;">
-                <span class="opt-name" [style.fontWeight]="isTableView() ? 'bold' : 'normal'">{{ 'products.view.table' | t }}</span>
-              </div>
-              <div class="custom-option" (click)="isTableView.set(false); isViewDropdownOpen.set(false)" style="padding: 0.65rem 0.85rem; font-size: 0.8rem; font-family: var(--font-body); display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                <span class="opt-name" [style.fontWeight]="!isTableView() ? 'bold' : 'normal'">{{ 'products.view.card' | t }}</span>
-              </div>
-            </div>
-          }
-        </div>
-
-        <!-- Filter toggle -->
-        <button type="button" class="btn" (click)="toggleFilters()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 12px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer; transition: all 0.2s;" [style.backgroundColor]="showFilters() ? '#F8FAFC' : '#FFFFFF'">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-          {{ 'products.filter' | t }}
-        </button>
-
-        <!-- Sort Select Box redesigned as custom select -->
-        <div class="custom-select-wrapper" style="width: 190px;" (click)="$event.stopPropagation()">
-          <div class="custom-select-trigger" (click)="isSortDropdownOpen.update(v => !v); isViewDropdownOpen.set(false)" [class.open]="isSortDropdownOpen()" style="height: 38px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8rem; font-weight: 500; font-family: var(--font-body); padding: 0 12px; background: #FFFFFF; color: #0F172A; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s ease;">
-            <span class="selected-text" style="display: flex; align-items: center; gap: 8px;">
-              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
-              {{ ('products.sort.' + productSortOption()) | t }}
-            </span>
-            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-          </div>
-          @if (isSortDropdownOpen()) {
-            <div class="custom-select-dropdown" style="z-index: 2000; width: 100%; border-radius: 8px; position: absolute; top: calc(100% + 4px); left: 0; background: #FFFFFF; border: 1px solid #E2E8F0; box-shadow: var(--shadow-lg); max-height: 220px; overflow-y: auto;">
-              @for (opt of [
-                {id: 'default', label: 'products.sort.default'},
-                {id: 'stock-desc', label: 'products.sort.stock-desc'},
-                {id: 'stock-asc', label: 'products.sort.stock-asc'},
-                {id: 'price-asc', label: 'products.sort.price-asc'},
-                {id: 'price-desc', label: 'products.sort.price-desc'},
-                {id: 'name-asc', label: 'products.sort.name-asc'}
-              ]; track opt.id) {
-                <div class="custom-option" (click)="productSortOption.set(opt.id); isSortDropdownOpen.set(false)" style="padding: 0.65rem 0.85rem; font-size: 0.8rem; font-family: var(--font-body); display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #F1F5F9;">
-                  <span class="opt-name" [style.fontWeight]="productSortOption() === opt.id ? 'bold' : 'normal'">{{ opt.label | t }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-
-        <!-- Show Statistics Toggle Redesigned -->
-        <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
-          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">{{ 'products.showStats' | t }}</span>
-          <button type="button" (click)="toggleStats()" style="border: none; background: none; padding: 0; cursor: pointer; display: flex; align-items: center; width: 44px; height: 24px; border-radius: 12px; border: 1px solid #E2E8F0; transition: background-color 0.2s;" [style.backgroundColor]="showStats() ? '#FF5A1F' : '#E2E8F0'">
-            <div style="width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s;" [style.transform]="showStats() ? 'translateX(22px)' : 'translateX(2px)'"></div>
-          </button>
-        </div>
+    <div class="page-header">
+      <div>
+        <h1>{{ 'products.page.title' | t }}</h1>
+        <p>{{ 'products.page.subtitle' | t }}</p>
       </div>
-
-      <!-- Right side: Export, Customize, Add Product -->
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <button type="button" class="btn" (click)="fileInput.click()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 14px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      <div class="page-actions">
+        <button type="button" class="btn btn-secondary" (click)="fileInput.click()">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
           {{ 'products.import' | t }}
         </button>
         <input type="file" #fileInput accept=".csv" style="display: none" (change)="importFromCSV($event)" />
-
-        <button type="button" class="btn" (click)="exportToCSV()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 14px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <button type="button" class="btn btn-secondary" (click)="exportToCSV()">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
           {{ 'products.export' | t }}
         </button>
-
-        <button type="button" class="btn" (click)="printProducts()" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 14px; display: flex; align-items: center; gap: 6px; box-shadow: none; cursor: pointer;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        <button type="button" class="btn btn-secondary" (click)="printProducts()">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
           {{ 'products.printAction' | t }}
         </button>
-
-        <button type="button" class="btn" (click)="openAddProduct()" style="border: none; background: #0F172A; color: #FFFFFF; border-radius: 8px; height: 38px; font-size: 0.8rem; padding: 0 16px; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm); transition: background-color 0.2s; cursor: pointer;" onmouseover="this.style.backgroundColor='#1F2937'" onmouseout="this.style.backgroundColor='#0F172A'">
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        <button type="button" class="btn btn-primary" (click)="openAddProduct()">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           {{ 'products.addNew' | t }}
         </button>
       </div>
     </div>
 
-    <!-- Redesigned Mockup Statistics Grid (Collapsible) -->
+    <div class="toolbar pr-toolbar">
+      <div class="segmented" role="group">
+        <button type="button" [class.active]="isTableView()" (click)="isTableView.set(true); isViewDropdownOpen.set(false)">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          <span>{{ 'products.view.table' | t }}</span>
+        </button>
+        <button type="button" [class.active]="!isTableView()" (click)="isTableView.set(false); isViewDropdownOpen.set(false)">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          <span>{{ 'products.view.card' | t }}</span>
+        </button>
+      </div>
+
+      <button type="button" class="btn btn-secondary" [class.is-active]="showFilters()" (click)="toggleFilters()">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+        {{ 'products.filter' | t }}
+      </button>
+
+      <div class="custom-select-wrapper pr-sort" (click)="$event.stopPropagation()">
+        <button type="button" class="btn btn-secondary pr-sort-trigger" (click)="isSortDropdownOpen.update(v => !v); isViewDropdownOpen.set(false)" [class.open]="isSortDropdownOpen()">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h9M3 18h6M17 8l4-4 4 4M21 4v16" transform="translate(-3 0)"/></svg>
+          <span class="truncate">{{ ('products.sort.' + productSortOption()) | t }}</span>
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto; color: var(--color-text-muted);"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        @if (isSortDropdownOpen()) {
+          <div class="pr-menu">
+            @for (opt of [
+              {id: 'default', label: 'products.sort.default'},
+              {id: 'stock-desc', label: 'products.sort.stock-desc'},
+              {id: 'stock-asc', label: 'products.sort.stock-asc'},
+              {id: 'price-asc', label: 'products.sort.price-asc'},
+              {id: 'price-desc', label: 'products.sort.price-desc'},
+              {id: 'name-asc', label: 'products.sort.name-asc'}
+            ]; track opt.id) {
+              <button type="button" class="pr-menu-item" [class.active]="productSortOption() === opt.id" (click)="productSortOption.set(opt.id); isSortDropdownOpen.set(false)">{{ opt.label | t }}</button>
+            }
+          </div>
+        }
+      </div>
+
+      <label class="pr-stats-toggle">
+        <span class="switch"><input type="checkbox" [checked]="showStats()" (change)="toggleStats()" /><span class="slider"></span></span>
+        <span>{{ 'products.showStats' | t }}</span>
+      </label>
+    </div>
+
     @if (showStats()) {
-      <div class="stats-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 1.5rem;">
-        <!-- Card 1: Toplam Ürün -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
-          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">{{ 'products.stats.totalProducts' | t }}</span>
-          <div style="display: flex; justify-content: space-between; align-items: baseline;">
-            <span style="font-size: 1.85rem; font-weight: bold; color: #0F172A;">{{ state.products().length }}</span>
-            <span class="badge-instock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">{{ 'products.stats.newCount' | t: { count: 3 } }}</span>
+      <div class="kpi-grid pr-kpis">
+        <div class="stat-card pr-kpi">
+          <span class="stat-label">{{ 'products.stats.totalProducts' | t }}</span>
+          <div class="pr-kpi-row">
+            <span class="stat-value">{{ state.products().length }}</span>
+            <span class="badge badge-success">{{ 'products.stats.newCount' | t: { count: 3 } }}</span>
           </div>
-          <span style="font-size: 0.72rem; color: #64748B;">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
         </div>
-
-        <!-- Card 2: Toplam Değer (Gelir) -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
-          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">{{ 'products.stats.totalValue' | t }}</span>
-          <div style="display: flex; justify-content: space-between; align-items: baseline;">
-            <span style="font-size: 1.85rem; font-weight: bold; color: #0F172A; font-family: var(--font-mono);">{{ getTotalValue() | money: null : 0 }}</span>
-            <span class="badge-instock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">↑ 9%</span>
+        <div class="stat-card pr-kpi">
+          <span class="stat-label">{{ 'products.stats.totalValue' | t }}</span>
+          <div class="pr-kpi-row">
+            <span class="stat-value">{{ getTotalValue() | money: null : 0 }}</span>
+            <span class="badge badge-success">↑ 9%</span>
           </div>
-          <span style="font-size: 0.72rem; color: #64748B;">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
         </div>
-
-        <!-- Card 3: Kritik Stoktaki Ürünler -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
-          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">{{ 'products.stats.criticalStock' | t }}</span>
-          <div style="display: flex; justify-content: space-between; align-items: baseline;">
-            <span style="font-size: 1.85rem; font-weight: bold; color: #F97316;">{{ state.lowStockCount() }}</span>
-            <span class="badge-lowstock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">↑ 7%</span>
+        <div class="stat-card pr-kpi">
+          <span class="stat-label">{{ 'products.stats.criticalStock' | t }}</span>
+          <div class="pr-kpi-row">
+            <span class="stat-value low">{{ state.lowStockCount() }}</span>
+            <span class="badge badge-warning">↑ 7%</span>
           </div>
-          <span style="font-size: 0.72rem; color: #64748B;">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
         </div>
-
-        <!-- Card 4: Tükenen Ürünler -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
-          <span style="font-size: 0.8rem; color: #64748B; font-weight: 500;">{{ 'products.stats.outOfStock' | t }}</span>
-          <div style="display: flex; justify-content: space-between; align-items: baseline;">
-            <span style="font-size: 1.85rem; font-weight: bold; color: #EF4444;">{{ state.outOfStockCount() }}</span>
-            <span class="badge-outstock" style="font-size: 0.72rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;">↓ 5%</span>
+        <div class="stat-card pr-kpi">
+          <span class="stat-label">{{ 'products.stats.outOfStock' | t }}</span>
+          <div class="pr-kpi-row">
+            <span class="stat-value out">{{ state.outOfStockCount() }}</span>
+            <span class="badge badge-danger">↓ 5%</span>
           </div>
-          <span style="font-size: 0.72rem; color: #64748B;">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
         </div>
       </div>
     }
 
-    <!-- Ecelon Style Two-Column Layout -->
-    <div class="ecelon-search-layout" style="display: flex; gap: 1.5rem; align-items: start; width: 100%;">
-      <!-- Left Sidebar Refinements (Collapsible) -->
+    <div class="pr-layout">
       @if (showFilters()) {
-        <aside class="ecelon-refiner" style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1.25rem; background: var(--surface-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
-          <!-- Arama Input inside filters -->
-          <div>
-            <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">{{ 'products.filters.search' | t }}</h4>
-            <div style="position: relative; display: flex; align-items: center;">
-              <input type="text" [placeholder]="'products.filters.searchPlaceholder' | t" [value]="productSearch()" (input)="onSearchInput($event)" style="width:100%; border: 1px solid #E2E8F0; border-radius:6px; padding:6px 28px 6px 10px; font-size:13px; outline:none;"/>
-              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="position: absolute; right: 8px; color: #64748B;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <aside class="card pr-refiner">
+          <div class="pr-ref-group">
+            <h4>{{ 'products.filters.search' | t }}</h4>
+            <div class="search-box">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" [placeholder]="'products.filters.searchPlaceholder' | t" [value]="productSearch()" (input)="onSearchInput($event)" />
             </div>
           </div>
-
-          <!-- Category refinement -->
-          <div>
-            <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">{{ 'products.filters.categories' | t }}</h4>
-            <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
-              <li>
-                <a href="#" (click)="productSearch.set(''); $event.preventDefault()" [style.fontWeight]="!productSearch() ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">{{ 'products.filters.allCategories' | t }}</a>
-              </li>
+          <div class="pr-ref-group">
+            <h4>{{ 'products.filters.categories' | t }}</h4>
+            <ul class="pr-ref-list">
+              <li><a href="#" [class.active]="!productSearch()" (click)="productSearch.set(''); $event.preventDefault()">{{ 'products.filters.allCategories' | t }}</a></li>
               @for (cat of categories(); track cat.id) {
-                <li>
-                  <a href="#" (click)="productSearch.set(cat.name); $event.preventDefault()" [style.fontWeight]="productSearch() === cat.name ? 'bold' : 'normal'" style="color: #007185; text-decoration: none;">{{ cat.name }}</a>
-                </li>
+                <li><a href="#" [class.active]="productSearch() === cat.name" (click)="productSearch.set(cat.name); $event.preventDefault()">{{ cat.name }}</a></li>
               }
             </ul>
           </div>
-          
-          <!-- Stock status refinement -->
-          <div>
-            <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #0F1111; border-bottom: 1px solid #F0F2F2; padding-bottom: 4px;">{{ 'products.filters.stockStatus' | t }}</h4>
-            <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
+          <div class="pr-ref-group">
+            <h4>{{ 'products.filters.stockStatus' | t }}</h4>
+            <ul class="pr-ref-list">
               @for (st of [{id:'all', label:'products.status.all'}, {id:'In stock', label:'products.status.inStock'}, {id:'Low stock', label:'products.status.lowStock'}, {id:'Out of stock', label:'products.status.outOfStock'}]; track st.id) {
                 <li>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #0F1111; font-size: 13px;">
-                    <input type="radio" name="stockFilter" [checked]="productFilterStatus() === st.id" (change)="productFilterStatus.set($any(st.id))" style="cursor: pointer;" />
+                  <label class="pr-radio">
+                    <input type="radio" name="stockFilter" [checked]="productFilterStatus() === st.id" (change)="productFilterStatus.set($any(st.id))" />
                     <span>{{ st.label | t }}</span>
                   </label>
                 </li>
               }
             </ul>
           </div>
-
-          <!-- Barkod Tara Button -->
-          <button class="btn btn-outline btn-scan" (click)="openScanner()" [title]="'products.scanBarcode' | t" style="border-radius: 20px; height: 38px; justify-content: center; cursor: pointer;">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+          <button type="button" class="btn btn-secondary btn-scan" (click)="openScanner()" [title]="'products.scanBarcode' | t">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8M18 8v8"/></svg>
             {{ 'products.scanBarcode' | t }}
           </button>
         </aside>
       }
 
-      <!-- Right Main Content Panel -->
-      <!-- Right Main Content Panel -->
-      <div class="ecelon-results-main" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
-        <!-- Header with item count and sorting selection -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px 16px;">
-          <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-            <div style="font-size: 14px; color: #565959;">
-              {{ 'products.results.prefix' | t }} <strong>{{ 'products.results.count' | t: { count: filteredProducts().length } }}</strong> {{ 'products.results.suffix' | t }}
-            </div>
+      <div class="pr-main">
+        <div class="pr-resultbar">
+          <div class="cluster">
+            <span class="text-muted">
+              {{ 'products.results.prefix' | t }} <strong class="pr-strong">{{ 'products.results.count' | t: { count: filteredProducts().length } }}</strong> {{ 'products.results.suffix' | t }}
+            </span>
             @if (selectedWarehouseFilter()) {
-              <div class="badge badge-lowstock" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; background: rgba(217, 119, 6, 0.08); color: var(--status-lowstock); border: 1px solid rgba(217, 119, 6, 0.2);">
+              <span class="badge badge-warning">
                 {{ 'products.warehouseFilter' | t: { name: selectedWarehouseFilter() } }}
-                <button (click)="clearWarehouseFilter()" style="background: none; border: none; color: inherit; cursor: pointer; font-weight: bold; margin-left: 2px; font-size: 0.85rem; padding: 0 2px; line-height: 1;">✕</button>
-              </div>
+                <button type="button" class="pr-chip-x" (click)="clearWarehouseFilter()" [title]="'common.clear' | t">
+                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </span>
             }
           </div>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <!-- Select all checkbox -->
-            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: #0F172A; font-weight: 500;">
-              <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" style="cursor: pointer; accent-color: #FF5A1F;" />
-              <span>{{ 'products.selectAll' | t }}</span>
-            </label>
-          </div>
+          <label class="pr-check-label">
+            <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" />
+            <span>{{ 'products.selectAll' | t }}</span>
+          </label>
         </div>
 
         @if (isTableView()) {
-          <!-- Sticky Column Headers -->
-          <div class="list-headers" style="display: flex; align-items: center; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; padding: 12px 16px; margin-bottom: 4px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 8px 8px 0 0;">
-            <div style="width: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">{{ 'products.col.select' | t }}</div>
-            <div style="flex: 2; text-align: left; padding-left: 12px; min-width: 240px;">{{ 'products.col.product' | t }}</div>
-            <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px;">{{ 'products.col.price' | t }}</div>
-            <div style="flex: 0.8; text-align: right; padding-right: 12px; min-width: 80px;">{{ 'products.col.sales' | t }}</div>
-            <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px;">{{ 'products.col.revenue' | t }}</div>
-            <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px;">{{ 'products.col.stock' | t }}</div>
-            <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 110px;">{{ 'products.col.status' | t }}</div>
-            <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px;">{{ 'products.col.rating' | t }}</div>
-            <div style="width: 178px; text-align: right; padding-right: 8px; flex-shrink: 0;">{{ 'common.actions' | t }}</div>
-          </div>
-
-          <!-- Result Cards Stack -->
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            @for (p of paginatedProducts(); track p.id) {
-              <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" 
-                   style="display: flex; align-items: center; padding: 10px 16px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; transition: all 0.2s; position: relative;"
-                   [style.boxShadow]="highlightedProductId() === p.id ? '0 0 0 2px #FF5A1F' : 'none'"
-                   [style.borderLeft]="isProductSelected(p.id) ? '4px solid #FF5A1F' : '1px solid #E2E8F0'"
-                   [style.backgroundColor]="isProductSelected(p.id) ? '#FFF7F5' : '#FFFFFF'">
-                
-                <!-- Checkbox -->
-                <div style="width: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 15px; height: 15px; accent-color: #FF5A1F;" />
-                </div>
-                
-                <!-- Product (Görsel & Name & SKU & Kategori) -->
-                <div style="flex: 2; display: flex; align-items: center; gap: 12px; padding-left: 12px; min-width: 240px; overflow: hidden;">
-                  <!-- Product Image -->
-                  <div style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; overflow: hidden;">
-                    @if (p.imageUrl) {
-                      <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
-                    } @else {
-                      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity: 0.3;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    }
-                  </div>
-                  <!-- Details -->
-                  <div style="display: flex; flex-direction: column; overflow: hidden;">
-                    <a href="#" (click)="$event.preventDefault(); openEditProduct(p)" style="font-size: 0.85rem; font-weight: 600; color: #0F172A; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" onmouseover="this.style.color='#FF5A1F'" onmouseout="this.style.color='#0F172A'">
-                      {{ p.name }}
-                    </a>
-                    <span style="font-size: 0.72rem; color: #64748B; font-family: var(--font-mono); margin-top: 1px;">
-                      SKU: {{ p.sku }} • {{ getCategoryName(p.category) }}
-                    </span>
-                    @if (p.barcode || isTracked(p)) {
-                      <span style="display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 0.68rem; color: #64748B;">
-                        @if (p.barcode) { <span style="font-family: var(--font-mono);">▮▯ {{ p.barcode }}</span> }
-                        @if (isTracked(p)) { <span class="tracking-badge">{{ trackingBadgeLabel(p) }}</span> }
-                      </span>
-                    }
-                  </div>
-                </div>
-
-                <!-- Price -->
-                <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px; font-weight: 600; color: #0F172A; font-family: var(--font-mono); font-size: 0.85rem;">
-                  {{ p.price | money: p.currency }}
-                </div>
-
-                <!-- Sales (Mocked) -->
-                <div style="flex: 0.8; text-align: right; padding-right: 12px; min-width: 80px; font-size: 0.85rem; color: #475569; font-weight: 500;">
-                  {{ getMockSales(p) }}
-                </div>
-
-                <!-- Revenue (Mocked) -->
-                <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px; font-weight: 600; color: #0F172A; font-family: var(--font-mono); font-size: 0.85rem;">
-                  {{ getMockRevenue(p) | money: null : 0 }}
-                </div>
-
-                <!-- Stock -->
-                <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px; font-size: 0.85rem; color: #475569; position: relative;">
-                  <span (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)" style="cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                    {{ p.quantity | num }} {{ productUnitLabel(p) }}
-                    @if (p.quantity <= p.minQuantity && p.quantity > 0) {
-                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#F97316" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    } @else if (p.quantity === 0) {
-                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#EF4444" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    }
-                  </span>
-                  
-                  <!-- Warehouse Tooltip -->
-                  @if (p.warehouses && hoveredProductId() === p.id) {
-                    <div class="warehouse-tooltip" style="display:block; position: absolute; bottom: 25px; left: 12px;">
-                      <div class="wh-tooltip-title">{{ 'products.warehouseDistribution' | t }}</div>
-                      @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
-                        <div class="wh-tooltip-row">
-                          <span>{{ wh.name }}</span>
-                          <strong>{{ wh.qty }}</strong>
+          <div class="table-card">
+            <div class="table-scroll">
+              <table class="table-responsive pr-table">
+                <thead>
+                  <tr>
+                    <th class="pr-col-check"><span class="sr-only">{{ 'products.col.select' | t }}</span></th>
+                    <th>{{ 'products.col.product' | t }}</th>
+                    <th class="num">{{ 'products.col.price' | t }}</th>
+                    <th class="num">{{ 'products.col.sales' | t }}</th>
+                    <th class="num">{{ 'products.col.revenue' | t }}</th>
+                    <th class="num">{{ 'products.col.stock' | t }}</th>
+                    <th>{{ 'products.col.status' | t }}</th>
+                    <th>{{ 'products.col.rating' | t }}</th>
+                    <th class="num">{{ 'common.actions' | t }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of paginatedProducts(); track p.id) {
+                    <tr [class.is-selected]="isProductSelected(p.id)" [class.is-highlighted]="highlightedProductId() === p.id">
+                      <td class="pr-col-check">
+                        <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" />
+                      </td>
+                      <td class="td-primary">
+                        <div class="pr-prod">
+                          <div class="pr-thumb">
+                            @if (p.imageUrl) {
+                              <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" />
+                            } @else {
+                              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                            }
+                          </div>
+                          <div class="pr-prod-text">
+                            <a href="#" class="pr-name" (click)="$event.preventDefault(); openEditProduct(p)">{{ p.name }}</a>
+                            <span class="pr-meta"><span class="mono">{{ p.sku }}</span> · {{ getCategoryName(p.category) }}</span>
+                            @if (p.barcode || isTracked(p)) {
+                              <span class="pr-meta">
+                                @if (p.barcode) { <span class="mono">{{ p.barcode }}</span> }
+                                @if (isTracked(p)) { <span class="tracking-badge">{{ trackingBadgeLabel(p) }}</span> }
+                              </span>
+                            }
+                          </div>
                         </div>
-                      }
-                    </div>
+                      </td>
+                      <td class="num pr-strong" [attr.data-label]="'products.col.price' | t">{{ p.price | money: p.currency }}</td>
+                      <td class="num text-muted" [attr.data-label]="'products.col.sales' | t">{{ getMockSales(p) }}</td>
+                      <td class="num" [attr.data-label]="'products.col.revenue' | t">{{ getMockRevenue(p) | money: null : 0 }}</td>
+                      <td class="num pr-stock-cell" [attr.data-label]="'products.col.stock' | t">
+                        <span class="pr-stock" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
+                          @if (p.quantity <= p.minQuantity && p.quantity > 0) {
+                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-warning);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+                          } @else if (p.quantity === 0) {
+                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-danger);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+                          }
+                          {{ p.quantity | num }} <span class="text-muted">{{ productUnitLabel(p) }}</span>
+                        </span>
+                        @if (p.warehouses && hoveredProductId() === p.id) {
+                          <div class="warehouse-tooltip">
+                            <div class="wh-tooltip-title">{{ 'products.warehouseDistribution' | t }}</div>
+                            @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
+                              <div class="wh-tooltip-row"><span>{{ wh.name }}</span><strong>{{ wh.qty }}</strong></div>
+                            }
+                          </div>
+                        }
+                      </td>
+                      <td [attr.data-label]="'products.col.status' | t">
+                        <span class="badge badge-dot" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">{{ statusLabel(p.status) }}</span>
+                      </td>
+                      <td [attr.data-label]="'products.col.rating' | t">
+                        <span class="pr-rating">
+                          @for (star of getMockStarsArray(p); track $index) {
+                            <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                          }
+                          @if (getMockStarsRemainder(p)) {
+                            <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                          }
+                          <span class="pr-rating-val">{{ getMockRatingValue(p) }}</span>
+                        </span>
+                      </td>
+                      <td class="pr-actions-cell">
+                        <div class="td-actions">
+                          <button type="button" class="icon-btn" (click)="openLabelModal([p])" [title]="'products.label.print' | t">
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12"/></svg>
+                          </button>
+                          <button type="button" class="edit-btn" (click)="openEditProduct(p)" [title]="'common.edit' | t">
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                          </button>
+                          <button type="button" class="icon-btn" (click)="openTransferModal(p)" [title]="'products.warehouseTransfer' | t">
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                          </button>
+                          <button type="button" class="delete-btn" (click)="promptDeleteProduct(p)" [title]="'common.delete' | t">
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   }
-                </div>
-
-                <!-- Status -->
-                <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 110px;">
-                  <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
-                    {{ statusLabel(p.status) }}
-                  </span>
-                </div>
-
-                <!-- Rating (Mocked Stars) -->
-                <div style="flex: 1; text-align: left; padding-left: 12px; min-width: 100px; display: flex; align-items: center; gap: 2px;">
-                  @for (star of getMockStarsArray(p); track $index) {
-                    <svg width="13" height="13" fill="#FBBF24" viewBox="0 0 20 20" style="color: #FBBF24;">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                    </svg>
-                  }
-                  @if (getMockStarsRemainder(p)) {
-                    <svg width="13" height="13" fill="none" viewBox="0 0 20 20" stroke="#FBBF24" stroke-width="2" style="position: relative; display: inline-block;">
-                      <defs>
-                        <linearGradient id="halfStar">
-                          <stop offset="50%" stop-color="#FBBF24"/>
-                          <stop offset="50%" stop-color="transparent"/>
-                        </linearGradient>
-                      </defs>
-                      <path fill="url(#halfStar)" stroke="#FBBF24" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                    </svg>
-                  }
-                  <span style="font-size: 0.72rem; color: #64748B; margin-left: 2px;">{{ getMockRatingValue(p) }}</span>
-                </div>
-
-                <!-- Actions (circular buttons or mockup-themed options) -->
-                <div style="width: 178px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; padding-right: 8px;">
-                  <button type="button" (click)="openLabelModal([p])" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'" [title]="'products.label.print' | t">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6v12M7 6v12M10 6v12M14 6v12M16 6v12M20 6v12"/></svg>
-                  </button>
-                  <button type="button" (click)="openEditProduct(p)" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'" [title]="'common.edit' | t">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                  </button>
-                  <button type="button" (click)="openTransferModal(p)" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'" [title]="'products.warehouseTransfer' | t">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                  </button>
-                  <button type="button" (click)="promptDeleteProduct(p)" style="border: 1px solid #FEE2E2; background: #FFFFFF; color: #EF4444; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: none;" onmouseover="this.style.backgroundColor='#FEF2F2'; this.style.borderColor='#FCA5A5'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#FEE2E2'" [title]="'common.delete' | t">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                  </button>
-                </div>
-
+                </tbody>
+              </table>
+            </div>
+            @if (filteredProducts().length === 0) {
+              <div class="empty-state">
+                <div class="empty-state-icon"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+                <div class="empty-state-title">{{ 'products.results.count' | t: { count: 0 } }}</div>
               </div>
             }
           </div>
         } @else {
-          <!-- Card View Grid -->
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+          <div class="pr-grid">
             @for (p of paginatedProducts(); track p.id) {
-              <div class="ecelon-search-result-card" [class.selected]="isProductSelected(p.id)" 
-                   style="display: flex; flex-direction: column; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; transition: all 0.2s; position: relative; gap: 12px;"
-                   [style.boxShadow]="highlightedProductId() === p.id ? '0 0 0 2px #FF5A1F' : 'none'"
-                   [style.borderLeft]="isProductSelected(p.id) ? '4px solid #FF5A1F' : '1px solid #E2E8F0'"
-                   [style.backgroundColor]="isProductSelected(p.id) ? '#FFF7F5' : '#FFFFFF'">
-                
-                <!-- Card Header: Checkbox + Status badge -->
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" style="cursor: pointer; width: 16px; height: 16px; accent-color: #FF5A1F;" />
-                  <span class="badge" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
-                    {{ statusLabel(p.status) }}
-                  </span>
+              <div class="card pr-card" [class.is-selected]="isProductSelected(p.id)" [class.is-highlighted]="highlightedProductId() === p.id">
+                <div class="pr-card-top">
+                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" />
+                  <span class="badge badge-dot" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">{{ statusLabel(p.status) }}</span>
                 </div>
-                
-                <!-- Card Body: Image + Title + SKU -->
-                <div style="display: flex; gap: 12px; align-items: center;">
-                  <!-- Product Image -->
-                  <div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; padding: 4px;">
+                <div class="pr-prod">
+                  <div class="pr-thumb pr-thumb-lg">
                     @if (p.imageUrl) {
-                      <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                      <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" />
                     } @else {
-                      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity: 0.3;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                     }
                   </div>
-                  <!-- Details -->
-                  <div style="display: flex; flex-direction: column; overflow: hidden; flex: 1;">
-                    <a href="#" (click)="$event.preventDefault(); openEditProduct(p)" style="font-size: 0.88rem; font-weight: 700; color: #0F172A; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" onmouseover="this.style.color='#FF5A1F'" onmouseout="this.style.color='#0F172A'">
-                      {{ p.name }}
-                    </a>
-                    <span style="font-size: 0.72rem; color: #64748B; font-family: var(--font-mono); margin-top: 2px;">
-                      {{ getCategoryName(p.category) }}
-                    </span>
-                    <span style="font-size: 0.68rem; color: #94A3B8; font-family: var(--font-mono); margin-top: 1px;">
-                      SKU: {{ p.sku }}
-                    </span>
-                    @if (p.barcode) {
-                      <span style="font-size: 0.68rem; color: #94A3B8; font-family: var(--font-mono); margin-top: 1px;">▮▯ {{ p.barcode }}</span>
-                    }
-                    @if (isTracked(p)) { <span class="tracking-badge" style="align-self: flex-start; margin-top: 3px;">{{ trackingBadgeLabel(p) }}</span> }
+                  <div class="pr-prod-text">
+                    <a href="#" class="pr-name" (click)="$event.preventDefault(); openEditProduct(p)">{{ p.name }}</a>
+                    <span class="pr-meta">{{ getCategoryName(p.category) }}</span>
+                    <span class="pr-meta mono">{{ p.sku }}</span>
+                    @if (p.barcode) { <span class="pr-meta mono">{{ p.barcode }}</span> }
+                    @if (isTracked(p)) { <span class="tracking-badge" style="align-self: flex-start;">{{ trackingBadgeLabel(p) }}</span> }
                   </div>
                 </div>
-                
-                <!-- Card Divider -->
-                <div style="height: 1px; background: #F1F5F9; margin: 4px 0;"></div>
-                
-                <!-- Card Stats: Price, Stock, Sales, Revenue -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
-                  <div>
-                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.unitPrice' | t }}</span>
-                    <strong style="color: #0F172A; font-family: var(--font-mono);">{{ p.price | money: p.currency }}</strong>
-                  </div>
-                  <div>
-                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.currentStock' | t }}</span>
-                    <strong style="color: #0F172A;">{{ p.quantity | num }} {{ productUnitLabel(p) }}</strong>
-                  </div>
-                  <div>
-                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.salesQty' | t }}</span>
-                    <strong style="color: #475569;">{{ getMockSales(p) }}</strong>
-                  </div>
-                  <div>
-                    <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.totalRevenue' | t }}</span>
-                    <strong style="color: #0F172A; font-family: var(--font-mono);">{{ getMockRevenue(p) | money: null : 0 }}</strong>
-                  </div>
-                </div>
-
-                <!-- Card Rating -->
-                <div style="display: flex; align-items: center; gap: 4px; background: #F8FAFC; padding: 6px 10px; border-radius: 6px; justify-content: center;">
-                  <div style="display: flex; align-items: center; gap: 2px;">
-                    @for (star of getMockStarsArray(p); track $index) {
-                      <svg width="12" height="12" fill="#FBBF24" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                      </svg>
-                    }
-                    @if (getMockStarsRemainder(p)) {
-                      <svg width="12" height="12" fill="none" viewBox="0 0 20 20" stroke="#FBBF24" stroke-width="2" style="position: relative; display: inline-block;">
-                        <defs>
-                          <linearGradient id="halfStarCard">
-                            <stop offset="50%" stop-color="#FBBF24"/>
-                            <stop offset="50%" stop-color="transparent"/>
-                          </linearGradient>
-                        </defs>
-                        <path fill="url(#halfStarCard)" stroke="#FBBF24" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                      </svg>
-                    }
-                  </div>
-                  <span style="font-size: 0.72rem; color: #475569; font-weight: 600;">{{ getMockRatingValue(p) }} / 5.0</span>
-                </div>
-
-                <!-- Card Actions -->
-                <div style="display: flex; gap: 6px; margin-top: auto;">
-                  <button type="button" class="btn" (click)="openEditProduct(p)" style="flex: 1; border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; height: 32px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; padding: 0;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
-                    {{ 'common.edit' | t }}
+                <dl class="pr-card-stats">
+                  <div><dt>{{ 'products.card.unitPrice' | t }}</dt><dd>{{ p.price | money: p.currency }}</dd></div>
+                  <div><dt>{{ 'products.card.currentStock' | t }}</dt><dd>{{ p.quantity | num }} {{ productUnitLabel(p) }}</dd></div>
+                  <div><dt>{{ 'products.card.salesQty' | t }}</dt><dd>{{ getMockSales(p) }}</dd></div>
+                  <div><dt>{{ 'products.card.totalRevenue' | t }}</dt><dd>{{ getMockRevenue(p) | money: null : 0 }}</dd></div>
+                </dl>
+                <span class="pr-rating">
+                  @for (star of getMockStarsArray(p); track $index) {
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                  }
+                  @if (getMockStarsRemainder(p)) {
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                  }
+                  <span class="pr-rating-val">{{ getMockRatingValue(p) }} / 5.0</span>
+                </span>
+                <div class="pr-card-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="openEditProduct(p)">{{ 'common.edit' | t }}</button>
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="openTransferModal(p)">{{ 'products.transfer' | t }}</button>
+                  <button type="button" class="icon-btn" (click)="openLabelModal([p])" [title]="'products.label.print' | t">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12"/></svg>
                   </button>
-                  <button type="button" class="btn" (click)="openTransferModal(p)" style="flex: 1; border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; height: 32px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; padding: 0;" onmouseover="this.style.backgroundColor='#F8FAFC'; this.style.borderColor='#CBD5E1'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#E2E8F0'">
-                    {{ 'products.transfer' | t }}
-                  </button>
-                  <button type="button" class="btn" (click)="openLabelModal([p])" [title]="'products.label.print' | t" style="border: 1px solid #E2E8F0; background: #FFFFFF; color: #0F172A; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0;">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6v12M7 6v12M10 6v12M14 6v12M16 6v12M20 6v12"/></svg>
-                  </button>
-                  <button type="button" class="btn" (click)="promptDeleteProduct(p)" style="border: 1px solid #FEE2E2; background: #FFFFFF; color: #EF4444; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0;" onmouseover="this.style.backgroundColor='#FEF2F2'; this.style.borderColor='#FCA5A5'" onmouseout="this.style.backgroundColor='#FFFFFF'; this.style.borderColor='#FEE2E2'">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  <button type="button" class="delete-btn" (click)="promptDeleteProduct(p)" [title]="'common.delete' | t">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                   </button>
                 </div>
-
               </div>
             }
           </div>
         }
 
-        <!-- Pagination Footer -->
         @if (filteredProducts().length > 0) {
-          <div style="display: flex; justify-content: space-between; align-items: center; background: #FFFFFF; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px; padding: 12px 16px; flex-wrap: wrap; gap: 12px; margin-top: -12px;">
-            <div style="font-size: 0.8rem; color: #64748B;">
-              <strong>{{ (currentPage() - 1) * itemsPerPage() + 1 }}</strong> - <strong>{{ Math.min(currentPage() * itemsPerPage(), filteredProducts().length) }}</strong> / {{ 'products.pagination.showing' | t: { count: filteredProducts().length } }}
+          <div class="pagination-bar">
+            <div class="text-muted pr-range">
+              <strong class="pr-strong">{{ (currentPage() - 1) * itemsPerPage() + 1 }}–{{ Math.min(currentPage() * itemsPerPage(), filteredProducts().length) }}</strong> / {{ 'products.pagination.showing' | t: { count: filteredProducts().length } }}
             </div>
-            <div style="display: flex; align-items: center; gap: 16px;">
-              <!-- Items per page -->
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 0.8rem; color: #64748B;">{{ 'products.pagination.perPage' | t }}</span>
-                <select [ngModel]="itemsPerPage()" (ngModelChange)="itemsPerPage.set(+$event); currentPage.set(1)" style="border: 1px solid #E2E8F0; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; background: #FFFFFF; outline: none; cursor: pointer; color: #0F172A;">
+            <div class="cluster">
+              <label class="cluster text-muted pr-perpage">
+                <span>{{ 'products.pagination.perPage' | t }}</span>
+                <select class="select" [ngModel]="itemsPerPage()" (ngModelChange)="itemsPerPage.set(+$event); currentPage.set(1)">
                   <option [value]="10">10</option>
                   <option [value]="25">25</option>
                   <option [value]="50">50</option>
                 </select>
-              </div>
-              <!-- Page selectors -->
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <button type="button" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)" style="width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #475569;" [style.opacity]="currentPage() === 1 ? '0.5' : '1'" [style.cursor]="currentPage() === 1 ? 'not-allowed' : 'pointer'">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+              </label>
+              <div class="cluster pr-pages">
+                <button type="button" class="page-btn" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                 </button>
                 @for (pNum of getPagesArray(); track pNum) {
-                  <button type="button" (click)="goToPage(pNum)" style="width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; justify-content: center;"
-                          [style.backgroundColor]="currentPage() === pNum ? '#FF5A1F' : '#FFFFFF'"
-                          [style.borderColor]="currentPage() === pNum ? '#FF5A1F' : '#E2E8F0'"
-                          [style.color]="currentPage() === pNum ? '#FFFFFF' : '#475569'">
-                    {{ pNum }}
-                  </button>
+                  <button type="button" class="page-btn" [class.active]="currentPage() === pNum" (click)="goToPage(pNum)">{{ pNum }}</button>
                 }
-                <button type="button" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)" style="width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #475569;" [style.opacity]="currentPage() === totalPages() ? '0.5' : '1'" [style.cursor]="currentPage() === totalPages() ? 'not-allowed' : 'pointer'">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                <button type="button" class="page-btn" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                 </button>
               </div>
             </div>
@@ -641,13 +497,13 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
               </div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-top: -8px; gap: 8px;">
                 @if (barcodeHint(); as hint) {
-                  <span style="font-size: 12px;" [style.color]="hint.ok ? '#059669' : '#DC2626'">{{ hint.ok ? '✓' : '⚠' }} {{ hint.key | t }}</span>
+                  <span style="font-size: 12px;" [style.color]="hint.ok ? 'var(--color-success)' : 'var(--color-danger)'">{{ hint.ok ? '✓' : '⚠' }} {{ hint.key | t }}</span>
                 } @else { <span></span> }
                 <button type="button" class="btn btn-outline" style="padding: 2px 10px; font-size: 12px;" (click)="generateEan13()">{{ 'products.barcode.generate' | t }}</button>
               </div>
               @if (barcodePreview(); as svg) {
-                <div class="barcode-container" style="background: #ffffff; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; align-items: center;">
-                  <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 4px;">{{ 'products.form.visualBarcode' | t }}</div>
+                <div class="barcode-container" style="background: var(--color-surface); border: 1.5px solid var(--color-border); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; align-items: center;">
+                  <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 4px;">{{ 'products.form.visualBarcode' | t }}</div>
                   <div [innerHTML]="svg" style="max-width: 100%; overflow: hidden;"></div>
                 </div>
               }
@@ -727,7 +583,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                 <input id="productQuantity" type="number" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" min="0" />
                 <label for="productQuantity" class="form-label">{{ 'products.form.currentStock' | t }}</label>
                 @if (isFieldInvalid('quantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
-                @if (formTracked()) { <div style="font-size: 12px; color: #64748B; margin-top: 4px;">ⓘ {{ 'products.tracking.qtyLockedHint' | t }}</div> }
+                @if (formTracked()) { <div style="font-size: 12px; color: var(--color-text-muted); margin-top: 4px;">ⓘ {{ 'products.tracking.qtyLockedHint' | t }}</div> }
               </div>
 
               @if (!editingProductId()) {
@@ -763,20 +619,20 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                 </div>
                 @if (productForm.get('trackingType')?.value === 'lot') {
                   <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; white-space: nowrap;">
-                    <input type="checkbox" formControlName="hasExpiry" style="accent-color: #FF5A1F;" />
+                    <input type="checkbox" formControlName="hasExpiry" style="accent-color: var(--color-primary);" />
                     {{ 'products.tracking.hasExpiry' | t }}
                   </label>
                 }
               </div>
 
               <!-- Alternate units -->
-              <div style="border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <strong style="font-size: 13px;">{{ 'products.altUnits.title' | t }}</strong>
                   <button type="button" class="btn btn-outline" style="padding: 2px 10px; font-size: 12px;" (click)="addAltUnit()">+ {{ 'products.altUnits.add' | t }}</button>
                 </div>
                 @if (altUnits().length === 0) {
-                  <span style="font-size: 12px; color: #94A3B8;">{{ 'products.altUnits.empty' | t }}</span>
+                  <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'products.altUnits.empty' | t }}</span>
                 }
                 @for (au of altUnits(); track $index; let i = $index) {
                   <div style="display: flex; gap: 6px; align-items: center;">
@@ -788,10 +644,10 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                     </select>
                     <input type="number" min="1" step="1" class="form-input" style="width: 80px; height: 34px; padding: 4px 8px;" [value]="au.factor" (input)="updateAltUnit(i, 'factor', $any($event.target).value)" [title]="'products.altUnits.factorHint' | t" [placeholder]="'products.altUnits.factor' | t" />
                     <input type="text" class="form-input" style="flex: 1.4; height: 34px; padding: 4px 8px;" [value]="au.barcode || ''" (input)="updateAltUnit(i, 'barcode', $any($event.target).value)" [placeholder]="'products.altUnits.barcode' | t" />
-                    <button type="button" (click)="removeAltUnit(i)" style="border: 1px solid #FEE2E2; background: #fff; color: #EF4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer;" [title]="'common.delete' | t">✕</button>
+                    <button type="button" (click)="removeAltUnit(i)" style="border: 1px solid var(--color-danger-border); background: var(--color-surface); color: var(--color-danger); width: 28px; height: 28px; border-radius: 6px; cursor: pointer;" [title]="'common.delete' | t">✕</button>
                   </div>
                   @if (au.unitId && au.factor > 0) {
-                    <span style="font-size: 11px; color: #64748B; margin-top: -4px;">1 {{ unitNameById(au.unitId) }} = {{ au.factor | num }} {{ baseUnitName() }}</span>
+                    <span style="font-size: 11px; color: var(--color-text-muted); margin-top: -4px;">1 {{ unitNameById(au.unitId) }} = {{ au.factor | num }} {{ baseUnitName() }}</span>
                   }
                 }
               </div>
@@ -808,19 +664,19 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
               </div>
 
               @if (editingProductId() && editingTrackingType() !== 'none') {
-                <div style="border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px;">
+                <div style="border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px;">
                   <strong style="font-size: 13px; display: block; margin-bottom: 8px;">
                     {{ (editingTrackingType() === 'lot' ? 'products.lots.title' : 'products.serials.title') | t }}
                   </strong>
                   @if (isLoadingTracking()) {
-                    <span style="font-size: 12px; color: #94A3B8;">{{ 'common.loading' | t }}</span>
+                    <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'common.loading' | t }}</span>
                   } @else if (editingTrackingType() === 'lot') {
                     @if (productLots().length === 0) {
-                      <span style="font-size: 12px; color: #94A3B8;">{{ 'products.lots.empty' | t }}</span>
+                      <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'products.lots.empty' | t }}</span>
                     } @else {
                       <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
                         <thead>
-                          <tr style="color: #64748B; text-align: left;">
+                          <tr style="color: var(--color-text-muted); text-align: left;">
                             <th style="padding: 4px;">{{ 'products.lots.lot' | t }}</th>
                             <th style="padding: 4px;">{{ 'products.lots.warehouse' | t }}</th>
                             <th style="padding: 4px;">{{ 'products.lots.expiry' | t }}</th>
@@ -829,14 +685,14 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                         </thead>
                         <tbody>
                           @for (lot of productLots(); track lot.id) {
-                            <tr style="border-top: 1px solid #F1F5F9;" [style.background]="lotStatus(lot) === 'expired' ? '#FEF2F2' : lotStatus(lot) === 'soon' ? '#FFFBEB' : 'transparent'">
+                            <tr style="border-top: 1px solid var(--color-border-subtle);" [style.background]="lotStatus(lot) === 'expired' ? 'var(--color-danger-subtle)' : lotStatus(lot) === 'soon' ? 'var(--color-warning-subtle)' : 'transparent'">
                               <td style="padding: 4px; font-family: var(--font-mono);">{{ lot.lotNumber }}</td>
                               <td style="padding: 4px;">{{ lot.warehouseName || warehouseNameById(lot.warehouseId) }}</td>
                               <td style="padding: 4px;">
                                 @if (lot.expiryDate) {
                                   {{ lot.expiryDate | appDate }}
-                                  @if (lotStatus(lot) === 'expired') { <span style="color: #DC2626; font-weight: 600;"> · {{ 'products.lots.expired' | t }}</span> }
-                                  @else if (lotStatus(lot) === 'soon') { <span style="color: #D97706; font-weight: 600;"> · {{ 'products.lots.expiringSoon' | t }}</span> }
+                                  @if (lotStatus(lot) === 'expired') { <span style="color: var(--color-danger); font-weight: 600;"> · {{ 'products.lots.expired' | t }}</span> }
+                                  @else if (lotStatus(lot) === 'soon') { <span style="color: var(--color-warning); font-weight: 600;"> · {{ 'products.lots.expiringSoon' | t }}</span> }
                                 } @else { - }
                               </td>
                               <td style="padding: 4px; text-align: right; font-weight: 600;">{{ lot.quantity | num }}</td>
@@ -847,12 +703,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                     }
                   } @else {
                     @if (productSerials().length === 0) {
-                      <span style="font-size: 12px; color: #94A3B8;">{{ 'products.serials.empty' | t }}</span>
+                      <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'products.serials.empty' | t }}</span>
                     } @else {
-                      <div style="font-size: 12px; color: #64748B; margin-bottom: 6px;">{{ 'products.serials.count' | t: { count: productSerials().length } }}</div>
+                      <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 6px;">{{ 'products.serials.count' | t: { count: productSerials().length } }}</div>
                       <div style="display: flex; flex-wrap: wrap; gap: 4px; max-height: 160px; overflow-y: auto;">
                         @for (sn of productSerials(); track sn.id) {
-                          <span style="font-family: var(--font-mono); font-size: 11px; background: #F1F5F9; border-radius: 4px; padding: 2px 6px;" [title]="sn.warehouseName || warehouseNameById(sn.warehouseId)">{{ sn.serial }}</span>
+                          <span style="font-family: var(--font-mono); font-size: 11px; background: var(--color-surface-muted); border-radius: 4px; padding: 2px 6px;" [title]="sn.warehouseName || warehouseNameById(sn.warehouseId)">{{ sn.serial }}</span>
                         }
                       </div>
                     }
@@ -919,26 +775,26 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
             <button class="drawer-close" (click)="closeLabelModal()">×</button>
           </div>
           <div class="drawer-body">
-            <p style="font-size: 13px; color: #64748B; margin: 0;">{{ 'products.label.productCount' | t: { count: labelProducts().length } }}</p>
+            <p style="font-size: 13px; color: var(--color-text-muted); margin: 0;">{{ 'products.label.productCount' | t: { count: labelProducts().length } }}</p>
             <div class="form-field">
               <input id="labelCopies" type="number" min="1" max="500" class="form-input has-value" [ngModel]="labelCopies()" (ngModelChange)="labelCopies.set(+$event)" />
               <label for="labelCopies" class="form-label">{{ 'products.label.copies' | t }}</label>
             </div>
             @if (labelHasAltBarcodes()) {
               <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-                <input type="checkbox" [ngModel]="labelIncludeAltUnits()" (ngModelChange)="labelIncludeAltUnits.set($event)" style="accent-color: #FF5A1F;" />
+                <input type="checkbox" [ngModel]="labelIncludeAltUnits()" (ngModelChange)="labelIncludeAltUnits.set($event)" style="accent-color: var(--color-primary);" />
                 {{ 'products.label.includeAltUnits' | t }}
               </label>
             }
             <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-              <input type="checkbox" [ngModel]="labelShowPrice()" (ngModelChange)="labelShowPrice.set($event)" style="accent-color: #FF5A1F;" />
+              <input type="checkbox" [ngModel]="labelShowPrice()" (ngModelChange)="labelShowPrice.set($event)" style="accent-color: var(--color-primary);" />
               {{ 'products.label.showPrice' | t }}
             </label>
             <div style="display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto;">
               @for (lp of labelProducts(); track lp.id) {
-                <div style="border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 10px; font-size: 12px;">
-                  <strong>{{ lp.name }}</strong> <span style="color: #64748B; font-family: var(--font-mono);">({{ lp.sku }})</span>
-                  @if (!lp.barcode) { <div style="color: #D97706;">{{ 'products.label.skuFallback' | t }}</div> }
+                <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 6px 10px; font-size: 12px;">
+                  <strong>{{ lp.name }}</strong> <span style="color: var(--color-text-muted); font-family: var(--font-mono);">({{ lp.sku }})</span>
+                  @if (!lp.barcode) { <div style="color: var(--color-warning);">{{ 'products.label.skuFallback' | t }}</div> }
                 </div>
               }
             </div>
@@ -970,7 +826,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
           </div>
           
           <div class="drawer-body">
-            <p style="font-size: 13px; color: var(--text-muted, #6b7280);">
+            <p style="font-size: 13px; color: var(--text-muted, var(--color-text-muted));">
               {{ 'products.transferModal.selectedProduct' | t }} <strong style="color: var(--text-primary);">{{ selectedProductForTransfer()?.name }}</strong> (SKU: {{ selectedProductForTransfer()?.sku }})
             </p>
 
@@ -1011,20 +867,20 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
             </div>
 
             @if (transferValidationError(); as ve) {
-              <div style="font-size: 12px; color: #dc2626;">⚠ {{ ve | t }}</div>
+              <div style="font-size: 12px; color: var(--color-danger);">⚠ {{ ve | t }}</div>
             }
 
             <!-- Hata ve Bilgi Mesajı -->
             @if (transferError()) {
-              <div style="font-size: 12px; color: #dc2626; padding: 10px; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.15); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
+              <div style="font-size: 12px; color: var(--color-danger); padding: 10px; background: var(--color-danger-subtle); border: 1px solid var(--color-danger-border); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
                 <span>⚠ {{ transferError() }}</span>
               </div>
             }
           </div>
 
           <div class="drawer-footer">
-            <button class="btn btn-outline" style="border: 1px solid #d5d9d9; background: #fff; color: #0f1111; border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="closeTransferModal()" [disabled]="isTransferLoading()">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" style="background: #0f1111; color: #fff; border: none; border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="executeTransfer()" [disabled]="isTransferLoading() || !isTransferValid()">
+            <button class="btn btn-outline" style="border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="closeTransferModal()" [disabled]="isTransferLoading()">{{ 'common.cancel' | t }}</button>
+            <button class="btn btn-primary" style="background: var(--color-primary); color: var(--color-on-primary); border: none; border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="executeTransfer()" [disabled]="isTransferLoading() || !isTransferValid()">
               @if (isTransferLoading()) {
                 {{ 'products.transferModal.transferring' | t }}
               } @else {
@@ -1575,9 +1431,9 @@ export class ProductsComponent implements OnInit {
         @page { margin: 6mm; }
         body { font-family: Arial, Helvetica, sans-serif; margin: 0; }
         .sheet { display: flex; flex-wrap: wrap; gap: 3mm; }
-        .label { width: 60mm; height: 38mm; box-sizing: border-box; border: 1px dashed #bbb; padding: 2mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
+        .label { width: 60mm; height: 38mm; box-sizing: border-box; border: 1px dashed var(--color-border-strong); padding: 2mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
         .name { font-size: 10pt; font-weight: bold; text-align: center; max-height: 2.4em; overflow: hidden; }
-        .meta { font-size: 7pt; color: #333; }
+        .meta { font-size: 7pt; color: var(--color-text); }
         .bc svg { max-width: 56mm; height: auto; display: block; }
         .price { font-size: 11pt; font-weight: bold; }
         @media print { .label { border-color: transparent; } }
@@ -2208,13 +2064,13 @@ export class ProductsComponent implements OnInit {
         <title>${t('products.print.title')}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Inter', system-ui, sans-serif; padding: 32px; color: #1a1a1a; }
+          body { font-family: 'Inter', system-ui, sans-serif; padding: 32px; color: var(--color-text); }
           h1 { font-size: 18px; margin-bottom: 4px; }
-          .subtitle { font-size: 12px; color: #666; margin-bottom: 24px; }
+          .subtitle { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 24px; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th { background: #f5f5f5; text-align: left; padding: 8px 12px; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; border-bottom: 2px solid #e0e0e0; }
-          td { padding: 8px 12px; border-bottom: 1px solid #eee; }
-          tr:nth-child(even) { background: #fafafa; }
+          th { background: var(--color-surface-muted); text-align: left; padding: 8px 12px; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; border-bottom: 2px solid var(--color-border); }
+          td { padding: 8px 12px; border-bottom: 1px solid var(--color-border-subtle); }
+          tr:nth-child(even) { background: var(--color-surface-subtle); }
           @media print { body { padding: 12px; } }
         </style>
       </head>

@@ -11,12 +11,12 @@ import { TranslatePipe } from '../../i18n';
       <div class="scanner-modal" (click)="$event.stopPropagation()">
         <div class="scanner-header">
           <h3>
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: text-bottom; margin-right: 6px;">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="scanner-title-icon">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
             </svg>
             {{ 'shared.scanner.title' | t }}
           </h3>
-          <button class="scanner-close" (click)="close()" [attr.aria-label]="'common.close' | t">✕</button>
+          <button class="scanner-close" (click)="close()" [attr.aria-label]="'common.close' | t"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
         </div>
 
         <div class="scanner-body">
@@ -34,7 +34,7 @@ import { TranslatePipe } from '../../i18n';
 
             @if (!cameraActive()) {
               <div class="camera-placeholder">
-                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: var(--text-muted, #6b6b6b);">
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" >
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                 </svg>
                 <p>{{ 'shared.scanner.starting' | t }}</p>
@@ -45,7 +45,7 @@ import { TranslatePipe } from '../../i18n';
 
           @if (scannedSku()) {
             <div class="scan-result">
-              <div class="scan-result-icon">✓</div>
+              <div class="scan-result-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
               <div>
                 <strong>{{ 'shared.scanner.found' | t }}</strong>
                 <span class="scan-sku">SKU: {{ scannedSku() }}</span>
@@ -55,7 +55,7 @@ import { TranslatePipe } from '../../i18n';
 
           @if (scanError()) {
             <div class="scan-error">
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 6px; flex-shrink: 0;">
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="scan-error-icon">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
               </svg>
               <span>{{ scanError()! | t }}</span>
@@ -63,11 +63,11 @@ import { TranslatePipe } from '../../i18n';
           }
 
           <div class="scanner-actions">
-            <button class="btn btn-outline" (click)="triggerManualScan()" [disabled]="isScanning()">
+            <button class="btn btn-secondary" (click)="triggerManualScan()" [disabled]="isScanning()">
               @if (isScanning()) {
                 <span class="spinner-sm"></span> {{ 'shared.scanner.scanning' | t }}
               } @else {
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 {{ 'shared.scanner.trigger' | t }}
@@ -75,7 +75,7 @@ import { TranslatePipe } from '../../i18n';
             </button>
             @if (scannedSku()) {
               <button class="btn btn-primary" (click)="confirmScan()">
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
                 {{ 'shared.scanner.fetchProduct' | t }}
@@ -90,14 +90,13 @@ import { TranslatePipe } from '../../i18n';
     .scanner-overlay {
       position: fixed;
       inset: 0;
-      z-index: 1100;
+      z-index: var(--z-modal, 1100);
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 16px;
       overflow: hidden;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(4px);
+      background: var(--color-overlay);
       animation: fadeIn 0.2s ease-out;
     }
     @keyframes fadeIn {
@@ -109,10 +108,10 @@ import { TranslatePipe } from '../../i18n';
       position: relative;
       width: 100%;
       max-width: 480px;
-      background: var(--surface, #fff);
-      border: 1px solid var(--secondary, #e5e7eb);
-      border-radius: var(--radius-lg, 10px);
-      box-shadow: var(--shadow-xl, 0 20px 40px -8px rgba(0,0,0,0.1));
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-xl);
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -129,13 +128,13 @@ import { TranslatePipe } from '../../i18n';
       align-items: center;
       justify-content: space-between;
       padding: 18px 24px;
-      border-bottom: 1px solid var(--secondary, #f0f0f0);
+      border-bottom: 1px solid var(--color-border-subtle);
     }
     .scanner-header h3 {
-      font-family: var(--font-heading);
-      font-size: 16px;
+      font-size: var(--text-lg);
+      gap: var(--space-2);
       font-weight: 600;
-      color: var(--text-primary, #111827);
+      color: var(--color-text);
       margin: 0;
       display: flex;
       align-items: center;
@@ -144,17 +143,17 @@ import { TranslatePipe } from '../../i18n';
       border: none;
       background: transparent;
       cursor: pointer;
-      color: var(--text-muted, #999);
+      color: var(--color-text-muted);
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 6px;
-      border-radius: var(--radius-sm, 6px);
+      border-radius: var(--radius-sm);
       transition: background 0.15s ease, color 0.15s ease;
     }
     .scanner-close:hover {
-      background: var(--canvas, #f5f5f5);
-      color: var(--text-primary, #111827);
+      background: var(--color-surface-muted);
+      color: var(--color-text);
     }
 
     .scanner-body {
@@ -168,10 +167,10 @@ import { TranslatePipe } from '../../i18n';
       position: relative;
       width: 100%;
       aspect-ratio: 4 / 3;
-      border-radius: var(--radius-md, 8px);
+      border-radius: var(--radius-lg);
       overflow: hidden;
-      background: #111827;
-      border: 1px solid var(--secondary, #e5e7eb);
+      background: var(--gray-900);
+      border: 1px solid var(--color-border);
     }
     .camera-container video {
       width: 100%;
@@ -187,7 +186,7 @@ import { TranslatePipe } from '../../i18n';
       align-items: center;
       justify-content: center;
       gap: 8px;
-      color: var(--text-muted, #999);
+      color: var(--color-text-muted);
       font-size: 14px;
     }
     .cam-hint {
@@ -211,7 +210,7 @@ import { TranslatePipe } from '../../i18n';
       position: absolute;
       width: 24px;
       height: 24px;
-      border-color: #3ecf8e;
+      border-color: var(--color-success);
       border-style: solid;
       border-width: 0;
     }
@@ -225,8 +224,8 @@ import { TranslatePipe } from '../../i18n';
       left: 4px;
       right: 4px;
       height: 2px;
-      background: linear-gradient(90deg, transparent 0%, #3ecf8e 20%, #3ecf8e 80%, transparent 100%);
-      box-shadow: 0 0 8px rgba(62, 207, 142, 0.6), 0 0 20px rgba(62, 207, 142, 0.2);
+      background: linear-gradient(90deg, transparent 0%, var(--color-success) 20%, var(--color-success) 80%, transparent 100%);
+      box-shadow: 0 0 8px var(--color-success);
       animation: laserScan 2.5s ease-in-out infinite;
     }
     @keyframes laserScan {
@@ -239,9 +238,9 @@ import { TranslatePipe } from '../../i18n';
       align-items: center;
       gap: 12px;
       padding: 12px 16px;
-      background: rgba(62, 207, 142, 0.08);
-      border: 1px solid rgba(62, 207, 142, 0.25);
-      border-radius: var(--radius-md, 8px);
+      background: var(--color-success-subtle);
+      border: 1px solid var(--color-success-border);
+      border-radius: var(--radius-lg);
       animation: slideUp 0.3s ease;
     }
     @keyframes slideUp {
@@ -251,8 +250,8 @@ import { TranslatePipe } from '../../i18n';
     .scan-result-icon {
       width: 32px;
       height: 32px;
-      background: #3ecf8e;
-      color: white;
+      background: var(--color-success);
+      color: var(--color-on-primary);
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -264,13 +263,13 @@ import { TranslatePipe } from '../../i18n';
     .scan-result strong {
       display: block;
       font-size: 14px;
-      color: var(--text-primary, #111827);
+      color: var(--color-text);
     }
     .scan-sku {
       display: block;
       font-size: 12px;
-      font-family: var(--font-mono, 'JetBrains Mono', monospace);
-      color: #3ecf8e;
+      font-family: var(--font-mono);
+      color: var(--color-success-text);
       margin-top: 2px;
     }
 
@@ -278,11 +277,11 @@ import { TranslatePipe } from '../../i18n';
       display: flex;
       align-items: center;
       padding: 12px 16px;
-      background: rgba(220, 38, 38, 0.08);
-      border: 1px solid rgba(220, 38, 38, 0.25);
-      border-radius: var(--radius-md, 8px);
-      color: #dc2626;
-      font-size: 13px;
+      background: var(--color-danger-subtle);
+      border: 1px solid var(--color-danger-border);
+      border-radius: var(--radius-lg);
+      color: var(--color-danger-text);
+      font-size: var(--text-sm);
       line-height: 1.4;
       animation: slideUp 0.3s ease;
     }
@@ -293,10 +292,14 @@ import { TranslatePipe } from '../../i18n';
       justify-content: flex-end;
       gap: 12px;
       padding: 16px 24px;
-      border-top: 1px solid var(--secondary, #f0f0f0);
-      background: var(--canvas, #f9fafb);
+      border-top: 1px solid var(--color-border-subtle);
+      background: var(--color-surface-subtle);
       margin: 16px -24px -24px -24px;
     }
+    .scanner-title-icon { color: var(--color-primary); }
+    .scan-error-icon { margin-right: var(--space-2); flex-shrink: 0; }
+    .camera-placeholder { color: var(--gray-300) !important; }
+    @media (max-width: 640px) { .scanner-overlay { padding: 0; align-items: flex-end; } .scanner-modal { max-width: none; border-radius: var(--radius-xl) var(--radius-xl) 0 0; } .scanner-actions .btn { flex: 1; } }
     .scanner-actions .btn {
       flex: none;
       min-width: 120px;

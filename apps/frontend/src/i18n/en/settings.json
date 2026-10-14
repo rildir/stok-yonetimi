@@ -1,5 +1,6 @@
 {
   "settings.account": "Your Account",
+  "settings.overview": "Overview",
   "settings.accountDesc": "Manage your account details, security settings and categories here.",
   "settings.tab.profile": "Login & Security",
   "settings.card.profileDesc": "Update your name, email address, password or session details.",

@@ -1,5 +1,6 @@
 {
   "dashboard.title": "Dashboard Overview",
+  "dashboard.subtitle": "An up-to-date overview of your stock, orders and sales.",
   "dashboard.stat.totalProducts": "Total Products",
   "dashboard.stat.lowStock": "Low Stock",
   "dashboard.stat.outOfStock": "Out of Stock",

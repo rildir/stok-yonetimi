@@ -95,5 +95,7 @@
   "purchaseOrders.receiveDialog.serialsPlaceholder": "One serial number per line",
   "purchaseOrders.receiveDialog.scanSerial": "Scan serial",
   "purchaseOrders.receiveDialog.duplicateSerials": "Duplicate serial numbers",
-  "purchaseOrders.receiveDialog.serialAlready": "{serial} is already in the list"
+  "purchaseOrders.receiveDialog.serialAlready": "{serial} is already in the list",
+  "purchaseOrders.col.poNumber": "PO number",
+  "purchaseOrders.status.partiallyReceived": "Partially received"
 }

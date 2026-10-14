@@ -65,5 +65,10 @@
   "layout.documentTitle": "{page} — Ecelon",
   "layout.nav.customers": "Müşteriler",
   "layout.nav.auditLog": "Denetim Kaydı",
-  "layout.nav.integrations": "Entegrasyonlar"
+  "layout.nav.integrations": "Entegrasyonlar",
+  "layout.theme.toLight": "Açık temaya geç",
+  "layout.theme.toDark": "Koyu temaya geç",
+  "layout.openMenu": "Menüyü aç",
+  "layout.closeMenu": "Menüyü kapat",
+  "layout.breadcrumb": "Sayfa yolu"
 }

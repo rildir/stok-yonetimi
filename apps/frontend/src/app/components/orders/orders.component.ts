@@ -15,46 +15,146 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
   standalone: true,
   imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
   styleUrls: ['../../drawer.css'],
+  styles: [`
+    .z-top { z-index: 3000; }
+    .block { width: 100%; }
+    .strong { font-weight: var(--weight-semibold); color: var(--color-text); }
+    .link { color: var(--color-primary-text); text-decoration: none; font-weight: var(--weight-medium); }
+    .link:hover { text-decoration: underline; }
+    .date-input { width: 140px; }
+
+    .orders-list { display: flex; flex-direction: column; gap: var(--space-3); }
+    .order-card { padding: 0; gap: 0; overflow: visible; }
+    .oc-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3);
+      padding: var(--space-3) var(--space-4); background: var(--color-surface-subtle);
+      border-bottom: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+    .oc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-8); }
+    .oc-label { font-size: var(--text-2xs); font-weight: var(--weight-medium); color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+    .oc-value { font-size: var(--text-sm); color: var(--color-text); }
+    .oc-ref { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .oc-no { position: relative; display: flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); color: var(--color-text-secondary); }
+    .oc-copy { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0;
+      background: transparent; color: var(--color-text-muted); border-radius: var(--radius-sm); cursor: pointer; }
+    .oc-copy:hover { background: var(--color-surface-muted); color: var(--color-text); }
+    .oc-copy:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .oc-tooltip { position: absolute; bottom: 100%; right: 0; margin-bottom: var(--space-1); padding: 2px var(--space-2);
+      background: var(--color-text); color: var(--color-bg); border-radius: var(--radius-sm); font-size: var(--text-2xs);
+      white-space: nowrap; box-shadow: var(--shadow-md); z-index: 10; }
+    .oc-link { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-primary-text); text-decoration: none; }
+    .oc-link:hover { text-decoration: underline; }
+    .oc-body { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); padding: var(--space-4); }
+    .oc-items { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+    .oc-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); max-width: 520px; }
+    .oc-lines li { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--text-sm); }
+    .oc-product { color: var(--color-text); font-weight: var(--weight-medium); min-width: 0; }
+    .oc-ship { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); font-size: var(--text-xs); color: var(--color-text-secondary); }
+    .oc-ship > span { display: inline-flex; align-items: center; gap: var(--space-1); }
+    .oc-ship strong { color: var(--color-text); font-weight: var(--weight-medium); }
+    .oc-actions { display: flex; flex-direction: column; gap: var(--space-2); width: 168px; flex-shrink: 0; }
+    @media (max-width: 640px) {
+      .date-filters { width: 100%; }
+      .date-input { flex: 1; width: auto; min-width: 0; }
+      .oc-head, .oc-body { flex-direction: column; }
+      .oc-ref { align-items: flex-start; }
+      .oc-meta { gap: var(--space-3) var(--space-6); }
+      .oc-actions { width: 100%; flex-direction: row; }
+      .oc-actions .btn { flex: 1; }
+      .oc-lines li { flex-direction: column; gap: 0; }
+    }
+
+    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    .form-row-2-1 { grid-template-columns: 2fr 1fr; }
+    @media (max-width: 640px) { .form-row, .form-row-2-1 { grid-template-columns: 1fr; gap: var(--space-3); } }
+    .ol-section { margin-top: var(--space-6); }
+    .ol-section-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .ol-title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--color-text); }
+    .ol-lines { display: flex; flex-direction: column; gap: var(--space-2); }
+    .ol-line { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3);
+      background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .ol-line.highlight-row { background: var(--color-primary-subtle); border-color: var(--color-primary-border); }
+    .ol-product { flex: 2 1 220px; min-width: 0; }
+    .ol-qty, .ol-price { flex: 1 1 90px; min-width: 0; }
+    .ol-unit { flex: .9 1 90px; min-width: 0; }
+    .ol-input { height: 38px; padding: 0 var(--space-3); font-size: var(--text-sm); }
+    .ol-total { flex: 1.3 1 110px; text-align: right; font-size: var(--text-sm); line-height: 1.35; }
+    .ol-sub { font-size: var(--text-2xs); color: var(--color-text-muted); }
+    .ol-remove { flex-shrink: 0; }
+    .ol-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 220px; overflow-y: auto; }
+    .ol-dropdown .custom-option { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-3); cursor: pointer; font-size: var(--text-sm); border-bottom: 1px solid var(--color-border-subtle); }
+    .ol-dropdown .custom-option:hover { background: var(--color-surface-muted); }
+    .opt-left { display: flex; flex-direction: column; min-width: 0; }
+    .opt-name { font-weight: var(--weight-medium); color: var(--color-text); }
+    .opt-stock { font-size: var(--text-2xs); color: var(--color-text-muted); }
+    .opt-stock.low { color: var(--color-warning-text); }
+    .opt-price { font-weight: var(--weight-semibold); color: var(--color-text); }
+    .selected-stock { color: var(--color-text-muted); font-size: var(--text-2xs); }
+    .ol-tracking { flex-basis: 100%; display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
+    .ol-lot { display: grid; grid-template-columns: 2fr 1.5fr 1fr 80px; gap: var(--space-2); align-items: center; }
+    .ol-lot-input { height: 30px; padding: 0 var(--space-2); font-size: var(--text-xs); }
+    .ol-serials { display: flex; flex-wrap: wrap; gap: var(--space-1); max-height: 120px; overflow-y: auto; }
+    .ol-serial { display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2);
+      border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); cursor: pointer; }
+    .ol-error { display: block; margin-top: var(--space-2); }
+    @media (max-width: 640px) {
+      .ol-product { flex-basis: 100%; }
+      .ol-total { flex: 1; text-align: left; }
+      .ol-lot { grid-template-columns: 1fr 1fr; }
+    }
+
+    .totals-box { margin-top: var(--space-4); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);
+      background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: var(--text-sm); }
+    .tot-row { display: flex; justify-content: space-between; gap: var(--space-3); }
+    .tot-row > span:last-child, .tot-row > strong { font-variant-numeric: tabular-nums; }
+    .tot-grand { align-items: center; padding-top: var(--space-2); border-top: 1px solid var(--color-border); font-weight: var(--weight-semibold); color: var(--color-text); }
+    .tot-grand strong { font-size: var(--text-lg); color: var(--color-text); }
+    .detail-items-section > .detail-item-list > .tot-grand { margin-top: var(--space-3); padding: var(--space-3) 0 0; }
+    .totals-box.flat { background: none; border: 0; border-top: 1px solid var(--color-border); border-radius: 0; padding: var(--space-3) 0 0; }
+    .detail-value-col { color: var(--color-text); }
+    .tot-small { font-size: var(--text-xs); margin-top: var(--space-1); }
+    .tot-note { text-align: right; }
+    .detail-items-section { margin-top: var(--space-4); }
+    .detail-item-row { padding: var(--space-3) 0; }
+    .detail-item-name { font-weight: var(--weight-semibold); font-size: var(--text-sm); color: var(--color-text); }
+    .detail-item-calc { font-size: var(--text-xs); color: var(--color-text-muted); }
+    .detail-item-total { font-family: inherit; font-weight: var(--weight-semibold); font-size: var(--text-sm); }
+    .skeleton-title.short { width: 40%; }
+    .skeleton-row.block { margin: 0; }
+  `],
   template: `
     <header class="page-header">
       <div>
         <h1>{{ 'orders.title' | t }}</h1>
         <p>{{ 'orders.subtitle' | t }}</p>
       </div>
-      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
-        <button class="btn btn-primary" (click)="openCreateOrder()">+ {{ 'orders.newOrder' | t }}</button>
+      <div class="page-actions">
+        <button class="btn btn-primary" (click)="openCreateOrder()">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          {{ 'orders.newOrder' | t }}
+        </button>
       </div>
     </header>
 
-    <!-- Search & Filter Bar -->
     <div class="filter-bar">
       <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" [placeholder]="'orders.searchPlaceholder' | t" [value]="orderSearch()" (input)="onSearchInput($event)"/>
       </div>
-      
-      <div class="date-filters" style="border: none; padding: 0; background: transparent; display: flex; align-items: center; gap: 8px;">
-        <input 
-          type="text" 
-          [placeholder]="'orders.startDate' | t" 
-          style="width: 130px; padding: 0.55rem 0.75rem; border: 1px solid var(--secondary); border-radius: var(--radius-md); font-size: 0.85rem; font-family: var(--font-body); outline: none; background: var(--surface); color: var(--text-primary); transition: border-color 0.15s;"
-          onfocus="(this.type='date')" 
-          onblur="if(!this.value)this.type='text'"
-          [ngModel]="startDate()" 
-          (ngModelChange)="startDate.set($event)" 
-        />
-        <span class="date-separator">-</span>
-        <input 
-          type="text" 
-          [placeholder]="'orders.endDate' | t" 
-          style="width: 130px; padding: 0.55rem 0.75rem; border: 1px solid var(--secondary); border-radius: var(--radius-md); font-size: 0.85rem; font-family: var(--font-body); outline: none; background: var(--surface); color: var(--text-primary); transition: border-color 0.15s;"
-          onfocus="(this.type='date')" 
-          onblur="if(!this.value)this.type='text'"
-          [ngModel]="endDate()" 
-          (ngModelChange)="endDate.set($event)" 
-        />
+
+      <div class="date-filters">
+        <input type="text" class="input date-input" [placeholder]="'orders.startDate' | t"
+          onfocus="(this.type='date')" onblur="if(!this.value)this.type='text'"
+          [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" />
+        <span class="date-separator">–</span>
+        <input type="text" class="input date-input" [placeholder]="'orders.endDate' | t"
+          onfocus="(this.type='date')" onblur="if(!this.value)this.type='text'"
+          [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" />
         @if (startDate() || endDate()) {
-          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" [title]="'orders.clearFilter' | t" style="margin-left: 4px;">✕</button>
+          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" [title]="'orders.clearFilter' | t" [attr.aria-label]="'orders.clearFilter' | t">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
         }
       </div>
 
@@ -66,127 +166,106 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
       </div>
     </div>
 
-      <!-- Result Cards Stack (Ecelon layout) -->
-      <div class="orders-list-stack" style="display: flex; flex-direction: column; gap: 1rem;">
-        @for (o of filteredOrders(); track o.id) {
-          <div class="ecelon-order-card" style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: var(--surface-card); font-size: 0.875rem;">
-          <!-- Header Bar (Light Grey background) -->
-          <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
-            <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
+    <div class="orders-list">
+      @for (o of filteredOrders(); track o.id) {
+        <article class="card order-card">
+          <div class="oc-head">
+            <div class="oc-meta">
               <div>
-                <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'orders.card.orderDate' | t }}</div>
-                <div style="color: #0F1111; font-weight: 500;">{{ o.date | appDate: 'datetime' }}</div>
+                <div class="oc-label">{{ 'orders.card.orderDate' | t }}</div>
+                <div class="oc-value">{{ o.date | appDate: 'datetime' }}</div>
               </div>
               <div>
-                <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'orders.card.totalAmount' | t }}</div>
-                <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</div>
+                <div class="oc-label">{{ 'orders.card.totalAmount' | t }}</div>
+                <div class="oc-value num strong">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</div>
               </div>
               <div>
-                <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'orders.card.recipient' | t }}</div>
-                <div style="color: #0F1111; font-weight: 500;">{{ o.customerName }}</div>
+                <div class="oc-label">{{ 'orders.card.recipient' | t }}</div>
+                <div class="oc-value">{{ o.customerName }}</div>
               </div>
             </div>
-            <div style="text-align: right;">
-              <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111; display: flex; align-items: center; justify-content: flex-end; gap: 4px; position: relative;">
-                <span>{{ 'orders.card.orderNo' | t: { number: o.orderNumber } }}</span>
-                <button 
-                  (click)="copyToClipboard(o.orderNumber, o.id); $event.stopPropagation()" 
-                  style="background: none; border: none; padding: 2px; cursor: pointer; color: #565959; display: inline-flex; align-items: center; justify-content: center; outline: none;" 
-                  [title]="'orders.card.copyOrderNo' | t"
-                >
-                  <svg style="width: 13px; height: 13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                  </svg>
+            <div class="oc-ref">
+              <div class="oc-no">
+                <span class="num">{{ 'orders.card.orderNo' | t: { number: o.orderNumber } }}</span>
+                <button class="oc-copy" (click)="copyToClipboard(o.orderNumber, o.id); $event.stopPropagation()" [title]="'orders.card.copyOrderNo' | t" [attr.aria-label]="'orders.card.copyOrderNo' | t">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 </button>
                 @if (copiedOrderId() === o.id) {
-                  <span style="position: absolute; bottom: 100%; right: 0; background: #333; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: normal; margin-bottom: 4px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10;">
-                    {{ 'orders.card.copied' | t }}
-                  </span>
+                  <span class="oc-tooltip">{{ 'orders.card.copied' | t }}</span>
                 }
               </div>
-              <div>
-                <a href="#" (click)="openOrderDetail(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">{{ 'orders.card.details' | t }}</a>
-              </div>
+              <a href="#" class="oc-link" (click)="openOrderDetail(o); $event.preventDefault()">{{ 'orders.card.details' | t }}</a>
             </div>
           </div>
 
-          <!-- Body (White background) -->
-          <div class="order-card-body" style="padding: 16px 18px; display: flex; justify-content: space-between; align-items: start; gap: 1.5rem; flex-wrap: wrap;">
-            <!-- Left: Items list -->
-            <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 250px;">
-              <h4 style="margin: 0; font-size: 14px; font-weight: bold; color: #0F1111; display: flex; align-items: center; gap: 8px;">
-                <!-- Status badge -->
-                <span class="badge" [class.badge-instock]="o.status === 'Completed'" [class.badge-lowstock]="o.status === 'Pending'" [class.badge-outstock]="o.status === 'Cancelled'">
+          <div class="oc-body">
+            <div class="oc-items">
+              <div>
+                <span class="badge badge-dot" [class.badge-success]="o.status === 'Completed'" [class.badge-warning]="o.status === 'Pending'" [class.badge-danger]="o.status === 'Cancelled'" [class.badge-neutral]="o.status !== 'Completed' && o.status !== 'Pending' && o.status !== 'Cancelled'">
                   {{ (o.status === 'Completed' ? 'orders.status.delivered' : o.status === 'Pending' ? 'orders.status.onHold' : 'orders.status.cancelled') | t }}
                 </span>
-              </h4>
-              
-              <!-- Item detail rows -->
-              <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
-                @for (item of o.items; track item.productName) {
-                  <div style="display: flex; justify-content: space-between; width: 100%; max-width: 450px; font-size: 13px;">
-                    <span style="color: #007185; font-weight: 500;">{{ item.productName }}</span>
-                    <span style="color: #565959;">{{ 'orders.card.itemLine' | t: { qty: itemQtyLabel(item, false), price: ((item.unitPrice ?? item.price) | money: o.currency) } }}</span>
-                  </div>
-                }
               </div>
-
-              <!-- Shipping Info if available -->
+              <ul class="oc-lines">
+                @for (item of o.items; track item.productName) {
+                  <li>
+                    <span class="oc-product truncate">{{ item.productName }}</span>
+                    <span class="text-muted num">{{ 'orders.card.itemLine' | t: { qty: itemQtyLabel(item, false), price: ((item.unitPrice ?? item.price) | money: o.currency) } }}</span>
+                  </li>
+                }
+              </ul>
               @if (o.carrier || o.trackingNumber) {
-                <div style="display: flex; justify-content: space-between; width: 100%; max-width: 450px; font-size: 13px; margin-top: 8px;">
-                  <span style="color: #565959; display: flex; align-items: center; gap: 6px;">
-                    <svg style="width: 14px; height: 14px; color: #565959;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                    </svg>
-                    {{ 'orders.card.carrier' | t }}: <strong style="color: #0F1111;">{{ o.carrier || ('orders.card.unknown' | t) }}</strong>
+                <div class="oc-ship">
+                  <span>
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
+                    {{ 'orders.card.carrier' | t }}: <strong>{{ o.carrier || ('orders.card.unknown' | t) }}</strong>
                   </span>
-                  <span style="color: #565959;">
-                    {{ 'orders.card.trackingNo' | t }}: <strong style="font-family: var(--font-mono); color: #0F1111;">{{ o.trackingNumber || '-' }}</strong>
-                  </span>
+                  <span>{{ 'orders.card.trackingNo' | t }}: <strong class="mono">{{ o.trackingNumber || '-' }}</strong></span>
                 </div>
               }
             </div>
 
-            <!-- Right: Actions drop-down / buttons -->
-            <div style="display: flex; flex-direction: column; gap: 8px; width: 160px; flex-shrink: 0;" (click)="$event.stopPropagation()">
+            <div class="oc-actions" (click)="$event.stopPropagation()">
               @if (o.status === 'Pending') {
-                <button class="btn btn-primary btn-sm" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
-                  @if (updatingOrderId() === o.id) { <span class="spinner-sm"></span> } @else { {{ 'orders.action.markCompleted' | t }} }
+                <button class="btn btn-primary btn-sm" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id">
+                  @if (updatingOrderId() === o.id) { <span class="spinner-sm spinner-light"></span> } @else { {{ 'orders.action.markCompleted' | t }} }
                 </button>
-                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
+                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">
                   {{ 'orders.action.cancel' | t }}
                 </button>
               } @else if (o.status === 'Completed') {
-                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px;">
+                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">
                   {{ 'orders.action.refund' | t }}
                 </button>
               } @else {
-                <button class="btn btn-secondary btn-sm" (click)="promptDeleteOrder(o)" [disabled]="updatingOrderId() === o.id" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
+                <button class="btn btn-outline-danger btn-sm" (click)="promptDeleteOrder(o)" [disabled]="updatingOrderId() === o.id">
                   {{ 'common.delete' | t }}
                 </button>
               }
             </div>
           </div>
-        </div>
+        </article>
       }
       @if (filteredOrders().length === 0) {
-        <div class="empty-state" style="padding: 3rem; text-align: center; border: 1px dashed #D5D9D9; border-radius: 8px; background: #FFFFFF; width: 100%;">
-          <p style="font-size: 15px; color: #565959;">{{ 'orders.empty' | t }}</p>
+        <div class="card empty-state">
+          <div class="empty-state-icon">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>
+          </div>
+          <p class="empty-state-title">{{ 'orders.empty' | t }}</p>
         </div>
       }
     </div>
 
     <!-- ─── Create Order Drawer ─── -->
     @if (showCreateOrderModal()) {
-      <div class="drawer-overlay" (click)="closeCreateOrder()" style="z-index: 3000;">
+      <div class="drawer-overlay z-top" (click)="closeCreateOrder()">
         <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'orders.create.title' | t }}</span>
-            <button class="drawer-close" (click)="closeCreateOrder()">×</button>
+            <button class="drawer-close" (click)="closeCreateOrder()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
-          <form [formGroup]="orderForm" (ngSubmit)="saveOrder()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="orderForm" (ngSubmit)="saveOrder()" class="drawer-form">
             <div class="drawer-body">
-              <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+              <div class="form-row form-row-2-1">
                 <div class="form-field">
                   <select id="customerIdSelect" formControlName="customerId" class="form-input has-value" (change)="onCustomerChange()">
                     <option value="">{{ 'orders.create.newCustomerOption' | t }}</option>
@@ -209,15 +288,15 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                 <div class="form-field">
                   <input id="customerNameInput" type="text" formControlName="customerName" class="form-input" [class.has-value]="hasValue('customerName')" [placeholder]="'orders.create.customerNamePlaceholder' | t"/>
                   <label for="customerNameInput" class="form-label">{{ 'orders.create.customerName' | t }}</label>
-                  @if (isFieldInvalid('customerName')) { <div class="form-error">⚠ {{ 'orders.create.customerNameRequired' | t }}</div> }
+                  @if (isFieldInvalid('customerName')) { <div class="form-error">{{ 'orders.create.customerNameRequired' | t }}</div> }
                 </div>
               }
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: -6px;">
+              <div class="field-hint">
                 {{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}
               </div>
 
               <!-- Shipping Info Rows -->
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-row">
                 <div class="form-field">
                   <input id="carrierInput" type="text" formControlName="carrier" class="form-input" [class.has-value]="hasValue('carrier')" [disabled]="isOrderSaving()" [placeholder]="'orders.create.carrierPlaceholder' | t"/>
                   <label for="carrierInput" class="form-label">{{ 'orders.create.carrierOptional' | t }}</label>
@@ -228,26 +307,26 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                 </div>
               </div>
               
-              <div style="margin-top: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <h3 style="font-size: 14px; font-weight: 600; margin: 0;">{{ 'orders.items' | t }}</h3>
-                  <div style="display: flex; gap: 8px;">
-                    <button type="button" class="btn btn-sm btn-outline" (click)="showScanner.set(true)" [disabled]="isOrderSaving() || scanning()">
-                      @if (scanning()) { <span class="spinner-sm"></span> } {{ 'orders.create.scan' | t }}
+              <div class="ol-section">
+                <div class="ol-section-head">
+                  <h3 class="ol-title">{{ 'orders.items' | t }}</h3>
+                  <div class="cluster">
+                    <button type="button" class="btn btn-sm btn-secondary" (click)="showScanner.set(true)" [disabled]="isOrderSaving() || scanning()">
+                      @if (scanning()) { <span class="spinner-sm"></span> } @else { <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8"/></svg> } {{ 'orders.create.scan' | t }}
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline" (click)="addOrderLine()" [disabled]="isOrderSaving()">+ {{ 'orders.create.addProduct' | t }}</button>
+                    <button type="button" class="btn btn-sm btn-secondary" (click)="addOrderLine()" [disabled]="isOrderSaving()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> {{ 'orders.create.addProduct' | t }}</button>
                   </div>
                 </div>
 
-                <div formArrayName="lines" style="display: flex; flex-direction: column; gap: 10px;">
+                <div formArrayName="lines" class="ol-lines">
                   @for (line of linesArray.controls; track $index; let i = $index) {
-                    <div [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px; position: relative;">
-                      <div style="flex: 2;">
+                    <div [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i" class="ol-line">
+                      <div class="ol-product">
                         <div class="custom-select-wrapper" (click)="toggleDropdown(i); $event.stopPropagation()">
-                          <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()" style="height: 40px; padding: 0 12px; font-size: 13px;">
+                          <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()">
                             <span class="selected-text">
                               @if (line.get('productId')?.value) {
-                                {{ getProductName(line.get('productId')?.value) }} <span class="selected-stock" style="color: var(--text-muted); font-size: 11px;">({{ 'orders.create.stock' | t }}: {{ line.get('maxQuantity')?.value | num }})</span>
+                                {{ getProductName(line.get('productId')?.value) }} <span class="selected-stock">({{ 'orders.create.stock' | t }}: {{ line.get('maxQuantity')?.value | num }})</span>
                               } @else {
                                 {{ 'orders.create.selectProduct' | t }}
                               }
@@ -255,15 +334,15 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                           </div>
                           @if (isDropdownOpen(i)) {
-                            <div class="custom-select-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 200px; overflow-y: auto; background: var(--surface); border: 1px solid var(--secondary); border-radius: 8px; box-shadow: var(--shadow-lg);">
+                            <div class="custom-select-dropdown ol-dropdown">
                               @for (p of state.products(); track p.id) {
                                 @if (p.quantity > 0) {
-                                  <div class="custom-option" (click)="selectProduct(i, p.id); $event.stopPropagation()" style="padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--secondary); font-size: 13px;" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'">
-                                    <div class="opt-left" style="display: flex; flex-direction: column;">
-                                      <span class="opt-name" style="font-weight: 500;">{{ p.name }}</span>
-                                      <span class="opt-stock" [class.low]="p.quantity < 10" style="font-size: 11px; color: var(--text-muted);">{{ 'orders.create.stock' | t }}: {{ p.quantity | num }}</span>
+                                  <div class="custom-option" (click)="selectProduct(i, p.id); $event.stopPropagation()">
+                                    <div class="opt-left">
+                                      <span class="opt-name">{{ p.name }}</span>
+                                      <span class="opt-stock" [class.low]="p.quantity < 10">{{ 'orders.create.stock' | t }}: {{ p.quantity | num }}</span>
                                     </div>
-                                    <span class="opt-price" style="font-family: var(--font-mono); font-weight: 600; color: var(--primary);">{{ p.price | money }}</span>
+                                    <span class="opt-price num">{{ p.price | money }}</span>
                                   </div>
                                 }
                               }
@@ -271,16 +350,16 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                           }
                         </div>
                       </div>
-                      <div style="flex: 1;" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
-                        <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'orders.create.quantity' | t" min="1" [max]="line.get('maxQuantity')?.value" (input)="enforceMaxQuantity($event, i)" [disabled]="isOrderSaving()"/>
+                      <div class="ol-qty" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
+                        <input type="number" formControlName="quantity" class="form-input ol-input" [placeholder]="'orders.create.quantity' | t" min="1" [max]="line.get('maxQuantity')?.value" (input)="enforceMaxQuantity($event, i)" [disabled]="isOrderSaving()"/>
                         @if (line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)) {
-                          <span class="error-msg-small" style="color: var(--status-outstock); font-size: 10px; display: block; margin-top: 2px;">{{ 'orders.create.max' | t }}: {{ maxForLine(line) | num }}</span>
+                          <span class="form-error">{{ 'orders.create.max' | t }}: {{ maxForLine(line) | num }}</span>
                         }
                       </div>
                       @if (lineProduct(line); as lp) {
                         @if (lp.units?.length) {
-                          <div style="flex: 0.9;">
-                            <select class="form-input" style="height: 40px; padding: 0 8px; font-size: 13px;" formControlName="unitId" (change)="onLineUnitChange(i)" [title]="'orders.create.unit' | t">
+                          <div class="ol-unit">
+                            <select class="form-input ol-input" formControlName="unitId" (change)="onLineUnitChange(i)" [title]="'orders.create.unit' | t">
                               <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
                               @for (u of lp.units; track u.unitId) {
                                 <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
@@ -289,44 +368,44 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                           </div>
                         }
                       }
-                      <div style="flex: 1;">
-                        <input type="number" formControlName="unitPrice" class="form-input mono" style="height: 40px; padding: 0 12px; font-size: 13px;" min="0" step="0.01" [placeholder]="productPricePlaceholder(line)" [title]="'orders.create.unitPriceOverride' | t"/>
+                      <div class="ol-price">
+                        <input type="number" formControlName="unitPrice" class="form-input ol-input num" min="0" step="0.01" [placeholder]="productPricePlaceholder(line)" [title]="'orders.create.unitPriceOverride' | t"/>
                       </div>
-                      <div style="flex: 1.3; font-size: 12px; text-align: right; line-height: 1.35;">
+                      <div class="ol-total">
                         @if (linePreview(line); as lp) {
-                          <div class="mono" style="font-weight: 600;">{{ lp.total | money: orderCurrency() }}</div>
-                          <div style="color: var(--text-muted); font-size: 11px;">{{ 'finance.tax' | t }} %{{ lp.rate | num }}: {{ lp.tax | money: orderCurrency() }}</div>
+                          <div class="num strong">{{ lp.total | money: orderCurrency() }}</div>
+                          <div class="ol-sub">{{ 'finance.tax' | t }} %{{ lp.rate | num }}: {{ lp.tax | money: orderCurrency() }}</div>
                         } @else if (line.get('productId')?.value) {
-                          <div style="color: var(--text-muted); font-size: 11px;">{{ 'orders.create.priceWillConvert' | t }}</div>
+                          <div class="ol-sub">{{ 'orders.create.priceWillConvert' | t }}</div>
                         }
                       </div>
-                      <button type="button" class="delete-btn" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()" style="padding: 6px;">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                      <button type="button" class="icon-btn delete-btn ol-remove" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()" [attr.aria-label]="'common.delete' | t">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                       </button>
                       @if (lineProduct(line); as lp) {
-                        <div style="flex-basis: 100%; font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
+                        <div class="ol-tracking">
                           @if (lineFactor(line) !== 1) {
                             <span>{{ 'orders.create.baseQtyHint' | t: { qty: (lineBaseQty(line) | num), unit: ((lp.baseUnit || lp.unit || 'pcs') | unitLabel) } }}</span>
                           }
                           @if (lp.trackingType === 'lot') {
-                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <div class="cluster">
                               <span>{{ 'orders.tracking.lots' | t }}:</span>
                               @if (line.get('trackMode')?.value !== 'manual') {
                                 <span>{{ 'orders.tracking.autoFefo' | t }}</span>
                                 <button type="button" class="btn btn-sm btn-outline" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickLots' | t }}</button>
                               } @else {
                                 <button type="button" class="btn btn-sm btn-outline" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
-                                <span [style.color]="lotsSum(line) === lineBaseQty(line) ? 'var(--status-instock)' : 'var(--status-outstock)'">{{ 'orders.tracking.selectedOf' | t: { selected: (lotsSum(line) | num), total: (lineBaseQty(line) | num) } }}</span>
+                                <span [style.color]="lotsSum(line) === lineBaseQty(line) ? 'var(--color-success-text)' : 'var(--color-danger-text)'">{{ 'orders.tracking.selectedOf' | t: { selected: (lotsSum(line) | num), total: (lineBaseQty(line) | num) } }}</span>
                               }
                             </div>
                             @if (line.get('trackMode')?.value === 'manual') {
                               @if (lotsCache()[lp.id]; as lots) {
                                 @for (lot of lots; track lot.id) {
-                                  <div style="display: flex; gap: 8px; align-items: center;">
-                                    <span class="mono" style="flex: 2;">{{ lot.lotNumber }}{{ lot.warehouseName ? ' · ' + lot.warehouseName : '' }}</span>
-                                    <span style="flex: 1.5;">{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</span>
-                                    <span style="flex: 1;">{{ 'orders.tracking.available' | t }}: {{ lot.quantity | num }}</span>
-                                    <input type="number" class="form-input" style="flex: 1; height: 30px; padding: 0 8px; font-size: 12px;" min="0" [max]="lot.quantity"
+                                  <div class="ol-lot">
+                                    <span class="mono">{{ lot.lotNumber }}{{ lot.warehouseName ? ' · ' + lot.warehouseName : '' }}</span>
+                                    <span>{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</span>
+                                    <span class="num">{{ 'orders.tracking.available' | t }}: {{ lot.quantity | num }}</span>
+                                    <input type="number" class="form-input ol-lot-input" min="0" [max]="lot.quantity"
                                       [value]="lotQty(line, lot.id)" (input)="setLotQty(i, lot, $event)"/>
                                   </div>
                                 } @empty {
@@ -338,21 +417,21 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                             }
                           }
                           @if (lp.trackingType === 'serial') {
-                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <div class="cluster">
                               <span>{{ 'orders.tracking.serials' | t }}:</span>
                               @if (line.get('trackMode')?.value !== 'manual') {
                                 <span>{{ 'orders.tracking.autoSerial' | t }}</span>
                                 <button type="button" class="btn btn-sm btn-outline" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickSerials' | t }}</button>
                               } @else {
                                 <button type="button" class="btn btn-sm btn-outline" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
-                                <span [style.color]="lineSerials(line).length === lineBaseQty(line) ? 'var(--status-instock)' : 'var(--status-outstock)'">{{ 'orders.tracking.selectedOf' | t: { selected: lineSerials(line).length, total: (lineBaseQty(line) | num) } }}</span>
+                                <span [style.color]="lineSerials(line).length === lineBaseQty(line) ? 'var(--color-success-text)' : 'var(--color-danger-text)'">{{ 'orders.tracking.selectedOf' | t: { selected: lineSerials(line).length, total: (lineBaseQty(line) | num) } }}</span>
                               }
                             </div>
                             @if (line.get('trackMode')?.value === 'manual') {
                               @if (serialsCache()[lp.id]; as serials) {
-                                <div style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto;">
+                                <div class="ol-serials">
                                   @for (sn of serials; track sn.id) {
-                                    <label style="display: inline-flex; gap: 4px; align-items: center; padding: 2px 6px; border: 1px solid var(--secondary); border-radius: 6px; cursor: pointer;">
+                                    <label class="ol-serial">
                                       <input type="checkbox" [checked]="lineSerials(line).includes(sn.serial)" (change)="toggleSerial(i, sn.serial)"/>
                                       <span class="mono">{{ sn.serial }}</span>
                                       @if (sn.warehouseName) { <span>· {{ sn.warehouseName }}</span> }
@@ -372,31 +451,31 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   }
                 </div>
                 @if (linesArray.invalid && (linesArray.dirty || linesArray.touched)) {
-                  <span class="form-error" style="display:block;margin-top:0.5rem;">{{ 'orders.create.linesInvalid' | t }}</span>
+                  <span class="form-error ol-error">{{ 'orders.create.linesInvalid' | t }}</span>
                 }
                 @if (trackingInvalid()) {
-                  <span class="form-error" style="display:block;margin-top:0.5rem;">{{ 'orders.tracking.mismatch' | t }}</span>
+                  <span class="form-error ol-error">{{ 'orders.tracking.mismatch' | t }}</span>
                 }
               </div>
 
               @if (previewTotals(); as tot) {
-                <div class="order-total-bar" style="margin-top: 24px; padding: 16px; background: var(--canvas); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--secondary); font-size: 13px;">
-                  <div style="display: flex; justify-content: space-between;">
+                <div class="totals-box">
+                  <div class="tot-row">
                     <span>{{ 'finance.subtotal' | t }}</span>
-                    <span class="mono">{{ tot.subtotal | money: orderCurrency() }}</span>
+                    <span class="num">{{ tot.subtotal | money: orderCurrency() }}</span>
                   </div>
                   @for (b of tot.breakdown; track b.rate) {
-                    <div style="display: flex; justify-content: space-between; color: var(--text-muted);">
+                    <div class="tot-row text-muted">
                       <span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: orderCurrency()) } }}</span>
-                      <span class="mono">{{ b.tax | money: orderCurrency() }}</span>
+                      <span class="num">{{ b.tax | money: orderCurrency() }}</span>
                     </div>
                   }
-                  <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--secondary); padding-top: 6px;">
-                    <span style="font-weight: 600; font-size: 14px;">{{ 'finance.grandTotal' | t }}</span>
-                    <strong class="mono" style="font-size: 16px; color: var(--primary);">{{ tot.grandTotal | money: orderCurrency() }}</strong>
+                  <div class="tot-row tot-grand">
+                    <span>{{ 'finance.grandTotal' | t }}</span>
+                    <strong class="num">{{ tot.grandTotal | money: orderCurrency() }}</strong>
                   </div>
                   @if (tot.incomplete) {
-                    <div style="font-size: 11px; color: var(--text-muted);">{{ 'orders.create.totalsIncomplete' | t }}</div>
+                    <div class="field-hint">{{ 'orders.create.totalsIncomplete' | t }}</div>
                   }
                 </div>
               }
@@ -419,11 +498,11 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           @if (selectedOrder(); as order) {
             <div class="drawer-header">
-              <div style="display: flex; align-items: baseline; gap: 8px;">
+              <div class="cluster">
                 <span class="drawer-title">{{ 'orders.detail.title' | t }}</span>
-                <span class="mono text-muted" style="font-size: 13px;">{{ order.orderNumber }}</span>
+                <span class="mono text-muted">{{ order.orderNumber }}</span>
               </div>
-              <button class="drawer-close" (click)="closeOrderDetail()">×</button>
+              <button class="drawer-close" (click)="closeOrderDetail()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             </div>
             
             <div class="drawer-body">
@@ -435,7 +514,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   <div class="skeleton skeleton-text short"></div>
                 </div>
                 <div>
-                  <div class="skeleton skeleton-title" style="width: 40%"></div>
+                  <div class="skeleton skeleton-title short"></div>
                   <div class="skeleton skeleton-row"></div>
                   <div class="skeleton skeleton-row"></div>
                 </div>
@@ -444,7 +523,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   <span class="detail-label-col">{{ 'orders.detail.customer' | t }}</span>
                   <span class="detail-value-col">
                     @if (order.customerId) {
-                      <a [routerLink]="['/customers']" [queryParams]="{ q: order.customerName }" style="color: #007185; text-decoration: none;">{{ order.customerName }}</a>
+                      <a [routerLink]="['/customers']" [queryParams]="{ q: order.customerName }" class="link">{{ order.customerName }}</a>
                     } @else {
                       {{ order.customerName }}
                     }
@@ -454,11 +533,11 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   <span class="detail-value-col mono">{{ order.currency || i18n.currency() }}</span>
                   
                   <span class="detail-label-col">{{ 'orders.detail.date' | t }}</span>
-                  <span class="detail-value-col mono">{{ order.date | appDate: 'datetime' }}</span>
+                  <span class="detail-value-col num">{{ order.date | appDate: 'datetime' }}</span>
                   
                   <span class="detail-label-col">{{ 'orders.detail.status' | t }}</span>
-                  <div style="text-align: right">
-                    <span class="badge" [class.badge-instock]="order.status === 'Completed'" [class.badge-lowstock]="order.status === 'Pending'" [class.badge-outstock]="order.status === 'Cancelled'">
+                  <div class="detail-value-col">
+                    <span class="badge badge-dot" [class.badge-success]="order.status === 'Completed'" [class.badge-warning]="order.status === 'Pending'" [class.badge-danger]="order.status === 'Cancelled'" [class.badge-neutral]="order.status !== 'Completed' && order.status !== 'Pending' && order.status !== 'Cancelled'">
                       {{ (order.status === 'Completed' ? 'orders.status.completed' : order.status === 'Pending' ? 'orders.status.pending' : 'orders.status.cancelled') | t }}
                     </span>
                   </div>
@@ -469,24 +548,24 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   }
                   @if (order.trackingNumber) {
                     <span class="detail-label-col">{{ 'orders.detail.trackingNo' | t }}</span>
-                    <span class="detail-value-col mono" style="font-weight: 500;">{{ order.trackingNumber }}</span>
+                    <span class="detail-value-col mono">{{ order.trackingNumber }}</span>
                   }
                 </div>
 
-                <div class="detail-items-section" style="margin-top: 12px;">
+                <div class="detail-items-section">
                   <h4 class="detail-section-title">{{ 'orders.items' | t }}</h4>
                   <div class="detail-item-list">
                     @for (item of order.items; track $index) {
-                      <div class="detail-item-row" style="padding: 10px 0;">
+                      <div class="detail-item-row">
                         <div class="detail-item-info">
-                          <span class="detail-item-name" style="font-weight:600; font-size:14px;">{{ item.productName }}</span>
-                          <span class="detail-item-calc" style="font-size:12px; color:var(--text-muted);">
+                          <span class="detail-item-name">{{ item.productName }}</span>
+                          <span class="detail-item-calc">
                             {{ itemQtyLabel(item, true) }} · {{ 'finance.unitPrice' | t }}: {{ (item.unitPrice ?? item.price) | money: order.currency }}
                             · {{ 'finance.taxRate' | t }}: %{{ (item.taxRate ?? 0) | num }}
                             · {{ 'finance.taxAmount' | t }}: {{ (item.taxAmount ?? 0) | money: order.currency }}
                           </span>
                           @for (tr of item.tracking || []; track $index) {
-                            <span style="font-size:11px; color:var(--text-muted);">
+                            <span class="detail-item-calc">
                               @if (tr.lotNumber) {
                                 {{ 'orders.tracking.lotLine' | t: { lot: tr.lotNumber, qty: (tr.quantity | num) } }}
                                 @if (tr.expiryDate) { · {{ 'orders.tracking.expiry' | t }}: {{ tr.expiryDate | appDate }} }
@@ -497,31 +576,31 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                             </span>
                           }
                         </div>
-                        <span class="detail-item-total mono" style="font-weight:600; font-size:14px;">{{ itemLineTotal(item) | money: order.currency }}</span>
+                        <span class="detail-item-total num">{{ itemLineTotal(item) | money: order.currency }}</span>
                       </div>
                     }
-                    <div style="display:flex; flex-direction:column; gap:6px; margin-top:16px; padding-top:12px; border-top:1px solid var(--secondary); font-size:13px;">
-                      <div style="display:flex; justify-content:space-between;">
+                    <div class="totals-box flat">
+                      <div class="tot-row">
                         <span>{{ 'finance.subtotal' | t }}</span>
-                        <span class="mono">{{ orderSubtotal(order) | money: order.currency }}</span>
+                        <span class="num">{{ orderSubtotal(order) | money: order.currency }}</span>
                       </div>
                       @for (b of orderTaxBreakdown(order); track b.rate) {
-                        <div style="display:flex; justify-content:space-between; color:var(--text-muted);">
+                        <div class="tot-row text-muted">
                           <span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: order.currency) } }}</span>
-                          <span class="mono">{{ b.tax | money: order.currency }}</span>
+                          <span class="num">{{ b.tax | money: order.currency }}</span>
                         </div>
                       }
                     </div>
-                    <div class="detail-grand-total" style="display:flex; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1.5px solid var(--secondary);">
-                      <span class="detail-grand-label" style="font-weight:700; font-size:14px;">{{ 'finance.grandTotal' | t }}</span>
-                      <span class="detail-grand-value mono" style="font-weight:700; font-size:15px; color:var(--primary);">{{ (order.grandTotal ?? order.totalAmount) | money: order.currency }}</span>
-                    </div>
-                    @if (order.currency && order.currency !== i18n.currency() && order.exchangeRate) {
-                      <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:12px; color:var(--text-muted);">
-                        <span>{{ 'finance.inBaseCurrency' | t: { currency: i18n.currency() } }}</span>
-                        <span class="mono">{{ ((order.grandTotal ?? order.totalAmount) * order.exchangeRate) | money: i18n.currency() }}</span>
+                    <div class="tot-row tot-grand">
+                      <span>{{ 'finance.grandTotal' | t }}</span>
+                      <strong class="num">{{ (order.grandTotal ?? order.totalAmount) | money: order.currency }}</strong>
                       </div>
-                      <div style="font-size:11px; color:var(--text-muted); text-align:right;">{{ 'finance.exchangeRateNote' | t: { from: order.currency, rate: (order.exchangeRate | num: 4), to: i18n.currency() } }}</div>
+                    @if (order.currency && order.currency !== i18n.currency() && order.exchangeRate) {
+                      <div class="tot-row text-muted tot-small">
+                        <span>{{ 'finance.inBaseCurrency' | t: { currency: i18n.currency() } }}</span>
+                        <span class="num">{{ ((order.grandTotal ?? order.totalAmount) * order.exchangeRate) | money: i18n.currency() }}</span>
+                      </div>
+                      <div class="field-hint tot-note">{{ 'finance.exchangeRateNote' | t: { from: order.currency, rate: (order.exchangeRate | num: 4), to: i18n.currency() } }}</div>
                     }
                   </div>
                 </div>
@@ -530,21 +609,21 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
 
             <div class="drawer-footer" [class.single-action]="order.status === 'Completed' || order.status === 'Cancelled'">
               @if (isOrderDetailLoading()) {
-                <div class="skeleton skeleton-row" style="margin: 0; width: 100%"></div>
+                <div class="skeleton skeleton-row block"></div>
               } @else {
                 @if (order.status === 'Pending') {
-                  <button class="btn btn-outline" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">{{ 'orders.action.cancel' | t }}</button>
+                  <button class="btn btn-secondary" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">{{ 'orders.action.cancel' | t }}</button>
                   <button class="btn btn-primary" (click)="updateOrderStatus(order.id, 'Completed')" [disabled]="updatingOrderId() === order.id">
                     @if (updatingOrderId() === order.id) { <span class="spinner-sm spinner-light"></span> } @else { {{ 'orders.action.complete' | t }} }
                   </button>
                 }
                 @if (order.status === 'Completed') {
-                  <button class="btn btn-outline" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id" style="width: 100%">
+                  <button class="btn btn-secondary block" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">
                     @if (updatingOrderId() === order.id) { <span class="spinner-sm"></span> } @else { {{ 'orders.action.refund' | t }} }
                   </button>
                 }
                 @if (order.status === 'Cancelled') {
-                  <button class="btn btn-danger" (click)="promptDeleteOrder(order)" [disabled]="updatingOrderId() === order.id" style="width: 100%">{{ 'common.delete' | t }}</button>
+                  <button class="btn btn-danger block" (click)="promptDeleteOrder(order)" [disabled]="updatingOrderId() === order.id">{{ 'common.delete' | t }}</button>
                 }
               }
             </div>
@@ -555,10 +634,10 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
 
     <!-- ─── Cancel Confirmation Modal ─── -->
     @if (showCancelModal()) {
-      <div class="modal-backdrop" style="z-index: 3000;">
+      <div class="modal-backdrop z-top">
         <div class="modal-panel modal-panel-sm">
           <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="closeCancelModal()" [disabled]="updatingOrderId() !== null">✕</button>
+            <button class="delete-modal-close" (click)="closeCancelModal()" [disabled]="updatingOrderId() !== null" [attr.aria-label]="'common.cancel' | t"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             <div class="delete-icon">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             </div>

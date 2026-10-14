@@ -16,101 +16,97 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe],
   template: `
-    <!-- Amazon Header Style -->
-    <header class="page-header" style="border-bottom: none; margin-bottom: 1.5rem; display: block;">
-      @if (activeTab() === 'dashboard') {
-        <div>
-          <h1>{{ 'settings.account' | t }}</h1>
-          <p>{{ 'settings.accountDesc' | t }}</p>
-        </div>
-      } @else {
-        <div style="font-size: 13px; color: #565959; margin-bottom: 8px;">
-          <a href="#" (click)="changeTab('dashboard'); $event.preventDefault()" style="color: #007185; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ 'settings.account' | t }}</a>
-          <span style="margin: 0 6px; color: #888;">&gt;</span>
-          <span style="color: #C45500; font-weight: 500;">{{ getTabTitle() }}</span>
-        </div>
-        <h1>{{ getTabTitle() }}</h1>
-      }
+    <header class="page-header">
+      <div>
+        <h1>{{ 'settings.account' | t }}</h1>
+        <p>{{ 'settings.accountDesc' | t }}</p>
+      </div>
     </header>
 
-    <div class="settings-layout" style="width: 100%;">
-      <!-- AMAZON YOUR ACCOUNT DASHBOARD -->
+    <nav class="tabs settings-tabs" role="tablist" [attr.aria-label]="'settings.account' | t">
+      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'dashboard'" [attr.aria-selected]="activeTab() === 'dashboard'" (click)="changeTab('dashboard')">{{ 'settings.overview' | t }}</button>
+      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'profile'" [attr.aria-selected]="activeTab() === 'profile'" (click)="changeTab('profile')">{{ 'settings.tab.profile' | t }}</button>
+      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'categories'" [attr.aria-selected]="activeTab() === 'categories'" (click)="changeTab('categories')">{{ 'settings.tab.categories' | t }}</button>
+      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'units'" [attr.aria-selected]="activeTab() === 'units'" (click)="changeTab('units')">{{ 'settings.tab.units' | t }}</button>
+      @if (ui.userProfile()?.role === 'admin') {
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'users'" [attr.aria-selected]="activeTab() === 'users'" (click)="changeTab('users')">{{ 'settings.tab.users' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'company'" [attr.aria-selected]="activeTab() === 'company'" (click)="changeTab('company')">{{ 'settings.tab.company' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'taxRates'" [attr.aria-selected]="activeTab() === 'taxRates'" (click)="changeTab('taxRates')">{{ 'settings.tab.taxRates' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'exchangeRates'" [attr.aria-selected]="activeTab() === 'exchangeRates'" (click)="changeTab('exchangeRates')">{{ 'settings.tab.exchangeRates' | t }}</button>
+      }
+    </nav>
+
+    <div class="settings-layout">
       @if (activeTab() === 'dashboard') {
-        <div class="ecelon-settings-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; width: 100%;">
-          <!-- Card 1: Profil & Güvenlik -->
-          <div class="ecelon-settings-card" (click)="changeTab('profile')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
-            <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">🔒</div>
-            <div>
-              <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.profile' | t }}</h3>
-              <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.profileDesc' | t }}</p>
-            </div>
-          </div>
-
-          <!-- Card 2: Kategori Yönetimi -->
-          <div class="ecelon-settings-card" (click)="changeTab('categories')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
-            <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">📦</div>
-            <div>
-              <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.categories' | t }}</h3>
-              <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.categoriesDesc' | t }}</p>
-            </div>
-          </div>
-
-          <!-- Card: Units of measure -->
-          <div class="ecelon-settings-card" (click)="changeTab('units')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
-            <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">📏</div>
-            <div>
-              <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.units' | t }}</h3>
-              <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.unitsDesc' | t }}</p>
-            </div>
-          </div>
-
-          <!-- Card 3: Kullanıcı Yönetimi (Admin only) -->
+        <div class="settings-hub">
+          <button type="button" class="settings-hub-card" (click)="changeTab('profile')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.profile' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.profileDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('categories')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.categories' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.categoriesDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('units')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.units' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.unitsDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
           @if (ui.userProfile()?.role === 'admin') {
-            <div class="ecelon-settings-card" (click)="changeTab('users')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
-              <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">👥</div>
-              <div>
-                <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.users' | t }}</h3>
-                <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.usersDesc' | t }}</p>
-              </div>
-            </div>
-
-            <!-- Card 4: Şirket Ayarları (Admin only) -->
-            <div class="ecelon-settings-card" (click)="changeTab('company')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
-              <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">🏢</div>
-              <div>
-                <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.company' | t }}</h3>
-                <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.companyDesc' | t }}</p>
-              </div>
-            </div>
-
-            <!-- Card: Tax rates (Admin only) -->
-            <div class="ecelon-settings-card" (click)="changeTab('taxRates')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
-              <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">🧾</div>
-              <div>
-                <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.taxRates' | t }}</h3>
-                <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.taxRatesDesc' | t }}</p>
-              </div>
-            </div>
-
-            <!-- Card: Exchange rates (Admin only) -->
-            <div class="ecelon-settings-card" (click)="changeTab('exchangeRates')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
-              <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">💱</div>
-              <div>
-                <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.exchangeRates' | t }}</h3>
-                <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.exchangeRatesDesc' | t }}</p>
-              </div>
-            </div>
+          <button type="button" class="settings-hub-card" (click)="changeTab('users')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.users' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.usersDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('company')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.company' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.companyDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('taxRates')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.taxRates' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.taxRatesDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('exchangeRates')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.exchangeRates' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.exchangeRatesDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
           }
         </div>
       }
 
-      <div class="settings-content" style="width: 100%; display: flex; flex-direction: column; gap: 1.5rem;">
+      <div class="settings-content">
 
         <!-- COMPANY SETTINGS TAB (Admin) -->
         @if (activeTab() === 'company') {
-          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 720px;">
+          <div class="settings-card settings-card-md">
             <h3 class="card-title">{{ 'settings.company.title' | t }}</h3>
-            <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.company.subtitle' | t }}</p>
+            <p class="card-subtitle settings-card-sub">{{ 'settings.company.subtitle' | t }}</p>
             <form [formGroup]="companyForm" (ngSubmit)="saveCompany()">
               <div class="form-group" [class.has-error]="companyForm.get('name')?.invalid && companyForm.get('name')?.touched">
                 <label for="">{{ 'settings.company.name' | t }}</label>
@@ -142,15 +138,15 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                   </select>
                 </div>
               </div>
-              <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
-                <input id="pricesIncludeTax" type="checkbox" formControlName="pricesIncludeTax" style="width: auto;" />
-                <label for="pricesIncludeTax" style="margin: 0;">{{ 'settings.company.pricesIncludeTax' | t }}</label>
+              <div class="form-group settings-check">
+                <input id="pricesIncludeTax" type="checkbox" formControlName="pricesIncludeTax" />
+                <label for="pricesIncludeTax">{{ 'settings.company.pricesIncludeTax' | t }}</label>
               </div>
-              <p class="text-muted" style="font-size: 12px; margin-top: -8px;">{{ 'settings.company.pricesIncludeTaxHint' | t }}</p>
-              <div class="form-group" [class.has-error]="companyForm.get('expiryAlertDays')?.invalid && companyForm.get('expiryAlertDays')?.touched" style="max-width: 260px;">
+              <p class="field-hint settings-check-hint">{{ 'settings.company.pricesIncludeTaxHint' | t }}</p>
+              <div class="form-group settings-narrow" [class.has-error]="companyForm.get('expiryAlertDays')?.invalid && companyForm.get('expiryAlertDays')?.touched">
                 <label for="expiryAlertDays">{{ 'settings.company.expiryAlertDays' | t }}</label>
                 <input id="expiryAlertDays" type="number" min="0" max="3650" step="1" formControlName="expiryAlertDays" />
-                <span class="text-muted" style="font-size: 12px;">{{ 'settings.company.expiryAlertDaysHint' | t }}</span>
+                <span class="field-hint">{{ 'settings.company.expiryAlertDaysHint' | t }}</span>
               </div>
               <div class="settings-divider">
                 <button type="submit" class="btn btn-primary" [disabled]="companyForm.invalid || companyForm.pristine || isSavingCompany()">
@@ -163,9 +159,9 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 
         <!-- TAX RATES TAB (Admin) -->
         @if (activeTab() === 'taxRates' && isAdmin()) {
-          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 900px;">
+          <div class="settings-card settings-card-lg">
             <h3 class="card-title">{{ 'settings.taxRates.title' | t }}</h3>
-            <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.taxRates.subtitle' | t }}</p>
+            <p class="card-subtitle settings-card-sub">{{ 'settings.taxRates.subtitle' | t }}</p>
             <form [formGroup]="taxForm" (ngSubmit)="saveTaxRate()">
               <div class="settings-form-grid">
                 <div class="form-group" [class.has-error]="taxForm.get('name')?.invalid && taxForm.get('name')?.touched">
@@ -184,29 +180,29 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                     @for (c of countries; track c.code) { <option [value]="c.code">{{ 'settings.country.' + c.code | t }} ({{ c.code }})</option> }
                   </select>
                 </div>
-                <div class="form-group" style="display: flex; align-items: center; gap: 8px; padding-top: 24px;">
-                  <input id="taxDefault" type="checkbox" formControlName="isDefault" style="width: auto;" />
-                  <label for="taxDefault" style="margin: 0;">{{ 'finance.defaultTax' | t }}</label>
+                <div class="form-group settings-check settings-check-pad">
+                  <input id="taxDefault" type="checkbox" formControlName="isDefault" />
+                  <label for="taxDefault">{{ 'finance.defaultTax' | t }}</label>
                 </div>
               </div>
-              <div style="display: flex; gap: 8px;">
+              <div class="settings-form-actions">
                 <button type="submit" class="btn btn-primary" [disabled]="taxForm.invalid || isSavingTax()">
                   @if (isSavingTax()) { {{ 'settings.saving' | t }} } @else { {{ (editTaxId() ? 'common.save' : 'settings.taxRates.add') | t }} }
                 </button>
                 @if (editTaxId()) { <button type="button" class="btn btn-secondary" (click)="resetTaxForm()">{{ 'common.cancel' | t }}</button> }
               </div>
             </form>
-            <div class="table-scroll" style="margin-top: 1.5rem;">
+            <div class="table-scroll settings-table">
               @if (isLoadingTax()) {
-                <div class="loading-state">{{ 'common.loading' | t }}</div>
+                <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
               } @else if (taxRates().length === 0) {
-                <div class="empty-state"><p>{{ 'settings.taxRates.empty' | t }}</p></div>
+                <div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div><p class="empty-state-title">{{ 'settings.taxRates.empty' | t }}</p></div>
               } @else {
-                <table>
+                <table class="table-responsive">
                   <thead>
                     <tr>
                       <th>{{ 'settings.taxRates.name' | t }}</th>
-                      <th>{{ 'finance.taxRate' | t }}</th>
+                      <th class="num">{{ 'finance.taxRate' | t }}</th>
                       <th>{{ 'settings.company.country' | t }}</th>
                       <th>{{ 'finance.defaultTax' | t }}</th>
                       <th class="th-actions">{{ 'common.actions' | t }}</th>
@@ -215,12 +211,12 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                   <tbody>
                     @for (tr of taxRates(); track tr.id) {
                       <tr>
-                        <td><strong>{{ tr.name }}</strong></td>
-                        <td>%{{ tr.rate | num }}</td>
-                        <td>{{ tr.country || '-' }}</td>
-                        <td>
+                        <td [attr.data-label]="'settings.taxRates.name' | t"><strong>{{ tr.name }}</strong></td>
+                        <td class="num" [attr.data-label]="'finance.taxRate' | t">%{{ tr.rate | num }}</td>
+                        <td [attr.data-label]="'settings.company.country' | t">{{ tr.country || '-' }}</td>
+                        <td [attr.data-label]="'finance.defaultTax' | t">
                           @if (tr.isDefault) { <span class="badge badge-instock">{{ 'finance.defaultTax' | t }}</span> }
-                          @else { <button type="button" class="btn btn-outline" style="padding: 2px 8px; font-size: 12px;" (click)="setDefaultTax(tr)">{{ 'settings.taxRates.setDefault' | t }}</button> }
+                          @else { <button type="button" class="btn btn-secondary btn-sm" (click)="setDefaultTax(tr)">{{ 'settings.taxRates.setDefault' | t }}</button> }
                         </td>
                         <td class="td-actions">
                           <button class="edit-btn" [title]="'common.edit' | t" (click)="editTax(tr)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
@@ -237,23 +233,23 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 
         <!-- UNITS TAB -->
         @if (activeTab() === 'units') {
-          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 900px;">
+          <div class="settings-card settings-card-lg">
             <h3 class="card-title">{{ 'settings.units.title' | t }}</h3>
-            <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.units.subtitle' | t }}</p>
+            <p class="card-subtitle settings-card-sub">{{ 'settings.units.subtitle' | t }}</p>
             @if (canManageUnits()) {
               <form [formGroup]="unitForm" (ngSubmit)="saveUnit()">
                 <div class="settings-form-grid">
                   <div class="form-group" [class.has-error]="unitForm.get('code')?.invalid && unitForm.get('code')?.touched">
                     <label for="unitCode">{{ 'settings.units.code' | t }}</label>
                     <input id="unitCode" type="text" formControlName="code" [placeholder]="'settings.units.codePh' | t" [readonly]="editUnitStandard()" />
-                    @if (editUnitStandard()) { <span class="text-muted" style="font-size: 12px;">{{ 'settings.units.codeLocked' | t }}</span> }
+                    @if (editUnitStandard()) { <span class="field-hint">{{ 'settings.units.codeLocked' | t }}</span> }
                   </div>
                   <div class="form-group" [class.has-error]="unitForm.get('name')?.invalid && unitForm.get('name')?.touched">
                     <label for="unitName">{{ 'settings.units.name' | t }}</label>
                     <input id="unitName" type="text" formControlName="name" [placeholder]="'settings.units.namePh' | t" />
                   </div>
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div class="settings-form-actions">
                   <button type="submit" class="btn btn-primary" [disabled]="unitForm.invalid || isSavingUnit()">
                     @if (isSavingUnit()) { {{ 'settings.saving' | t }} } @else { {{ (editUnitId() ? 'common.save' : 'settings.units.add') | t }} }
                   </button>
@@ -261,13 +257,13 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                 </div>
               </form>
             }
-            <div class="table-scroll" style="margin-top: 1.5rem;">
+            <div class="table-scroll settings-table">
               @if (isLoadingUnits()) {
-                <div class="loading-state">{{ 'common.loading' | t }}</div>
+                <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
               } @else if (units().length === 0) {
-                <div class="empty-state"><p>{{ 'settings.units.empty' | t }}</p></div>
+                <div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div><p class="empty-state-title">{{ 'settings.units.empty' | t }}</p></div>
               } @else {
-                <table>
+                <table class="table-responsive">
                   <thead>
                     <tr>
                       <th>{{ 'settings.units.code' | t }}</th>
@@ -279,11 +275,11 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                   <tbody>
                     @for (u of units(); track u.id) {
                       <tr>
-                        <td><code>{{ u.code }}</code></td>
-                        <td><strong>{{ u | unitLabel }}</strong></td>
-                        <td>
+                        <td class="mono" [attr.data-label]="'settings.units.code' | t">{{ u.code }}</td>
+                        <td [attr.data-label]="'settings.units.name' | t"><strong>{{ u | unitLabel }}</strong></td>
+                        <td [attr.data-label]="'settings.units.type' | t">
                           @if (u.isStandard) { <span class="badge badge-instock">{{ 'settings.units.standard' | t }}</span> }
-                          @else { <span class="badge">{{ 'settings.units.custom' | t }}</span> }
+                          @else { <span class="badge badge-neutral">{{ 'settings.units.custom' | t }}</span> }
                         </td>
                         @if (canManageUnits()) {
                           <td class="td-actions">
@@ -302,9 +298,9 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 
         <!-- EXCHANGE RATES TAB (Admin) -->
         @if (activeTab() === 'exchangeRates' && isAdmin()) {
-          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 900px;">
+          <div class="settings-card settings-card-lg">
             <h3 class="card-title">{{ 'settings.exchangeRates.title' | t }}</h3>
-            <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.exchangeRates.subtitle' | t }}</p>
+            <p class="card-subtitle settings-card-sub">{{ 'settings.exchangeRates.subtitle' | t }}</p>
             <form [formGroup]="fxForm" (ngSubmit)="saveExchangeRate()">
               <div class="settings-form-grid">
                 <div class="form-group">
@@ -330,37 +326,37 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                 </div>
               </div>
               @if (fxForm.getRawValue().rate > 0) {
-                <p class="text-muted" style="font-size: 13px;">{{ 'settings.exchangeRates.preview' | t: { base: fxForm.getRawValue().baseCurrency, rate: (fxForm.getRawValue().rate | num: 4), quote: fxForm.getRawValue().quoteCurrency } }}</p>
+                <p class="field-hint">{{ 'settings.exchangeRates.preview' | t: { base: fxForm.getRawValue().baseCurrency, rate: (fxForm.getRawValue().rate | num: 4), quote: fxForm.getRawValue().quoteCurrency } }}</p>
               }
               @if (fxSameCurrency()) { <p class="error-msg">{{ 'settings.exchangeRates.sameErr' | t }}</p> }
-              <div style="display: flex; gap: 8px;">
+              <div class="settings-form-actions">
                 <button type="submit" class="btn btn-primary" [disabled]="fxForm.invalid || fxSameCurrency() || isSavingFx()">
                   @if (isSavingFx()) { {{ 'settings.saving' | t }} } @else { {{ (editFxId() ? 'common.save' : 'settings.exchangeRates.add') | t }} }
                 </button>
                 @if (editFxId()) { <button type="button" class="btn btn-secondary" (click)="resetFxForm()">{{ 'common.cancel' | t }}</button> }
               </div>
             </form>
-            <div class="table-scroll" style="margin-top: 1.5rem;">
+            <div class="table-scroll settings-table">
               @if (isLoadingFx()) {
-                <div class="loading-state">{{ 'common.loading' | t }}</div>
+                <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
               } @else if (sortedExchangeRates().length === 0) {
-                <div class="empty-state"><p>{{ 'settings.exchangeRates.empty' | t }}</p></div>
+                <div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div><p class="empty-state-title">{{ 'settings.exchangeRates.empty' | t }}</p></div>
               } @else {
-                <table>
+                <table class="table-responsive">
                   <thead>
                     <tr>
                       <th>{{ 'settings.exchangeRates.date' | t }}</th>
                       <th>{{ 'settings.exchangeRates.pair' | t }}</th>
-                      <th>{{ 'settings.exchangeRates.rate' | t }}</th>
+                      <th class="num">{{ 'settings.exchangeRates.rate' | t }}</th>
                       <th class="th-actions">{{ 'common.actions' | t }}</th>
                     </tr>
                   </thead>
                   <tbody>
                     @for (fx of sortedExchangeRates(); track fx.id) {
                       <tr>
-                        <td>{{ fx.date | appDate }}</td>
-                        <td class="mono">{{ fx.baseCurrency }}/{{ fx.quoteCurrency }}</td>
-                        <td>{{ 'settings.exchangeRates.preview' | t: { base: fx.baseCurrency, rate: (fx.rate | num: 4), quote: fx.quoteCurrency } }}</td>
+                        <td [attr.data-label]="'settings.exchangeRates.date' | t">{{ fx.date | appDate }}</td>
+                        <td class="mono" [attr.data-label]="'settings.exchangeRates.pair' | t">{{ fx.baseCurrency }}/{{ fx.quoteCurrency }}</td>
+                        <td class="num" [attr.data-label]="'settings.exchangeRates.rate' | t">{{ 'settings.exchangeRates.preview' | t: { base: fx.baseCurrency, rate: (fx.rate | num: 4), quote: fx.quoteCurrency } }}</td>
                         <td class="td-actions">
                           <button class="edit-btn" [title]="'common.edit' | t" (click)="editFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                           <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
@@ -376,23 +372,23 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 
         <!-- PROFILE & SECURITY TAB -->
         <ng-container *ngIf="activeTab() === 'profile'">
-          <div class="settings-container" style="display: flex; gap: 1.5rem; align-items: start; width: 100%; flex-wrap: wrap;">
-            <div class="settings-left-col" style="flex: 2; min-width: 300px; display: flex; flex-direction: column; gap: 1.5rem;">
-              <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px;">
+          <div class="settings-container">
+            <div class="settings-left-col">
+              <div class="settings-card" >
                 <h3 class="card-title">{{ 'settings.profile.title' | t }}</h3>
-                <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.profile.subtitle' | t }}</p>
+                <p class="card-subtitle settings-card-sub">{{ 'settings.profile.subtitle' | t }}</p>
                 
                 <div class="settings-avatar-section">
                   <div class="settings-avatar">
                     @if (ui.userProfile()?.avatar) {
-                      <img [src]="ui.userProfile().avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
+                      <img [src]="ui.userProfile().avatar" class="settings-avatar-img" alt="" />
                     } @else {
                       {{ getAvatarInitials() }}
                     }
                   </div>
                   <div class="settings-avatar-actions">
-                    <button type="button" class="btn btn-outline" (click)="fileInput.click()">{{ 'settings.profile.uploadPhoto' | t }}</button>
-                    <input #fileInput type="file" style="display:none" (change)="onFileSelected($event)" accept="image/*" />
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="fileInput.click()">{{ 'settings.profile.uploadPhoto' | t }}</button>
+                    <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="image/*" />
                     <a class="link-remove" (click)="removeAvatar()">{{ 'settings.profile.removePhoto' | t }}</a>
                   </div>
                 </div>
@@ -432,16 +428,16 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                   </div>
                   
                   <div class="settings-divider">
-                    <button type="submit" class="btn btn-primary" [style.opacity]="profileForm.pristine ? 0.5 : 1" [style.cursor]="profileForm.pristine ? 'not-allowed' : 'pointer'" [disabled]="profileForm.invalid || profileForm.pristine || isSavingProfile">
+                    <button type="submit" class="btn btn-primary" [disabled]="profileForm.invalid || profileForm.pristine || isSavingProfile">
                       @if (isSavingProfile) { <span class="spinner-sm spinner-light"></span> {{ 'settings.saving' | t }} } @else { {{ 'settings.profile.save' | t }} }
                     </button>
                   </div>
                 </form>
               </div>
 
-              <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px;">
+              <div class="settings-card" >
                 <h3 class="card-title">{{ 'settings.password.title' | t }}</h3>
-                <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.password.subtitle' | t }}</p>
+                <p class="card-subtitle settings-card-sub">{{ 'settings.password.subtitle' | t }}</p>
                 
                 <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()">
                   <div class="form-group" [class.has-error]="isPasswordFieldInvalid('currentPassword')">
@@ -468,10 +464,10 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                       </div>
                       <div class="password-strength-container" *ngIf="passwordForm.get('newPassword')?.value">
                         <div class="password-strength-bars">
-                          <div [style.background]="pwdStrength() >= 1 ? strengthColors[pwdStrength()-1] : '#e5e5e5'"></div>
-                          <div [style.background]="pwdStrength() >= 2 ? strengthColors[pwdStrength()-1] : '#e5e5e5'"></div>
-                          <div [style.background]="pwdStrength() >= 3 ? strengthColors[pwdStrength()-1] : '#e5e5e5'"></div>
-                          <div [style.background]="pwdStrength() >= 4 ? strengthColors[pwdStrength()-1] : '#e5e5e5'"></div>
+                          <div [style.background]="pwdStrength() >= 1 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
+                          <div [style.background]="pwdStrength() >= 2 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
+                          <div [style.background]="pwdStrength() >= 3 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
+                          <div [style.background]="pwdStrength() >= 4 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
                         </div>
                         <div class="strength-label" [style.color]="pwdStrength() > 0 ? strengthColors[pwdStrength()-1] : 'inherit'">{{ strengthLabels[pwdStrength()] ? (strengthLabels[pwdStrength()] | t) : '' }}</div>
                       </div>
@@ -490,8 +486,8 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                       @if (passwordForm.errors?.['mismatch'] && (passwordForm.get('confirmPassword')?.dirty || passwordForm.get('confirmPassword')?.touched)) { 
                         <span class="error-msg">{{ 'settings.password.mismatch' | t }}</span> 
                       } @else if (!passwordForm.errors?.['mismatch'] && passwordForm.get('confirmPassword')?.value) {
-                        <span class="error-msg" style="color: var(--status-instock);">
-                          <svg style="width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:2px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span class="error-msg settings-ok-msg">
+                          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                           {{ 'settings.password.match' | t }}
                         </span>
                       }
@@ -507,8 +503,8 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
               </div>
             </div>
 
-            <div class="settings-right-col" style="flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 1.5rem;">
-              <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 20px;">
+            <div class="settings-right-col">
+              <div class="settings-card" >
                 <div class="side-card-title">{{ 'settings.summary.title' | t }}</div>
                 <div class="summary-row">
                   <span class="summary-label">{{ 'settings.summary.accountType' | t }}</span>
@@ -528,29 +524,29 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                 </div>
               </div>
 
-              <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 20px;">
+              <div class="settings-card" >
                 <div class="side-card-title">{{ 'settings.security.title' | t }}</div>
                 <div class="security-row">
-                  <div class="security-icon-text"><span class="security-icon">🔒</span> {{ 'settings.security.passwordUpdate' | t }}</div>
-                  <span style="color: #999; font-size: 12px;">{{ 'settings.security.daysAgo' | t: { n: 30 } }}</span>
+                  <div class="security-icon-text"><span class="security-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> {{ 'settings.security.passwordUpdate' | t }}</div>
+                  <span class="field-hint">{{ 'settings.security.daysAgo' | t: { n: 30 } }}</span>
                 </div>
                 <div class="security-row">
-                  <div class="security-icon-text"><span class="security-icon">🖥️</span> {{ 'settings.security.activeSession' | t }}</div>
+                  <div class="security-icon-text"><span class="security-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span> {{ 'settings.security.activeSession' | t }}</div>
                   <span class="badge badge-lowstock">{{ 'settings.security.sessions' | t: { n: 1 } }}</span>
                 </div>
                 <div class="security-row">
-                  <div class="security-icon-text"><span class="security-icon">✉️</span> {{ 'settings.security.emailVerification' | t }}</div>
+                  <div class="security-icon-text"><span class="security-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span> {{ 'settings.security.emailVerification' | t }}</div>
                   <span class="badge badge-instock">{{ 'settings.security.verified' | t }}</span>
                 </div>
                 <button type="button" class="btn-terminate" (click)="terminateAllSessions()">{{ 'settings.security.terminateAll' | t }}</button>
               </div>
 
-              <div class="settings-card tips-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 20px;">
+              <div class="settings-card tips-card" >
                 <div class="side-card-title">{{ 'settings.tips.title' | t }}</div>
                 <ul class="tips-list">
-                  <li>✓ {{ 'settings.tips.strong' | t }}</li>
-                  <li>✓ {{ 'settings.tips.rotate' | t }}</li>
-                  <li>✓ {{ 'settings.tips.keepUpdated' | t }}</li>
+                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> {{ 'settings.tips.strong' | t }}</li>
+                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> {{ 'settings.tips.rotate' | t }}</li>
+                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> {{ 'settings.tips.keepUpdated' | t }}</li>
                 </ul>
               </div>
             </div>
@@ -559,30 +555,31 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 
         <!-- CATEGORY MANAGEMENT TAB -->
         <ng-container *ngIf="activeTab() === 'categories'">
-          <div style="width: 100%; display: flex; flex-direction: column; gap: 1rem;">
+          <div class="settings-section">
             
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div class="settings-section-head">
               <div>
-                <h2 style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">{{ 'settings.categories.title' | t }}</h2>
-                <p class="text-muted" style="font-size: 0.85rem; margin-top: 2px;">{{ 'settings.categories.subtitle' | t }}</p>
+                <h2 class="settings-section-title">{{ 'settings.categories.title' | t }}</h2>
+                <p class="settings-section-sub">{{ 'settings.categories.subtitle' | t }}</p>
               </div>
               <button class="btn btn-primary" (click)="openCategoryDrawer()">
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 {{ 'settings.categories.add' | t }}
               </button>
             </div>
 
-            <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+            <div class="table-card">
               @if (isLoadingCategories()) {
-                <div class="loading-state">{{ 'common.loading' | t }}</div>
+                <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
               } @else if (categories().length === 0) {
                 <div class="empty-state">
-                  <p>{{ 'settings.categories.empty' | t }}</p>
-                  <button class="btn btn-outline" (click)="openCategoryDrawer()" style="margin-top: 16px;">{{ 'settings.categories.addFirst' | t }}</button>
+                  <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div>
+                  <p class="empty-state-title">{{ 'settings.categories.empty' | t }}</p>
+                  <button class="btn btn-secondary" (click)="openCategoryDrawer()">{{ 'settings.categories.addFirst' | t }}</button>
                 </div>
               } @else {
                 <div class="table-scroll">
-                  <table>
+                  <table class="table-responsive">
                     <thead>
                       <tr>
                         <th>{{ 'settings.categories.name' | t }}</th>
@@ -593,8 +590,8 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                     <tbody>
                       @for (cat of categories(); track cat.id) {
                         <tr>
-                          <td style="font-size: 0.95rem;"><strong>{{ cat.name }}</strong></td>
-                          <td class="mono" style="color: var(--text-muted); font-size: 0.85rem;">{{ cat.slug }}</td>
+                          <td [attr.data-label]="'settings.categories.name' | t"><strong>{{ cat.name }}</strong></td>
+                          <td class="mono text-muted" [attr.data-label]="'settings.categories.slug' | t">{{ cat.slug }}</td>
                           <td class="td-actions">
                             <button class="edit-btn" [title]="'common.edit' | t" (click)="openCategoryDrawer(cat)">
                               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -615,33 +612,34 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 
         <!-- USER MANAGEMENT TAB -->
         <ng-container *ngIf="activeTab() === 'users'">
-          <div style="width: 100%; display: flex; flex-direction: column; gap: 1rem;">
+          <div class="settings-section">
             
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div class="settings-section-head">
               <div>
-                <h2 style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">{{ 'settings.tab.users' | t }}</h2>
-                <p class="text-muted" style="font-size: 0.85rem; margin-top: 2px;">{{ 'settings.users.subtitle' | t }}</p>
+                <h2 class="settings-section-title">{{ 'settings.tab.users' | t }}</h2>
+                <p class="settings-section-sub">{{ 'settings.users.subtitle' | t }}</p>
               </div>
               
-              <div style="display: flex; gap: 1rem; align-items: center;">
+              <div class="page-actions">
                 <button class="btn btn-primary" (click)="openUserDrawer()">
-                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                   {{ 'settings.users.add' | t }}
                 </button>
               </div>
             </div>
 
-            <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+            <div class="table-card">
               @if (isLoadingUsers()) {
-                <div class="loading-state">{{ 'common.loading' | t }}</div>
+                <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
               } @else if (users().length === 0) {
                 <div class="empty-state">
-                  <p>{{ 'settings.users.empty' | t }}</p>
-                  <button class="btn btn-outline" (click)="openUserDrawer()" style="margin-top: 16px;">{{ 'settings.users.addFirst' | t }}</button>
+                  <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div>
+                  <p class="empty-state-title">{{ 'settings.users.empty' | t }}</p>
+                  <button class="btn btn-secondary" (click)="openUserDrawer()">{{ 'settings.users.addFirst' | t }}</button>
                 </div>
               } @else {
                 <div class="table-scroll">
-                  <table>
+                  <table class="table-responsive">
                     <thead>
                       <tr>
                         <th>{{ 'settings.users.fullName' | t }}</th>
@@ -655,11 +653,11 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                     <tbody>
                       @for (user of users(); track user.id) {
                         <tr>
-                          <td style="font-size: 0.95rem;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                              <div class="user-avatar-sm" style="width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; color: #4b5563; overflow: hidden; border: 1px solid #d1d5db;">
+                          <td [attr.data-label]="'settings.users.fullName' | t">
+                            <div class="settings-user-cell">
+                              <div class="user-avatar-sm">
                                 @if (user.avatar) {
-                                  <img [src]="user.avatar" style="width: 100%; height: 100%; object-fit: cover;" />
+                                  <img [src]="user.avatar" alt="" />
                                 } @else {
                                   {{ getInitials(user.fullName) }}
                                 }
@@ -667,14 +665,14 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                               <strong>{{ user.fullName }}</strong>
                             </div>
                           </td>
-                          <td class="mono" style="color: var(--text-muted); font-size: 0.85rem;">{{ user.username }}</td>
-                          <td>
+                          <td class="mono text-muted" [attr.data-label]="'settings.users.username' | t">{{ user.username }}</td>
+                          <td [attr.data-label]="'settings.users.role' | t">
                             <span class="badge" [class.badge-instock]="user.role === 'admin'" [class.badge-lowstock]="user.role === 'manager'" [class.badge-outstock]="user.role === 'viewer'">
                               {{ roleLabel(user.role) | t }}
                             </span>
                           </td>
-                          <td style="font-size: 0.9rem;">{{ user.department || '-' }}</td>
-                          <td style="font-size: 0.9rem;">{{ user.email }}</td>
+                          <td [attr.data-label]="'settings.users.department' | t">{{ user.department || '-' }}</td>
+                          <td [attr.data-label]="'settings.users.email' | t">{{ user.email }}</td>
                           <td class="td-actions">
                             <button class="edit-btn" [title]="'common.edit' | t" (click)="openUserDrawer(user)">
                               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -701,15 +699,15 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editCategoryId() ? 'settings.categories.edit' : 'settings.categories.add') | t }}</span>
-            <button class="drawer-close" (click)="closeCategoryDrawer()">×</button>
+            <button type="button" class="drawer-close" (click)="closeCategoryDrawer()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
 
-          <form [formGroup]="categoryForm" (ngSubmit)="saveCategory()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="categoryForm" (ngSubmit)="saveCategory()" class="drawer-form">
             <div class="drawer-body">
               <div class="form-field">
                 <input id="catName" type="text" formControlName="name" class="form-input" [class.has-value]="hasCategoryValue('name')" [disabled]="isSavingCategory()" />
                 <label for="catName" class="form-label">{{ 'settings.categories.nameLabel' | t }}</label>
-                @if (isCategoryFieldInvalid('name')) { <div class="form-error">⚠ {{ 'settings.categories.nameErr' | t }}</div> }
+                @if (isCategoryFieldInvalid('name')) { <div class="form-error">{{ 'settings.categories.nameErr' | t }}</div> }
               </div>
 
               <div class="form-field">
@@ -734,7 +732,7 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
       <div class="modal-backdrop">
         <div class="modal-panel modal-panel-sm">
           <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="cancelDeleteCategory()" [disabled]="isSavingCategory()">✕</button>
+            <button class="delete-modal-close" (click)="cancelDeleteCategory()" [disabled]="isSavingCategory()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             <div class="delete-icon">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </div>
@@ -759,33 +757,33 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editUserId() ? 'settings.users.edit' : 'settings.users.add') | t }}</span>
-            <button class="drawer-close" (click)="closeUserDrawer()">×</button>
+            <button type="button" class="drawer-close" (click)="closeUserDrawer()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
 
-          <form [formGroup]="userForm" (ngSubmit)="saveUser()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="userForm" (ngSubmit)="saveUser()" class="drawer-form">
             <div class="drawer-body">
               <div class="form-field">
                 <input id="userFullName" type="text" formControlName="fullName" class="form-input" [class.has-value]="hasUserValue('fullName')" [disabled]="isSavingUser()" />
                 <label for="userFullName" class="form-label">{{ 'settings.users.fullNameLabel' | t }}</label>
-                @if (isUserFieldInvalid('fullName')) { <div class="form-error">⚠ {{ 'settings.users.fullNameErr' | t }}</div> }
+                @if (isUserFieldInvalid('fullName')) { <div class="form-error">{{ 'settings.users.fullNameErr' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input id="userEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasUserValue('email')" [disabled]="isSavingUser()" />
                 <label for="userEmail" class="form-label">{{ 'settings.users.emailLabel' | t }}</label>
-                @if (isUserFieldInvalid('email')) { <div class="form-error">⚠ {{ 'settings.profile.emailErr' | t }}</div> }
+                @if (isUserFieldInvalid('email')) { <div class="form-error">{{ 'settings.profile.emailErr' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input id="userUsername" type="text" formControlName="username" class="form-input" [class.has-value]="hasUserValue('username')" [disabled]="isSavingUser() || !!editUserId()" />
                 <label for="userUsername" class="form-label">{{ 'settings.users.usernameLabel' | t }}</label>
-                @if (isUserFieldInvalid('username')) { <div class="form-error">⚠ {{ 'settings.users.usernameErr' | t }}</div> }
+                @if (isUserFieldInvalid('username')) { <div class="form-error">{{ 'settings.users.usernameErr' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input id="userPassword" type="password" formControlName="password" class="form-input" [class.has-value]="hasUserValue('password')" [disabled]="isSavingUser()" />
                 <label for="userPassword" class="form-label">{{ (editUserId() ? 'settings.users.passwordEdit' : 'settings.users.passwordNew') | t }}</label>
-                @if (isUserFieldInvalid('password')) { <div class="form-error">⚠ {{ 'settings.users.passwordErr' | t }}</div> }
+                @if (isUserFieldInvalid('password')) { <div class="form-error">{{ 'settings.users.passwordErr' | t }}</div> }
               </div>
 
               <div class="form-field">
@@ -793,9 +791,9 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                 <label for="userDepartment" class="form-label">{{ 'settings.users.department' | t }}</label>
               </div>
 
-              <div class="form-field select-field" style="margin-top: 24px;">
-                <label for="userRole" style="display:block; font-size: 0.8rem; font-weight:600; color:var(--text-muted); margin-bottom: 6px;">{{ 'settings.users.role' | t }}</label>
-                <select id="userRole" formControlName="role" class="form-input has-value" style="width: 100%; padding: 10px; border: 1px solid #e5e5e5; border-radius: 6px;" [disabled]="isSavingUser()">
+              <div class="form-field select-field">
+                <label for="userRole" class="form-label">{{ 'settings.users.role' | t }}</label>
+                <select id="userRole" formControlName="role" class="form-select has-value" [disabled]="isSavingUser()">
                   <option value="manager">{{ 'settings.users.roleManagerOpt' | t }}</option>
                   <option value="viewer">{{ 'settings.users.roleViewerOpt' | t }}</option>
                 </select>
@@ -818,7 +816,7 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
       <div class="modal-backdrop">
         <div class="modal-panel modal-panel-sm">
           <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="cancelDeleteUser()" [disabled]="isSavingUser()">✕</button>
+            <button class="delete-modal-close" (click)="cancelDeleteUser()" [disabled]="isSavingUser()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             <div class="delete-icon">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </div>
@@ -841,32 +839,64 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
   `,
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .settings-side-btn {
-      border: none;
-      background: transparent;
-      padding: 14px 18px;
-      text-align: left;
-      font-family: var(--font-heading);
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      border-left: 4px solid transparent;
-      outline: none;
+    :host { display: block; }
+    .settings-tabs { margin-bottom: var(--space-6); }
+    .settings-layout, .settings-content { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; min-width: 0; }
+    .settings-hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4); }
+    .settings-hub-card {
+      display: flex; align-items: center; gap: var(--space-4); width: 100%; text-align: left;
+      padding: var(--space-4) var(--space-5); background: var(--color-surface);
+      border: 1px solid var(--color-border); border-radius: var(--radius-lg); cursor: pointer; font: inherit; color: inherit;
+      transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
     }
-    .settings-side-btn:hover {
-      background: #f9fafb;
-      color: var(--text-primary);
-    }
-    .settings-side-btn.active {
-      background: #f9fafb;
-      color: var(--text-primary);
-      border-left-color: var(--primary);
-      font-weight: 700;
-    }
-    .settings-side-btn + .settings-side-btn {
-      border-top: 1px solid #f0f0f0;
+    .settings-hub-card:hover { border-color: var(--color-primary-border); box-shadow: var(--shadow-sm); }
+    .settings-hub-card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .settings-hub-icon { flex-shrink: 0; width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--color-primary-subtle); color: var(--color-primary-text); }
+    .settings-hub-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .settings-hub-title { font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--color-text); }
+    .settings-hub-desc { font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.45; }
+    .settings-hub-chevron { flex-shrink: 0; color: var(--color-text-subtle); }
+    .settings-hub-card:hover .settings-hub-chevron { color: var(--color-primary-text); }
+    .settings-card-md { max-width: 760px; }
+    .settings-card-lg { max-width: 960px; }
+    .settings-card-sub { margin: var(--space-1) 0 var(--space-6); }
+    .settings-check { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); }
+    .settings-check input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--color-primary); }
+    .settings-check label { margin: 0; }
+    .settings-check-pad { padding-top: var(--space-6); }
+    .settings-check-hint { margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
+    .settings-narrow { max-width: 260px; }
+    .settings-card form > .form-group, .settings-card .settings-form-grid { margin-bottom: var(--space-4); }
+    .settings-card .settings-form-grid > .form-group { margin-bottom: 0; }
+    .settings-form-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+    .settings-table { margin-top: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .settings-skel { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5); }
+    .settings-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+    .settings-avatar { overflow: hidden; background: var(--color-primary) !important; color: var(--color-on-primary) !important; }
+    .settings-ok-msg { color: var(--color-success-text) !important; display: inline-flex; align-items: center; gap: 4px; }
+    .security-icon { display: inline-flex; color: var(--color-text-muted); }
+    .tips-list li { display: flex; align-items: flex-start; gap: var(--space-2); }
+    .tips-list li svg { flex-shrink: 0; margin-top: 2px; color: var(--color-success); }
+    .settings-section { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; }
+    .settings-section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; }
+    .settings-section-title { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--color-text); margin: 0; }
+    .settings-section-sub { margin: var(--space-1) 0 0; font-size: var(--text-md); color: var(--color-text-muted); }
+    .settings-user-cell { display: flex; align-items: center; gap: var(--space-2); }
+    .user-avatar-sm { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--color-primary-subtle); color: var(--color-primary-text); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+    .user-avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
+    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .drawer-body { display: flex; flex-direction: column; gap: var(--space-5); }
+    @media (max-width: 640px) {
+      .settings-hub, .settings-form-grid { grid-template-columns: 1fr; gap: var(--space-4); }
+      .settings-tabs { margin-left: calc(-1 * var(--space-4)); margin-right: calc(-1 * var(--space-4)); padding: 0 var(--space-4); }
+      .settings-tabs .tab { flex-shrink: 0; }
+      .settings-card { padding: var(--space-4) !important; }
+      .settings-section-head .page-actions, .settings-section-head .btn { width: 100%; }
+      .settings-check-pad { padding-top: 0; }
+      .settings-narrow { max-width: none; }
+      .settings-avatar-section { flex-wrap: wrap; }
+      .settings-table { border: 0; }
+      td.mono::before { font-family: var(--font-sans); }
     }
   `]
 })
@@ -1189,7 +1219,7 @@ export class SettingsComponent implements OnInit {
   showNew = signal(false);
   showConfirm = signal(false);
   pwdStrength = signal(0);
-  strengthColors = ['#ef4444', '#f97316', '#eab308', '#10b981']; // Red, Orange, Yellow, Green
+  strengthColors = ['var(--color-danger)', 'var(--color-warning)', 'var(--color-warning)', 'var(--color-success)'];
   strengthLabels = ['', 'settings.strength.weak', 'settings.strength.medium', 'settings.strength.good', 'settings.strength.strong'];
 
   passwordForm: FormGroup = this.fb.group({

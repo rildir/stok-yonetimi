@@ -7,6 +7,7 @@ import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService } from '../../inventory.service';
 import { Chart } from 'chart.js/auto';
+import { applyChartDefaults, withAlpha } from '../../utils/chart-theme';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
 
 @Component({
@@ -14,233 +15,274 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe],
   template: `
-    <header class="page-header" style="border:none; padding-bottom:0; margin-bottom: 1.25rem;">
+    <div class="page-header">
       <div>
-        <h1 style="font-size: 1.25rem;">{{ 'dashboard.title' | t }}</h1>
+        <h1>{{ 'dashboard.title' | t }}</h1>
+        <p>{{ 'dashboard.subtitle' | t }}</p>
       </div>
-    </header>
+    </div>
 
-    <div class="dashboard-unified-grid" style="display: grid; grid-template-columns: repeat(24, 1fr); gap: 16px; width: 100%; padding-bottom: 2.5rem;">
-      <!-- ROW 1: Stat Cards -->
-      <div class="stat-card" style="grid-column: span 6; height: 100%;">
-        <div class="stat-icon-box products">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    <div class="dash">
+      <div class="kpi-grid">
+        <div class="stat-card">
+          <div class="stat-icon-box products">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="stat-label">{{ 'dashboard.stat.totalProducts' | t }}</span>
+            <div class="stat-value">{{ state.totalProducts() | num }}</div>
+          </div>
         </div>
-        <div>
-          <span class="stat-label">{{ 'dashboard.stat.totalProducts' | t }}</span>
-          <div class="stat-value">{{ state.totalProducts() | num }}</div>
+
+        <div class="stat-card" [class.warning-yellow]="state.lowStockCount() > 0">
+          <div class="stat-icon-box lowstock">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="stat-label">{{ 'dashboard.stat.lowStock' | t }}</span>
+            <div class="stat-value low">{{ state.lowStockCount() | num }}</div>
+          </div>
         </div>
-      </div>
-      
-      <div class="stat-card" [class.warning-yellow]="state.lowStockCount() > 0" style="grid-column: span 6; height: 100%;">
-        <div class="stat-icon-box lowstock">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+
+        <div class="stat-card" [class.warning-red]="state.outOfStockCount() > 0">
+          <div class="stat-icon-box outstock">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="stat-label">{{ 'dashboard.stat.outOfStock' | t }}</span>
+            <div class="stat-value out">{{ state.outOfStockCount() | num }}</div>
+          </div>
         </div>
-        <div>
-          <span class="stat-label">{{ 'dashboard.stat.lowStock' | t }}</span>
-          <div class="stat-value low">{{ state.lowStockCount() | num }}</div>
-        </div>
-      </div>
-      
-      <div class="stat-card" [class.warning-red]="state.outOfStockCount() > 0" style="grid-column: span 6; height: 100%;">
-        <div class="stat-icon-box outstock">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-        <div>
-          <span class="stat-label">{{ 'dashboard.stat.outOfStock' | t }}</span>
-          <div class="stat-value out">{{ state.outOfStockCount() | num }}</div>
-        </div>
-      </div>
-      
-      <div class="stat-card" style="grid-column: span 6; height: 100%;">
-        <div class="stat-icon-box revenue">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>
-        </div>
-        <div>
-          <span class="stat-label">{{ 'dashboard.stat.totalRevenue' | t }}</span>
-          <div class="stat-value good">{{ state.totalRevenue() | money }}</div>
-          @if (state.summary(); as sm) {
-            <div style="font-size:0.75rem; color:#565959; margin-top:2px;">{{ 'dashboard.stat.taxCollected' | t }}: {{ sm.taxCollected | money }} · {{ 'dashboard.stat.inventoryValue' | t }}: {{ sm.inventoryValue | money }}</div>
-            @if (sm.unconvertedCurrencies.length) {
-              <div style="font-size:0.72rem; color:#B12704;">{{ 'dashboard.unconverted' | t: { currencies: sm.unconvertedCurrencies.join(', ') } }}</div>
-            }
-          }
-        </div>
-      </div>
- 
-      <!-- ROW 2: Charts & Quick Actions -->
-      <!-- SON 7 GÜNÜN STOK HAREKETİ -->
-      <div class="sidebar-card" style="grid-column: span 10; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; height: 285px;">
-        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.05em;">{{ 'dashboard.weeklyChart.title' | t }}</h4>
-        <div style="flex: 1; position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-          <canvas #weeklyChart [style.display]="(isChartEmpty || isWeeklyLoading) ? 'none' : 'block'"></canvas>
-          @if (isWeeklyLoading) {
-            <div class="chart-loading-state" style="display: flex; flex-direction: column; gap: 8px; width: 100%; height: 100%; justify-content: flex-end; padding: 10px 0; box-sizing: border-box;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-end; height: 100%; gap: 12px; padding: 0 10px;">
-                <div class="skeleton-bar" style="width: 12%; height: 40%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out;"></div>
-                <div class="skeleton-bar" style="width: 12%; height: 75%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.2s;"></div>
-                <div class="skeleton-bar" style="width: 12%; height: 50%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.4s;"></div>
-                <div class="skeleton-bar" style="width: 12%; height: 90%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.6s;"></div>
-                <div class="skeleton-bar" style="width: 12%; height: 30%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.8s;"></div>
-                <div class="skeleton-bar" style="width: 12%; height: 60%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 1.0s;"></div>
-                <div class="skeleton-bar" style="width: 12%; height: 45%; background: #e5e7eb; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 1.2s;"></div>
-              </div>
-            </div>
-            <style>
-              @keyframes pulse {
-                0% { opacity: 0.4; }
-                50% { opacity: 0.8; }
-                100% { opacity: 0.4; }
+
+        <div class="stat-card">
+          <div class="stat-icon-box revenue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <div class="kpi-body">
+            <span class="stat-label">{{ 'dashboard.stat.totalRevenue' | t }}</span>
+            <div class="stat-value good">{{ state.totalRevenue() | money }}</div>
+            @if (state.summary(); as sm) {
+              <div class="kpi-meta">{{ 'dashboard.stat.taxCollected' | t }}: {{ sm.taxCollected | money }} · {{ 'dashboard.stat.inventoryValue' | t }}: {{ sm.inventoryValue | money }}</div>
+              @if (sm.unconvertedCurrencies.length) {
+                <div class="kpi-meta danger">{{ 'dashboard.unconverted' | t: { currencies: sm.unconvertedCurrencies.join(', ') } }}</div>
               }
-            </style>
-          } @else if (isChartEmpty) {
-            <div class="chart-empty-state" style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-muted); gap: 10px; width: 100%; height: 100%; padding: 1rem; box-sizing: border-box;">
-              <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="color: var(--secondary-focus);">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v16.5c0 .621.504 1.125 1.125 1.125h16.5m-15.375-3h15m-15-3.75h12m-12-3.75h9m-9-3.75h3" />
-              </svg>
-              <div>
-                <strong style="display: block; font-size: 0.8rem; color: var(--text-primary); margin-bottom: 2px;">{{ 'dashboard.weeklyChart.emptyTitle' | t }}</strong>
-                <span style="font-size: 0.72rem; line-height: 1.3;">{{ 'dashboard.weeklyChart.emptyText' | t }}</span>
-              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-12">
+        <!-- Weekly stock movement -->
+        <section class="card col-span-5 dash-card">
+          <div class="card-header"><h3 class="card-title">{{ 'dashboard.weeklyChart.title' | t }}</h3>
+            <div class="legend">
+              <span><i class="dot c1"></i>{{ 'dashboard.weeklyChart.in' | t }}</span>
+              <span><i class="dot c2"></i>{{ 'dashboard.weeklyChart.out' | t }}</span>
             </div>
-          }
-        </div>
-      </div>
+          </div>
+          <div class="chart-box">
+            <canvas #weeklyChart [style.display]="(isChartEmpty || isWeeklyLoading) ? 'none' : 'block'"></canvas>
+            @if (isWeeklyLoading) {
+              <div class="bars-skeleton">
+                <div class="skeleton" style="height: 40%"></div>
+                <div class="skeleton" style="height: 75%"></div>
+                <div class="skeleton" style="height: 50%"></div>
+                <div class="skeleton" style="height: 90%"></div>
+                <div class="skeleton" style="height: 30%"></div>
+                <div class="skeleton" style="height: 60%"></div>
+                <div class="skeleton" style="height: 45%"></div>
+              </div>
+            } @else if (isChartEmpty) {
+              <div class="empty-state compact">
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                </div>
+                <div class="empty-state-title">{{ 'dashboard.weeklyChart.emptyTitle' | t }}</div>
+                <p>{{ 'dashboard.weeklyChart.emptyText' | t }}</p>
+              </div>
+            }
+          </div>
+        </section>
 
-      <!-- KATEGORİ BAZLI DAĞILIM -->
-      <div class="sidebar-card" style="grid-column: span 8; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; height: 285px;">
-        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: none; color: var(--text-primary); letter-spacing: 0.05em;">{{ 'dashboard.categoryChart.title' | t }}</h4>
-        <div style="flex: 1; position: relative; width: 100%; height: 100%; padding: 0.5rem;">
-          <canvas #categoryChart></canvas>
-        </div>
-      </div>
+        <!-- Category distribution -->
+        <section class="card col-span-4 dash-card cat-card">
+          <div class="card-header"><h3 class="card-title">{{ 'dashboard.categoryChart.title' | t }}</h3></div>
+          <div class="chart-box">
+            <canvas #categoryChart></canvas>
+          </div>
+        </section>
 
-      <!-- HIZLI İŞLEMLER -->
-      <div class="sidebar-card" style="grid-column: span 6; display: flex; flex-direction: column; height: 285px; padding: 1rem;">
-        <h3 class="card-title" style="margin-bottom: 0.75rem;">{{ 'dashboard.quick.title' | t }}</h3>
-        <div class="quick-actions-list" style="display: flex; flex-direction: column; gap: 8px; flex: 1; justify-content: center;">
-          <a routerLink="/products" [queryParams]="{ action: 'new' }" class="quick-action-row-btn">
-            <span class="qa-badge-icon" style="background: rgba(17, 24, 39, 0.04); color: var(--primary);">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            </span>
-            <span class="qa-text">{{ 'dashboard.quick.newProduct' | t }}</span>
-          </a>
-          <a routerLink="/stock-movements" class="quick-action-row-btn">
-            <span class="qa-badge-icon" style="background: rgba(5, 150, 105, 0.06); color: var(--status-instock);">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-            </span>
-            <span class="qa-text">{{ 'dashboard.quick.newMovement' | t }}</span>
-          </a>
-          <a routerLink="/stock-count" class="quick-action-row-btn">
-            <span class="qa-badge-icon" style="background: rgba(217, 119, 6, 0.06); color: var(--status-lowstock);">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-            </span>
-            <span class="qa-text">{{ 'dashboard.quick.startCount' | t }}</span>
-          </a>
-        </div>
-      </div>
+        <!-- Quick actions -->
+        <section class="card col-span-3 dash-card quick-card">
+          <div class="card-header"><h3 class="card-title">{{ 'dashboard.quick.title' | t }}</h3></div>
+          <div class="quick-list">
+            <a routerLink="/products" [queryParams]="{ action: 'new' }" class="quick-action-row-btn">
+              <span class="qa-ic primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              </span>
+              <span class="qa-text">{{ 'dashboard.quick.newProduct' | t }}</span>
+            </a>
+            <a routerLink="/stock-movements" class="quick-action-row-btn">
+              <span class="qa-ic success">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+              </span>
+              <span class="qa-text">{{ 'dashboard.quick.newMovement' | t }}</span>
+            </a>
+            <a routerLink="/stock-count" class="quick-action-row-btn">
+              <span class="qa-ic warning">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+              </span>
+              <span class="qa-text">{{ 'dashboard.quick.startCount' | t }}</span>
+            </a>
+          </div>
+        </section>
 
-      <!-- ROW 3: Alerts & Lists -->
-      <!-- DÜŞÜK STOK UYARILARI -->
-      <div class="sidebar-card" style="grid-column: span 8; height: 285px; display: flex; flex-direction: column; padding: 1.25rem;">
-        <h3 class="card-title">{{ 'dashboard.lowStock.title' | t }}</h3>
-        <div class="scroll-list card-list" style="flex: 1; overflow-y: auto; margin-top: 0.5rem;">
-          @for (p of state.products(); track p.id) {
-            @if (p.status !== 'In stock') {
+        <!-- Low stock alerts -->
+        <section class="card col-span-4 dash-card">
+          <div class="card-header"><h3 class="card-title">{{ 'dashboard.lowStock.title' | t }}</h3></div>
+          <div class="scroll-list">
+            @for (p of state.products(); track p.id) {
+              @if (p.status !== 'In stock') {
+                <div class="list-item">
+                  <div class="list-item-name">
+                    <strong>{{ p.name }}</strong>
+                    <span>{{ p.sku }}</span>
+                  </div>
+                  <span class="badge" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
+                    {{ 'dashboard.units' | t: { qty: (p.quantity | num) } }}
+                  </span>
+                </div>
+              }
+            }
+            @if (state.lowStockCount() === 0 && state.outOfStockCount() === 0) {
+              <div class="empty-state compact">
+                <div class="empty-state-icon ok">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <p>{{ 'dashboard.lowStock.empty' | t }}</p>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- Top selling -->
+        <section class="card col-span-4 dash-card">
+          <div class="card-header"><h3 class="card-title">{{ 'dashboard.topSelling.title' | t }}</h3></div>
+          <div class="scroll-list top-list">
+            @for (tp of topSellingProducts(); track tp.name) {
+              <div class="top-item">
+                <div class="top-row">
+                  <span class="truncate">{{ tp.name }}</span>
+                  <span class="num text-muted">{{ 'dashboard.units' | t: { qty: (tp.quantity | num) } }}</span>
+                </div>
+                <div class="bar"><div class="bar-fill" [style.width.%]="tp.percentage"></div></div>
+              </div>
+            }
+            @if (topSellingProducts().length === 0) {
+              <div class="empty-state compact">
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></svg>
+                </div>
+                <p>{{ 'dashboard.topSelling.empty' | t }}</p>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- Recent orders -->
+        <section class="card col-span-4 dash-card">
+          <div class="card-header"><h3 class="card-title">{{ 'dashboard.recentOrders.title' | t }}</h3></div>
+          <div class="scroll-list">
+            @for (o of state.orders().slice(0, 5); track o.id) {
               <div class="list-item">
                 <div class="list-item-name">
-                  <strong>{{ p.name }}</strong>
-                  <span>{{ p.sku }}</span>
+                  <strong>{{ o.customerName }}</strong>
+                  <span>{{ o.orderNumber }} · {{ o.date | appDate }}</span>
                 </div>
-                <span class="badge" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
-                  {{ 'dashboard.units' | t: { qty: (p.quantity | num) } }}
-                </span>
+                <div class="list-item-right">
+                  <strong class="num">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</strong>
+                  <span class="sdot" [class.completed]="o.status === 'Completed'" [class.pending]="o.status === 'Pending'" [class.cancelled]="o.status === 'Cancelled'"></span>
+                </div>
               </div>
             }
-          }
-          @if (state.lowStockCount() === 0 && state.outOfStockCount() === 0) {
-            <div class="empty-state">🎉 {{ 'dashboard.lowStock.empty' | t }}</div>
-          }
-        </div>
-      </div>
-
-      <!-- EN ÇOK SATAN ÜRÜNLER -->
-      <div class="sidebar-card" style="grid-column: span 8; height: 285px; display: flex; flex-direction: column; padding: 1.25rem;">
-        <h3 class="card-title">{{ 'dashboard.topSelling.title' | t }}</h3>
-        <div class="scroll-list card-list" style="flex: 1; overflow-y: auto; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 12px;">
-          @for (tp of topSellingProducts(); track tp.name) {
-            <div class="top-selling-item" style="display: flex; flex-direction: column; gap: 4px;">
-              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600;">
-                <span>{{ tp.name }}</span>
-                <span style="font-family: var(--font-mono); color: var(--text-muted);">{{ 'dashboard.units' | t: { qty: (tp.quantity | num) } }}</span>
-              </div>
-              <div class="progress-bar-bg" style="width: 100%; height: 6px; background: var(--secondary); border-radius: 3px; overflow: hidden;">
-                <div class="progress-bar-fill" [style.width.%]="tp.percentage" style="height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.8s ease-out;"></div>
-              </div>
-            </div>
-          }
-          @if (topSellingProducts().length === 0) {
-            <div class="empty-state">{{ 'dashboard.topSelling.empty' | t }}</div>
-          }
-        </div>
-      </div>
-
-      <!-- SON SİPARİŞLER -->
-      <div class="sidebar-card" style="grid-column: span 8; display: flex; flex-direction: column; height: 285px; padding: 1.25rem;">
-        <h3 class="card-title">{{ 'dashboard.recentOrders.title' | t }}</h3>
-        <div class="scroll-list card-list" style="flex: 1; overflow-y: auto; margin-top: 0.5rem;">
-          @for (o of state.orders().slice(0, 5); track o.id) {
-            <div class="list-item">
-              <div class="list-item-name">
-                <strong>{{ o.customerName }}</strong>
-                <span>{{ o.orderNumber }} · {{ o.date | appDate }}</span>
-              </div>
-              <div class="list-item-right">
-                <strong class="mono" style="font-size:0.82rem;">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</strong>
-                <span class="sdot" [class.completed]="o.status === 'Completed'" [class.pending]="o.status === 'Pending'" [class.cancelled]="o.status === 'Cancelled'"></span>
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-
-      <!-- SKT YAKLAŞAN PARTİLER -->
-      @if (expiringCount() > 0) {
-        <div class="sidebar-card" style="grid-column: 1 / -1; display: flex; flex-direction: column; padding: 1.25rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 class="card-title">{{ 'dashboard.expiring.title' | t }} <span class="badge badge-lowstock" style="margin-left: 6px;">{{ expiringCount() }}</span></h3>
-            <a routerLink="/reports" [queryParams]="{ tab: 'expiring' }" style="font-size: 0.8rem;">{{ 'dashboard.expiring.viewAll' | t }} →</a>
           </div>
-          <div class="table-scroll" style="margin-top: 0.5rem;">
-            <table>
-              <thead>
-                <tr>
-                  <th>{{ 'dashboard.expiring.product' | t }}</th>
-                  <th>{{ 'dashboard.expiring.lot' | t }}</th>
-                  <th>{{ 'dashboard.expiring.warehouse' | t }}</th>
-                  <th>{{ 'dashboard.expiring.expiry' | t }}</th>
-                  <th>{{ 'dashboard.expiring.qty' | t }}</th>
-                  <th>{{ 'dashboard.expiring.daysLeft' | t }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (l of expiringTop(); track l.lotId) {
-                  <tr [style.color]="l.daysLeft < 0 ? '#dc2626' : null">
-                    <td><strong>{{ l.productName }}</strong> <span class="mono" style="color: var(--text-muted);">{{ l.sku }}</span></td>
-                    <td class="mono">{{ l.lotNumber }}</td>
-                    <td>{{ l.warehouseName }}</td>
-                    <td>{{ l.expiryDate | appDate }}</td>
-                    <td class="mono">{{ l.quantity | num }}</td>
-                    <td class="mono">{{ l.daysLeft < 0 ? ('dashboard.expiring.expired' | t) : ('dashboard.expiring.days' | t: { n: l.daysLeft }) }}</td>
+        </section>
+
+        <!-- Expiring lots -->
+        @if (expiringCount() > 0) {
+          <section class="card col-span-12">
+            <div class="card-header">
+              <h3 class="card-title cluster">{{ 'dashboard.expiring.title' | t }} <span class="badge badge-warning">{{ expiringCount() }}</span></h3>
+              <a routerLink="/reports" [queryParams]="{ tab: 'expiring' }" class="btn btn-ghost btn-sm">{{ 'dashboard.expiring.viewAll' | t }} →</a>
+            </div>
+            <div class="table-scroll">
+              <table class="table-responsive">
+                <thead>
+                  <tr>
+                    <th>{{ 'dashboard.expiring.product' | t }}</th>
+                    <th>{{ 'dashboard.expiring.lot' | t }}</th>
+                    <th>{{ 'dashboard.expiring.warehouse' | t }}</th>
+                    <th>{{ 'dashboard.expiring.expiry' | t }}</th>
+                    <th class="num">{{ 'dashboard.expiring.qty' | t }}</th>
+                    <th class="num">{{ 'dashboard.expiring.daysLeft' | t }}</th>
                   </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      }
+                </thead>
+                <tbody>
+                  @for (l of expiringTop(); track l.lotId) {
+                    <tr>
+                      <td [attr.data-label]="'dashboard.expiring.product' | t"><strong>{{ l.productName }}</strong> <span class="mono text-muted">{{ l.sku }}</span></td>
+                      <td class="mono" [attr.data-label]="'dashboard.expiring.lot' | t">{{ l.lotNumber }}</td>
+                      <td [attr.data-label]="'dashboard.expiring.warehouse' | t">{{ l.warehouseName }}</td>
+                      <td [attr.data-label]="'dashboard.expiring.expiry' | t">{{ l.expiryDate | appDate }}</td>
+                      <td class="num" [attr.data-label]="'dashboard.expiring.qty' | t">{{ l.quantity | num }}</td>
+                      <td class="num" [attr.data-label]="'dashboard.expiring.daysLeft' | t">
+                        <span class="badge" [class.badge-danger]="l.daysLeft < 0" [class.badge-warning]="l.daysLeft >= 0">{{ l.daysLeft < 0 ? ('dashboard.expiring.expired' | t) : ('dashboard.expiring.days' | t: { n: l.daysLeft }) }}</span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+      </div>
     </div>
-  `
+  `,
+  styles: [`
+    .dash { display: flex; flex-direction: column; gap: var(--space-4); padding-bottom: var(--space-10); }
+    .kpi-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .kpi-meta.danger { color: var(--color-danger-text); }
+    .dash-card { height: 320px; }
+    .chart-box { flex: 1; position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; }
+    .chart-box canvas { position: absolute; inset: 0; }
+    .legend { display: flex; gap: var(--space-3); font-size: var(--text-xs); color: var(--color-text-muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot.c1 { background: var(--chart-1); } .dot.c2 { background: var(--chart-2); }
+    .bars-skeleton { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); width: 100%; height: 100%; padding: var(--space-2) var(--space-2) 0; }
+    .bars-skeleton .skeleton { flex: 1; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+    .empty-state.compact { padding: var(--space-4); border: 0; background: none; margin: auto; }
+    .empty-state.compact p { font-size: var(--text-sm); }
+    .empty-state-icon.ok { background: var(--color-success-subtle); color: var(--color-success); }
+    .quick-list { display: flex; flex-direction: column; gap: var(--space-2); flex: 1; justify-content: center; }
+    .qa-ic { width: 32px; height: 32px; border-radius: var(--radius-md); display: inline-grid; place-items: center; flex-shrink: 0; }
+    .qa-ic.primary { background: var(--color-primary-subtle); color: var(--color-primary-text); }
+    .qa-ic.success { background: var(--color-success-subtle); color: var(--color-success); }
+    .qa-ic.warning { background: var(--color-warning-subtle); color: var(--color-warning); }
+    .scroll-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-1); margin: 0 calc(-1 * var(--space-2)); padding: 0 var(--space-2); }
+    .top-list { gap: var(--space-4); }
+    .top-item { display: flex; flex-direction: column; gap: 6px; }
+    .top-row { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text); }
+    .bar { height: 6px; background: var(--color-surface-muted); border-radius: var(--radius-full); overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--color-primary); border-radius: var(--radius-full); transition: width var(--duration-slow, 320ms) var(--ease-standard, ease-out); }
+    @media (max-width: 1280px) and (min-width: 1025px) {
+      .col-span-5, .cat-card { grid-column: span 6; }
+      .quick-card { grid-column: 1 / -1; height: auto; }
+      .quick-card .quick-list { flex-direction: row; flex-wrap: wrap; }
+      .quick-card .quick-action-row-btn { flex: 1 1 200px; }
+    }
+    @media (max-width: 1024px) { .dash-card { height: auto; min-height: 260px; } .chart-box { min-height: 240px; } .scroll-list { max-height: 280px; } }
+  `]
 })
 export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   state = inject(AppStateService);
@@ -256,7 +298,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.viewReady) setTimeout(() => this.renderDashboardCharts(), 0);
   });
 
+  private onThemeChange = () => { if (this.viewReady) this.renderDashboardCharts(); };
+
   ngOnDestroy() {
+    window.removeEventListener('themechange', this.onThemeChange);
     this.weeklyChartInstance?.destroy();
     this.categoryChartInstance?.destroy();
   }
@@ -317,12 +362,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
+    window.addEventListener('themechange', this.onThemeChange);
     setTimeout(() => { this.viewReady = true; this.renderDashboardCharts(); }, 50);
   }
 
   renderDashboardCharts() {
     if (this.weeklyChartInstance) this.weeklyChartInstance.destroy();
     if (this.categoryChartInstance) this.categoryChartInstance.destroy();
+    this.weeklyChartInstance = null;
+    this.categoryChartInstance = null;
+    const tk = applyChartDefaults();
 
     const labels: string[] = [];
     const entries: number[] = [];
@@ -381,14 +430,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
                   {
                     label: this.i18n.t('dashboard.weeklyChart.in'),
                     data: entries,
-                    backgroundColor: '#4F46E5', /* Indigo */
-                    borderRadius: 3
+                    backgroundColor: tk.palette[0],
+                    borderRadius: 4,
+                    maxBarThickness: 18
                   },
                   {
                     label: this.i18n.t('dashboard.weeklyChart.out'),
                     data: exits,
-                    backgroundColor: '#8B5CF6', /* Violet */
-                    borderRadius: 3
+                    backgroundColor: tk.palette[1],
+                    borderRadius: 4,
+                    maxBarThickness: 18
                   }
                 ]
               },
@@ -415,15 +466,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
                 scales: {
                   y: { 
                     beginAtZero: true, 
-                    grid: { color: '#f3f4f6' }, 
-                    ticks: { 
-                      font: { size: 9, family: 'Inter' },
+                    grid: { color: tk.grid },
+                    border: { display: false },
+                    ticks: {
+                      color: tk.muted, maxTicksLimit: 5,
                       callback: (value: any) => {
                         return this.i18n.t('dashboard.units', { qty: this.i18n.formatNumber(value) });
                       }
                     } 
                   },
-                  x: { grid: { display: false }, ticks: { font: { size: 9, family: 'Inter' } } }
+                  x: { grid: { display: false }, border: { color: tk.border }, ticks: { color: tk.muted } }
                 }
               }
             });
@@ -453,15 +505,18 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
                 labels: catLabels,
                 datasets: [{
                   data: catValues,
-                  backgroundColor: ['#4F46E5', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#E2E8F0'],
-                  borderWidth: 1
+                  backgroundColor: catValues.map((_, i) => tk.palette[i % tk.palette.length]),
+                  hoverBackgroundColor: catValues.map((_, i) => withAlpha(tk.palette[i % tk.palette.length], 0.85)),
+                  borderColor: tk.surface,
+                  borderWidth: 2
                 }]
               },
               options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '68%',
                 plugins: {
-                  legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9, family: 'Inter' } } }
+                  legend: { position: 'right', labels: { color: tk.text, padding: 12, font: { size: 12 } } }
                 }
               }
             });

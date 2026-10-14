@@ -12,5 +12,6 @@
   "common.noData": "No records found.",
   "common.actions": "Actions",
   "common.language": "Language",
-  "common.unknownError": "An unexpected error occurred."
+  "common.unknownError": "An unexpected error occurred.",
+  "common.clear": "Clear"
 }

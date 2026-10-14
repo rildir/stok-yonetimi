@@ -65,5 +65,10 @@
   "layout.documentTitle": "{page} — Ecelon",
   "layout.nav.customers": "Customers",
   "layout.nav.auditLog": "Audit Log",
-  "layout.nav.integrations": "Integrations"
+  "layout.nav.integrations": "Integrations",
+  "layout.theme.toLight": "Switch to light theme",
+  "layout.theme.toDark": "Switch to dark theme",
+  "layout.openMenu": "Open menu",
+  "layout.closeMenu": "Close menu",
+  "layout.breadcrumb": "Breadcrumb"
 }

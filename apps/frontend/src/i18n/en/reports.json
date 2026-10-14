@@ -64,5 +64,6 @@
   "reports.expiring.expired": "Expired",
   "reports.expiring.empty": "No lots expiring in this period",
   "reports.expiring.loadError": "Failed to load expiring lots",
-  "reports.expiring.filePrefix": "Expiring_Lots"
+  "reports.expiring.filePrefix": "Expiring_Lots",
+  "reports.expiring.col.sku": "SKU"
 }

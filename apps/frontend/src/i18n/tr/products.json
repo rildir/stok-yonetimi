@@ -177,5 +177,7 @@
   "products.toast.scanSerial": "Seri: {serial}",
   "products.errors.barcodeTaken": "Bu barkod başka bir ürün veya birimde kullanılıyor.",
   "products.errors.barcodeChecksum": "Barkod kontrol hanesi geçersiz.",
-  "products.errors.trackedQtyLocked": "Takipli ürünlerde stok miktarı elle değiştirilemez."
+  "products.errors.trackedQtyLocked": "Takipli ürünlerde stok miktarı elle değiştirilemez.",
+  "products.page.title": "Ürünler",
+  "products.page.subtitle": "Ürün kataloğunuzu, stok seviyelerini ve fiyatlarını yönetin."
 }

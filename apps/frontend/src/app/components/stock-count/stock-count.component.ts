@@ -12,214 +12,49 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
   selector: 'app-stock-count',
   standalone: true,
   imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, BarcodeScannerComponent],
+  styleUrls: ['../../drawer.css'],
   styles: [`
-    /* OVERLAY */
-    .drawer-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.35);
-      z-index: 1000;
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    /* PANEL */
-    .drawer-panel {
-      position: relative;
-      width: 500px;
-      height: 100vh;
-      background: #fff;
-      display: flex;
-      flex-direction: column;
-      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
-      animation: slideIn 0.25s ease;
-    }
-
-    @keyframes slideIn {
-      from { transform: translateX(100%); }
-      to   { transform: translateX(0); }
-    }
-
-    /* HEADER */
-    .drawer-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 24px;
-      border-bottom: 1px solid #f0f0f0;
-      flex-shrink: 0;
-    }
-
-    .drawer-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #1a1a1a;
-    }
-
-    .drawer-close {
-      width: 28px;
-      height: 28px;
-      border: none;
-      background: transparent;
-      border-radius: 6px;
-      font-size: 20px;
-      color: #999;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 1;
-    }
-    .drawer-close:hover {
-      background: #f5f5f5;
-      color: #1a1a1a;
-    }
-
-    /* BODY */
-    .drawer-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 24px;
-    }
-
-    .drawer-field {
-      margin-bottom: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
-    .drawer-field label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: none;
-      letter-spacing: 0.5px;
-    }
-
-    .drawer-field span {
-      font-size: 0.88rem;
-      color: var(--text-primary);
-    }
-
-    .drawer-field .notes-box {
-      background-color: var(--canvas);
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px dashed var(--secondary);
-      font-style: italic;
-    }
-
-    .drawer-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1rem;
-      font-size: 0.8rem;
-    }
-
-    .drawer-table th {
-      text-align: left;
-      padding: 8px 16px;
-      background-color: var(--canvas);
-      border-bottom: 2px solid var(--border-color);
-      color: var(--text-muted);
-      font-weight: bold;
-      font-size: 11px;
-      text-transform: none;
-      letter-spacing: 0.05em;
-    }
-
-    .drawer-table td {
-      padding: 8px;
-      border-bottom: 1px solid var(--secondary);
-      vertical-align: middle;
-    }
-
-    /* Active count page styles */
-    .active-count-wrapper {
-      background-color: var(--surface);
-      border: 1px solid var(--secondary);
-      border-radius: var(--radius-lg);
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.25rem;
-    }
-
-    .active-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--secondary);
-      padding-bottom: 0.75rem;
-    }
-
-    .active-header h3 {
-      font-size: 1.1rem;
-      margin: 0;
-    }
-
-    .active-meta {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-    }
-
-    .diff-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-    }
-
-    .diff-pos { background-color: rgba(5, 150, 105, 0.1); color: #059669; }
-    .diff-neg { background-color: rgba(220, 38, 38, 0.1); color: #dc2626; }
-    .diff-zero { background-color: #f1f5f9; color: #475569; }
-
-    .qty-input {
-      width: 80px;
-      height: 32px;
-      padding: 4px 8px;
-      border: 1.5px solid var(--secondary);
-      border-radius: var(--radius-sm);
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      text-align: center;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .qty-input:focus {
-      border-color: var(--primary);
-    }
-
-    .scan-highlight td { background-color: #dbeafe !important; transition: background-color 0.3s; }
-    .expand-btn { border: none; background: transparent; cursor: pointer; font-size: 0.75rem; color: var(--text-muted); padding: 0 4px; }
-    .track-sub td { background: var(--canvas); font-size: 0.8rem; }
-    .serial-missing { text-decoration: line-through; color: #dc2626; }
-
-    .zero-stock-row {
-      background-color: #fffbeb !important;
-    }
-    .zero-stock-row:hover td {
-      background-color: #fef3c7 !important;
-    }
-
-    .zero-stock-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: 600;
-      background-color: #fef3c7;
-      color: #d97706;
-      border: 1px solid #fcd34d;
-      margin-left: 8px;
+    .drawer-field { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); }
+    .drawer-field label, .field-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
+    .drawer-field span { font-size: var(--text-sm); color: var(--color-text); }
+    .notes-box { background: var(--color-surface-subtle); padding: var(--space-3); border-radius: var(--radius-md); border: 1px dashed var(--color-border-strong); font-size: var(--text-sm); color: var(--color-text-secondary); }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
+    .drawer-table { width: 100%; border-collapse: collapse; margin-top: var(--space-2); font-size: var(--text-sm); }
+    .drawer-table th { text-align: left; padding: var(--space-2); background: var(--color-surface-subtle); border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); font-weight: var(--weight-medium); font-size: var(--text-xs); }
+    .drawer-table td { padding: var(--space-2); border-bottom: 1px solid var(--color-border-subtle); vertical-align: middle; color: var(--color-text); }
+    .drawer-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .active-count-wrapper { display: flex; flex-direction: column; gap: var(--space-5); margin-bottom: var(--space-6); padding: var(--space-6); }
+    .active-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; padding-bottom: var(--space-4); border-bottom: 1px solid var(--color-border-subtle); }
+    .active-header h3 { font-size: var(--text-lg); margin: 0 0 var(--space-1); color: var(--color-text); }
+    .active-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .progress-box { background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
+    .progress-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); font-size: var(--text-sm); }
+    .progress-track { width: 100%; height: 8px; background: var(--color-surface-muted); border-radius: var(--radius-full); overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--color-primary); border-radius: var(--radius-full); transition: width var(--duration-base) var(--ease-standard); }
+    .diff-badge { display: inline-flex; align-items: center; padding: 2px var(--space-2); border-radius: var(--radius-full); font-weight: var(--weight-semibold); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+    .diff-pos { background: var(--color-success-subtle); color: var(--color-success-text); }
+    .diff-neg { background: var(--color-danger-subtle); color: var(--color-danger-text); }
+    .diff-zero { background: var(--color-surface-muted); color: var(--color-text-secondary); }
+    .qty-input { width: 88px; height: 32px; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); font-size: var(--text-sm); font-variant-numeric: tabular-nums; text-align: right; outline: none; transition: border-color var(--duration-fast); }
+    .qty-input:focus { border-color: var(--color-primary); box-shadow: var(--focus-ring); }
+    .scan-highlight td { background-color: var(--color-primary-subtle) !important; }
+    .expand-btn { width: 24px; height: 24px; display: inline-grid; place-items: center; border: none; background: transparent; cursor: pointer; color: var(--color-text-muted); border-radius: var(--radius-xs); padding: 0; }
+    .expand-btn:hover { background: var(--color-surface-muted); color: var(--color-text); }
+    .expand-btn svg { transition: transform var(--duration-fast); }
+    .expand-btn.open svg { transform: rotate(90deg); }
+    .track-sub td { background: var(--color-surface-subtle); font-size: var(--text-xs); }
+    .track-sub .indent { padding-left: var(--space-10); }
+    .serial-missing { text-decoration: line-through; color: var(--color-danger-text); }
+    .serial-label { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+    .name-cell { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .zero-stock-row td, .zero-stock-row:hover td { background-color: var(--color-warning-subtle) !important; }
+    .confirm-icon { background: var(--color-primary-subtle) !important; color: var(--color-primary) !important; }
+    @media (max-width: 640px) {
+      .active-count-wrapper { padding: var(--space-4); }
+      .active-actions { width: 100%; }
+      .active-actions .btn { flex: 1; }
+      .meta-grid { grid-template-columns: 1fr; }
+      .drawer-table .hide-xs { display: none; }
     }
   `],
   template: `
@@ -228,90 +63,90 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
         <h1>{{ 'stockCount.title' | t }}</h1>
         <p>{{ 'stockCount.subtitle' | t }}</p>
       </div>
-      <div class="header-actions">
+      <div class="page-actions">
         @if (!activeCount()) {
-          <button class="btn btn-primary" (click)="startNewCount()">{{ 'stockCount.startNew' | t }}</button>
+          <button class="btn btn-primary" (click)="startNewCount()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> {{ 'stockCount.startNew' | t }}</button>
         }
       </div>
     </header>
 
     <!-- ─── Active In-Progress Count Session ─── -->
     @if (activeCount()) {
-      <div class="active-count-wrapper">
+      <div class="card active-count-wrapper">
         <div class="active-header">
           <div>
             <h3 class="mono">{{ activeCount()?.countNumber }}</h3>
-            <span style="font-size: 0.75rem; color: var(--text-muted)">
+            <span class="text-muted" style="font-size: var(--text-xs);">
               {{ 'stockCount.startedAt' | t }}: {{ activeCount()?.startedAt | appDate: 'datetime' }} · {{ 'stockCount.performedBy' | t }}: {{ activeCount()?.performedBy }}
             </span>
           </div>
-          <div style="display:flex; gap:8px">
-            <button class="btn btn-outline btn-sm" (click)="showScanner.set(true)" [disabled]="isActionLoading()">{{ 'stockCount.scan' | t }}</button>
-            <button class="btn btn-outline btn-sm" (click)="saveDraft()" [disabled]="isActionLoading()">{{ 'stockCount.saveCount' | t }}</button>
+          <div class="active-actions">
+            <button class="btn btn-secondary btn-sm" (click)="showScanner.set(true)" [disabled]="isActionLoading()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 7v10M12 7v10M16 7v10"/></svg>{{ 'stockCount.scan' | t }}</button>
+            <button class="btn btn-secondary btn-sm" (click)="saveDraft()" [disabled]="isActionLoading()">{{ 'stockCount.saveCount' | t }}</button>
             <button class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()">{{ 'stockCount.completeCount' | t }}</button>
           </div>
         </div>
 
         <div class="drawer-field">
           <label for="countNotes">{{ 'stockCount.notesOptional' | t }}</label>
-          <input id="countNotes" type="text" [(ngModel)]="activeNotes" class="form-input" style="height:42px" [placeholder]="'stockCount.notesPlaceholder' | t" [disabled]="isActionLoading()" />
+          <input id="countNotes" type="text" [(ngModel)]="activeNotes" class="input" [placeholder]="'stockCount.notesPlaceholder' | t" [disabled]="isActionLoading()" />
         </div>
 
         <!-- Progress Indicator -->
-        <div class="progress-container" style="background: var(--canvas); border: 1px solid var(--secondary); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 0.5rem;">
-          <div class="progress-info" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary)">
+        <div class="progress-box">
+          <div class="progress-info">
+            <span style="font-weight: var(--weight-semibold); color: var(--color-text);">
               {{ 'stockCount.progress' | t: { counted: countedItemsCount(), total: totalItemsCount() } }}
             </span>
-            <span class="mono" style="font-size: 0.85rem; font-weight: 700; color: var(--primary)">
+            <span class="num" style="font-weight: var(--weight-semibold); color: var(--color-primary-text);">
               {{ progressPercentage() }}%
             </span>
           </div>
-          <div class="progress-bar-bg" style="width: 100%; height: 8px; background-color: var(--secondary); border-radius: 4px; overflow: hidden; position: relative;">
-            <div class="progress-bar-fill" [style.width.%]="progressPercentage()" style="height: 100%; background: linear-gradient(90deg, var(--primary) 0%, #8b5cf6 100%); border-radius: 4px; transition: width 0.3s ease;"></div>
+          <div class="progress-track">
+            <div class="progress-fill" [style.width.%]="progressPercentage()"></div>
           </div>
         </div>
 
-        <div class="table-card" style="margin: 0; box-shadow: none; border: 1px solid var(--secondary)">
+        <div class="table-card" style="margin: 0; box-shadow: none;">
           <div class="table-scroll">
             <table>
               <thead>
                 <tr>
                   <th>{{ 'stockCount.col.productName' | t }}</th>
-                  <th>SKU</th>
+                  <th>{{ 'stockCount.col.sku' | t }}</th>
                   <th>{{ 'stockCount.col.unit' | t }}</th>
-                  <th style="width: 120px;">{{ 'stockCount.col.systemStock' | t }}</th>
-                  <th style="width: 120px; text-align: center;">{{ 'stockCount.col.countedStock' | t }}</th>
-                  <th style="width: 100px;">{{ 'stockCount.col.difference' | t }}</th>
+                  <th class="num" style="width: 120px;">{{ 'stockCount.col.systemStock' | t }}</th>
+                  <th class="num" style="width: 120px;">{{ 'stockCount.col.countedStock' | t }}</th>
+                  <th class="num" style="width: 100px;">{{ 'stockCount.col.difference' | t }}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (item of activeItems(); track item.productId) {
                   <tr [id]="'sc-row-' + item.productId" [class.zero-stock-row]="item.systemQuantity === 0" [class.scan-highlight]="highlightedId() === item.productId">
                     <td>
-                      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <div class="name-cell">
                         @if (isTracked(item)) {
-                          <button class="expand-btn" (click)="toggleExpand(item.productId)" [attr.aria-label]="'stockCount.toggleDetails' | t">{{ expanded().has(item.productId) ? '▼' : '▶' }}</button>
+                          <button class="expand-btn" [class.open]="expanded().has(item.productId)" (click)="toggleExpand(item.productId)" [attr.aria-label]="'stockCount.toggleDetails' | t"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
                         }
                         <strong>{{ item.productName }}</strong>
-                        @if (item.trackingType === 'lot') { <span class="badge">{{ 'stockCount.lotTracked' | t }}</span> }
-                        @if (item.trackingType === 'serial') { <span class="badge">{{ 'stockCount.serialTracked' | t }}</span> }
+                        @if (item.trackingType === 'lot') { <span class="badge badge-neutral">{{ 'stockCount.lotTracked' | t }}</span> }
+                        @if (item.trackingType === 'serial') { <span class="badge badge-neutral">{{ 'stockCount.serialTracked' | t }}</span> }
                         @if (item.systemQuantity === 0) {
-                          <span class="zero-stock-badge">{{ 'stockCount.noSystemStock' | t }}</span>
+                          <span class="badge badge-warning">{{ 'stockCount.noSystemStock' | t }}</span>
                         }
                       </div>
                     </td>
-                    <td class="mono" style="color: var(--text-primary);">{{ item.sku }}</td>
+                    <td class="mono">{{ item.sku }}</td>
                     <td>{{ item.unit || ('stockCount.defaultUnit' | t) }}</td>
-                    <td class="mono">{{ item.systemQuantity }}</td>
-                    <td style="text-align: center;">
+                    <td class="num">{{ item.systemQuantity }}</td>
+                    <td class="num">
                       @if (isTracked(item)) {
                         <span class="mono" [title]="'stockCount.trackedSumHint' | t">{{ item.countedQuantity }}</span>
                       } @else {
                         <input type="number" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
                       }
                     </td>
-                    <td>
+                    <td class="num">
                       <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
                         {{ item.difference > 0 ? '+' : '' }}{{ item.difference }}
                       </span>
@@ -321,23 +156,23 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                     @if (item.trackingType === 'lot') {
                       @for (lot of item.lots || []; track lot.lotId) {
                         <tr class="track-sub">
-                          <td style="padding-left: 32px;">{{ 'stockCount.lot' | t }}: <span class="mono">{{ lot.lotNumber }}</span></td>
+                          <td class="indent">{{ 'stockCount.lot' | t }}: <span class="mono">{{ lot.lotNumber }}</span></td>
                           <td>{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</td>
                           <td>{{ lot.warehouseName || '' }}</td>
-                          <td class="mono">{{ lot.systemQuantity }}</td>
-                          <td style="text-align: center;">
+                          <td class="num">{{ lot.systemQuantity }}</td>
+                          <td class="num">
                             <input type="number" [(ngModel)]="lot.countedQuantity" (ngModelChange)="recomputeTracked(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
                           </td>
-                          <td class="mono">{{ lot.countedQuantity - lot.systemQuantity }}</td>
+                          <td class="num">{{ lot.countedQuantity - lot.systemQuantity }}</td>
                         </tr>
                       } @empty {
-                        <tr class="track-sub"><td colspan="6" style="padding-left: 32px;">{{ 'stockCount.noLots' | t }}</td></tr>
+                        <tr class="track-sub"><td colspan="6" class="indent">{{ 'stockCount.noLots' | t }}</td></tr>
                       }
                     } @else {
                       @for (sn of item.serials || []; track sn.serial) {
                         <tr class="track-sub">
-                          <td style="padding-left: 32px;" colspan="3">
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                          <td class="indent" colspan="3">
+                            <label class="serial-label">
                               <input type="checkbox" [(ngModel)]="sn.present" (ngModelChange)="recomputeTracked(item)" [disabled]="isActionLoading()" />
                               <span class="mono" [class.serial-missing]="!sn.present">{{ sn.serial }}</span>
                             </label>
@@ -345,7 +180,7 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                           <td colspan="3">{{ sn.warehouseName || '' }} · {{ (sn.present ? 'stockCount.serialPresent' : 'stockCount.serialMissing') | t }}</td>
                         </tr>
                       } @empty {
-                        <tr class="track-sub"><td colspan="6" style="padding-left: 32px;">{{ 'stockCount.noSerials' | t }}</td></tr>
+                        <tr class="track-sub"><td colspan="6" class="indent">{{ 'stockCount.noSerials' | t }}</td></tr>
                       }
                     }
                   }
@@ -368,14 +203,14 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
     <!-- ─── Count History ─── -->
     <div class="table-card">
       <div class="table-scroll">
-        <table>
+        <table class="table-responsive">
           <thead>
             <tr>
               <th>{{ 'stockCount.col.countNo' | t }}</th>
               <th>{{ 'stockCount.col.date' | t }}</th>
               <th>{{ 'stockCount.performedBy' | t }}</th>
               <th>{{ 'stockCount.col.status' | t }}</th>
-              <th>{{ 'stockCount.col.itemCount' | t }}</th>
+              <th class="num">{{ 'stockCount.col.itemCount' | t }}</th>
               <th>{{ 'stockCount.notes' | t }}</th>
               <th class="th-actions">{{ 'common.actions' | t }}</th>
             </tr>
@@ -383,29 +218,29 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
           <tbody>
             @for (c of counts(); track c.id) {
               <tr>
-                <td class="mono"><strong>{{ c.countNumber }}</strong></td>
-                <td>{{ (c.completedAt || c.startedAt) | appDate: 'datetime' }}</td>
-                <td>{{ c.performedBy }}</td>
-                <td>
-                  <span class="badge" [class.badge-instock]="c.status === 'Completed'" [class.badge-lowstock]="c.status === 'InProgress'">
+                <td class="mono td-primary"><strong>{{ c.countNumber }}</strong></td>
+                <td class="text-muted" [attr.data-label]="'stockCount.col.date' | t">{{ (c.completedAt || c.startedAt) | appDate: 'datetime' }}</td>
+                <td [attr.data-label]="'stockCount.performedBy' | t">{{ c.performedBy }}</td>
+                <td [attr.data-label]="'stockCount.col.status' | t">
+                  <span class="badge" [class.badge-success]="c.status === 'Completed'" [class.badge-warning]="c.status === 'InProgress'">
                     {{ (c.status === 'Completed' ? 'stockCount.status.completed' : 'stockCount.status.inProgress') | t }}
                   </span>
                 </td>
-                <td class="mono">{{ c.items.length }}</td>
-                <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <td class="num" [attr.data-label]="'stockCount.col.itemCount' | t">{{ c.items.length }}</td>
+                <td class="truncate text-muted" style="max-width: 250px;" [attr.data-label]="'stockCount.notes' | t">
                   {{ c.notes || '-' }}
                 </td>
                 <td class="td-actions">
                   @if (c.status === 'InProgress') {
-                    <button class="btn btn-outline btn-xs" (click)="resumeCount(c)" style="padding: 4px 8px; font-size:0.75rem">{{ 'stockCount.resume' | t }}</button>
+                    <button class="btn btn-secondary btn-sm" (click)="resumeCount(c)">{{ 'stockCount.resume' | t }}</button>
                   } @else {
-                    <button class="btn btn-outline btn-xs" (click)="viewDetails(c)" style="padding: 4px 8px; font-size:0.75rem">{{ 'stockCount.details' | t }}</button>
+                    <button class="btn btn-secondary btn-sm" (click)="viewDetails(c)">{{ 'stockCount.details' | t }}</button>
                   }
                 </td>
               </tr>
             }
             @if (counts().length === 0) {
-              <tr><td colspan="7" class="empty-state">{{ 'stockCount.empty' | t }}</td></tr>
+              <tr><td colspan="7"><div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></div><p class="empty-state-title">{{ 'stockCount.empty' | t }}</p></div></td></tr>
             }
           </tbody>
         </table>
@@ -417,14 +252,14 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
       <div class="modal-backdrop">
         <div class="modal-panel modal-panel-sm">
           <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()">✕</button>
-            <div class="delete-icon" style="background-color: rgba(17, 24, 39, 0.05); color: var(--primary)">
+            <button class="delete-modal-close" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <div class="delete-icon confirm-icon">
               <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
               </svg>
             </div>
             <h3 class="delete-modal-title">{{ 'stockCount.confirm.title' | t }}</h3>
-            <p class="delete-modal-desc" style="font-size:0.85rem">
+            <p class="delete-modal-desc">
               {{ 'stockCount.confirm.message' | t }}
             </p>
           </div>
@@ -444,14 +279,14 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'stockCount.detailsTitle' | t }}</span>
-            <button class="drawer-close" (click)="selectedCount.set(null)">×</button>
+            <button class="drawer-close" (click)="selectedCount.set(null)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
           
           <div class="drawer-body">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem">
+            <div class="meta-grid">
               <div class="drawer-field">
                 <label>{{ 'stockCount.col.countNo' | t }}</label>
-                <span class="mono" style="font-weight:700">{{ selectedCount()?.countNumber }}</span>
+                <span class="mono" style="font-weight: var(--weight-semibold);">{{ selectedCount()?.countNumber }}</span>
               </div>
               <div class="drawer-field">
                 <label>{{ 'stockCount.performedBy' | t }}</label>
@@ -472,33 +307,33 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
               <div class="notes-box">{{ selectedCount()?.notes || ('stockCount.noNotes' | t) }}</div>
             </div>
 
-            <div class="drawer-field" style="margin-top:1.5rem">
+            <div class="drawer-field" style="margin-top: var(--space-6);">
               <label>{{ 'stockCount.countedItems' | t }}</label>
               <table class="drawer-table">
                 <thead>
                   <tr>
                     <th>{{ 'stockCount.col.productName' | t }}</th>
-                    <th>SKU</th>
-                    <th>{{ 'stockCount.col.system' | t }}</th>
-                    <th>{{ 'stockCount.col.counted' | t }}</th>
-                    <th>{{ 'stockCount.col.difference' | t }}</th>
+                    <th class="hide-xs">{{ 'stockCount.col.sku' | t }}</th>
+                    <th class="num">{{ 'stockCount.col.system' | t }}</th>
+                    <th class="num">{{ 'stockCount.col.counted' | t }}</th>
+                    <th class="num">{{ 'stockCount.col.difference' | t }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (item of selectedCount()?.items; track item.productId) {
                     <tr [class.zero-stock-row]="item.systemQuantity === 0">
                       <td>
-                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <div class="name-cell">
                           <strong>{{ item.productName }}</strong>
                           @if (item.systemQuantity === 0) {
-                            <span class="zero-stock-badge">{{ 'stockCount.noSystemStock' | t }}</span>
+                            <span class="badge badge-warning">{{ 'stockCount.noSystemStock' | t }}</span>
                           }
                         </div>
                       </td>
-                      <td class="mono" style="color: var(--text-primary);">{{ item.sku }}</td>
-                      <td class="mono">{{ item.systemQuantity }}</td>
-                      <td class="mono">{{ item.countedQuantity }}</td>
-                      <td>
+                      <td class="mono hide-xs">{{ item.sku }}</td>
+                      <td class="num">{{ item.systemQuantity }}</td>
+                      <td class="num">{{ item.countedQuantity }}</td>
+                      <td class="num">
                         <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
                           {{ item.difference > 0 ? '+' : '' }}{{ item.difference }}
                         </span>

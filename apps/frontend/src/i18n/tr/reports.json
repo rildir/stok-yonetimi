@@ -64,5 +64,6 @@
   "reports.expiring.expired": "Süresi geçti",
   "reports.expiring.empty": "Bu aralıkta SKT'si yaklaşan parti yok",
   "reports.expiring.loadError": "SKT raporu yüklenemedi",
-  "reports.expiring.filePrefix": "SKT_Raporu"
+  "reports.expiring.filePrefix": "SKT_Raporu",
+  "reports.expiring.col.sku": "SKU"
 }

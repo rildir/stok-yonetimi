@@ -18,32 +18,18 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
   imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .dim-text {
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      font-style: italic;
-      font-weight: normal;
-    }
-    .default-badge {
-      display: inline-block;
-      margin-left: 6px;
-      padding: 1px 8px;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      background: rgba(99, 102, 241, 0.1);
-      color: var(--primary);
-      vertical-align: middle;
-    }
+    .dim-text { color: var(--color-text-muted); font-size: var(--text-xs); font-weight: var(--weight-regular); }
     .stock-table { width: 100%; border-collapse: collapse; }
-    .stock-table th, .stock-table td { padding: 8px 6px; border-bottom: 1px solid var(--border-color); text-align: left; font-size: 0.875rem; }
-    .stock-table .num-cell { text-align: right; }
-    .warehouse-row {
-      transition: background-color 0.2s ease;
-    }
-    .warehouse-row:hover td {
-      background-color: rgba(99, 102, 241, 0.04) !important;
-    }
+    .stock-table th { padding: var(--space-2); border-bottom: 1px solid var(--color-border); text-align: left; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
+    .stock-table td { padding: var(--space-2); border-bottom: 1px solid var(--color-border-subtle); font-size: var(--text-sm); color: var(--color-text); }
+    .stock-table .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
+    .warehouse-row { cursor: pointer; }
+    .wh-name { font-weight: var(--weight-semibold); color: var(--color-text); }
+    .serial-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--color-surface); }
+    .serial-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; cursor: pointer; font-size: var(--text-sm); }
+    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .hint { margin-top: var(--space-1); }
+    @media (max-width: 640px) { .stock-table .hide-xs { display: none; } }
   `],
   template: `
     <header class="page-header">
@@ -51,122 +37,121 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
         <h1>{{ 'warehouses.title' | t }}</h1>
         <p>{{ 'warehouses.subtitle' | t }}</p>
       </div>
-      <div class="header-actions">
+      <div class="page-actions">
         <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           {{ 'warehouses.new' | t }}
         </button>
       </div>
     </header>
 
-    <!-- Search Bar -->
     <div class="filter-bar">
       <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" [placeholder]="'warehouses.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
       </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-      <div style="background: var(--surface-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; display: flex; align-items: center; gap: 1rem; box-shadow: var(--shadow-sm);">
-        <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(99, 102, 241, 0.08); color: var(--primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+    <div class="kpi-grid" style="margin-bottom: var(--space-6);">
+      <div class="stat-card">
+        <div class="stat-icon-box products">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12M6 14h12"/><rect x="6" y="10" width="12" height="12"/></svg>
         </div>
         <div>
-          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">{{ 'warehouses.totalWarehouses' | t }}</div>
-          <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">{{ totalWarehouseCount() }}</div>
+          <div class="stat-label">{{ 'warehouses.totalWarehouses' | t }}</div>
+          <div class="stat-value">{{ totalWarehouseCount() }}</div>
         </div>
       </div>
-
-      <div style="background: var(--surface-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; display: flex; align-items: center; gap: 1rem; box-shadow: var(--shadow-sm);">
-        <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(5, 150, 105, 0.08); color: #059669; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      <div class="stat-card">
+        <div class="stat-icon-box revenue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
         </div>
         <div>
-          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">{{ 'warehouses.totalStock' | t }}</div>
-          <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">{{ totalStockCount() | num }}</div>
+          <div class="stat-label">{{ 'warehouses.totalStock' | t }}</div>
+          <div class="stat-value">{{ totalStockCount() | num }}</div>
         </div>
       </div>
-
-      <div style="background: var(--surface-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; display: flex; align-items: center; gap: 1rem; box-shadow: var(--shadow-sm);">
-        <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(139, 92, 246, 0.08); color: var(--ai-accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <div class="stat-card">
+        <div class="stat-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 18V6"/></svg>
         </div>
-        <div>
-          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">{{ 'warehouses.totalValue' | t }}</div>
-          <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">{{ totalStockValue() | money }}</div>
+        <div style="min-width: 0;">
+          <div class="stat-label">{{ 'warehouses.totalValue' | t }}</div>
+          <div class="stat-value truncate">{{ totalStockValue() | money }}</div>
         </div>
       </div>
     </div>
- 
-    <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+
+    <div class="table-card">
       @if (isLoading()) {
-        <div class="loading-state">{{ 'common.loading' | t }}</div>
+        <div style="padding: var(--space-4); display: grid; gap: var(--space-3);">
+          <div class="skeleton" style="height: 20px;"></div>
+          <div class="skeleton" style="height: 20px;"></div>
+          <div class="skeleton" style="height: 20px;"></div>
+        </div>
       } @else if (warehouses().length === 0) {
         <div class="empty-state">
-          <p>{{ 'warehouses.empty' | t }}</p>
-          <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">{{ 'warehouses.addFirst' | t }}</button>
+          <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><rect x="6" y="10" width="12" height="12"/></svg></div>
+          <p class="empty-state-title">{{ 'warehouses.empty' | t }}</p>
+          <button class="btn btn-secondary" (click)="openDrawer()" style="margin-top: var(--space-3);">{{ 'warehouses.addFirst' | t }}</button>
         </div>
       } @else if (filteredWarehouses().length === 0) {
         <div class="empty-state">
-          <p>{{ 'warehouses.noResults' | t }}</p>
+          <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+          <p class="empty-state-title">{{ 'warehouses.noResults' | t }}</p>
         </div>
       } @else {
         <div class="table-scroll">
-          <table>
+          <table class="table-responsive">
             <thead>
               <tr>
                 <th>{{ 'warehouses.col.name' | t }}</th>
                 <th>{{ 'warehouses.col.code' | t }}</th>
                 <th>{{ 'warehouses.col.address' | t }}</th>
-                <th style="text-align: right;">{{ 'warehouses.col.productCount' | t }}</th>
-                <th style="text-align: right;">{{ 'warehouses.col.totalStock' | t }}</th>
-                <th style="text-align: right;">{{ 'warehouses.col.totalValue' | t }}</th>
+                <th class="num">{{ 'warehouses.col.productCount' | t }}</th>
+                <th class="num">{{ 'warehouses.col.totalStock' | t }}</th>
+                <th class="num">{{ 'warehouses.col.totalValue' | t }}</th>
                 <th class="th-actions">{{ 'common.actions' | t }}</th>
               </tr>
             </thead>
             <tbody>
               @for (w of filteredWarehouses(); track w.id) {
-                <tr (click)="goToWarehouseProducts(w)" style="cursor: pointer;" class="warehouse-row">
-                  <td><strong>{{ w.name }}</strong>
-                    @if (w.isDefault) { <span class="default-badge" [title]="'warehouses.defaultHint' | t">{{ 'warehouses.default' | t }}</span> }
+                <tr (click)="goToWarehouseProducts(w)" class="warehouse-row">
+                  <td class="td-primary"><span class="wh-name">{{ w.name }}</span>
+                    @if (w.isDefault) { <span class="badge badge-primary" style="margin-left: var(--space-2);" [title]="'warehouses.defaultHint' | t">{{ 'warehouses.default' | t }}</span> }
                   </td>
-                  <td class="mono" style="color: var(--text-primary);">{{ w.code }}</td>
-                  <td style="color: var(--text-primary);">{{ w.address || '-' }}</td>
-                  <td class="mono" style="text-align: right;">
+                  <td class="mono" [attr.data-label]="'warehouses.col.code' | t">{{ w.code }}</td>
+                  <td class="text-muted" [attr.data-label]="'warehouses.col.address' | t">{{ w.address || '-' }}</td>
+                  <td class="num" [attr.data-label]="'warehouses.col.productCount' | t">
                     @if (w.productCount === 0) {
                       <span class="dim-text">{{ 'warehouses.noProductsAssigned' | t }}</span>
                     } @else {
                       {{ w.productCount | num }}
                     }
                   </td>
-                  <td class="mono" style="text-align: right; font-weight: 600;">
+                  <td class="num" style="font-weight: var(--weight-semibold);" [attr.data-label]="'warehouses.col.totalStock' | t">
                     @if (w.totalStock === 0) {
                       <span class="dim-text">{{ 'warehouses.noProductsAssigned' | t }}</span>
                     } @else {
                       {{ w.totalStock | num }}
                     }
                   </td>
-                  <td class="mono" style="text-align: right; font-weight: 600; color: var(--text-primary);">{{ w.totalValue | money }}</td>
+                  <td class="num" style="font-weight: var(--weight-semibold);" [attr.data-label]="'warehouses.col.totalValue' | t">{{ w.totalValue | money }}</td>
                   <td class="td-actions" (click)="$event.stopPropagation()">
-                    <button class="edit-btn" [title]="'warehouses.details' | t" (click)="goToWarehouseProducts(w); $event.stopPropagation()" style="color: var(--primary);">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 16px; height: 16px;">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                      </svg>
+                    <button class="icon-btn" [title]="'warehouses.details' | t" (click)="goToWarehouseProducts(w); $event.stopPropagation()">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
-                    <button class="edit-btn" [title]="'warehouses.stock.view' | t" (click)="openStock(w); $event.stopPropagation()">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    <button class="icon-btn" [title]="'warehouses.stock.view' | t" (click)="openStock(w); $event.stopPropagation()">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
                     </button>
-                    <button class="edit-btn" [title]="'warehouses.transfer.action' | t" (click)="openTransfer(w); $event.stopPropagation()" [disabled]="!w.totalStock || warehouses().length < 2">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    <button class="icon-btn" [title]="'warehouses.transfer.action' | t" (click)="openTransfer(w); $event.stopPropagation()" [disabled]="!w.totalStock || warehouses().length < 2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg>
                     </button>
                     <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(w); $event.stopPropagation()">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                     </button>
                     <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteWarehouse(w); $event.stopPropagation()" [disabled]="(w.totalStock ?? 0) > 0">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>
                   </td>
                 </tr>
@@ -183,21 +168,21 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editId() ? 'warehouses.editTitle' : 'warehouses.addTitle') | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()">×</button>
+            <button class="drawer-close" (click)="closeDrawer()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
 
-          <form [formGroup]="warehouseForm" (ngSubmit)="saveWarehouse()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="warehouseForm" (ngSubmit)="saveWarehouse()" class="drawer-form">
             <div class="drawer-body">
               <div class="form-field">
                 <input id="warehouseName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" [disabled]="isSaving()" />
                 <label for="warehouseName" class="form-label">{{ 'warehouses.form.name' | t }}</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">⚠ {{ 'warehouses.form.nameRequired' | t }}</div> }
+                @if (isFieldInvalid('name')) { <div class="form-error">{{ 'warehouses.form.nameRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input id="warehouseCode" type="text" formControlName="code" class="form-input" [class.has-value]="hasValue('code')" [disabled]="isSaving()" />
                 <label for="warehouseCode" class="form-label">{{ 'warehouses.form.code' | t }}</label>
-                @if (isFieldInvalid('code')) { <div class="form-error">⚠ {{ 'warehouses.form.codeRequired' | t }}</div> }
+                @if (isFieldInvalid('code')) { <div class="form-error">{{ 'warehouses.form.codeRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
@@ -226,19 +211,19 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'warehouses.stock.title' | t: { name: sw.name } }}</span>
-            <button class="drawer-close" (click)="closeStock()">×</button>
+            <button class="drawer-close" (click)="closeStock()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
           <div class="drawer-body">
             @if (stockLoading()) {
-              <div class="loading-state">{{ 'common.loading' | t }}</div>
+              <div style="display: grid; gap: var(--space-3);"><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div></div>
             } @else if (stockItems().length === 0) {
-              <div class="empty-state"><p>{{ 'warehouses.stock.empty' | t }}</p></div>
+              <div class="empty-state"><p class="empty-state-title">{{ 'warehouses.stock.empty' | t }}</p></div>
             } @else {
               <table class="stock-table">
                 <thead>
                   <tr>
                     <th>{{ 'warehouses.stock.product' | t }}</th>
-                    <th>{{ 'warehouses.stock.sku' | t }}</th>
+                    <th class="hide-xs">{{ 'warehouses.stock.sku' | t }}</th>
                     <th class="num-cell">{{ 'warehouses.stock.quantity' | t }}</th>
                   </tr>
                 </thead>
@@ -246,7 +231,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                   @for (it of stockItems(); track it.productId) {
                     <tr>
                       <td>{{ it.productName }}</td>
-                      <td class="mono">{{ it.sku }}</td>
+                      <td class="mono hide-xs">{{ it.sku }}</td>
                       <td class="mono num-cell">{{ it.quantity | num }}</td>
                     </tr>
                   }
@@ -268,14 +253,14 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'warehouses.transfer.title' | t: { name: src.name } }}</span>
-            <button class="drawer-close" (click)="closeTransfer()">×</button>
+            <button class="drawer-close" (click)="closeTransfer()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
-          <form [formGroup]="transferForm" (ngSubmit)="submitTransfer()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="transferForm" (ngSubmit)="submitTransfer()" class="drawer-form">
             <div class="drawer-body">
               @if (transferLoading()) {
-                <div class="loading-state">{{ 'common.loading' | t }}</div>
+                <div style="display: grid; gap: var(--space-3);"><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div></div>
               } @else if (transferItems().length === 0) {
-                <div class="empty-state"><p>{{ 'warehouses.transfer.noStock' | t }}</p></div>
+                <div class="empty-state"><p class="empty-state-title">{{ 'warehouses.transfer.noStock' | t }}</p></div>
               } @else {
                 <div class="form-field">
                   <select id="trProduct" formControlName="productId" class="form-input has-value" (change)="onTransferProductChange()">
@@ -285,7 +270,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                     }
                   </select>
                   <label for="trProduct" class="form-label">{{ 'warehouses.transfer.product' | t }}</label>
-                  @if (isTransferInvalid('productId')) { <div class="form-error">⚠ {{ 'warehouses.transfer.productRequired' | t }}</div> }
+                  @if (isTransferInvalid('productId')) { <div class="form-error">{{ 'warehouses.transfer.productRequired' | t }}</div> }
                 </div>
 
                 <div class="form-field">
@@ -296,7 +281,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                     }
                   </select>
                   <label for="trTarget" class="form-label">{{ 'warehouses.transfer.target' | t }}</label>
-                  @if (isTransferInvalid('toWarehouseId')) { <div class="form-error">⚠ {{ 'warehouses.transfer.targetRequired' | t }}</div> }
+                  @if (isTransferInvalid('toWarehouseId')) { <div class="form-error">{{ 'warehouses.transfer.targetRequired' | t }}</div> }
                 </div>
 
                 @if (selectedTracking() === 'lot') {
@@ -308,9 +293,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                       }
                     </select>
                     <label for="trLot" class="form-label">{{ 'warehouses.transfer.lot' | t }}</label>
-                    @if (trackingLoading()) { <div class="dim-text" style="margin-top: 4px;">{{ 'common.loading' | t }}</div> }
-                    @else if (transferLots().length === 0) { <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.noLots' | t }}</div> }
-                    @else if (!selectedLotId()) { <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
+                    @if (trackingLoading()) { <div class="dim-text hint">{{ 'common.loading' | t }}</div> }
+                    @else if (transferLots().length === 0) { <div class="dim-text hint">{{ 'warehouses.transfer.noLots' | t }}</div> }
+                    @else if (!selectedLotId()) { <div class="dim-text hint">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
                   </div>
                 }
                 @if (selectedTracking() === 'serial') {
@@ -321,15 +306,15 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                     } @else if (transferSerials().length === 0) {
                       <div class="dim-text">{{ 'warehouses.transfer.noSerials' | t }}</div>
                     } @else {
-                      <div style="max-height: 180px; overflow-y: auto; border: 1px solid var(--secondary); border-radius: 6px; padding: 6px 10px;">
+                      <div class="serial-list">
                         @for (s of transferSerials(); track s.id) {
-                          <label style="display:flex; align-items:center; gap:8px; padding: 3px 0; cursor:pointer;">
+                          <label class="serial-item">
                             <input type="checkbox" [checked]="selectedSerials().has(s.serial)" (change)="toggleSerial(s.serial)" />
                             <span class="mono">{{ s.serial }}</span>
                           </label>
                         }
                       </div>
-                      <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.serialsHint' | t }}</div>
+                      <div class="dim-text hint">{{ 'warehouses.transfer.serialsHint' | t }}</div>
                     }
                   </div>
                 }
@@ -338,9 +323,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                   <input id="trQty" type="number" min="1" [max]="availableQty()" step="1" formControlName="quantity" class="form-input has-value" [readonly]="selectedTracking() === 'serial'" />
                   <label for="trQty" class="form-label">{{ 'warehouses.transfer.quantity' | t }}</label>
                   @if (selectedTransferItem()) {
-                    <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.available' | t: { qty: availableQty() } }}</div>
+                    <div class="dim-text hint">{{ 'warehouses.transfer.available' | t: { qty: availableQty() } }}</div>
                   }
-                  @if (isTransferInvalid('quantity')) { <div class="form-error">⚠ {{ 'warehouses.transfer.quantityInvalid' | t: { max: availableQty() } }}</div> }
+                  @if (isTransferInvalid('quantity')) { <div class="form-error">{{ 'warehouses.transfer.quantityInvalid' | t: { max: availableQty() } }}</div> }
                 </div>
 
                 <div class="form-field">
@@ -348,7 +333,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                   <label for="trNote" class="form-label">{{ 'warehouses.transfer.note' | t }}</label>
                 </div>
               }
-              @if (transferError()) { <div class="form-error">⚠ {{ transferError() }}</div> }
+              @if (transferError()) { <div class="form-error">{{ transferError() }}</div> }
             </div>
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeTransfer()" [disabled]="isTransferring()">{{ 'common.cancel' | t }}</button>

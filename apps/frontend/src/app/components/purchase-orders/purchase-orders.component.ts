@@ -22,39 +22,37 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
         <h1>{{ 'purchaseOrders.title' | t }}</h1>
         <p>{{ 'purchaseOrders.subtitle' | t }}</p>
       </div>
-      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
-        <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          {{ 'purchaseOrders.new' | t }}
-        </button>
-        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
-        <button class="btn btn-outline" (click)="autoDraft()" [disabled]="isAutoDrafting()" [title]="'purchaseOrders.autoDraftTooltip' | t">
+      <div class="page-actions">
+        <button class="btn btn-secondary" (click)="autoDraft()" [disabled]="isAutoDrafting()" [class.is-loading]="isAutoDrafting()" [title]="'purchaseOrders.autoDraftTooltip' | t">
           @if (isAutoDrafting()) {
             <span class="spinner-sm"></span> {{ 'purchaseOrders.analyzing' | t }}
           } @else {
-            <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #9333ea; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
             {{ 'purchaseOrders.autoDraft' | t }}
           }
+        </button>
+        <button class="btn btn-primary" (click)="openDrawer()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          {{ 'purchaseOrders.new' | t }}
         </button>
       </div>
     </header>
 
-    <!-- Search & Filter Bar -->
     <div class="filter-bar">
       <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" [placeholder]="'purchaseOrders.searchPlaceholder' | t" [ngModel]="poSearch()" (ngModelChange)="poSearch.set($event)"/>
       </div>
-      
-      <div class="date-filters">
-        <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" [title]="'purchaseOrders.startDate' | t" />
-        <span class="date-separator">-</span>
-        <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" [title]="'purchaseOrders.endDate' | t" />
+      <div class="po-dates">
+        <input type="date" class="input" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" [title]="'purchaseOrders.startDate' | t" />
+        <span class="text-muted">–</span>
+        <input type="date" class="input" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" [title]="'purchaseOrders.endDate' | t" />
         @if (startDate() || endDate()) {
-          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" [title]="'purchaseOrders.clearFilter' | t">✕</button>
+          <button class="icon-btn" (click)="startDate.set(''); endDate.set('')" [title]="'purchaseOrders.clearFilter' | t">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
         }
       </div>
-
       <div class="filter-pills">
         <button class="filter-pill" [class.active]="poFilterStatus() === 'all'" (click)="poFilterStatus.set('all')">{{ 'purchaseOrders.filter.all' | t }}</button>
         <button class="filter-pill" [class.active]="poFilterStatus() === 'Draft'" (click)="poFilterStatus.set('Draft')">{{ 'purchaseOrders.filter.draft' | t }}</button>
@@ -64,108 +62,93 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
       </div>
     </div>
 
-    @if (isLoading()) {
-      <div class="loading-state" style="padding: 3rem; text-align: center; color: #565959;">{{ 'common.loading' | t }}</div>
-    } @else if (filteredOrders().length === 0) {
-      <div class="empty-state" style="padding: 3rem; text-align: center; border: 1px dashed #D5D9D9; border-radius: 8px; background: #FFFFFF; width: 100%;">
-        <p style="font-size: 15px; color: #565959; margin-bottom: 16px;">{{ 'purchaseOrders.noResults' | t }}</p>
-        <button class="btn btn-outline" (click)="openDrawer()">{{ 'purchaseOrders.create' | t }}</button>
-      </div>
-    } @else {
-      <!-- Result Cards Stack (Ecelon layout) -->
-      <div class="orders-list-stack" style="display: flex; flex-direction: column; gap: 1rem;">
-        @for (o of filteredOrders(); track o.id) {
-          <div class="ecelon-order-card" style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: var(--surface-card); font-size: 0.875rem;">
-            <!-- Header Bar (Light Grey background) -->
-            <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
-              <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
-                <div>
-                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.orderDate' | t }}</div>
-                  <div style="color: #0F1111; font-weight: 500;">{{ o.createdAt | appDate }}</div>
-                </div>
-                <div>
-                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.totalAmount' | t }}</div>
-                  <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</div>
-                </div>
-                <div>
-                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.supplier' | t }}</div>
-                  <div style="color: #0F1111; font-weight: 500;">{{ o.supplierName }}</div>
-                </div>
-              </div>
-              <div style="text-align: right;">
-                <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">{{ 'purchaseOrders.poNo' | t: { no: formatPoNumber(o.poNumber) } }}</div>
-                <div>
-                  <a href="#" (click)="openDetailDrawer(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">{{ 'purchaseOrders.orderDetails' | t }}</a>
-                </div>
-              </div>
-            </div>
-
-            <!-- Body (White background) -->
-            <div class="order-card-body" style="padding: 16px 18px; display: flex; justify-content: space-between; align-items: start; gap: 1.5rem; flex-wrap: wrap;">
-              <!-- Left: Items list -->
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 250px;">
-                <h4 style="margin: 0; font-size: 14px; font-weight: bold; color: #0F1111; display: flex; align-items: center; gap: 8px;">
-                  <!-- Status badge -->
-                  <span class="badge" [class.badge-instock]="o.status === 'Received'" [class.badge-lowstock]="o.status === 'Draft' || o.status === 'Sent'" [class.badge-outstock]="o.status === 'Cancelled'">
-                    {{ getStatusName(o.status) }}
-                  </span>
-                </h4>
-                
-                <!-- Item detail rows -->
-                <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
-                  @for (item of getGroupedItems(o.items); track item.key) {
-                    <div style="display: flex; justify-content: space-between; width: 100%; max-width: 550px; font-size: 13px;">
-                      <span style="color: #0F1111; font-weight: 500;">
-                        {{ item.productName }} — {{ 'purchaseOrders.itemLine' | t: { qty: qtyLabel(item), price: (item.price | money: o.currency), total: (item.lineTotal | money: o.currency) } }}
-                      </span>
-                    </div>
-                  }
-                </div>
-
-                <!-- Notes/Expected date -->
-                @if (o.expectedDate || o.notes) {
-                  <div style="margin-top: 10px; font-size: 12px; color: #565959; background: #F7FAFA; border: 1px solid #D5D9D9; border-radius: 4px; padding: 6px 12px; display: inline-block; max-width: 450px;">
-                    @if (o.expectedDate) {
-                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>{{ 'purchaseOrders.expectedDate' | t }}: <strong>{{ o.expectedDate | appDate }}</strong>
-                    }
-                    @if (o.expectedDate && o.notes) { <span style="margin: 0 8px;">|</span> }
-                    @if (o.notes) {
-                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>{{ 'purchaseOrders.notes' | t }}: <em>{{ o.notes }}</em>
-                    }
-                  </div>
-                }
-              </div>
-
-              <!-- Right: Actions buttons -->
-              <div style="display: flex; flex-direction: column; gap: 8px; width: 160px; flex-shrink: 0;" (click)="$event.stopPropagation()">
-                @if (o.status === 'Draft') {
-                  <button class="btn btn-primary btn-sm" (click)="sendPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
-                    {{ 'purchaseOrders.send' | t }}
-                  </button>
-                  <button class="btn btn-secondary btn-sm" (click)="editPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
-                    {{ 'common.edit' | t }}
-                  </button>
-                  <button class="btn btn-secondary btn-sm" (click)="deletePurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
-                    {{ 'common.delete' | t }}
-                  </button>
-                } @else if (o.status === 'Sent') {
-                  <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)" style="width: 100%; border-radius: 20px; background-color: #007185; color: #fff; border-color: #005a6a;">
-                    {{ 'purchaseOrders.receive' | t }}
-                  </button>
-                  <button class="btn btn-secondary btn-sm" (click)="cancelPurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
-                    {{ 'purchaseOrders.cancelOrder' | t }}
-                  </button>
-                } @else if (o.status === 'Cancelled') {
-                  <button class="btn btn-secondary btn-sm" (click)="deletePurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
-                    {{ 'common.delete' | t }}
-                  </button>
-                }
-              </div>
-            </div>
+    <div class="table-card">
+      @if (isLoading()) {
+        <div class="po-skel">
+          @for (r of [1,2,3,4,5]; track r) { <div class="skeleton skeleton-text"></div> }
+        </div>
+      } @else if (filteredOrders().length === 0) {
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
           </div>
-        }
-      </div>
-    }
+          <div class="empty-state-title">{{ 'purchaseOrders.noResults' | t }}</div>
+          <button class="btn btn-primary" (click)="openDrawer()">{{ 'purchaseOrders.create' | t }}</button>
+        </div>
+      } @else {
+        <div class="table-scroll">
+          <table class="table-responsive">
+            <thead>
+              <tr>
+                <th>{{ 'purchaseOrders.col.poNumber' | t }}</th>
+                <th>{{ 'purchaseOrders.supplier' | t }}</th>
+                <th>{{ 'purchaseOrders.orderDate' | t }}</th>
+                <th>{{ 'purchaseOrders.items' | t }}</th>
+                <th>{{ 'purchaseOrders.status' | t }}</th>
+                <th class="num">{{ 'purchaseOrders.totalAmount' | t }}</th>
+                <th class="th-actions">{{ 'common.actions' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (o of filteredOrders(); track o.id) {
+                <tr>
+                  <td [attr.data-label]="'purchaseOrders.col.poNumber' | t">
+                    <a href="#" class="po-link mono" (click)="openDetailDrawer(o); $event.preventDefault()" [title]="'purchaseOrders.orderDetails' | t">{{ formatPoNumber(o.poNumber) }}</a>
+                  </td>
+                  <td [attr.data-label]="'purchaseOrders.supplier' | t"><span class="po-strong">{{ o.supplierName }}</span></td>
+                  <td [attr.data-label]="'purchaseOrders.orderDate' | t">
+                    <div>{{ o.createdAt | appDate }}</div>
+                    @if (o.expectedDate) {
+                      <div class="po-sub">{{ 'purchaseOrders.expectedDate' | t }}: {{ o.expectedDate | appDate }}</div>
+                    }
+                  </td>
+                  <td [attr.data-label]="'purchaseOrders.items' | t" class="po-items">
+                    <div class="po-items-in">
+                    @for (item of getGroupedItems(o.items); track item.key) {
+                      <div class="po-item">
+                        <span class="po-strong">{{ item.productName }}</span>
+                        <span class="po-sub">{{ 'purchaseOrders.itemLine' | t: { qty: qtyLabel(item), price: (item.price | money: o.currency), total: (item.lineTotal | money: o.currency) } }}</span>
+                      </div>
+                    }
+                    @if (o.notes) { <div class="po-sub po-note" [title]="o.notes">{{ 'purchaseOrders.notes' | t }}: {{ o.notes }}</div> }
+                    </div>
+                  </td>
+                  <td [attr.data-label]="'purchaseOrders.status' | t">
+                    <span class="badge badge-dot" [ngClass]="getBadgeClass(o.status)">{{ getStatusName(o.status) }}</span>
+                  </td>
+                  <td class="num po-strong" [attr.data-label]="'purchaseOrders.totalAmount' | t">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</td>
+                  <td class="po-actions-td" (click)="$event.stopPropagation()">
+                    <div class="po-actions">
+                      @if (o.status === 'Draft') {
+                        <button class="btn btn-primary btn-sm" (click)="sendPurchaseOrder(o)">{{ 'purchaseOrders.send' | t }}</button>
+                        <button class="edit-btn" [title]="'common.edit' | t" (click)="editPurchaseOrder(o)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        </button>
+                        <button class="delete-btn" [title]="'common.delete' | t" (click)="deletePurchaseOrder(o)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        </button>
+                      } @else if (o.status === 'Sent') {
+                        <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)">{{ 'purchaseOrders.receive' | t }}</button>
+                        <button class="icon-btn" [title]="'purchaseOrders.cancelOrder' | t" (click)="cancelPurchaseOrder(o)">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+                        </button>
+                      } @else if (o.status === 'Cancelled') {
+                        <button class="delete-btn" [title]="'common.delete' | t" (click)="deletePurchaseOrder(o)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        </button>
+                      }
+                      <button class="icon-btn" [title]="'purchaseOrders.orderDetails' | t" (click)="openDetailDrawer(o)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
 
     <!-- New Order Drawer -->
     @if (isDrawerOpen()) {
@@ -173,10 +156,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
         <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editingPoId() ? 'purchaseOrders.editTitle' : 'purchaseOrders.newTitle') | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()">×</button>
+            <button class="drawer-close" (click)="closeDrawer()" [title]="'common.close' | t">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
           </div>
 
-          <form [formGroup]="poForm" (ngSubmit)="savePo()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="poForm" (ngSubmit)="savePo()" class="po-form">
             <div class="drawer-body">
               <div class="form-field">
                 <select formControlName="supplierId" class="form-input form-select" [class.has-value]="hasValue('supplierId')" (change)="onSupplierChange()">
@@ -186,17 +171,17 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   }
                 </select>
                 <label class="form-label">{{ 'purchaseOrders.supplier' | t }}</label>
-                @if (isFieldInvalid('supplierId')) { <div class="form-error">⚠ {{ 'purchaseOrders.supplierRequired' | t }}</div> }
+                @if (isFieldInvalid('supplierId')) { <div class="form-error">{{ 'purchaseOrders.supplierRequired' | t }}</div> }
               </div>
 
-              <div style="display:flex; gap:12px;">
-                <div class="form-field" style="flex:1;">
+              <div class="form-row">
+                <div class="form-field">
                   <select formControlName="currency" class="form-input form-select has-value">
                     @for (c of currencies(); track c) { <option [value]="c">{{ c }}</option> }
                   </select>
                   <label class="form-label">{{ 'finance.currency' | t }}</label>
                 </div>
-                <div class="form-field" style="flex:1;">
+                <div class="form-field">
                   <select formControlName="warehouseId" class="form-input form-select has-value">
                     <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
                     @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
@@ -204,7 +189,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   <label class="form-label">{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
                 </div>
               </div>
-              <div class="text-muted" style="font-size:12px; margin:-6px 0 12px;">{{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}</div>
+              <div class="field-hint po-hint">{{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}</div>
 
               <div class="form-field">
                 <input type="date" formControlName="expectedDate" class="form-input has-value" />
@@ -216,35 +201,40 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                 <label class="form-label">{{ 'purchaseOrders.notes' | t }}</label>
               </div>
 
-              <div style="margin-top: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <h3 style="font-size: 14px; font-weight: 600; margin: 0;">{{ 'purchaseOrders.orderItems' | t }}</h3>
-                  <div style="display: flex; gap: 8px;">
-                    <button type="button" class="btn btn-sm btn-outline" (click)="openLineScanner()" [disabled]="scanning()">
-                      @if (scanning()) { <span class="spinner-sm"></span> } {{ 'purchaseOrders.scan' | t }}
+              <div class="po-section">
+                <div class="po-section-head">
+                  <h3 class="po-h3">{{ 'purchaseOrders.orderItems' | t }}</h3>
+                  <div class="cluster">
+                    <button type="button" class="btn btn-sm btn-secondary" (click)="openLineScanner()" [disabled]="scanning()">
+                      @if (scanning()) { <span class="spinner-sm"></span> } @else {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8"/></svg>
+                      } {{ 'purchaseOrders.scan' | t }}
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline" (click)="addItem()">+ {{ 'purchaseOrders.addProduct' | t }}</button>
+                    <button type="button" class="btn btn-sm btn-secondary" (click)="addItem()">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                      {{ 'purchaseOrders.addProduct' | t }}
+                    </button>
                   </div>
                 </div>
 
-                <div formArrayName="items" style="display: flex; flex-direction: column; gap: 10px;">
+                <div formArrayName="items" class="stack po-lines">
                   @for (item of itemsArray.controls; track i; let i = $index) {
-                    <div [formGroupName]="i" [style.outline]="highlightIndex() === i ? '2px solid var(--primary)' : null" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px;">
-                      <div style="flex: 2;">
-                        <select formControlName="productId" class="form-input form-select" (change)="onProductChange(i)" style="height: 40px; padding: 0 12px; font-size: 13px;">
+                    <div [formGroupName]="i" class="po-line" [class.po-line-hl]="highlightIndex() === i">
+                      <div class="po-line-product">
+                        <select formControlName="productId" class="select" (change)="onProductChange(i)">
                           <option value="" disabled selected>{{ 'purchaseOrders.selectProduct' | t }}</option>
                           @for (p of state.products(); track p.id) {
                             <option [value]="p.id">{{ p.name }} ({{ 'purchaseOrders.available' | t: { n: p.quantity } }})</option>
                           }
                         </select>
                       </div>
-                      <div style="flex: 1;">
-                        <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'purchaseOrders.quantity' | t" min="1" />
+                      <div class="po-line-num">
+                        <input type="number" formControlName="quantity" class="input" [placeholder]="'purchaseOrders.quantity' | t" [title]="'purchaseOrders.quantity' | t" min="1" />
                       </div>
                       @if (productById(item.get('productId')?.value); as lp) {
                         @if (lp.units?.length) {
-                          <div style="flex: 0.9;">
-                            <select formControlName="unitId" class="form-input form-select" style="height: 40px; padding: 0 8px; font-size: 13px;" (change)="onUnitChange(i)" [title]="'purchaseOrders.unit' | t">
+                          <div class="po-line-num">
+                            <select formControlName="unitId" class="select" (change)="onUnitChange(i)" [title]="'purchaseOrders.unit' | t">
                               <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
                               @for (u of lp.units; track u.unitId) {
                                 <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
@@ -253,14 +243,14 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                           </div>
                         }
                       }
-                      <div style="flex: 1;">
-                        <input type="number" formControlName="unitPrice" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'finance.unitPrice' | t" min="0" step="0.01" [title]="'finance.unitPrice' | t" />
+                      <div class="po-line-num">
+                        <input type="number" formControlName="unitPrice" class="input" [placeholder]="'finance.unitPrice' | t" min="0" step="0.01" [title]="'finance.unitPrice' | t" />
                       </div>
-                      <button type="button" class="delete-btn" (click)="removeItem(i)" style="padding: 6px;">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      <button type="button" class="delete-btn" (click)="removeItem(i)" [title]="'common.delete' | t">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                       </button>
                       @if (preview().lines[i]; as ln) {
-                        <div style="flex-basis:100%; font-size:12px; color:#565959; display:flex; gap:12px; flex-wrap:wrap;">
+                        <div class="po-line-meta">
                           @if (factorFor(item.get('productId')?.value, item.get('unitId')?.value) !== 1) {
                             <span>{{ 'purchaseOrders.baseQtyHint' | t: { qty: ((item.get('quantity')?.value || 0) * factorFor(item.get('productId')?.value, item.get('unitId')?.value) | num), unit: (baseUnitOf(item.get('productId')?.value) | unitLabel) } }}</span>
                           }
@@ -276,22 +266,22 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                     </div>
                   }
                   @if (itemsArray.length > 0) {
-                    <div style="padding:12px; border:1px solid var(--secondary); border-radius:8px; font-size:13px; display:flex; flex-direction:column; gap:4px;">
-                      <div style="display:flex; justify-content:space-between;"><span>{{ 'finance.subtotal' | t }}</span><span>{{ preview().subtotal | money: formCurrency() }}</span></div>
+                    <div class="po-totals">
+                      <div class="po-trow"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ preview().subtotal | money: formCurrency() }}</span></div>
                       @for (b of preview().breakdown; track b.rate) {
-                        <div style="display:flex; justify-content:space-between; color:#565959;"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: formCurrency()) } }}</span><span>{{ b.tax | money: formCurrency() }}</span></div>
+                        <div class="po-trow text-muted"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: formCurrency()) } }}</span><span class="num">{{ b.tax | money: formCurrency() }}</span></div>
                       }
-                      <div style="display:flex; justify-content:space-between; font-weight:700;"><span>{{ 'finance.grandTotal' | t }}</span><span>{{ preview().total | money: formCurrency() }}</span></div>
-                      @if (preview().incomplete) { <div class="text-muted" style="font-size:12px;">{{ 'purchaseOrders.previewIncomplete' | t }}</div> }
+                      <div class="po-trow po-grand"><span>{{ 'finance.grandTotal' | t }}</span><span class="num">{{ preview().total | money: formCurrency() }}</span></div>
+                      @if (preview().incomplete) { <div class="field-hint">{{ 'purchaseOrders.previewIncomplete' | t }}</div> }
                     </div>
                   }
                   @if (itemsArray.length === 0) {
-                    <div class="text-muted text-sm" style="text-align: center; padding: 16px; background: var(--canvas); border-radius: 8px; border: 1px dashed var(--secondary);">{{ 'purchaseOrders.noItems' | t }}</div>
+                    <div class="po-empty-lines text-muted">{{ 'purchaseOrders.noItems' | t }}</div>
                   }
                 </div>
               </div>
             </div>
-            
+
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeDrawer()">{{ 'common.cancel' | t }}</button>
               <button type="submit" class="btn btn-primary" [disabled]="poForm.invalid || itemsArray.length === 0 || isSaving()">
@@ -310,9 +300,11 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
           <div class="drawer-header">
             <div>
               <span class="drawer-title">{{ 'purchaseOrders.detailTitle' | t }}</span>
-              <span class="text-muted" style="font-size:12px; display:block; margin-top:2px;">{{ 'purchaseOrders.poNo' | t: { no: formatPoNumber(detailOrder().poNumber) } }}</span>
+              <span class="po-sub mono po-block">{{ 'purchaseOrders.poNo' | t: { no: formatPoNumber(detailOrder().poNumber) } }}</span>
             </div>
-            <button class="drawer-close" (click)="closeDetailDrawer()">×</button>
+            <button class="drawer-close" (click)="closeDetailDrawer()" [title]="'common.close' | t">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
           </div>
           <div class="drawer-body">
             <div class="detail-grid">
@@ -323,33 +315,31 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
               <div class="detail-field">
                 <span class="detail-label">{{ 'purchaseOrders.status' | t }}</span>
                 <div>
-                  <span class="badge" [ngClass]="getBadgeClass(detailOrder().status)">{{ getStatusName(detailOrder().status) }}</span>
+                  <span class="badge badge-dot" [ngClass]="getBadgeClass(detailOrder().status)">{{ getStatusName(detailOrder().status) }}</span>
                 </div>
               </div>
               <div class="detail-field">
                 <span class="detail-label">{{ 'purchaseOrders.createdAt' | t }}</span>
-                <span class="detail-value mono">{{ detailOrder().createdAt | appDate: 'datetime' }}</span>
+                <span class="detail-value">{{ detailOrder().createdAt | appDate: 'datetime' }}</span>
               </div>
               <div class="detail-field">
                 <span class="detail-label">{{ 'purchaseOrders.expectedDate' | t }}</span>
-                <span class="detail-value mono">{{ detailOrder().expectedDate ? (detailOrder().expectedDate | appDate) : '-' }}</span>
+                <span class="detail-value">{{ detailOrder().expectedDate ? (detailOrder().expectedDate | appDate) : '-' }}</span>
               </div>
             </div>
-            
+
             <h3 class="detail-items-title">{{ 'purchaseOrders.items' | t }}</h3>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="stack po-gap-2">
               @for (item of getGroupedItems(detailOrder().items); track item.key) {
-                <div class="detail-item-row" style="flex-wrap: wrap;">
-                  <span class="detail-item-name">
-                    {{ item.productName }}
-                  </span>
-                  <span class="detail-item-qty" style="font-size: 13px; font-weight: normal; color: #565959; text-align:right;">
+                <div class="detail-item-row">
+                  <span class="detail-item-name">{{ item.productName }}</span>
+                  <span class="detail-item-qty">
                     {{ 'purchaseOrders.itemQtyPrice' | t: { qty: qtyLabel(item), price: (item.price | money: detailOrder().currency) } }}
                     · {{ 'finance.taxRate' | t }} {{ item.taxRate | num }}% · {{ 'finance.tax' | t }} {{ item.taxAmount | money: detailOrder().currency }}
-                    = <strong style="color: #0f1111; font-weight: bold;">{{ item.lineTotal | money: detailOrder().currency }}</strong>
+                    = <strong>{{ item.lineTotal | money: detailOrder().currency }}</strong>
                   </span>
                   @if (item.tracking.length) {
-                    <div style="flex-basis: 100%; font-size: 12px; color: #565959; margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">
+                    <div class="po-tracking">
                       @for (tr of item.tracking; track $index) {
                         <span>
                           @if (tr.lotNumber) {
@@ -366,49 +356,49 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                 </div>
               }
             </div>
-            
-            <div style="margin-top:12px; padding:12px 16px; border:1px solid var(--secondary); border-radius:8px; font-size:13px; display:flex; flex-direction:column; gap:4px;">
-              <div style="display:flex; justify-content:space-between;"><span>{{ 'finance.subtotal' | t }}</span><span>{{ detailTotals().subtotal | money: detailOrder().currency }}</span></div>
+
+            <div class="po-totals po-mt-3">
+              <div class="po-trow"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ detailTotals().subtotal | money: detailOrder().currency }}</span></div>
               @for (b of detailTotals().breakdown; track b.rate) {
-                <div style="display:flex; justify-content:space-between; color:#565959;"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: detailOrder().currency) } }}</span><span>{{ b.tax | money: detailOrder().currency }}</span></div>
+                <div class="po-trow text-muted"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: detailOrder().currency) } }}</span><span class="num">{{ b.tax | money: detailOrder().currency }}</span></div>
               }
-              <div style="display:flex; justify-content:space-between; font-weight:700;"><span>{{ 'finance.grandTotal' | t }}</span><span>{{ detailTotals().total | money: detailOrder().currency }}</span></div>
+              <div class="po-trow po-grand"><span>{{ 'finance.grandTotal' | t }}</span><span class="num">{{ detailTotals().total | money: detailOrder().currency }}</span></div>
               @if (detailOrder().currency && detailOrder().currency !== i18n.currency()) {
-                <div style="display:flex; justify-content:space-between; color:#565959;"><span>{{ 'finance.inBaseCurrency' | t: { currency: i18n.currency() } }}</span><span>{{ (detailTotals().total * (detailOrder().exchangeRate ?? 1)) | money }}</span></div>
-                <div class="text-muted" style="font-size:12px;">{{ 'finance.exchangeRateNote' | t: { from: detailOrder().currency, rate: ((detailOrder().exchangeRate ?? 1) | num), to: i18n.currency() } }}</div>
+                <div class="po-trow text-muted"><span>{{ 'finance.inBaseCurrency' | t: { currency: i18n.currency() } }}</span><span class="num">{{ (detailTotals().total * (detailOrder().exchangeRate ?? 1)) | money }}</span></div>
+                <div class="field-hint">{{ 'finance.exchangeRateNote' | t: { from: detailOrder().currency, rate: ((detailOrder().exchangeRate ?? 1) | num), to: i18n.currency() } }}</div>
               }
               @if (warehouseName(detailOrder().warehouseId); as wn) {
-                <div class="text-muted" style="font-size:12px;">{{ 'purchaseOrders.receivingWarehouse' | t }}: {{ wn }}</div>
+                <div class="field-hint">{{ 'purchaseOrders.receivingWarehouse' | t }}: {{ wn }}</div>
               }
             </div>
 
             @if (detailOrder().notes) {
-              <div style="margin-top: 24px;">
-                <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">{{ 'purchaseOrders.notes' | t }}</h3>
-                <p class="text-muted" style="font-size:14px; line-height:1.5; background: var(--canvas); padding: 12px; border-radius: 8px; border: 1px solid var(--secondary);">{{ detailOrder().notes }}</p>
+              <div class="po-section">
+                <h3 class="po-h3">{{ 'purchaseOrders.notes' | t }}</h3>
+                <p class="po-notes">{{ detailOrder().notes }}</p>
               </div>
             }
 
             @if (detailOrder().status === 'Received') {
-              <div style="margin-top: 24px; padding: 12px; border-radius: 8px; background-color: rgba(5, 150, 105, 0.08); border: 1px solid rgba(5, 150, 105, 0.2); display: flex; align-items: center; gap: 8px; color: var(--status-instock); font-weight: 500; font-size: 0.88rem;">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div class="po-callout po-callout-success">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
                 {{ 'purchaseOrders.receivedInfo' | t }}
               </div>
             } @else if (detailOrder().status === 'Cancelled') {
-              <div style="margin-top: 24px; padding: 12px; border-radius: 8px; background-color: rgba(220, 38, 38, 0.08); border: 1px solid rgba(220, 38, 38, 0.2); display: flex; align-items: center; gap: 8px; color: var(--status-outstock); font-weight: 500; font-size: 0.88rem;">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div class="po-callout po-callout-danger">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>
                 {{ 'purchaseOrders.cancelledInfo' | t }}
               </div>
             }
           </div>
-          <div class="drawer-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+          <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="closeDetailDrawer()">{{ 'common.close' | t }}</button>
             @if (detailOrder().status === 'Draft') {
-              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
-              <button class="btn btn-outline" (click)="editPurchaseOrder(detailOrder())">{{ 'common.edit' | t }}</button>
+              <button class="btn btn-outline-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
+              <button class="btn btn-secondary" (click)="editPurchaseOrder(detailOrder())">{{ 'common.edit' | t }}</button>
               <button class="btn btn-primary" (click)="sendPurchaseOrder(detailOrder())">{{ 'purchaseOrders.send' | t }}</button>
             } @else if (detailOrder().status === 'Sent') {
-              <button class="btn btn-danger" (click)="cancelPurchaseOrder(detailOrder())">{{ 'purchaseOrders.cancelOrder' | t }}</button>
+              <button class="btn btn-outline-danger" (click)="cancelPurchaseOrder(detailOrder())">{{ 'purchaseOrders.cancelOrder' | t }}</button>
               <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">{{ 'purchaseOrders.receive' | t }}</button>
             } @else if (detailOrder().status === 'Cancelled') {
               <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
@@ -417,53 +407,62 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
         </div>
       </div>
     }
-    
+
     @if (receiveTarget()) {
-      <div class="drawer-overlay" (click)="receiveTarget.set(null)" style="display:flex; align-items:center; justify-content:center;">
-        <div (click)="$event.stopPropagation()" style="background:var(--surface-card, #fff); border-radius:12px; padding:20px; width:min(receiveLines().length ? 640px : 420px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:12px;">
-          <h3 style="margin:0; font-size:16px;">{{ 'purchaseOrders.receive' | t }}</h3>
-          <p style="margin:0; font-size:13px; color:#565959;">{{ 'purchaseOrders.receiveMessage' | t: { no: formatPoNumber(receiveTarget().poNumber) } }}</p>
-          <label style="font-size:12px; font-weight:600;">{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
-          <select class="form-input form-select" [ngModel]="receiveWarehouseId()" (ngModelChange)="receiveWarehouseId.set($event)">
-            <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
-            @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
-          </select>
+      <div class="drawer-overlay po-modal-overlay" (click)="receiveTarget.set(null)">
+        <div class="po-modal" [class.po-modal-wide]="receiveLines().length" (click)="$event.stopPropagation()">
+          <div class="po-modal-head">
+            <h3 class="po-modal-title">{{ 'purchaseOrders.receive' | t }}</h3>
+            <p class="po-sub">{{ 'purchaseOrders.receiveMessage' | t: { no: formatPoNumber(receiveTarget().poNumber) } }}</p>
+          </div>
+          <div class="form-group">
+            <label>{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
+            <select class="select" [ngModel]="receiveWarehouseId()" (ngModelChange)="receiveWarehouseId.set($event)">
+              <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
+              @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+            </select>
+          </div>
           @if (receiveLines().length) {
-            <div style="font-size:12px; color:#565959;">{{ 'purchaseOrders.receiveDialog.trackedInfo' | t }}</div>
-            <div style="display:flex; flex-direction:column; gap:12px; max-height:55vh; overflow-y:auto;">
+            <div class="field-hint">{{ 'purchaseOrders.receiveDialog.trackedInfo' | t }}</div>
+            <div class="po-rlines">
               @for (rl of receiveLines(); track rl.itemId) {
-                <div style="border:1px solid var(--secondary); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px; font-size:12px;">
-                  <div style="display:flex; justify-content:space-between; gap:8px;">
-                    <strong style="font-size:13px;">{{ rl.productName }}</strong>
-                    <span [style.color]="receiveLineValid(rl) ? 'var(--status-instock)' : 'var(--status-outstock)'">
+                <div class="po-rline">
+                  <div class="po-rline-head">
+                    <strong>{{ rl.productName }}</strong>
+                    <span class="badge" [class.badge-success]="receiveLineValid(rl)" [class.badge-warning]="!receiveLineValid(rl)">
                       {{ 'purchaseOrders.receiveDialog.progress' | t: { entered: receiveLineCount(rl), total: rl.quantity } }}
                     </span>
                   </div>
                   @if (rl.trackingType === 'lot') {
                     @for (lot of rl.lots; track $index; let li = $index) {
-                      <div style="display:flex; gap:6px; align-items:center;">
-                        <input class="form-input" style="flex:2; height:32px; padding:0 8px; font-size:12px;" [placeholder]="'purchaseOrders.receiveDialog.lotNumber' | t" [(ngModel)]="lot.lotNumber" (ngModelChange)="touchReceive()"/>
-                        <input type="date" class="form-input" style="flex:1.6; height:32px; padding:0 8px; font-size:12px;" [title]="'purchaseOrders.receiveDialog.expiryDate' | t" [(ngModel)]="lot.expiryDate" (ngModelChange)="touchReceive()"/>
-                        <input type="number" min="1" class="form-input" style="flex:1; height:32px; padding:0 8px; font-size:12px;" [placeholder]="'purchaseOrders.receiveDialog.quantity' | t" [(ngModel)]="lot.quantity" (ngModelChange)="touchReceive()"/>
-                        <button type="button" class="delete-btn" style="padding:4px;" (click)="removeReceiveLot(rl, li)" [disabled]="rl.lots.length <= 1">×</button>
+                      <div class="po-lot">
+                        <input class="input po-lot-no" [placeholder]="'purchaseOrders.receiveDialog.lotNumber' | t" [(ngModel)]="lot.lotNumber" (ngModelChange)="touchReceive()"/>
+                        <input type="date" class="input po-lot-date" [title]="'purchaseOrders.receiveDialog.expiryDate' | t" [(ngModel)]="lot.expiryDate" (ngModelChange)="touchReceive()"/>
+                        <input type="number" min="1" class="input po-lot-qty" [placeholder]="'purchaseOrders.receiveDialog.quantity' | t" [(ngModel)]="lot.quantity" (ngModelChange)="touchReceive()"/>
+                        <button type="button" class="delete-btn" (click)="removeReceiveLot(rl, li)" [disabled]="rl.lots.length <= 1" [title]="'common.delete' | t">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                        </button>
                       </div>
                     }
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                      <button type="button" class="btn btn-sm btn-outline" (click)="addReceiveLot(rl)">+ {{ 'purchaseOrders.receiveDialog.addLot' | t }}</button>
-                      @if (rl.hasExpiry) { <span>{{ 'purchaseOrders.receiveDialog.expiryRequired' | t }}</span> }
+                    <div class="po-rline-foot">
+                      <button type="button" class="btn btn-sm btn-secondary" (click)="addReceiveLot(rl)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        {{ 'purchaseOrders.receiveDialog.addLot' | t }}
+                      </button>
+                      @if (rl.hasExpiry) { <span class="field-hint">{{ 'purchaseOrders.receiveDialog.expiryRequired' | t }}</span> }
                     </div>
                   } @else {
-                    <textarea class="form-input" rows="4" style="font-family:var(--font-mono); font-size:12px; padding:6px 8px;" [placeholder]="'purchaseOrders.receiveDialog.serialsPlaceholder' | t" [(ngModel)]="rl.serialsText" (ngModelChange)="touchReceive()"></textarea>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                      <button type="button" class="btn btn-sm btn-outline" (click)="openSerialScanner(rl.itemId)">{{ 'purchaseOrders.receiveDialog.scanSerial' | t }}</button>
-                      @if (hasDuplicateSerials(rl)) { <span style="color:var(--status-outstock);">{{ 'purchaseOrders.receiveDialog.duplicateSerials' | t }}</span> }
+                    <textarea class="textarea mono" rows="4" [placeholder]="'purchaseOrders.receiveDialog.serialsPlaceholder' | t" [(ngModel)]="rl.serialsText" (ngModelChange)="touchReceive()"></textarea>
+                    <div class="po-rline-foot">
+                      <button type="button" class="btn btn-sm btn-secondary" (click)="openSerialScanner(rl.itemId)">{{ 'purchaseOrders.receiveDialog.scanSerial' | t }}</button>
+                      @if (hasDuplicateSerials(rl)) { <span class="error-msg">{{ 'purchaseOrders.receiveDialog.duplicateSerials' | t }}</span> }
                     </div>
                   }
                 </div>
               }
             </div>
           }
-          <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <div class="po-modal-foot">
             <button class="btn btn-secondary" (click)="receiveTarget.set(null)">{{ 'common.cancel' | t }}</button>
             <button class="btn btn-primary" [disabled]="isSaving() || !receiveValid()" (click)="confirmReceive()">{{ 'purchaseOrders.receive' | t }}</button>
           </div>
@@ -482,65 +481,80 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
     <app-toast></app-toast>
   `,
   styles: [`
-    .detail-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      background: var(--canvas);
-      padding: 16px;
-      border-radius: 8px;
-      border: 1px solid var(--secondary);
-    }
-    .detail-field {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .detail-label {
-      font-family: var(--font-heading);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: none;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-    }
-    .detail-value {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    .detail-items-title {
-      font-family: var(--font-heading);
-      font-size: 14px;
-      font-weight: 700;
-      margin-top: 24px;
-      margin-bottom: 12px;
-      color: var(--text-primary);
-      border-bottom: 1px solid var(--secondary);
-      padding-bottom: 8px;
-    }
-    .detail-item-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 16px;
-      background: #fff;
-      border-radius: 8px;
-      border: 1px solid var(--secondary);
-      transition: box-shadow 0.15s ease;
-    }
-    .detail-item-row:hover {
-      box-shadow: var(--shadow-sm);
-    }
-    .detail-item-name {
-      font-weight: 600;
-      font-size: 14px;
-    }
-    .detail-item-qty {
-      font-family: var(--font-mono);
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--text-muted);
+    .po-dates { display: flex; align-items: center; gap: var(--space-2); }
+    .po-dates .input { width: auto; min-width: 0; }
+    .po-skel { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
+    .po-link { color: var(--color-primary-text); font-weight: var(--weight-semibold); text-decoration: none; white-space: nowrap; }
+    .po-link:hover { text-decoration: underline; }
+    .po-strong { font-weight: var(--weight-medium); color: var(--color-text); }
+    td.num.po-strong { font-weight: var(--weight-semibold); white-space: nowrap; }
+    .po-sub { font-size: var(--text-xs); color: var(--color-text-muted); margin: 0; }
+    .po-block { display: block; margin-top: 2px; }
+    .po-items { min-width: 220px; max-width: 380px; }
+    .po-item { display: flex; flex-direction: column; line-height: 1.35; }
+    .po-item + .po-item { margin-top: var(--space-1); }
+    .po-note { margin-top: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+    .po-actions-td { text-align: right; white-space: nowrap; }
+    .po-items-in { display: flex; flex-direction: column; min-width: 0; }
+    .po-actions { display: inline-flex; align-items: center; gap: var(--space-1); justify-content: flex-end; }
+    .po-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .po-hint { margin: calc(var(--space-2) * -1) 0 var(--space-3); }
+    .po-section { margin-top: var(--space-6); }
+    .po-section-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+    .po-h3 { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-text); margin: 0 0 var(--space-2); }
+    .po-section-head .po-h3 { margin: 0; }
+    .po-lines { gap: var(--space-3); }
+    .po-line { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-3); background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); transition: box-shadow var(--duration-fast) var(--ease-standard); }
+    .po-line-hl { box-shadow: var(--focus-ring); border-color: var(--color-primary); }
+    .po-line-product { flex: 2 1 200px; min-width: 0; }
+    .po-line-num { flex: 1 1 90px; min-width: 0; }
+    .po-line .select, .po-line .input { width: 100%; }
+    .po-line-meta { flex-basis: 100%; font-size: var(--text-xs); color: var(--color-text-secondary); display: flex; gap: var(--space-3); flex-wrap: wrap; }
+    .po-totals { padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); font-size: var(--text-sm); display: flex; flex-direction: column; gap: var(--space-1); }
+    .po-trow { display: flex; justify-content: space-between; gap: var(--space-3); }
+    .po-grand { font-weight: var(--weight-bold); color: var(--color-text); border-top: 1px solid var(--color-border-subtle); padding-top: var(--space-2); margin-top: var(--space-1); }
+    .po-empty-lines { text-align: center; padding: var(--space-4); border: 1px dashed var(--color-border); border-radius: var(--radius-md); font-size: var(--text-sm); }
+    .po-mt-3 { margin-top: var(--space-3); }
+    .po-gap-2 { gap: var(--space-2); }
+    .po-notes { font-size: var(--text-sm); line-height: 1.5; color: var(--color-text-secondary); background: var(--color-surface-subtle); padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--color-border); margin: 0; white-space: pre-wrap; }
+    .po-callout { margin-top: var(--space-6); padding: var(--space-3); border-radius: var(--radius-md); display: flex; align-items: center; gap: var(--space-2); font-weight: var(--weight-medium); font-size: var(--text-sm); border: 1px solid; }
+    .po-callout-success { background: var(--color-success-subtle); border-color: var(--color-success-border); color: var(--color-success-text); }
+    .po-callout-danger { background: var(--color-danger-subtle); border-color: var(--color-danger-border); color: var(--color-danger-text); }
+    .po-tracking { flex-basis: 100%; font-size: var(--text-xs); color: var(--color-text-secondary); display: flex; flex-direction: column; gap: 2px; }
+    .po-modal-overlay { display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+    .po-modal { background: var(--color-surface-raised, var(--color-surface)); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); padding: var(--space-6); width: min(440px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-4); }
+    .po-modal-wide { width: min(640px, 100%); }
+    .po-modal-head { display: flex; flex-direction: column; gap: var(--space-1); }
+    .po-modal-title { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--color-text); }
+    .po-modal-head .po-sub { font-size: var(--text-sm); color: var(--color-text-secondary); }
+    .po-modal-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
+    .po-rlines { display: flex; flex-direction: column; gap: var(--space-3); max-height: 50vh; overflow-y: auto; }
+    .po-rline { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); background: var(--color-surface-subtle); }
+    .po-rline-head, .po-rline-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .po-lot { display: flex; gap: var(--space-2); align-items: center; }
+    .po-lot .input { min-width: 0; }
+    .po-lot-no { flex: 2; } .po-lot-date { flex: 1.6; } .po-lot-qty { flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); background: var(--color-surface-subtle); padding: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border); }
+    .detail-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+    .detail-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
+    .detail-value { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-text); }
+    .detail-items-title { font-size: var(--text-sm); font-weight: var(--weight-semibold); margin: var(--space-6) 0 var(--space-3); color: var(--color-text); }
+    .detail-item-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border); }
+    .detail-item-name { font-weight: var(--weight-semibold); font-size: var(--text-sm); color: var(--color-text); }
+    .detail-item-qty { font-size: var(--text-xs); color: var(--color-text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
+    .detail-item-qty strong { color: var(--color-text); }
+    @media (max-width: 640px) {
+      .filter-bar .po-dates { width: 100%; }
+      .po-dates .input { flex: 1; }
+      .po-items, .po-note { max-width: none; min-width: 0; }
+      .po-line-product { flex-basis: 100%; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .detail-item-qty { text-align: left; }
+      .po-lot { flex-wrap: wrap; }
+      .po-lot-no { flex-basis: 100%; }
+      .po-modal { padding: var(--space-4); }
+      .po-items-in { align-items: flex-end; text-align: right; }
+      .po-actions-td { text-align: left; }
     }
   `]
 })
@@ -1202,17 +1216,20 @@ export class PurchaseOrdersComponent implements OnInit {
       case 'Sent': return this.i18n.t('purchaseOrders.status.sent');
       case 'Received': return this.i18n.t('purchaseOrders.status.received');
       case 'Cancelled': return this.i18n.t('purchaseOrders.status.cancelled');
+      case 'Ordered': return this.i18n.t('purchaseOrders.status.sent');
+      case 'PartiallyReceived': case 'Partially Received': return this.i18n.t('purchaseOrders.status.partiallyReceived');
       default: return status;
     }
   }
 
   getBadgeClass(status: string) {
     switch (status) {
-      case 'Draft': return 'badge-lowstock';
-      case 'Sent': return 'badge-lowstock';
-      case 'Received': return 'badge-instock';
-      case 'Cancelled': return 'badge-outstock';
-      default: return '';
+      case 'Draft': return 'badge-neutral';
+      case 'Sent': case 'Ordered': return 'badge-info';
+      case 'PartiallyReceived': case 'Partially Received': return 'badge-warning';
+      case 'Received': return 'badge-success';
+      case 'Cancelled': return 'badge-danger';
+      default: return 'badge-neutral';
     }
   }
 

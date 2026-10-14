@@ -17,30 +17,32 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
         <h1>{{ 'stockMovements.title' | t }}</h1>
         <p>{{ 'stockMovements.subtitle' | t }}</p>
       </div>
-      <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
-        <button class="btn btn-outline" (click)="loadMovements(currentPage())">{{ 'stockMovements.refresh' | t }}</button>
-        <button class="btn btn-outline" (click)="exportToCSV()" style="display: flex; align-items: center; gap: 6px;">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      <div class="page-actions">
+        <button class="btn btn-secondary" (click)="loadMovements(currentPage())">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
+          {{ 'stockMovements.refresh' | t }}
+        </button>
+        <button class="btn btn-secondary" (click)="exportToCSV()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           {{ 'stockMovements.export' | t }}
         </button>
-        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
         <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           {{ 'stockMovements.manualAdjustment' | t }}
         </button>
       </div>
     </header>
 
-    <div class="filter-bar" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
-      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; flex: 1;">
+    <div class="filter-bar sm-filters">
+      <div class="sm-filter-group">
         <!-- Arama Inputu -->
-        <div class="search-box" style="margin: 0; min-width: 240px; flex: 1; max-width: 320px;">
-          <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <div class="search-box sm-search">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input type="text" [placeholder]="'stockMovements.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
         </div>
 
         <!-- Depo Filtresi -->
-        <select class="form-select date-input" style="min-width: 160px;" [ngModel]="selectedWarehouseId()" (ngModelChange)="selectedWarehouseId.set($event)" [title]="'stockMovements.filter.warehouse' | t">
+        <select class="select sm-select" [ngModel]="selectedWarehouseId()" (ngModelChange)="selectedWarehouseId.set($event)" [title]="'stockMovements.filter.warehouse' | t">
           <option value="">{{ 'stockMovements.filter.allWarehouses' | t }}</option>
           @for (w of warehouses(); track w.id) {
             <option [value]="w.id">{{ w.name }}</option>
@@ -48,14 +50,14 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
         </select>
 
         <!-- Tarih Filtresi -->
-        <div class="date-filters">
-          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">{{ 'stockMovements.startDate' | t }}:</span>
-          <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="onStartDateChange($event)" [title]="'stockMovements.startDateTitle' | t" />
-          <span class="date-separator">-</span>
-          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">{{ 'stockMovements.endDate' | t }}:</span>
-          <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="onEndDateChange($event)" [title]="'stockMovements.endDateTitle' | t" />
+        <div class="sm-dates">
+          <span class="sm-date-label">{{ 'stockMovements.startDate' | t }}:</span>
+          <input type="date" class="input sm-date" [ngModel]="startDate()" (ngModelChange)="onStartDateChange($event)" [title]="'stockMovements.startDateTitle' | t" />
+          <span class="text-muted">–</span>
+          <span class="sm-date-label">{{ 'stockMovements.endDate' | t }}:</span>
+          <input type="date" class="input sm-date" [ngModel]="endDate()" (ngModelChange)="onEndDateChange($event)" [title]="'stockMovements.endDateTitle' | t" />
           @if (startDate() || endDate()) {
-            <button class="btn btn-sm btn-secondary" (click)="clearDateFilter()" style="padding: 4px 8px; font-size: 0.7rem; height: 26px; border-radius: var(--radius-sm); margin-left: 6px;">
+            <button class="btn btn-sm btn-ghost" (click)="clearDateFilter()">
               {{ 'stockMovements.clear' | t }}
             </button>
           }
@@ -75,14 +77,15 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
 
     <div class="table-card">
       @if (isLoading()) {
-        <div class="loading-state">{{ 'common.loading' | t }}</div>
+        <div style="padding: var(--space-4); display: grid; gap: var(--space-3);"><div class="skeleton" style="height: 20px;"></div><div class="skeleton" style="height: 20px;"></div><div class="skeleton" style="height: 20px;"></div><div class="skeleton" style="height: 20px;"></div></div>
       } @else if (filteredMovements().length === 0) {
         <div class="empty-state">
-          <p>{{ 'stockMovements.empty' | t }}</p>
+          <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg></div>
+          <p class="empty-state-title">{{ 'stockMovements.empty' | t }}</p>
         </div>
       } @else {
         <div class="table-scroll">
-          <table>
+          <table class="table-responsive">
             <thead>
               <tr>
                 <th>{{ 'stockMovements.col.date' | t }}</th>
@@ -90,9 +93,9 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                 <th>{{ 'stockMovements.col.type' | t }}</th>
                 <th>{{ 'stockMovements.col.warehouse' | t }}</th>
                 <th>{{ 'stockMovements.col.lotSerial' | t }}</th>
-                <th style="text-align: right;">{{ 'stockMovements.col.quantity' | t }}</th>
-                <th style="text-align: right;">{{ 'stockMovements.col.previousStock' | t }}</th>
-                <th style="text-align: right;">{{ 'stockMovements.col.newStock' | t }}</th>
+                <th class="num">{{ 'stockMovements.col.quantity' | t }}</th>
+                <th class="num">{{ 'stockMovements.col.previousStock' | t }}</th>
+                <th class="num">{{ 'stockMovements.col.newStock' | t }}</th>
                 <th>{{ 'stockMovements.col.noteRef' | t }}</th>
                 <th>{{ 'stockMovements.col.performedBy' | t }}</th>
               </tr>
@@ -100,41 +103,41 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
             <tbody>
               @for (m of filteredMovements(); track m.id) {
                 <tr>
-                  <td>{{ m.createdAt | appDate: 'datetime' }}</td>
-                  <td><strong>{{ m.productName }}</strong></td>
-                  <td>
+                  <td class="text-muted nowrap" [attr.data-label]="'stockMovements.col.date' | t">{{ m.createdAt | appDate: 'datetime' }}</td>
+                  <td class="td-primary"><strong>{{ m.productName }}</strong></td>
+                  <td [attr.data-label]="'stockMovements.col.type' | t">
                     <span class="badge" [ngClass]="getBadgeClass(m.type)">
                        {{ getTypeName(m.type) }}
                     </span>
                   </td>
-                  <td>{{ getWarehouseName(m.warehouseId) }}</td>
-                  <td>
+                  <td [attr.data-label]="'stockMovements.col.warehouse' | t">{{ getWarehouseName(m.warehouseId) }}</td>
+                  <td [attr.data-label]="'stockMovements.col.lotSerial' | t">
                     @if (m.lotNumber) {
-                      <span class="badge badge-muted" [title]="'stockMovements.lot' | t">{{ 'stockMovements.lot' | t }}: {{ m.lotNumber }}</span>
+                      <span class="badge badge-neutral" [title]="'stockMovements.lot' | t">{{ 'stockMovements.lot' | t }}: {{ m.lotNumber }}</span>
                     }
                     @if (m.serials?.length) {
-                      <div class="text-xs text-muted" [title]="m.serials!.join(', ')" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono);">
+                      <div class="text-xs text-muted truncate mono" [title]="m.serials!.join(', ')" style="max-width: 180px;">
                         {{ 'stockMovements.serials' | t }}: {{ formatSerials(m.serials) }}
                       </div>
                     }
                     @if (!m.lotNumber && !m.serials?.length) { <span class="text-muted">-</span> }
                   </td>
-                  <td style="text-align: right;">
+                  <td class="num" [attr.data-label]="'stockMovements.col.quantity' | t">
                     <span [class.text-success]="m.quantity > 0" [class.text-danger]="m.quantity < 0">
                       {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
                     </span>
                   </td>
-                  <td style="text-align: right;">{{ m.previousQuantity }}</td>
-                  <td style="text-align: right; font-weight: 600;">{{ m.newQuantity }}</td>
-                  <td>
-                    <div class="text-xs text-muted" style="margin-bottom: 2px;">{{ m.note }}</div>
+                  <td class="num text-muted" [attr.data-label]="'stockMovements.col.previousStock' | t">{{ m.previousQuantity }}</td>
+                  <td class="num" style="font-weight: var(--weight-semibold);" [attr.data-label]="'stockMovements.col.newStock' | t">{{ m.newQuantity }}</td>
+                  <td [attr.data-label]="'stockMovements.col.noteRef' | t">
+                    <div class="text-xs text-muted" style="margin-bottom: var(--space-1);">{{ m.note }}</div>
                     @if (m.referenceId) {
-                      <span class="badge badge-muted">
+                      <span class="badge badge-neutral">
                         {{ formatReference(m.referenceType, m.referenceId) }}
                       </span>
                     }
                   </td>
-                  <td>
+                  <td [attr.data-label]="'stockMovements.col.performedBy' | t">
                     @if (m.performedBy && m.performedBy.toLowerCase() === 'system') {
                       <span class="performed-badge performed-system">{{ 'stockMovements.system' | t }}</span>
                     } @else {
@@ -175,10 +178,10 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'stockMovements.drawerTitle' | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()">×</button>
+            <button class="drawer-close" (click)="closeDrawer()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
 
-          <form [formGroup]="adjustForm" (ngSubmit)="saveAdjustment()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="adjustForm" (ngSubmit)="saveAdjustment()" class="drawer-form">
             <div class="drawer-body">
               
               <!-- Ürün Seçimi -->
@@ -190,14 +193,14 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                   }
                 </select>
                 <label for="adjProduct" class="form-label">{{ 'stockMovements.selectProduct' | t }}</label>
-                @if (isFieldInvalid('productId')) { <div class="form-error">⚠ {{ 'stockMovements.validation.productRequired' | t }}</div> }
+                @if (isFieldInvalid('productId')) { <div class="form-error">{{ 'stockMovements.validation.productRequired' | t }}</div> }
               </div>
 
               <!-- Mevcut Stok (Salt Okunur) -->
               @if (selectedProduct()) {
-                <div style="font-size: 0.85rem; padding: 0.75rem 1rem; background: var(--canvas); border-radius: var(--radius-md); border: 1px solid var(--secondary); display: flex; justify-content: space-between; align-items: center;">
-                  <span style="color: var(--text-muted); font-weight: 500;">{{ 'stockMovements.currentStock' | t }}:</span>
-                  <strong style="color: var(--text-primary); font-size: 1rem;">{{ selectedProduct()?.quantity }}</strong>
+                <div class="sm-current">
+                  <span class="text-muted">{{ 'stockMovements.currentStock' | t }}:</span>
+                  <strong class="num">{{ selectedProduct()?.quantity }}</strong>
                 </div>
               }
 
@@ -205,14 +208,14 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
               <div class="form-field">
                 <input id="adjNewQty" type="number" formControlName="newQuantity" class="form-input" [class.has-value]="hasValue('newQuantity')" min="0" />
                 <label for="adjNewQty" class="form-label">{{ 'stockMovements.newQuantity' | t }}</label>
-                @if (isFieldInvalid('newQuantity')) { <div class="form-error">⚠ {{ 'stockMovements.validation.quantityInvalid' | t }}</div> }
+                @if (isFieldInvalid('newQuantity')) { <div class="form-error">{{ 'stockMovements.validation.quantityInvalid' | t }}</div> }
               </div>
 
               <!-- Açıklama / Not -->
               <div class="form-field">
                 <textarea id="adjNote" formControlName="note" class="form-input" [class.has-value]="hasValue('note')"></textarea>
                 <label for="adjNote" class="form-label">{{ 'stockMovements.reason' | t }}</label>
-                @if (isFieldInvalid('note')) { <div class="form-error">⚠ {{ 'stockMovements.validation.noteRequired' | t }}</div> }
+                @if (isFieldInvalid('note')) { <div class="form-error">{{ 'stockMovements.validation.noteRequired' | t }}</div> }
               </div>
 
             </div>
@@ -231,36 +234,34 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
     <app-toast></app-toast>
   `,
   styles: [`
-    .text-success { color: var(--status-instock); font-weight: 600; }
-    .text-danger { color: var(--status-outstock); font-weight: 600; }
-    table tbody td {
-      vertical-align: top;
-      padding-top: 12px;
-      padding-bottom: 12px;
-    }
-    .badge-in { background: rgba(0, 118, 0, 0.08); color: #007600; }
-    .badge-order { background: rgba(59, 130, 246, 0.08); color: #2563EB; }
-    .badge-return { background: rgba(196, 85, 0, 0.08); color: #C45500; }
-    .badge-adjustment { background: rgba(100, 116, 139, 0.08); color: #64748B; }
-    .badge-transfer-out { background: rgba(219, 39, 119, 0.08); color: #DB2777; }
-    .badge-transfer-in { background: rgba(13, 148, 136, 0.08); color: #0D9488; }
-    .badge-out { background: rgba(177, 39, 4, 0.08); color: #B12704; }
-    .performed-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      font-family: var(--font-mono);
-    }
-    .performed-system {
-      background: rgba(100, 116, 139, 0.08);
-      color: #64748B;
-    }
-    .performed-admin {
-      background: rgba(139, 92, 246, 0.08);
-      color: #8B5CF6;
+    .text-success { color: var(--color-success-text); font-weight: var(--weight-semibold); }
+    .text-danger { color: var(--color-danger-text); font-weight: var(--weight-semibold); }
+    .nowrap { white-space: nowrap; }
+    table tbody td { vertical-align: middle; }
+    .sm-filters { flex-wrap: wrap; gap: var(--space-3); justify-content: space-between; }
+    .sm-filter-group { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; flex: 1; min-width: 0; }
+    .sm-search { flex: 1 1 240px; max-width: 320px; margin: 0; }
+    .sm-select { width: auto; min-width: 160px; }
+    .sm-dates { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .sm-date-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
+    .sm-date { width: auto; }
+    .sm-current { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: var(--text-sm); background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .sm-current strong { font-size: var(--text-md); color: var(--color-text); }
+    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    /* Movement type semantics: in = success, out = danger, transfer = info, adjustment = warning */
+    .badge-in, .badge-return { background: var(--color-success-subtle); color: var(--color-success-text); border-color: var(--color-success-border); }
+    .badge-out, .badge-order { background: var(--color-danger-subtle); color: var(--color-danger-text); border-color: var(--color-danger-border); }
+    .badge-transfer-in, .badge-transfer-out { background: var(--color-info-subtle); color: var(--color-info-text); border-color: var(--color-info-border); }
+    .badge-adjustment { background: var(--color-warning-subtle); color: var(--color-warning-text); border-color: var(--color-warning-border); }
+    .performed-badge { display: inline-flex; align-items: center; padding: 2px var(--space-2); border-radius: var(--radius-xs); font-size: var(--text-2xs); font-weight: var(--weight-semibold); white-space: nowrap; }
+    .performed-system { background: var(--color-surface-muted); color: var(--color-text-muted); }
+    .performed-admin { background: var(--color-primary-subtle); color: var(--color-primary-text); }
+    @media (max-width: 640px) {
+      .sm-search { max-width: none; flex-basis: 100%; }
+      .sm-select { flex: 1 1 100%; }
+      .sm-dates { width: 100%; }
+      .sm-date { flex: 1; min-width: 0; }
+      .filter-pills { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; }
     }
   `]
 })

@@ -19,43 +19,50 @@ import { I18nService, TranslatePipe } from '../../i18n';
         <h1>{{ 'suppliers.title' | t }}</h1>
         <p>{{ 'suppliers.subtitle' | t }}</p>
       </div>
-      <div class="header-actions">
+      <div class="page-actions">
         <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           {{ 'suppliers.new' | t }}
         </button>
       </div>
     </header>
 
-    <!-- Search Bar -->
     <div class="filter-bar">
       <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" [placeholder]="'suppliers.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
       </div>
     </div>
 
-    <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+    <div class="table-card">
       @if (isLoading()) {
-        <div class="loading-state">{{ 'common.loading' | t }}</div>
+        <div class="sup-skel">
+          @for (r of [1,2,3,4,5]; track r) { <div class="skeleton skeleton-text"></div> }
+        </div>
       } @else if (suppliers().length === 0) {
         <div class="empty-state">
-          <p>{{ 'suppliers.empty' | t }}</p>
-          <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">{{ 'suppliers.addFirst' | t }}</button>
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+          </div>
+          <div class="empty-state-title">{{ 'suppliers.empty' | t }}</div>
+          <button class="btn btn-primary" (click)="openDrawer()">{{ 'suppliers.addFirst' | t }}</button>
         </div>
       } @else if (filteredSuppliers().length === 0) {
         <div class="empty-state">
-          <p>{{ 'suppliers.noResults' | t }}</p>
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
+          <div class="empty-state-title">{{ 'suppliers.noResults' | t }}</div>
         </div>
       } @else {
         <div class="table-scroll">
-          <table>
+          <table class="table-responsive">
             <thead>
               <tr>
                 <th>{{ 'suppliers.col.name' | t }}</th>
                 <th>{{ 'suppliers.col.contact' | t }}</th>
                 <th>{{ 'suppliers.col.rating' | t }}</th>
-                <th>{{ 'suppliers.col.leadTime' | t }}</th>
+                <th class="num">{{ 'suppliers.col.leadTime' | t }}</th>
                 <th>{{ 'suppliers.col.email' | t }}</th>
                 <th>{{ 'suppliers.col.phone' | t }}</th>
                 <th class="th-actions">{{ 'common.actions' | t }}</th>
@@ -64,35 +71,28 @@ import { I18nService, TranslatePipe } from '../../i18n';
             <tbody>
               @for (s of filteredSuppliers(); track s.id) {
                 <tr>
-                  <td><strong>{{ s.name }}</strong></td>
-                  <td>{{ s.contactPerson || '-' }}</td>
-                  <td>
-                    <div class="rating-stars" style="color: #fbbf24; font-size: 15px; letter-spacing: 1px;">
-                      {{ '★'.repeat(s.rating || 5) }}{{ '☆'.repeat(5 - (s.rating || 5)) }}
-                    </div>
+                  <td [attr.data-label]="'suppliers.col.name' | t"><span class="sup-name">{{ s.name }}</span></td>
+                  <td [attr.data-label]="'suppliers.col.contact' | t">{{ s.contactPerson || '-' }}</td>
+                  <td [attr.data-label]="'suppliers.col.rating' | t">
+                    <span class="sup-stars" [title]="'suppliers.form.stars' | t: { n: s.rating || 5 }">
+                      @for (star of [1, 2, 3, 4, 5]; track star) {
+                        <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" [class.on]="star <= (s.rating || 5)"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+                      }
+                    </span>
                   </td>
-                  <td>
-                    <span style="font-weight: 500;">{{ 'suppliers.days' | t: { n: s.leadTimeDays ?? 3 } }}</span>
-                  <td>
-                    @if (s.email) {
-                      <a href="mailto:{{ s.email }}" style="color: #007185; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ s.email }}</a>
-                    } @else {
-                      -
-                    }
+                  <td class="num" [attr.data-label]="'suppliers.col.leadTime' | t">{{ 'suppliers.days' | t: { n: s.leadTimeDays ?? 3 } }}</td>
+                  <td [attr.data-label]="'suppliers.col.email' | t">
+                    @if (s.email) { <a class="sup-link" href="mailto:{{ s.email }}">{{ s.email }}</a> } @else { - }
                   </td>
-                  <td>
-                    @if (s.phone) {
-                      <a href="tel:{{ s.phone }}" style="color: #007185; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ normalizePhone(s.phone) }}</a>
-                    } @else {
-                      -
-                    }
+                  <td [attr.data-label]="'suppliers.col.phone' | t">
+                    @if (s.phone) { <a class="sup-link num" href="tel:{{ s.phone }}">{{ normalizePhone(s.phone) }}</a> } @else { - }
                   </td>
                   <td class="td-actions">
                     <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(s)">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                     </button>
                     <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteSupplier(s.id)">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                     </button>
                   </td>
                 </tr>
@@ -103,21 +103,22 @@ import { I18nService, TranslatePipe } from '../../i18n';
       }
     </div>
 
-    <!-- Right Drawer -->
     @if (isDrawerOpen()) {
       <div class="drawer-overlay" (click)="closeDrawer()">
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editId() ? 'suppliers.editTitle' : 'suppliers.addTitle') | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()">×</button>
+            <button class="drawer-close" (click)="closeDrawer()" [title]="'common.close' | t">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
           </div>
 
-          <form [formGroup]="supplierForm" (ngSubmit)="saveSupplier()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="supplierForm" (ngSubmit)="saveSupplier()" class="sup-form">
             <div class="drawer-body">
               <div class="form-field">
                 <input id="supplierName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" [disabled]="isSaving()" />
                 <label for="supplierName" class="form-label">{{ 'suppliers.form.name' | t }}</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">⚠ {{ 'suppliers.form.nameRequired' | t }}</div> }
+                @if (isFieldInvalid('name')) { <div class="form-error">{{ 'suppliers.form.nameRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
@@ -125,46 +126,41 @@ import { I18nService, TranslatePipe } from '../../i18n';
                 <label for="supplierContact" class="form-label">{{ 'suppliers.form.contact' | t }}</label>
               </div>
 
-              <div class="form-field">
-                <input id="supplierEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasValue('email')" [disabled]="isSaving()" />
-                <label for="supplierEmail" class="form-label">{{ 'suppliers.form.email' | t }}</label>
-                @if (isFieldInvalid('email')) { <div class="form-error">⚠ {{ 'suppliers.form.emailInvalid' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <input id="supplierPhone" type="tel" formControlName="phone" class="form-input" [class.has-value]="hasValue('phone')" [disabled]="isSaving()" />
-                <label for="supplierPhone" class="form-label">{{ 'suppliers.form.phone' | t }}</label>
-              </div>
-              <div class="form-field" style="display: flex; flex-direction: column;">
-                <label class="form-label" style="position: static; transform: none; font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 6px;">{{ 'suppliers.form.rating' | t }}</label>
-                <div class="star-rating-container" style="display: flex; gap: 4px; align-items: center; padding: 4px 0;">
-                  @for (star of [1, 2, 3, 4, 5]; track star) {
-                    <button type="button" 
-                            (click)="setRating(star)" 
-                            [disabled]="isSaving()" 
-                            style="background: transparent; border: none; padding: 1px; cursor: pointer; outline: none; font-size: 18px; transition: transform 0.1s ease; line-height: 1;"
-                            [style.color]="supplierForm.get('rating')?.value >= star ? '#fbbf24' : '#d5d9d9'"
-                            onmouseover="this.style.transform='scale(1.2)'"
-                            onmouseout="this.style.transform='scale(1)'"
-                            [title]="'suppliers.form.stars' | t: { n: star }"
-                    >
-                      ★
-                    </button>
-                  }
-                  <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 4px; white-space: nowrap;">
-                    @if (supplierForm.get('rating')?.value) {
-                      ({{ 'suppliers.form.stars' | t: { n: supplierForm.get('rating')?.value } }})
-                    } @else {
-                      ({{ 'suppliers.form.noRating' | t }})
-                    }
-                  </span>
+              <div class="form-row">
+                <div class="form-field">
+                  <input id="supplierEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasValue('email')" [disabled]="isSaving()" />
+                  <label for="supplierEmail" class="form-label">{{ 'suppliers.form.email' | t }}</label>
+                  @if (isFieldInvalid('email')) { <div class="form-error">{{ 'suppliers.form.emailInvalid' | t }}</div> }
+                </div>
+                <div class="form-field">
+                  <input id="supplierPhone" type="tel" formControlName="phone" class="form-input" [class.has-value]="hasValue('phone')" [disabled]="isSaving()" />
+                  <label for="supplierPhone" class="form-label">{{ 'suppliers.form.phone' | t }}</label>
                 </div>
               </div>
 
-              <div class="form-field">
-                <input id="supplierLeadTime" type="number" formControlName="leadTimeDays" class="form-input" [class.has-value]="hasValue('leadTimeDays')" [disabled]="isSaving()" min="0" />
-                <label for="supplierLeadTime" class="form-label">{{ 'suppliers.form.leadTime' | t }}</label>
-                @if (isFieldInvalid('leadTimeDays')) { <div class="form-error">⚠ {{ 'suppliers.form.leadTimeInvalid' | t }}</div> }
+              <div class="form-row">
+                <div class="sup-rating-field">
+                  <span class="sup-rating-label">{{ 'suppliers.form.rating' | t }}</span>
+                  <div class="sup-rating">
+                    @for (star of [1, 2, 3, 4, 5]; track star) {
+                      <button type="button" class="sup-star-btn" [class.on]="supplierForm.get('rating')?.value >= star" (click)="setRating(star)" [disabled]="isSaving()" [title]="'suppliers.form.stars' | t: { n: star }">
+                        <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+                      </button>
+                    }
+                    <span class="sup-rating-text">
+                      @if (supplierForm.get('rating')?.value) {
+                        {{ 'suppliers.form.stars' | t: { n: supplierForm.get('rating')?.value } }}
+                      } @else {
+                        {{ 'suppliers.form.noRating' | t }}
+                      }
+                    </span>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <input id="supplierLeadTime" type="number" formControlName="leadTimeDays" class="form-input" [class.has-value]="hasValue('leadTimeDays')" [disabled]="isSaving()" min="0" />
+                  <label for="supplierLeadTime" class="form-label">{{ 'suppliers.form.leadTime' | t }}</label>
+                  @if (isFieldInvalid('leadTimeDays')) { <div class="form-error">{{ 'suppliers.form.leadTimeInvalid' | t }}</div> }
+                </div>
               </div>
 
               <div class="form-field">
@@ -177,7 +173,7 @@ import { I18nService, TranslatePipe } from '../../i18n';
                 <label for="supplierNotes" class="form-label">{{ 'suppliers.form.notes' | t }}</label>
               </div>
             </div>
-            
+
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
               <button type="submit" class="btn btn-primary" [disabled]="supplierForm.invalid || supplierForm.pristine || isSaving()">
@@ -188,9 +184,29 @@ import { I18nService, TranslatePipe } from '../../i18n';
         </div>
       </div>
     }
-    
+
     <app-toast></app-toast>
-  `
+  `,
+  styles: [`
+    .sup-skel { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
+    .sup-name { font-weight: var(--weight-semibold); color: var(--color-text); }
+    .sup-link { color: var(--color-primary-text); text-decoration: none; }
+    .sup-link:hover { text-decoration: underline; }
+    .sup-stars { display: inline-flex; gap: 2px; color: var(--color-border-strong); }
+    .sup-stars svg { fill: none; }
+    .sup-stars svg.on { color: var(--color-warning); fill: currentColor; }
+    .sup-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .sup-rating-field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-4); }
+    .sup-rating-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-secondary); }
+    .sup-rating { display: flex; align-items: center; gap: 2px; min-height: 40px; }
+    .sup-star-btn { background: transparent; border: 0; padding: 4px; cursor: pointer; color: var(--color-border-strong); border-radius: var(--radius-sm); display: grid; place-items: center; transition: transform var(--duration-fast) var(--ease-standard); }
+    .sup-star-btn svg { fill: none; }
+    .sup-star-btn.on { color: var(--color-warning); }
+    .sup-star-btn.on svg { fill: currentColor; }
+    .sup-star-btn:hover:not(:disabled) { transform: scale(1.12); }
+    .sup-star-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .sup-rating-text { font-size: var(--text-xs); color: var(--color-text-muted); margin-left: var(--space-2); white-space: nowrap; }
+  `]
 })
 export class SuppliersComponent implements OnInit {
   inventory = inject(InventoryService);

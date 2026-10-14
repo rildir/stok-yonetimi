@@ -31,71 +31,102 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
   imports: [CommonModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .int-tabs { display: flex; gap: 4px; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px; }
-    .int-tab { background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 16px; font-size: 14px; color: var(--text-muted); cursor: pointer; }
-    .int-tab.active { color: #0F172A; border-bottom-color: #0F172A; font-weight: 600; }
-    .card { border: 1px solid #D5D9D9; border-radius: 8px; background: #FFF; padding: 16px; margin-bottom: 16px; }
-    .card h3 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; color: #0F1111; }
-    .card p.hint { margin: 0 0 12px 0; font-size: 13px; color: var(--text-muted); }
-    .code { font-family: var(--font-mono, monospace); background: #F1F5F9; border-radius: 6px; padding: 8px 10px; font-size: 12px; word-break: break-all; white-space: pre-wrap; }
-    .status-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
-    .st-active, .st-success { background: #ECFDF5; color: #047857; }
-    .st-revoked, .st-failed { background: #FEF2F2; color: #B91C1C; }
-    .st-expired, .st-pending, .st-inactive { background: #FFFBEB; color: #B45309; }
-    .scope-grid { display: grid; grid-template-columns: 1fr 140px; gap: 8px 12px; align-items: center; font-size: 13px; }
-    .event-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px; }
-    .event-grid label, .inline-check { display: flex; gap: 6px; align-items: center; cursor: pointer; }
-    .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-    .row-actions .btn { padding: 4px 10px; font-size: 12px; }
-    .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-    .filters .form-select { min-width: 180px; height: 36px; }
-    .modal-wrap { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 16px; }
-    .modal-box { background: #FFF; border-radius: 10px; width: 100%; max-width: 560px; max-height: 90vh; overflow: auto; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
-    .modal-box h3 { margin: 0 0 12px 0; font-size: 17px; }
-    .warn { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin-bottom: 12px; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-    .stats { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin: 12px 0; }
-    .stats strong { font-size: 16px; display: block; }
-    .export-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+    :host { display: block; min-width: 0; }
+    .tabs { margin-bottom: var(--space-5); overflow-x: auto; }
+    .tab { white-space: nowrap; }
+    td { min-width: 0; }
+    td.mono::before { font-family: var(--font-sans); }
+    @media (min-width: 641px) { td.td-actions { display: table-cell; text-align: right; vertical-align: middle; } }
+    td > .mono, td > span.ep-cell { min-width: 0; }
+    .section-card { margin-bottom: var(--space-4); }
+    .section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
+    .section-head > div { min-width: 0; flex: 1 1 260px; }
+    .hint { margin: var(--space-1) 0 var(--space-3); font-size: var(--text-sm); color: var(--color-text-muted); }
+    .code { font-family: var(--font-mono, monospace); background: var(--color-surface-muted); color: var(--color-text); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--text-xs); line-height: 1.6; word-break: break-all; white-space: pre-wrap; max-width: 100%; overflow-wrap: anywhere; }
+    .code-scroll { max-height: 320px; overflow: auto; }
+    .code-danger { color: var(--color-danger-text); background: var(--color-danger-subtle); border-color: var(--color-danger-border); }
+    .sub { font-size: var(--text-2xs); color: var(--color-text-muted); }
+    .url-cell { max-width: 320px; min-width: 0; }
+    .url-cell .mono, .ep-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ep-cell { max-width: 240px; }
+    .scope-cell { font-size: var(--text-xs); color: var(--color-text-secondary); max-width: 260px; }
+    .scope-grid { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: var(--space-2) var(--space-3); align-items: center; font-size: var(--text-sm); }
+    .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-2); font-size: var(--text-sm); }
+    .event-grid label, .inline-check { display: flex; gap: var(--space-2); align-items: center; cursor: pointer; min-width: 0; }
+    .event-grid label { padding: var(--space-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); }
+    .event-grid .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); }
+    .group-label { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-text); margin: var(--space-4) 0 var(--space-2); }
+    .row-actions { display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end; }
+    .filters { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; margin: var(--space-3) 0; }
+    .filters .select { min-width: 180px; max-width: 100%; flex: 0 1 260px; }
+    .filters input[type=file] { max-width: 100%; font-size: var(--text-sm); color: var(--color-text-secondary); }
+    .modal-wrap { position: fixed; inset: 0; background: rgba(8, 10, 15, 0.55); display: flex; align-items: center; justify-content: center; z-index: 1100; padding: var(--space-4); }
+    .modal-box { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); border-radius: var(--radius-lg); width: 100%; max-width: 560px; max-height: 90vh; overflow: auto; padding: var(--space-6); box-shadow: var(--shadow-xl); min-width: 0; }
+    .modal-box h3 { margin: 0 0 var(--space-3); font-size: var(--text-lg); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+    .warn { display: flex; gap: var(--space-2); align-items: flex-start; background: var(--color-warning-subtle); border: 1px solid var(--color-warning-border); color: var(--color-warning-text); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--text-sm); margin-bottom: var(--space-3); }
+    .warn svg { flex-shrink: 0; margin-top: 2px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); flex-wrap: wrap; }
+    .secret-box { font-size: var(--text-sm); padding: var(--space-3); }
+    .export-grid { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .report-kpis { margin: var(--space-4) 0 var(--space-2); grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+    @media (max-width: 640px) {
+      .row-actions { justify-content: flex-start; }
+      .url-cell, .ep-cell, .scope-cell { max-width: none; }
+      .scope-grid { grid-template-columns: minmax(0, 1fr) 130px; }
+      .modal-box { padding: var(--space-4); }
+      .modal-actions .btn { flex: 1 1 auto; }
+      .filters .select { flex: 1 1 100%; }
+    }
   `],
   template: `
-    <header class="page-header">
+    <div class="page-header">
       <div>
         <h1>{{ 'integrations.title' | t }}</h1>
         <p>{{ 'integrations.subtitle' | t }}</p>
       </div>
-      <div class="header-actions">
-        <a class="btn btn-outline" [href]="api.docsUrl" target="_blank" rel="noopener">{{ 'integrations.apiDocs' | t }}</a>
+      <div class="page-actions">
+        <a class="btn btn-secondary" [href]="api.docsUrl" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/></svg>
+          {{ 'integrations.apiDocs' | t }}
+        </a>
       </div>
-    </header>
+    </div>
 
-    <div class="int-tabs">
-      <button class="int-tab" [class.active]="tab() === 'apiKeys'" (click)="setTab('apiKeys')">{{ 'integrations.tab.apiKeys' | t }}</button>
-      <button class="int-tab" [class.active]="tab() === 'webhooks'" (click)="setTab('webhooks')">{{ 'integrations.tab.webhooks' | t }}</button>
-      <button class="int-tab" [class.active]="tab() === 'data'" (click)="setTab('data')">{{ 'integrations.tab.data' | t }}</button>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" [class.active]="tab() === 'apiKeys'" (click)="setTab('apiKeys')">{{ 'integrations.tab.apiKeys' | t }}</button>
+      <button class="tab" role="tab" [class.active]="tab() === 'webhooks'" (click)="setTab('webhooks')">{{ 'integrations.tab.webhooks' | t }}</button>
+      <button class="tab" role="tab" [class.active]="tab() === 'data'" (click)="setTab('data')">{{ 'integrations.tab.data' | t }}</button>
     </div>
 
     <!-- ─── API KEYS ─── -->
     @if (tab() === 'apiKeys') {
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+      <div class="card section-card">
+        <div class="section-head">
           <div>
-            <h3>{{ 'integrations.keys.title' | t }}</h3>
+            <div class="card-title">{{ 'integrations.keys.title' | t }}</div>
             <p class="hint">{{ 'integrations.keys.hint' | t }}</p>
           </div>
-          <button class="btn btn-primary" (click)="openKeyForm()">{{ 'integrations.keys.new' | t }}</button>
+          <button class="btn btn-primary" (click)="openKeyForm()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            {{ 'integrations.keys.new' | t }}
+          </button>
         </div>
         <div class="code">curl -H "X-API-Key: sk_..." {{ api.apiBase }}/products</div>
       </div>
 
-      <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+      <div class="table-card">
         @if (keysLoading()) {
-          <div class="loading-state">{{ 'common.loading' | t }}</div>
+          <div class="stack" style="padding: var(--space-4);">
+            @for (i of [1, 2, 3]; track i) { <div class="skeleton" style="height: 36px;"></div> }
+          </div>
         } @else if (keys().length === 0) {
-          <div class="empty-state"><p>{{ 'integrations.keys.empty' | t }}</p></div>
+          <div class="empty-state">
+            <div class="empty-state-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></svg></div>
+            <div class="empty-state-title">{{ 'integrations.keys.empty' | t }}</div>
+          </div>
         } @else {
           <div class="table-scroll">
-            <table>
+            <table class="table-responsive">
               <thead>
                 <tr>
                   <th>{{ 'integrations.keys.col.name' | t }}</th>
@@ -111,13 +142,13 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
               <tbody>
                 @for (k of keys(); track k.id) {
                   <tr>
-                    <td><strong>{{ k.name }}</strong></td>
-                    <td class="mono">{{ k.prefix }}…</td>
-                    <td style="font-size: 12px;">{{ scopeSummary(k) }}</td>
-                    <td><span class="status-badge" [ngClass]="'st-' + keyStatus(k)">{{ ('integrations.keys.status.' + keyStatus(k)) | t }}</span></td>
-                    <td>{{ k.lastUsedAt ? (k.lastUsedAt | appDate: 'datetime') : '-' }}</td>
-                    <td>{{ k.expiresAt ? (k.expiresAt | appDate) : ('integrations.keys.never' | t) }}</td>
-                    <td>{{ k.createdAt | appDate }} @if (k.createdBy) { <div style="font-size: 11px; color: var(--text-muted);">{{ k.createdBy }}</div> }</td>
+                    <td [attr.data-label]="'integrations.keys.col.name' | t"><strong>{{ k.name }}</strong></td>
+                    <td [attr.data-label]="'integrations.keys.col.prefix' | t" class="mono">{{ k.prefix }}…</td>
+                    <td [attr.data-label]="'integrations.keys.col.scopes' | t" class="scope-cell">{{ scopeSummary(k) }}</td>
+                    <td [attr.data-label]="'integrations.keys.col.status' | t"><span class="badge" [ngClass]="statusBadge(keyStatus(k))">{{ ('integrations.keys.status.' + keyStatus(k)) | t }}</span></td>
+                    <td [attr.data-label]="'integrations.keys.col.lastUsed' | t">{{ k.lastUsedAt ? (k.lastUsedAt | appDate: 'datetime') : '-' }}</td>
+                    <td [attr.data-label]="'integrations.keys.col.expires' | t">{{ k.expiresAt ? (k.expiresAt | appDate) : ('integrations.keys.never' | t) }}</td>
+                    <td [attr.data-label]="'integrations.keys.col.created' | t">{{ k.createdAt | appDate }} @if (k.createdBy) { <div class="sub">{{ k.createdBy }}</div> }</td>
                     <td class="td-actions">
                       @if (keyStatus(k) === 'active') {
                         <button class="btn btn-outline-danger btn-sm" (click)="revokeKey(k)">{{ 'integrations.keys.revoke' | t }}</button>
@@ -134,24 +165,32 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
 
     <!-- ─── WEBHOOKS ─── -->
     @if (tab() === 'webhooks') {
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+      <div class="card section-card">
+        <div class="section-head">
           <div>
-            <h3>{{ 'integrations.hooks.title' | t }}</h3>
-            <p class="hint">{{ 'integrations.hooks.hint' | t }}</p>
+            <div class="card-title">{{ 'integrations.hooks.title' | t }}</div>
+            <p class="hint" style="margin-bottom: 0;">{{ 'integrations.hooks.hint' | t }}</p>
           </div>
-          <button class="btn btn-primary" (click)="openHookForm()">{{ 'integrations.hooks.new' | t }}</button>
+          <button class="btn btn-primary" (click)="openHookForm()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            {{ 'integrations.hooks.new' | t }}
+          </button>
         </div>
       </div>
 
-      <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF; margin-bottom: 16px;">
+      <div class="table-card section-card">
         @if (hooksLoading()) {
-          <div class="loading-state">{{ 'common.loading' | t }}</div>
+          <div class="stack" style="padding: var(--space-4);">
+            @for (i of [1, 2, 3]; track i) { <div class="skeleton" style="height: 36px;"></div> }
+          </div>
         } @else if (hooks().length === 0) {
-          <div class="empty-state"><p>{{ 'integrations.hooks.empty' | t }}</p></div>
+          <div class="empty-state">
+            <div class="empty-state-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+            <div class="empty-state-title">{{ 'integrations.hooks.empty' | t }}</div>
+          </div>
         } @else {
           <div class="table-scroll">
-            <table>
+            <table class="table-responsive">
               <thead>
                 <tr>
                   <th>{{ 'integrations.hooks.col.url' | t }}</th>
@@ -164,25 +203,25 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
               <tbody>
                 @for (h of hooks(); track h.id) {
                   <tr>
-                    <td>
-                      <span class="mono" style="font-size: 12px; word-break: break-all;">{{ h.url }}</span>
-                      @if (h.description) { <div style="font-size: 11px; color: var(--text-muted);">{{ h.description }}</div> }
+                    <td [attr.data-label]="'integrations.hooks.col.url' | t" class="url-cell">
+                      <span class="mono" [title]="h.url">{{ h.url }}</span>
+                      @if (h.description) { <div class="sub">{{ h.description }}</div> }
                     </td>
-                    <td style="font-size: 12px;">{{ h.events.join(', ') }}</td>
-                    <td>
+                    <td [attr.data-label]="'integrations.hooks.col.events' | t" class="scope-cell">{{ h.events.join(', ') }}</td>
+                    <td [attr.data-label]="'integrations.hooks.col.active' | t">
                       <label class="inline-check">
                         <input type="checkbox" [checked]="h.active" (change)="toggleActive(h, $event)" />
-                        <span class="status-badge" [ngClass]="h.active ? 'st-active' : 'st-inactive'">{{ (h.active ? 'integrations.hooks.active' : 'integrations.hooks.inactive') | t }}</span>
+                        <span class="badge" [ngClass]="h.active ? 'badge-success' : 'badge-warning'">{{ (h.active ? 'integrations.hooks.active' : 'integrations.hooks.inactive') | t }}</span>
                       </label>
                     </td>
-                    <td>{{ h.updatedAt | appDate: 'datetime' }}</td>
-                    <td>
+                    <td [attr.data-label]="'integrations.hooks.col.updated' | t">{{ h.updatedAt | appDate: 'datetime' }}</td>
+                    <td class="td-actions">
                       <div class="row-actions">
-                        <button class="btn btn-outline" (click)="testHook(h)">{{ 'integrations.hooks.test' | t }}</button>
-                        <button class="btn btn-outline" (click)="openHookForm(h)">{{ 'common.edit' | t }}</button>
-                        <button class="btn btn-outline" (click)="rotateSecret(h)">{{ 'integrations.hooks.rotate' | t }}</button>
-                        <button class="btn btn-outline" (click)="showDeliveriesFor(h)">{{ 'integrations.hooks.deliveries' | t }}</button>
-                        <button class="btn btn-outline-danger" (click)="deleteHook(h)">{{ 'common.delete' | t }}</button>
+                        <button class="btn btn-ghost btn-sm" (click)="testHook(h)">{{ 'integrations.hooks.test' | t }}</button>
+                        <button class="btn btn-ghost btn-sm" (click)="openHookForm(h)">{{ 'common.edit' | t }}</button>
+                        <button class="btn btn-ghost btn-sm" (click)="rotateSecret(h)">{{ 'integrations.hooks.rotate' | t }}</button>
+                        <button class="btn btn-ghost btn-sm" (click)="showDeliveriesFor(h)">{{ 'integrations.hooks.deliveries' | t }}</button>
+                        <button class="btn btn-outline-danger btn-sm" (click)="deleteHook(h)">{{ 'common.delete' | t }}</button>
                       </div>
                     </td>
                   </tr>
@@ -193,52 +232,60 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
         }
       </div>
 
-      <div class="card">
-        <h3>{{ 'integrations.deliveries.title' | t }}</h3>
-        <div class="filters" style="margin-top: 8px;">
-          <select class="form-select" [ngModel]="deliveryEndpoint()" (ngModelChange)="deliveryEndpoint.set($event); loadDeliveries(1)">
+      <div class="card section-card">
+        <div class="card-title">{{ 'integrations.deliveries.title' | t }}</div>
+        <div class="filters">
+          <select class="select" [ngModel]="deliveryEndpoint()" (ngModelChange)="deliveryEndpoint.set($event); loadDeliveries(1)">
             <option value="">{{ 'integrations.deliveries.allEndpoints' | t }}</option>
             @for (h of hooks(); track h.id) { <option [value]="h.id">{{ h.url }}</option> }
           </select>
-          <select class="form-select" [ngModel]="deliveryStatus()" (ngModelChange)="deliveryStatus.set($event); loadDeliveries(1)">
+          <select class="select" [ngModel]="deliveryStatus()" (ngModelChange)="deliveryStatus.set($event); loadDeliveries(1)">
             <option value="">{{ 'integrations.deliveries.allStatuses' | t }}</option>
             <option value="pending">{{ 'integrations.deliveries.status.pending' | t }}</option>
             <option value="success">{{ 'integrations.deliveries.status.success' | t }}</option>
             <option value="failed">{{ 'integrations.deliveries.status.failed' | t }}</option>
           </select>
-          <button class="btn btn-outline btn-sm" (click)="loadDeliveries(deliveryPage())">{{ 'integrations.deliveries.refresh' | t }}</button>
+          <button class="btn btn-secondary btn-sm" (click)="loadDeliveries(deliveryPage())">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+            {{ 'integrations.deliveries.refresh' | t }}
+          </button>
         </div>
         @if (deliveriesLoading()) {
-          <div class="loading-state">{{ 'common.loading' | t }}</div>
+          <div class="stack">
+            @for (i of [1, 2, 3]; track i) { <div class="skeleton" style="height: 36px;"></div> }
+          </div>
         } @else if (deliveries().length === 0) {
-          <div class="empty-state"><p>{{ 'integrations.deliveries.empty' | t }}</p></div>
+          <div class="empty-state">
+            <div class="empty-state-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg></div>
+            <div class="empty-state-title">{{ 'integrations.deliveries.empty' | t }}</div>
+          </div>
         } @else {
           <div class="table-scroll">
-            <table>
+            <table class="table-responsive">
               <thead>
                 <tr>
                   <th>{{ 'integrations.deliveries.col.date' | t }}</th>
                   <th>{{ 'integrations.deliveries.col.event' | t }}</th>
                   <th>{{ 'integrations.deliveries.col.endpoint' | t }}</th>
                   <th>{{ 'integrations.deliveries.col.status' | t }}</th>
-                  <th>{{ 'integrations.deliveries.col.attempts' | t }}</th>
-                  <th>{{ 'integrations.deliveries.col.response' | t }}</th>
+                  <th class="num">{{ 'integrations.deliveries.col.attempts' | t }}</th>
+                  <th class="num">{{ 'integrations.deliveries.col.response' | t }}</th>
                   <th class="th-actions">{{ 'common.actions' | t }}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (d of deliveries(); track d.id) {
                   <tr>
-                    <td>{{ d.createdAt | appDate: 'datetime' }}</td>
-                    <td class="mono" style="font-size: 12px;">{{ d.event }}</td>
-                    <td style="font-size: 12px; word-break: break-all;">{{ endpointUrl(d.endpointId) }}</td>
-                    <td><span class="status-badge" [ngClass]="'st-' + d.status">{{ ('integrations.deliveries.status.' + d.status) | t }}</span></td>
-                    <td class="mono">{{ d.attempts | num }}</td>
-                    <td class="mono" style="font-size: 12px;">{{ d.responseCode ?? '-' }}</td>
-                    <td>
+                    <td [attr.data-label]="'integrations.deliveries.col.date' | t">{{ d.createdAt | appDate: 'datetime' }}</td>
+                    <td [attr.data-label]="'integrations.deliveries.col.event' | t" class="mono">{{ d.event }}</td>
+                    <td [attr.data-label]="'integrations.deliveries.col.endpoint' | t"><span class="mono ep-cell" [title]="endpointUrl(d.endpointId)">{{ endpointUrl(d.endpointId) }}</span></td>
+                    <td [attr.data-label]="'integrations.deliveries.col.status' | t"><span class="badge" [ngClass]="statusBadge(d.status)">{{ ('integrations.deliveries.status.' + d.status) | t }}</span></td>
+                    <td [attr.data-label]="'integrations.deliveries.col.attempts' | t" class="num">{{ d.attempts | num }}</td>
+                    <td [attr.data-label]="'integrations.deliveries.col.response' | t" class="num mono">{{ d.responseCode ?? '-' }}</td>
+                    <td class="td-actions">
                       <div class="row-actions">
-                        <button class="btn btn-outline" (click)="viewDelivery.set(d)">{{ 'integrations.deliveries.view' | t }}</button>
-                        <button class="btn btn-outline" (click)="resend(d)">{{ 'integrations.deliveries.resend' | t }}</button>
+                        <button class="btn btn-ghost btn-sm" (click)="viewDelivery.set(d)">{{ 'integrations.deliveries.view' | t }}</button>
+                        <button class="btn btn-ghost btn-sm" (click)="resend(d)">{{ 'integrations.deliveries.resend' | t }}</button>
                       </div>
                     </td>
                   </tr>
@@ -259,69 +306,75 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
 
     <!-- ─── IMPORT / EXPORT ─── -->
     @if (tab() === 'data') {
-      <div class="card">
-        <h3>{{ 'integrations.export.title' | t }}</h3>
+      <div class="card section-card">
+        <div class="card-title">{{ 'integrations.export.title' | t }}</div>
         <p class="hint">{{ 'integrations.export.hint' | t }}</p>
         <div class="export-grid">
           @for (r of exportResources; track r) {
-            <button class="btn btn-outline" [disabled]="exporting() === r" (click)="exportCsv(r)">
+            <button class="btn btn-secondary" [class.is-loading]="exporting() === r" [disabled]="exporting() === r" (click)="exportCsv(r)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
               {{ ('integrations.resource.' + r) | t }} (.csv)
             </button>
           }
         </div>
       </div>
 
-      <div class="card">
-        <h3>{{ 'integrations.import.title' | t }}</h3>
+      <div class="card section-card">
+        <div class="card-title">{{ 'integrations.import.title' | t }}</div>
         <p class="hint">{{ 'integrations.import.hint' | t }}</p>
         <div class="filters">
-          <select class="form-select" [ngModel]="importResource()" (ngModelChange)="importResource.set($event); resetImport()">
+          <select class="select" [ngModel]="importResource()" (ngModelChange)="importResource.set($event); resetImport()">
             <option value="products">{{ 'integrations.resource.products' | t }}</option>
             <option value="customers">{{ 'integrations.resource.customers' | t }}</option>
           </select>
-          <button class="btn btn-outline btn-sm" (click)="downloadTemplate()">{{ 'integrations.import.template' | t }}</button>
+          <button class="btn btn-ghost btn-sm" (click)="downloadTemplate()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            {{ 'integrations.import.template' | t }}
+          </button>
         </div>
-        <div class="code" style="margin-bottom: 12px;">{{ template() }}</div>
+        <div class="code" style="margin-bottom: var(--space-3);">{{ template() }}</div>
         <div class="filters">
           <input #fileInput type="file" accept=".csv,text/csv" (change)="onFile($event)" />
-          <button class="btn btn-outline" [disabled]="!csvText() || importing()" (click)="runImport(true)">{{ 'integrations.import.validate' | t }}</button>
+          <button class="btn btn-secondary" [disabled]="!csvText() || importing()" (click)="runImport(true)">{{ 'integrations.import.validate' | t }}</button>
           <button class="btn btn-primary" [disabled]="!report()?.dryRun || !report()?.valid || importing()" (click)="runImport(false)">{{ 'integrations.import.run' | t }}</button>
           @if (importing()) { <span class="spinner-sm"></span> }
         </div>
 
         @if (report(); as r) {
-          <div class="stats">
-            <div><strong>{{ r.total | num }}</strong>{{ 'integrations.import.total' | t }}</div>
-            <div><strong>{{ r.valid | num }}</strong>{{ 'integrations.import.valid' | t }}</div>
-            <div><strong>{{ r.invalid | num }}</strong>{{ 'integrations.import.invalid' | t }}</div>
+          <div class="kpi-grid report-kpis">
+            <div class="stat-card"><div class="kpi-label">{{ 'integrations.import.total' | t }}</div><div class="kpi-value">{{ r.total | num }}</div></div>
+            <div class="stat-card"><div class="kpi-label">{{ 'integrations.import.valid' | t }}</div><div class="kpi-value">{{ r.valid | num }}</div></div>
+            <div class="stat-card"><div class="kpi-label">{{ 'integrations.import.invalid' | t }}</div><div class="kpi-value">{{ r.invalid | num }}</div></div>
             @if (!r.dryRun) {
-              <div><strong>{{ r.created | num }}</strong>{{ 'integrations.import.created' | t }}</div>
-              <div><strong>{{ r.updated | num }}</strong>{{ 'integrations.import.updated' | t }}</div>
+              <div class="stat-card"><div class="kpi-label">{{ 'integrations.import.created' | t }}</div><div class="kpi-value">{{ r.created | num }}</div></div>
+              <div class="stat-card"><div class="kpi-label">{{ 'integrations.import.updated' | t }}</div><div class="kpi-value">{{ r.updated | num }}</div></div>
             }
           </div>
           <p class="hint">{{ (r.dryRun ? 'integrations.import.dryRunDone' : 'integrations.import.done') | t }}</p>
           @if (r.errors.length) {
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{{ 'integrations.import.col.row' | t }}</th>
-                    <th>{{ 'integrations.import.col.field' | t }}</th>
-                    <th>{{ 'integrations.import.col.code' | t }}</th>
-                    <th>{{ 'integrations.import.col.message' | t }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (e of r.errors; track $index) {
+            <div class="table-card">
+              <div class="table-scroll">
+                <table class="table-responsive">
+                  <thead>
                     <tr>
-                      <td class="mono">{{ e.row }}</td>
-                      <td>{{ e.field || '-' }}</td>
-                      <td class="mono" style="font-size: 12px;">{{ e.code }}</td>
-                      <td>{{ e.message }}</td>
+                      <th class="num">{{ 'integrations.import.col.row' | t }}</th>
+                      <th>{{ 'integrations.import.col.field' | t }}</th>
+                      <th>{{ 'integrations.import.col.code' | t }}</th>
+                      <th>{{ 'integrations.import.col.message' | t }}</th>
                     </tr>
-                  }
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    @for (e of r.errors; track $index) {
+                      <tr>
+                        <td [attr.data-label]="'integrations.import.col.row' | t" class="num">{{ e.row }}</td>
+                        <td [attr.data-label]="'integrations.import.col.field' | t">{{ e.field || '-' }}</td>
+                        <td [attr.data-label]="'integrations.import.col.code' | t" class="mono">{{ e.code }}</td>
+                        <td [attr.data-label]="'integrations.import.col.message' | t">{{ e.message }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
             </div>
           }
         }
@@ -334,7 +387,7 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'integrations.keys.new' | t }}</span>
-            <button class="drawer-close" (click)="keyFormOpen.set(false)">×</button>
+            <button class="drawer-close" (click)="keyFormOpen.set(false)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
           <div class="drawer-body">
             <div class="form-field">
@@ -345,11 +398,11 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
               <input id="keyExpires" type="date" class="form-input has-value" [ngModel]="keyExpires()" (ngModelChange)="keyExpires.set($event)" />
               <label for="keyExpires" class="form-label">{{ 'integrations.keys.form.expires' | t }}</label>
             </div>
-            <p style="font-size: 13px; font-weight: 600; margin: 8px 0;">{{ 'integrations.keys.form.scopes' | t }}</p>
+            <div class="group-label">{{ 'integrations.keys.form.scopes' | t }}</div>
             <div class="scope-grid">
               @for (r of resources(); track r) {
                 <span>{{ resourceLabel(r) }}</span>
-                <select class="form-select" [ngModel]="scopeChoices()[r] || ''" (ngModelChange)="setScope(r, $event)">
+                <select class="select" [ngModel]="scopeChoices()[r] || ''" (ngModelChange)="setScope(r, $event)">
                   <option value="">{{ 'integrations.keys.scope.none' | t }}</option>
                   <option value="read">{{ 'integrations.keys.scope.read' | t }}</option>
                   <option value="write">{{ 'integrations.keys.scope.write' | t }}</option>
@@ -359,7 +412,7 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
           </div>
           <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="keyFormOpen.set(false)" [disabled]="saving()">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" (click)="createKey()" [disabled]="!keyName().trim() || saving()">{{ 'integrations.keys.create' | t }}</button>
+            <button class="btn btn-primary" [class.is-loading]="saving()" (click)="createKey()" [disabled]="!keyName().trim() || saving()">{{ 'integrations.keys.create' | t }}</button>
           </div>
         </div>
       </div>
@@ -371,7 +424,7 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (hookEditId() ? 'integrations.hooks.editTitle' : 'integrations.hooks.new') | t }}</span>
-            <button class="drawer-close" (click)="hookFormOpen.set(false)">×</button>
+            <button class="drawer-close" (click)="hookFormOpen.set(false)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
           <div class="drawer-body">
             <div class="form-field">
@@ -382,19 +435,19 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
               <input id="hookDesc" type="text" class="form-input" [class.has-value]="!!hookDesc()" [ngModel]="hookDesc()" (ngModelChange)="hookDesc.set($event)" />
               <label for="hookDesc" class="form-label">{{ 'integrations.hooks.form.description' | t }}</label>
             </div>
-            <label class="inline-check" style="margin-bottom: 12px; font-size: 13px;">
+            <label class="inline-check" style="font-size: var(--text-sm);">
               <input type="checkbox" [ngModel]="hookActive()" (ngModelChange)="hookActive.set($event)" /> {{ 'integrations.hooks.form.active' | t }}
             </label>
-            <p style="font-size: 13px; font-weight: 600; margin: 8px 0;">{{ 'integrations.hooks.form.events' | t }}</p>
+            <div class="group-label">{{ 'integrations.hooks.form.events' | t }}</div>
             <div class="event-grid">
               @for (e of events(); track e) {
-                <label><input type="checkbox" [checked]="hookEvents().includes(e)" (change)="toggleEvent(e)" /> <span class="mono">{{ e }}</span></label>
+                <label [title]="e"><input type="checkbox" [checked]="hookEvents().includes(e)" (change)="toggleEvent(e)" /> <span class="mono">{{ e }}</span></label>
               }
             </div>
           </div>
           <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="hookFormOpen.set(false)" [disabled]="saving()">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" (click)="saveHook()" [disabled]="!hookUrl().trim() || hookEvents().length === 0 || saving()">{{ 'common.save' | t }}</button>
+            <button class="btn btn-primary" [class.is-loading]="saving()" (click)="saveHook()" [disabled]="!hookUrl().trim() || hookEvents().length === 0 || saving()">{{ 'common.save' | t }}</button>
           </div>
         </div>
       </div>
@@ -403,12 +456,18 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
     <!-- ─── One-time secret modal ─── -->
     @if (secret(); as s) {
       <div class="modal-wrap">
-        <div class="modal-box">
+        <div class="modal-box" role="dialog" aria-modal="true">
           <h3>{{ s.title }}</h3>
-          <div class="warn">{{ 'integrations.secret.warning' | t }}</div>
-          <div class="code">{{ s.value }}</div>
+          <div class="warn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></svg>
+            <span>{{ 'integrations.secret.warning' | t }}</span>
+          </div>
+          <div class="code secret-box">{{ s.value }}</div>
           <div class="modal-actions">
-            <button class="btn btn-outline" (click)="copy(s.value)">{{ 'integrations.secret.copy' | t }}</button>
+            <button class="btn btn-secondary" (click)="copy(s.value)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              {{ 'integrations.secret.copy' | t }}
+            </button>
             <button class="btn btn-primary" (click)="secret.set(null)">{{ 'integrations.secret.done' | t }}</button>
           </div>
         </div>
@@ -418,25 +477,26 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
     <!-- ─── Delivery payload modal ─── -->
     @if (viewDelivery(); as d) {
       <div class="modal-wrap" (click)="viewDelivery.set(null)">
-        <div class="modal-box" (click)="$event.stopPropagation()">
-          <h3>{{ d.event }}</h3>
-          <p class="hint" style="font-size: 12px; color: var(--text-muted);">
-            {{ ('integrations.deliveries.status.' + d.status) | t }} · {{ 'integrations.deliveries.col.attempts' | t }}: {{ d.attempts }}
+        <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+          <h3 class="mono">{{ d.event }}</h3>
+          <p class="hint">
+            <span class="badge" [ngClass]="statusBadge(d.status)">{{ ('integrations.deliveries.status.' + d.status) | t }}</span>
+            · {{ 'integrations.deliveries.col.attempts' | t }}: {{ d.attempts }}
             @if (d.deliveredAt) { · {{ d.deliveredAt | appDate: 'datetime' }} }
             @if (d.nextRetryAt) { · {{ 'integrations.deliveries.nextRetry' | t }}: {{ d.nextRetryAt | appDate: 'datetime' }} }
           </p>
-          <p style="font-size: 13px; font-weight: 600; margin: 8px 0 4px;">{{ 'integrations.deliveries.payload' | t }}</p>
-          <div class="code">{{ pretty(d.payload) }}</div>
+          <div class="group-label">{{ 'integrations.deliveries.payload' | t }}</div>
+          <div class="code code-scroll">{{ pretty(d.payload) }}</div>
           @if (d.error) {
-            <p style="font-size: 13px; font-weight: 600; margin: 8px 0 4px;">{{ 'integrations.deliveries.error' | t }}</p>
-            <div class="code" style="color: #B91C1C;">{{ d.error }}</div>
+            <div class="group-label">{{ 'integrations.deliveries.error' | t }}</div>
+            <div class="code code-danger">{{ d.error }}</div>
           }
           @if (d.responseBody) {
-            <p style="font-size: 13px; font-weight: 600; margin: 8px 0 4px;">{{ 'integrations.deliveries.responseBody' | t }} ({{ d.responseCode ?? '-' }})</p>
-            <div class="code">{{ d.responseBody }}</div>
+            <div class="group-label">{{ 'integrations.deliveries.responseBody' | t }} ({{ d.responseCode ?? '-' }})</div>
+            <div class="code code-scroll">{{ d.responseBody }}</div>
           }
           <div class="modal-actions">
-            <button class="btn btn-outline" (click)="resend(d)">{{ 'integrations.deliveries.resend' | t }}</button>
+            <button class="btn btn-secondary" (click)="resend(d)">{{ 'integrations.deliveries.resend' | t }}</button>
             <button class="btn btn-primary" (click)="viewDelivery.set(null)">{{ 'common.close' | t }}</button>
           </div>
         </div>
@@ -545,6 +605,12 @@ export class IntegrationsComponent implements OnInit {
         () => this.ui.showToast(this.i18n.t('integrations.secret.copyFailed'), 'error'),
       );
     }
+  }
+
+  statusBadge(st: string): string {
+    if (st === 'active' || st === 'success') return 'badge-success';
+    if (st === 'revoked' || st === 'failed') return 'badge-danger';
+    return 'badge-warning';
   }
 
   pretty(v: unknown): string {

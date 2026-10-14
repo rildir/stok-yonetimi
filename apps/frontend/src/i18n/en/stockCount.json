@@ -58,5 +58,6 @@
   "stockCount.toast.scanSerialMarked": "{serial} marked as present",
   "stockCount.toast.scanLotHint": "Lot-tracked product: enter the quantity on the matching lot",
   "stockCount.toast.scanAdded": "{name}: +{qty}",
-  "stockCount.toast.scanNotFound": "Barcode not found: {code}"
+  "stockCount.toast.scanNotFound": "Barcode not found: {code}",
+  "stockCount.col.sku": "SKU"
 }

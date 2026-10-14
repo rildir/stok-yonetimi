@@ -13,16 +13,24 @@ import { I18nService, TranslatePipe } from '../../i18n';
   imports: [CommonModule, TranslatePipe],
   template: `
     <div class="login-page">
-      <div class="login-center-column">
-        <!-- Language toggle (user not logged in yet) -->
-        <div class="login-lang-toggle" style="display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 0.5rem;">
-          <button type="button" class="btn btn-secondary" style="padding: 2px 10px; font-size: 0.75rem; height: auto;" [style.fontWeight]="i18n.lang() === 'tr' ? 700 : 400" [attr.aria-pressed]="i18n.lang() === 'tr'" (click)="i18n.setLanguage('tr')">TR</button>
-          <button type="button" class="btn btn-secondary" style="padding: 2px 10px; font-size: 0.75rem; height: auto;" [style.fontWeight]="i18n.lang() === 'en' ? 700 : 400" [attr.aria-pressed]="i18n.lang() === 'en'" (click)="i18n.setLanguage('en')">EN</button>
-        </div>
-        <!-- Brand Logo -->
+      <aside class="login-aside" aria-hidden="false">
         <div class="login-brand">
+          <span class="login-logo" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          </span>
           <h1 class="login-brand-text">ecelon</h1>
-          <p class="login-brand-tagline">{{ 'login.tagline' | t }}</p>
+        </div>
+        <p class="login-brand-tagline">{{ 'login.tagline' | t }}</p>
+        <div class="login-aside-art" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <p class="login-footer-text login-footer-aside">© 2024 Ecelon · {{ 'login.rights' | t }}</p>
+      </aside>
+      <main class="login-center-column">
+        <!-- Language toggle (user not logged in yet) -->
+        <div class="login-lang-toggle segmented" role="group">
+          <button type="button" [class.active]="i18n.lang() === 'tr'" [attr.aria-pressed]="i18n.lang() === 'tr'" (click)="i18n.setLanguage('tr')">TR</button>
+          <button type="button" [class.active]="i18n.lang() === 'en'" [attr.aria-pressed]="i18n.lang() === 'en'" (click)="i18n.setLanguage('en')">EN</button>
         </div>
 
         @if (mode() === 'register') {
@@ -38,7 +46,7 @@ import { I18nService, TranslatePipe } from '../../i18n';
               <input type="text" class="form-input" #rCompany id="regCompany" [placeholder]="'login.register.companyNamePh' | t" required [disabled]="isRegisterLoading()">
               <label for="regCompany" class="form-label">{{ 'login.register.companyName' | t }}</label>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="login-grid-2">
               <div class="form-field">
                 <select class="form-input" #rCountry id="regCountry" [disabled]="isRegisterLoading()">
                   @for (c of countries; track c.code) { <option [value]="c.code">{{ 'login.country.' + c.code | t }}</option> }
@@ -85,7 +93,7 @@ import { I18nService, TranslatePipe } from '../../i18n';
               @if (isRegisterLoading()) { {{ 'login.register.creating' | t }} } @else { {{ 'login.register.submit' | t }} }
             </button>
           </form>
-          <p style="text-align: center; margin-top: 1rem; font-size: 0.875rem;">
+          <p class="login-switch">
             {{ 'login.register.haveAccount' | t }}
             <a href="#" class="forgot-link" (click)="$event.preventDefault(); mode.set('login')">{{ 'login.register.goLogin' | t }}</a>
           </p>
@@ -121,7 +129,7 @@ import { I18nService, TranslatePipe } from '../../i18n';
                 id="loginPassword"
                 required
               >
-              <div class="form-label" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div class="form-label login-label-row">
                 <span>{{ 'login.password' | t }}</span>
                 <a href="#" class="forgot-link" (click)="$event.preventDefault(); showForgotModal.set(true)">{{ 'login.forgot' | t }}</a>
               </div>
@@ -140,19 +148,19 @@ import { I18nService, TranslatePipe } from '../../i18n';
               }
             </button>
           </form>
-          <p style="text-align: center; margin-top: 1rem; font-size: 0.875rem;">
+          <p class="login-switch">
             {{ 'login.noAccount' | t }}
             <a href="#" class="forgot-link" id="showRegister" (click)="$event.preventDefault(); mode.set('register')">{{ 'login.goRegister' | t }}</a>
           </p>
         </div>
         }
 
-        <p class="login-footer-text">© 2024 Ecelon · {{ 'login.rights' | t }}</p>
-      </div>
+        <p class="login-footer-text login-footer-main">© 2024 Ecelon · {{ 'login.rights' | t }}</p>
+      </main>
 
       @if (showForgotModal()) {
         <div class="forgot-modal-overlay" (click)="closeForgotModal()">
-          <div class="forgot-modal-card" (click)="$event.stopPropagation()">
+          <div class="forgot-modal-card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             @if (isResetSubmitted()) {
               <div class="forgot-modal-icon success">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -176,8 +184,8 @@ import { I18nService, TranslatePipe } from '../../i18n';
                 {{ 'login.reset.desc' | t }}
               </p>
 
-              <form style="width: 100%; text-align: left;" (submit)="doResetPassword(resetUsernameInput.value); $event.preventDefault()">
-                <div class="form-field" style="margin-bottom: 1.25rem;">
+              <form class="forgot-modal-form" (submit)="doResetPassword(resetUsernameInput.value); $event.preventDefault()">
+                <div class="form-field">
                   <input 
                     type="text" 
                     class="form-input"
@@ -190,9 +198,9 @@ import { I18nService, TranslatePipe } from '../../i18n';
                   <label for="resetUsername" class="form-label">{{ 'login.username' | t }}</label>
                 </div>
 
-                <div style="display: flex; gap: 10px; width: 100%;">
-                  <button type="button" class="btn btn-secondary" style="flex: 1; height: 42px;" (click)="closeForgotModal()" [disabled]="isResetLoading()">{{ 'common.cancel' | t }}</button>
-                  <button type="submit" class="btn btn-primary" style="flex: 1; height: 42px;" [disabled]="isResetLoading()">
+                <div class="forgot-modal-actions">
+                  <button type="button" class="btn btn-secondary" (click)="closeForgotModal()" [disabled]="isResetLoading()">{{ 'common.cancel' | t }}</button>
+                  <button type="submit" class="btn btn-primary" [disabled]="isResetLoading()">
                     @if (isResetLoading()) {
                       {{ 'login.reset.sending' | t }}
                     } @else {

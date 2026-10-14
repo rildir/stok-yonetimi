@@ -58,5 +58,6 @@
   "stockCount.toast.scanSerialMarked": "{serial} mevcut olarak işaretlendi",
   "stockCount.toast.scanLotHint": "Parti takipli ürün: miktarı ilgili partiye girin",
   "stockCount.toast.scanAdded": "{name}: +{qty}",
-  "stockCount.toast.scanNotFound": "Barkod bulunamadı: {code}"
+  "stockCount.toast.scanNotFound": "Barkod bulunamadı: {code}",
+  "stockCount.col.sku": "SKU"
 }

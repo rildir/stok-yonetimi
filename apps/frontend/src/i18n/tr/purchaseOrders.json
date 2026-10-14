@@ -95,5 +95,7 @@
   "purchaseOrders.receiveDialog.serialsPlaceholder": "Her satıra bir seri numarası",
   "purchaseOrders.receiveDialog.scanSerial": "Seri tara",
   "purchaseOrders.receiveDialog.duplicateSerials": "Tekrarlanan seri numarası var",
-  "purchaseOrders.receiveDialog.serialAlready": "{serial} zaten listede"
+  "purchaseOrders.receiveDialog.serialAlready": "{serial} zaten listede",
+  "purchaseOrders.col.poNumber": "Sipariş No",
+  "purchaseOrders.status.partiallyReceived": "Kısmen teslim alındı"
 }

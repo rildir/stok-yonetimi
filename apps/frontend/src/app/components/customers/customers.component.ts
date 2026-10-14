@@ -14,6 +14,15 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe],
   styleUrls: ['../../drawer.css'],
+  styles: [`
+    .cust-sub { font-size: var(--text-2xs); color: var(--color-text-muted); margin-top: 2px; }
+    .link { color: var(--color-primary-text); text-decoration: none; }
+    .link:hover { text-decoration: underline; }
+    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .ml-auto { margin-left: auto; margin-right: var(--space-2); }
+    .upper { text-transform: uppercase; }
+    @media (max-width: 640px) { .form-row { gap: var(--space-3); } }
+  `],
   template: `
     <header class="page-header">
       <div>
@@ -21,9 +30,9 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
         <p>{{ 'customers.subtitle' | t }}</p>
       </div>
       @if (canEdit()) {
-        <div class="header-actions">
+        <div class="page-actions">
           <button class="btn btn-primary" (click)="openDrawer()">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             {{ 'customers.new' | t }}
           </button>
         </div>
@@ -32,26 +41,32 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
 
     <div class="filter-bar">
       <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" [placeholder]="'customers.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
       </div>
     </div>
 
-    <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+    <div class="table-card">
       @if (isLoading()) {
-        <div class="loading-state">{{ 'common.loading' | t }}</div>
+        <div class="skeleton-wrap" [attr.aria-label]="'common.loading' | t">
+          @for (s of [1,2,3,4,5]; track s) { <div class="skeleton skeleton-row"></div> }
+        </div>
       } @else if (customers().length === 0) {
         <div class="empty-state">
-          <p>{{ 'customers.empty' | t }}</p>
+          <div class="empty-state-icon"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <p class="empty-state-title">{{ 'customers.empty' | t }}</p>
           @if (canEdit()) {
-            <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">{{ 'customers.addFirst' | t }}</button>
+            <button class="btn btn-primary" (click)="openDrawer()">{{ 'customers.addFirst' | t }}</button>
           }
         </div>
       } @else if (filteredCustomers().length === 0) {
-        <div class="empty-state"><p>{{ 'customers.noResults' | t }}</p></div>
+        <div class="empty-state">
+          <div class="empty-state-icon"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+          <p class="empty-state-title">{{ 'customers.noResults' | t }}</p>
+        </div>
       } @else {
         <div class="table-scroll">
-          <table>
+          <table class="table-responsive">
             <thead>
               <tr>
                 <th>{{ 'customers.col.name' | t }}</th>
@@ -60,7 +75,7 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
                 <th>{{ 'customers.col.phone' | t }}</th>
                 <th>{{ 'customers.col.location' | t }}</th>
                 <th>{{ 'finance.currency' | t }}</th>
-                <th>{{ 'customers.col.orderCount' | t }}</th>
+                <th class="num">{{ 'customers.col.orderCount' | t }}</th>
                 <th>{{ 'customers.col.lastOrder' | t }}</th>
                 @if (canEdit()) { <th class="th-actions">{{ 'common.actions' | t }}</th> }
               </tr>
@@ -68,33 +83,33 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
             <tbody>
               @for (c of filteredCustomers(); track c.id) {
                 <tr>
-                  <td>
+                  <td [attr.data-label]="'customers.col.name' | t">
                     <strong>{{ c.name }}</strong>
-                    @if (c.taxNumber) { <div style="font-size: 11px; color: var(--text-muted);">{{ 'customers.col.taxNumber' | t }}: {{ c.taxNumber }}</div> }
+                    @if (c.taxNumber) { <div class="cust-sub">{{ 'customers.col.taxNumber' | t }}: {{ c.taxNumber }}</div> }
                   </td>
-                  <td>
-                    <span class="badge" [class.badge-instock]="c.type === 'company'" [class.badge-lowstock]="c.type !== 'company'">
+                  <td [attr.data-label]="'customers.col.type' | t">
+                    <span class="badge" [class.badge-primary]="c.type === 'company'" [class.badge-neutral]="c.type !== 'company'">
                       {{ (c.type === 'company' ? 'customers.type.company' : 'customers.type.individual') | t }}
                     </span>
                   </td>
-                  <td>
-                    @if (c.email) { <a href="mailto:{{ c.email }}" style="color: #007185; text-decoration: none;">{{ c.email }}</a> } @else { - }
+                  <td [attr.data-label]="'customers.col.email' | t">
+                    @if (c.email) { <a href="mailto:{{ c.email }}" class="link">{{ c.email }}</a> } @else { - }
                   </td>
-                  <td>
-                    @if (c.phone) { <a href="tel:{{ c.phone }}" style="color: #007185; text-decoration: none;">{{ c.phone }}</a> } @else { - }
+                  <td [attr.data-label]="'customers.col.phone' | t">
+                    @if (c.phone) { <a href="tel:{{ c.phone }}" class="link">{{ c.phone }}</a> } @else { - }
                   </td>
-                  <td>{{ location(c) || '-' }}</td>
-                  <td class="mono">{{ c.currency || '-' }}</td>
-                  <td class="mono">{{ (c.orderCount ?? 0) | num }}</td>
-                  <td>{{ c.lastOrderDate ? (c.lastOrderDate | appDate) : '-' }}</td>
+                  <td [attr.data-label]="'customers.col.location' | t">{{ location(c) || '-' }}</td>
+                  <td [attr.data-label]="'finance.currency' | t">{{ c.currency || '-' }}</td>
+                  <td class="num" [attr.data-label]="'customers.col.orderCount' | t">{{ (c.orderCount ?? 0) | num }}</td>
+                  <td [attr.data-label]="'customers.col.lastOrder' | t">{{ c.lastOrderDate ? (c.lastOrderDate | appDate) : '-' }}</td>
                   @if (canEdit()) {
                     <td class="td-actions">
-                      <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(c)">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      <button class="icon-btn edit-btn" [title]="'common.edit' | t" [attr.aria-label]="'common.edit' | t" (click)="openDrawer(c)">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
                       </button>
                       @if (canDelete()) {
-                        <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteCustomer(c)">
-                          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        <button class="icon-btn delete-btn" [title]="'common.delete' | t" [attr.aria-label]="'common.delete' | t" (click)="deleteCustomer(c)">
+                          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>
                         </button>
                       }
                     </td>
@@ -113,17 +128,17 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
           <div class="drawer-header">
             <span class="drawer-title">{{ (editId() ? 'customers.editTitle' : 'customers.addTitle') | t }}</span>
             @if (editId() && canDelete()) {
-              <button type="button" class="btn btn-outline btn-sm" style="margin-left: auto; margin-right: 8px;" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'customers', entityId: editId() } })">{{ 'auditLog.history' | t }}</button>
+              <button type="button" class="btn btn-secondary btn-sm ml-auto" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'customers', entityId: editId() } })">{{ 'auditLog.history' | t }}</button>
             }
-            <button class="drawer-close" (click)="closeDrawer()">×</button>
+            <button class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
 
-          <form [formGroup]="form" (ngSubmit)="save()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+          <form [formGroup]="form" (ngSubmit)="save()" class="drawer-form">
             <div class="drawer-body">
               <div class="form-field">
                 <input id="custName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" />
                 <label for="custName" class="form-label">{{ 'customers.form.name' | t }}</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">⚠ {{ 'customers.form.nameRequired' | t }}</div> }
+                @if (isFieldInvalid('name')) { <div class="form-error">{{ 'customers.form.nameRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
@@ -137,7 +152,7 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
               <div class="form-field">
                 <input id="custEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasValue('email')" />
                 <label for="custEmail" class="form-label">{{ 'customers.form.email' | t }}</label>
-                @if (isFieldInvalid('email')) { <div class="form-error">⚠ {{ 'customers.form.emailInvalid' | t }}</div> }
+                @if (isFieldInvalid('email')) { <div class="form-error">{{ 'customers.form.emailInvalid' | t }}</div> }
               </div>
 
               <div class="form-field">
@@ -150,20 +165,20 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
                 <label for="custTax" class="form-label">{{ 'customers.form.taxNumber' | t }}</label>
               </div>
 
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-row">
                 <div class="form-field">
-                  <input id="custCountry" type="text" formControlName="country" maxlength="2" class="form-input mono" style="text-transform: uppercase;" [class.has-value]="hasValue('country')" (input)="upper('country', $event)" />
+                  <input id="custCountry" type="text" formControlName="country" maxlength="2" class="form-input mono upper" [class.has-value]="hasValue('country')" (input)="upper('country', $event)" />
                   <label for="custCountry" class="form-label">{{ 'customers.form.country' | t }}</label>
-                  @if (isFieldInvalid('country')) { <div class="form-error">⚠ {{ 'customers.form.countryInvalid' | t }}</div> }
+                  @if (isFieldInvalid('country')) { <div class="form-error">{{ 'customers.form.countryInvalid' | t }}</div> }
                 </div>
                 <div class="form-field">
-                  <input id="custCurrency" type="text" formControlName="currency" maxlength="3" class="form-input mono" style="text-transform: uppercase;" [class.has-value]="hasValue('currency')" (input)="upper('currency', $event)" />
+                  <input id="custCurrency" type="text" formControlName="currency" maxlength="3" class="form-input mono upper" [class.has-value]="hasValue('currency')" (input)="upper('currency', $event)" />
                   <label for="custCurrency" class="form-label">{{ 'customers.form.currency' | t }}</label>
-                  @if (isFieldInvalid('currency')) { <div class="form-error">⚠ {{ 'customers.form.currencyInvalid' | t }}</div> }
+                  @if (isFieldInvalid('currency')) { <div class="form-error">{{ 'customers.form.currencyInvalid' | t }}</div> }
                 </div>
               </div>
 
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-row">
                 <div class="form-field">
                   <input id="custCity" type="text" formControlName="city" class="form-input" [class.has-value]="hasValue('city')" />
                   <label for="custCity" class="form-label">{{ 'customers.form.city' | t }}</label>

@@ -12,5 +12,6 @@
   "common.noData": "Kayıt bulunamadı.",
   "common.actions": "İşlemler",
   "common.language": "Dil",
-  "common.unknownError": "Beklenmeyen bir hata oluştu."
+  "common.unknownError": "Beklenmeyen bir hata oluştu.",
+  "common.clear": "Temizle"
 }

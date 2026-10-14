@@ -50,7 +50,7 @@ import { CommonModule } from '@angular/common';
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.4);
+      background: var(--color-overlay);
       backdrop-filter: blur(4px);
       z-index: -1;
       animation: fadeIn 0.2s ease-out;
@@ -58,10 +58,10 @@ import { CommonModule } from '@angular/common';
     .modal-panel {
       position: relative;
       width: 100%;
-      max-width: 480px;
-      background: var(--surface, #fff);
-      border: 1px solid var(--secondary, #e5e7eb);
-      border-radius: var(--radius-lg, 10px);
+      max-width: 500px;
+      background: var(--surface, var(--color-surface));
+      border: 1px solid var(--secondary, var(--color-border));
+      border-radius: var(--radius-xl);
       box-shadow: var(--shadow-xl, 0 20px 40px -8px rgba(0,0,0,0.1));
       overflow: hidden;
       display: flex;
@@ -74,37 +74,37 @@ import { CommonModule } from '@angular/common';
       align-items: center;
       justify-content: space-between;
       padding: 18px 24px;
-      border-bottom: 1px solid var(--secondary, #f0f0f0);
+      border-bottom: 1px solid var(--secondary, var(--color-border-subtle));
     }
     .modal-title {
       font-family: var(--font-heading);
-      font-size: 16px;
+      font-size: var(--text-lg);
       font-weight: 600;
-      color: var(--text-primary, #111827);
+      color: var(--text-primary, var(--color-text));
       margin: 0;
     }
     .modal-close {
       border: none;
       background: transparent;
       cursor: pointer;
-      color: var(--text-muted, #999);
+      color: var(--text-muted, var(--color-text-subtle));
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 6px;
+      width: 32px; height: 32px;
       border-radius: var(--radius-sm, 6px);
       transition: background 0.15s ease, color 0.15s ease;
     }
     .modal-close:hover {
-      background: var(--canvas, #f5f5f5);
-      color: var(--text-primary, #111827);
+      background: var(--canvas, var(--color-surface-muted));
+      color: var(--text-primary, var(--color-text));
     }
     .modal-content {
       padding: 24px;
       font-family: var(--font-body);
       font-size: 14px;
       line-height: 1.5;
-      color: var(--text-primary, #111827);
+      color: var(--text-primary, var(--color-text));
       max-height: 60vh;
       overflow-y: auto;
     }
@@ -114,8 +114,8 @@ import { CommonModule } from '@angular/common';
       justify-content: flex-end;
       gap: 12px;
       padding: 16px 24px;
-      border-top: 1px solid var(--secondary, #f0f0f0);
-      background: var(--canvas, #f9fafb);
+      border-top: 1px solid var(--secondary, var(--color-border-subtle));
+      background: var(--canvas, var(--color-surface-subtle));
     }
     .modal-panel.is-delete .modal-header {
       border-bottom: none;

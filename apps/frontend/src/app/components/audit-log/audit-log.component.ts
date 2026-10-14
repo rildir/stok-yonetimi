@@ -21,71 +21,89 @@ interface DiffRow {
   imports: [CommonModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .audit-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-    .audit-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
-    .audit-filters .form-select, .audit-filters input { min-width: 150px; height: 36px; }
+    .audit-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3); align-items: end; width: 100%; }
+    .audit-filters .form-group { margin: 0; min-width: 0; }
+    .audit-filters .input, .audit-filters .select { width: 100%; min-width: 0; }
     .audit-row { cursor: pointer; }
-    .audit-row:hover td { background: #F8FAFC; }
-    .action-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #F1F5F9; color: #334155; }
-    .action-create { background: #ECFDF5; color: #047857; }
-    .action-update { background: #EFF6FF; color: #1D4ED8; }
-    .action-delete, .action-login_failed { background: #FEF2F2; color: #B91C1C; }
-    .diff-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .diff-table th, .diff-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #E2E8F0; vertical-align: top; word-break: break-word; }
+    .sub { font-size: var(--text-2xs); color: var(--color-text-muted); }
+    .id-cell { max-width: 220px; }
+    .id-cell > .truncate { min-width: 0; }
+    td.mono::before { font-family: var(--font-sans); }
+    .page-count { padding: 0 var(--space-2); font-size: var(--text-sm); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+    .meta-card { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); font-size: var(--text-xs); color: var(--color-text-secondary); min-width: 0; }
+    .meta-card .head { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; color: var(--color-text); font-size: var(--text-sm); min-width: 0; }
+    .meta-card .ua { word-break: break-all; color: var(--color-text-muted); }
+    .diff-wrap { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+    .diff-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); table-layout: fixed; }
+    .diff-table th { text-align: left; padding: var(--space-2) var(--space-3); background: var(--color-surface-subtle); color: var(--color-text-muted); font-weight: var(--weight-semibold); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--color-border); }
+    .diff-table td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-subtle); vertical-align: top; word-break: break-word; color: var(--color-text); }
+    .diff-table tr:last-child td { border-bottom: 0; }
+    .diff-table th:first-child { width: 28%; }
     .diff-table td.val { font-family: var(--font-mono, monospace); white-space: pre-wrap; }
-    .diff-changed .before-val { background: #FEF2F2; color: #991B1B; }
-    .diff-changed .after-val { background: #ECFDF5; color: #065F46; }
-    .meta-line { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; display: grid; gap: 4px; }
+    .diff-changed .before-val { background: var(--color-danger-subtle); color: var(--color-danger-text); }
+    .diff-changed .after-val { background: var(--color-success-subtle); color: var(--color-success-text); }
+    @media (max-width: 640px) {
+      .audit-filters { grid-template-columns: 1fr 1fr; }
+      .id-cell { max-width: none; }
+    }
   `],
   template: `
-    <header class="page-header">
+    <div class="page-header">
       <div>
         <h1>{{ 'auditLog.title' | t }}</h1>
         <p>{{ 'auditLog.subtitle' | t }}</p>
       </div>
-    </header>
+    </div>
 
     <div class="filter-bar">
       <div class="audit-filters">
-        <label>{{ 'auditLog.filter.user' | t }}
-          <select class="form-select" [ngModel]="username()" (ngModelChange)="username.set($event); search()">
+        <div class="form-group"><label>{{ 'auditLog.filter.user' | t }}</label>
+          <select class="select" [ngModel]="username()" (ngModelChange)="username.set($event); search()">
             <option value="">{{ 'auditLog.filter.all' | t }}</option>
             @for (u of meta().usernames; track u) { <option [value]="u">{{ u }}</option> }
           </select>
-        </label>
-        <label>{{ 'auditLog.filter.entityType' | t }}
-          <select class="form-select" [ngModel]="entityType()" (ngModelChange)="entityType.set($event); search()">
+        </div>
+        <div class="form-group"><label>{{ 'auditLog.filter.entityType' | t }}</label>
+          <select class="select" [ngModel]="entityType()" (ngModelChange)="entityType.set($event); search()">
             <option value="">{{ 'auditLog.filter.all' | t }}</option>
             @for (e of meta().entityTypes; track e) { <option [value]="e">{{ entityLabel(e) }}</option> }
           </select>
-        </label>
-        <label>{{ 'auditLog.filter.action' | t }}
-          <select class="form-select" [ngModel]="action()" (ngModelChange)="action.set($event); search()">
+        </div>
+        <div class="form-group"><label>{{ 'auditLog.filter.action' | t }}</label>
+          <select class="select" [ngModel]="action()" (ngModelChange)="action.set($event); search()">
             <option value="">{{ 'auditLog.filter.all' | t }}</option>
             @for (a of meta().actions; track a) { <option [value]="a">{{ actionLabel(a) }}</option> }
           </select>
-        </label>
-        <label>{{ 'auditLog.filter.from' | t }}
-          <input type="date" class="form-select" [ngModel]="from()" (ngModelChange)="from.set($event); search()" />
-        </label>
-        <label>{{ 'auditLog.filter.to' | t }}
-          <input type="date" class="form-select" [ngModel]="to()" (ngModelChange)="to.set($event); search()" />
-        </label>
-        <label>{{ 'auditLog.filter.entityId' | t }}
-          <input type="text" class="form-select mono" [ngModel]="entityId()" (ngModelChange)="entityId.set($event)" (keyup.enter)="search()" (blur)="search()" />
-        </label>
-        <button class="btn btn-outline btn-sm" (click)="clearFilters()">{{ 'auditLog.filter.clear' | t }}</button>
+        </div>
+        <div class="form-group"><label>{{ 'auditLog.filter.from' | t }}</label>
+          <input type="date" class="input" [ngModel]="from()" (ngModelChange)="from.set($event); search()" />
+        </div>
+        <div class="form-group"><label>{{ 'auditLog.filter.to' | t }}</label>
+          <input type="date" class="input" [ngModel]="to()" (ngModelChange)="to.set($event); search()" />
+        </div>
+        <div class="form-group"><label>{{ 'auditLog.filter.entityId' | t }}</label>
+          <input type="text" class="input mono" [ngModel]="entityId()" (ngModelChange)="entityId.set($event)" (keyup.enter)="search()" (blur)="search()" />
+        </div>
+        <button class="btn btn-ghost" (click)="clearFilters()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          {{ 'auditLog.filter.clear' | t }}
+        </button>
       </div>
     </div>
 
-    <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
+    <div class="table-card">
       @if (isLoading()) {
-        <div class="loading-state">{{ 'common.loading' | t }}</div>
+        <div class="stack" style="padding: var(--space-4);">
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) { <div class="skeleton" style="height: 36px;"></div> }
+        </div>
       } @else if (logs().length === 0) {
-        <div class="empty-state"><p>{{ 'auditLog.empty' | t }}</p></div>
+        <div class="empty-state">
+          <div class="empty-state-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
+          <div class="empty-state-title">{{ 'auditLog.empty' | t }}</div>
+        </div>
       } @else {
         <div class="table-scroll">
-          <table>
+          <table class="table-responsive">
             <thead>
               <tr>
                 <th>{{ 'auditLog.col.date' | t }}</th>
@@ -99,15 +117,15 @@ interface DiffRow {
             <tbody>
               @for (l of logs(); track l.id) {
                 <tr class="audit-row" (click)="openDiff(l)">
-                  <td>{{ l.createdAt | appDate: 'datetime' }}</td>
-                  <td>
+                  <td [attr.data-label]="'auditLog.col.date' | t">{{ l.createdAt | appDate: 'datetime' }}</td>
+                  <td [attr.data-label]="'auditLog.col.user' | t">
                     {{ l.username || '-' }}
-                    @if (l.apiKeyId) { <div style="font-size: 11px; color: var(--text-muted);">{{ 'auditLog.viaApiKey' | t }}</div> }
+                    @if (l.apiKeyId) { <div class="sub">{{ 'auditLog.viaApiKey' | t }}</div> }
                   </td>
-                  <td><span class="action-badge" [ngClass]="'action-' + l.action">{{ actionLabel(l.action) }}</span></td>
-                  <td>{{ entityLabel(l.entityType) }}</td>
-                  <td class="mono" style="font-size: 11px;">{{ l.entityId || '-' }}</td>
-                  <td class="mono" style="font-size: 11px;">{{ l.ip || '-' }}</td>
+                  <td [attr.data-label]="'auditLog.col.action' | t"><span class="badge" [ngClass]="actionBadge(l.action)">{{ actionLabel(l.action) }}</span></td>
+                  <td [attr.data-label]="'auditLog.col.entityType' | t">{{ entityLabel(l.entityType) }}</td>
+                  <td [attr.data-label]="'auditLog.col.entityId' | t" class="mono id-cell"><span class="truncate" style="display: block;" [title]="l.entityId || ''">{{ l.entityId || '-' }}</span></td>
+                  <td [attr.data-label]="'auditLog.col.ip' | t" class="mono">{{ l.ip || '-' }}</td>
                 </tr>
               }
             </tbody>
@@ -120,7 +138,7 @@ interface DiffRow {
           </div>
           <div class="pagination-actions">
             <button class="page-btn" [disabled]="page() === 1" (click)="load(page() - 1)">{{ 'auditLog.prev' | t }}</button>
-            <span style="padding: 0 8px;">{{ page() | num }} / {{ totalPages() | num }}</span>
+            <span class="page-count">{{ page() | num }} / {{ totalPages() | num }}</span>
             <button class="page-btn" [disabled]="page() >= totalPages()" (click)="load(page() + 1)">{{ 'auditLog.next' | t }}</button>
           </div>
         </div>
@@ -132,42 +150,44 @@ interface DiffRow {
         <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'auditLog.diff.title' | t }}</span>
-            <button class="drawer-close" (click)="selected.set(null)">×</button>
+            <button class="drawer-close" (click)="selected.set(null)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
           <div class="drawer-body">
-            <div class="meta-line">
-              <div><strong>{{ actionLabel(s.action) }}</strong> · {{ entityLabel(s.entityType) }} · <span class="mono">{{ s.entityId || '-' }}</span></div>
-              <div>{{ s.createdAt | appDate: 'datetime' }} · {{ s.username || '-' }} · {{ s.ip || '-' }}</div>
-              @if (s.userAgent) { <div style="word-break: break-all;">{{ s.userAgent }}</div> }
+            <div class="meta-card">
+              <div class="head"><span class="badge" [ngClass]="actionBadge(s.action)">{{ actionLabel(s.action) }}</span> <strong>{{ entityLabel(s.entityType) }}</strong> <span class="mono truncate" style="min-width: 0;">{{ s.entityId || '-' }}</span></div>
+              <div>{{ s.createdAt | appDate: 'datetime' }} · {{ s.username || '-' }} · <span class="mono">{{ s.ip || '-' }}</span></div>
+              @if (s.userAgent) { <div class="ua">{{ s.userAgent }}</div> }
             </div>
             @if (diffRows().length === 0) {
-              <div class="empty-state"><p>{{ 'auditLog.diff.noChanges' | t }}</p></div>
+              <div class="empty-state"><div class="empty-state-title">{{ 'auditLog.diff.noChanges' | t }}</div></div>
             } @else {
-              <table class="diff-table">
-                <thead>
-                  <tr>
-                    <th>{{ 'auditLog.diff.field' | t }}</th>
-                    <th>{{ 'auditLog.diff.before' | t }}</th>
-                    <th>{{ 'auditLog.diff.after' | t }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (r of diffRows(); track r.field) {
-                    <tr [class.diff-changed]="r.changed">
-                      <td><strong>{{ r.field }}</strong></td>
-                      <td class="val before-val">{{ r.before }}</td>
-                      <td class="val after-val">{{ r.after }}</td>
+              <div class="diff-wrap">
+                <table class="diff-table">
+                  <thead>
+                    <tr>
+                      <th>{{ 'auditLog.diff.field' | t }}</th>
+                      <th>{{ 'auditLog.diff.before' | t }}</th>
+                      <th>{{ 'auditLog.diff.after' | t }}</th>
                     </tr>
-                  }
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    @for (r of diffRows(); track r.field) {
+                      <tr [class.diff-changed]="r.changed">
+                        <td><strong>{{ r.field }}</strong></td>
+                        <td class="val before-val">{{ r.before }}</td>
+                        <td class="val after-val">{{ r.after }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
             }
           </div>
-          <div class="drawer-footer single-action">
-            @if (s.entityId && s.entityType !== 'auth') {
-              <button class="btn btn-outline" (click)="filterEntity(s)">{{ 'auditLog.diff.entityHistory' | t }}</button>
-            }
+          <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="selected.set(null)">{{ 'common.close' | t }}</button>
+            @if (s.entityId && s.entityType !== 'auth') {
+              <button class="btn btn-primary" (click)="filterEntity(s)">{{ 'auditLog.diff.entityHistory' | t }}</button>
+            }
           </div>
         </div>
       </div>
@@ -275,6 +295,14 @@ export class AuditLogComponent implements OnInit {
   filterEntity(l: AuditLog) {
     this.selected.set(null);
     this.router.navigate([], { relativeTo: this.route, queryParams: { entityType: l.entityType, entityId: l.entityId } });
+  }
+
+  actionBadge(a: string): string {
+    if (a === 'create') return 'badge-success';
+    if (a === 'update') return 'badge-primary';
+    if (a === 'delete' || a === 'login_failed') return 'badge-danger';
+    if (a === 'login') return 'badge-info';
+    return 'badge-neutral';
   }
 
   actionLabel(a: string): string {

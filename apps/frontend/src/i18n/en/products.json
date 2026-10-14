@@ -177,5 +177,7 @@
   "products.toast.scanSerial": "Serial: {serial}",
   "products.errors.barcodeTaken": "This barcode is already used by another product or unit.",
   "products.errors.barcodeChecksum": "Barcode check digit is invalid.",
-  "products.errors.trackedQtyLocked": "Stock quantity of tracked products cannot be edited manually."
+  "products.errors.trackedQtyLocked": "Stock quantity of tracked products cannot be edited manually.",
+  "products.page.title": "Products",
+  "products.page.subtitle": "Manage your product catalog, stock levels and pricing."
 }
