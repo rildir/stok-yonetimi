@@ -63,5 +63,7 @@
   "layout.linkCopied": "Page link copied to clipboard.",
   "layout.linkCopyError": "Could not copy link.",
   "layout.documentTitle": "{page} — Ecelon",
-  "layout.nav.customers": "Customers"
+  "layout.nav.customers": "Customers",
+  "layout.nav.auditLog": "Audit Log",
+  "layout.nav.integrations": "Integrations"
 }

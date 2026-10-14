@@ -1,9 +1,11 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto, UpdateCategoryDto } from '../../dto/category.dto';
 import { CategoryEntity } from '../../entities/category.entity';
 import { Roles } from '../../guards/roles.decorator';
 
+@ApiSecurity('api-key')
 @Controller('categories')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}

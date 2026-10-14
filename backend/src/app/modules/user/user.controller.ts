@@ -9,6 +9,7 @@ import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { CompanyService } from '../company/company.service';
 import { buildJwtPayload } from '../../guards/jwt-payload';
 import { UserEntity } from '../../entities/user.entity';
+import { AuditService } from '../integrations/audit.service';
 import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto, LoginDto, ResetPasswordRequestDto } from '../../dto/user.dto';
 
 @ApiTags('Auth & Users')
@@ -19,6 +20,7 @@ export class UserController {
     private readonly jwtService: JwtService,
     private readonly stockHelper: StockHelperService,
     private readonly companyService: CompanyService,
+    private readonly audit: AuditService,
   ) {}
 
   private async toProfile(user: UserEntity) {
@@ -59,6 +61,7 @@ export class UserController {
     const { username, password } = dto;
     const user = await this.userService.getUserByUsername(username);
     if (!user) {
+      await this.audit.record({ companyId: null, action: 'login_failed', entityType: 'auth', username, after: { reason: 'unknown_user' } });
       throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
     }
     const onMigration = async (plainPassword: string) => {
@@ -66,8 +69,10 @@ export class UserController {
     };
     const valid = await this.stockHelper.verifyPassword(password, user.password, onMigration);
     if (!valid) {
+      await this.audit.record({ companyId: user.companyId, action: 'login_failed', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { reason: 'invalid_password' } });
       throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
     }
+    await this.audit.record({ companyId: user.companyId, action: 'login', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username });
     return {
       token: await this.jwtService.signAsync(buildJwtPayload(user)),
     };

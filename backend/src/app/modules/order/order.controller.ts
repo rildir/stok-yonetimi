@@ -1,9 +1,11 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from '../../dto/order.dto';
 import { OrderEntity } from '../../entities/order.entity';
 import { Roles } from '../../guards/roles.decorator';
 
+@ApiSecurity('api-key')
 @Controller('orders')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}

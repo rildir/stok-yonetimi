@@ -63,5 +63,7 @@
   "layout.linkCopied": "Sayfa bağlantısı panoya kopyalandı.",
   "layout.linkCopyError": "Bağlantı kopyalanamadı.",
   "layout.documentTitle": "{page} — Ecelon",
-  "layout.nav.customers": "Müşteriler"
+  "layout.nav.customers": "Müşteriler",
+  "layout.nav.auditLog": "Denetim Kaydı",
+  "layout.nav.integrations": "Entegrasyonlar"
 }

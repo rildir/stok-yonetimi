@@ -185,6 +185,23 @@ export const MESSAGES: Catalog = {
   EXCHANGE_RATE_NOT_FOUND: { tr: 'Döviz kuru bulunamadı.', en: 'Exchange rate not found.' },
   EXCHANGE_RATE_SAME_CURRENCY: { tr: 'Kaynak ve hedef para birimi aynı olamaz.', en: 'Base and quote currency must differ.' },
   EXCHANGE_RATE_DUPLICATE: { tr: 'Bu para birimi çifti için o tarihte zaten bir kur var.', en: 'A rate for this currency pair already exists on that date.' },
+  // API keys / webhooks / import
+  API_KEY_INVALID: { tr: 'Geçersiz, iptal edilmiş veya süresi dolmuş API anahtarı.', en: 'Invalid, revoked or expired API key.' },
+  API_KEY_SCOPE_DENIED: { tr: 'API anahtarının bu işlem için yetkisi yok ({method} {resource}).', en: 'The API key is not allowed to do this ({method} {resource}).' },
+  API_KEY_NOT_FOUND: { tr: 'API anahtarı bulunamadı.', en: 'API key not found.' },
+  API_KEY_SCOPES_REQUIRED: { tr: 'En az bir kaynak için yetki seçmelisiniz.', en: 'Select access for at least one resource.' },
+  API_KEY_EXPIRY_INVALID: { tr: 'Son kullanma tarihi gelecekte olmalıdır.', en: 'Expiry date must be in the future.' },
+  VALIDATION_API_KEY_NAME_REQUIRED: { tr: 'Anahtar adı zorunludur.', en: 'Key name is required.' },
+  WEBHOOK_URL_INVALID: { tr: 'Geçersiz webhook adresi (yalnızca http/https).', en: 'Invalid webhook URL (http/https only).' },
+  WEBHOOK_URL_BLOCKED: { tr: 'Bu adres engellendi: yerel / özel ağ adreslerine webhook gönderilemez.', en: 'URL blocked: webhooks cannot target localhost or private network addresses.' },
+  WEBHOOK_EVENT_INVALID: { tr: 'Geçersiz olay: {events}', en: 'Invalid event: {events}' },
+  WEBHOOK_EVENTS_REQUIRED: { tr: 'En az bir olay seçmelisiniz.', en: 'Select at least one event.' },
+  WEBHOOK_NOT_FOUND: { tr: 'Webhook bulunamadı.', en: 'Webhook not found.' },
+  WEBHOOK_DELIVERY_NOT_FOUND: { tr: 'Webhook gönderimi bulunamadı.', en: 'Webhook delivery not found.' },
+  IMPORT_EMPTY: { tr: 'CSV dosyası boş.', en: 'The CSV file is empty.' },
+  IMPORT_MISSING_COLUMNS: { tr: 'Eksik sütunlar: {columns}', en: 'Missing columns: {columns}' },
+  IMPORT_TOO_MANY_ROWS: { tr: 'En fazla {max} satır içe aktarılabilir.', en: 'At most {max} rows can be imported.' },
+  IMPORT_DUPLICATE_ROW: { tr: '"{value}" dosyada tekrar ediyor (satır {row}).', en: '"{value}" is duplicated in the file (row {row}).' },
 };
 
 export type MessageParams = Record<string, string | number | undefined | null>;

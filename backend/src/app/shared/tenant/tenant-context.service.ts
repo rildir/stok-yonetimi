@@ -5,6 +5,20 @@ import { AsyncLocalStorage } from 'async_hooks';
 export interface TenantStore {
   companyId?: string;
   username?: string;
+  userId?: string;
+  apiKeyId?: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+/** Who is acting in the current request (for audit logging). */
+export interface ActorInfo {
+  companyId?: string;
+  username?: string;
+  userId?: string;
+  apiKeyId?: string;
+  ip?: string;
+  userAgent?: string;
 }
 
 const storage = new AsyncLocalStorage<TenantStore>();
@@ -22,8 +36,27 @@ const storage = new AsyncLocalStorage<TenantStore>();
 @Injectable()
 export class TenantContext {
   /** Express middleware: give each request its own store. */
-  static middleware(_req: unknown, _res: unknown, next: () => void): void {
-    storage.run({}, next);
+  static middleware(req: any, _res: unknown, next: () => void): void {
+    const fwd = req?.headers?.['x-forwarded-for'];
+    const ip = (typeof fwd === 'string' && fwd.split(',')[0].trim()) || req?.ip || req?.socket?.remoteAddress;
+    const ua = req?.headers?.['user-agent'];
+    storage.run({ ip: ip ? String(ip).slice(0, 64) : undefined, userAgent: ua ? String(ua).slice(0, 255) : undefined }, next);
+  }
+
+  /** Attach actor details (user id / API key) after authentication. */
+  setActor(actor: { userId?: string; apiKeyId?: string; username?: string }): void {
+    const store = storage.getStore();
+    if (store) Object.assign(store, actor);
+  }
+
+  /** Snapshot of the current actor; empty outside a request. */
+  get actor(): ActorInfo {
+    return TenantContext.current();
+  }
+
+  /** Static accessor for code outside Nest DI (TypeORM subscribers). */
+  static current(): ActorInfo {
+    return { ...(storage.getStore() || {}) };
   }
 
   /** Called by AuthGuard once the user is authenticated. */

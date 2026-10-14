@@ -605,6 +605,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
         <div class="drawer-panel" (click)="$event.stopPropagation(); closeDropdowns()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editingProductId() ? 'products.form.editTitle' : 'products.addNew') | t }}</span>
+            @if (editingProductId() && ui.userProfile()?.role === 'admin') {
+              <button type="button" class="btn btn-outline btn-sm" style="margin-left: auto; margin-right: 8px;" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'products', entityId: editingProductId() } })">{{ 'auditLog.history' | t }}</button>
+            }
             <button class="drawer-close" (click)="closeProductForm()">×</button>
           </div>
           

@@ -1,8 +1,10 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { err } from '../../shared/i18n/app-error';
 import { Controller, Get, Post, Put, Body, Param, BadRequestException, Req } from '@nestjs/common';
 import { StockCountService } from './stock-count.service';
 import { Roles } from '../../guards/roles.decorator';
 
+@ApiSecurity('api-key')
 @Controller('stock-counts')
 export class StockCountController {
   constructor(private readonly stockCountService: StockCountService) {}

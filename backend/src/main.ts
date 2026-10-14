@@ -38,6 +38,12 @@ async function bootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
 
+  // Versioned public API alias: /api/v1/<route> == /api/<route>
+  app.use((req: any, _res: unknown, next: () => void) => {
+    if (typeof req.url === 'string' && req.url.startsWith('/api/v1/')) req.url = '/api/' + req.url.slice(8);
+    next();
+  });
+
   // Per-request tenant context (filled by AuthGuard, read by services)
   app.use(TenantContext.middleware);
 
@@ -50,6 +56,7 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:4200'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    exposedHeaders: ['Content-Disposition'],
     credentials: true,
   });
 
@@ -71,6 +78,10 @@ async function bootstrap() {
       bearerFormat: 'JWT',
       description: 'JWT authorization token',
     })
+    .addApiKey(
+      { type: 'apiKey', in: 'header', name: 'X-API-Key', description: 'Company API key (sk_live_...). Also accepted as "Authorization: Bearer sk_...". Scopes: read/write per resource. Rate limit per key: API_KEY_RATE_LIMIT req/min (default 120). Routes are also served under /api/v1/.' },
+      'api-key',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup(`${globalPrefix}/docs`, app, document);

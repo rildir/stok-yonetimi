@@ -1,9 +1,11 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 import { CreateSupplierDto, UpdateSupplierDto } from '../../dto/supplier.dto';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { Roles } from '../../guards/roles.decorator';
 
+@ApiSecurity('api-key')
 @Controller('suppliers')
 export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}

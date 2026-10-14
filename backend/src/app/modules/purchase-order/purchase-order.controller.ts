@@ -1,9 +1,11 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/common';
 import { PurchaseOrderService } from './purchase-order.service';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { Roles } from '../../guards/roles.decorator';
 import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, UpdatePurchaseOrderStatusDto } from '../../dto/purchase-order.dto';
 
+@ApiSecurity('api-key')
 @Controller('purchase-orders')
 export class PurchaseOrderController {
   constructor(private readonly poService: PurchaseOrderService) {}

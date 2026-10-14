@@ -1,7 +1,9 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
 import { StockMovementService } from './stock-movement.service';
 import { Roles } from '../../guards/roles.decorator';
 
+@ApiSecurity('api-key')
 @Controller('stock-movements')
 export class StockMovementController {
   constructor(private readonly stockMovementService: StockMovementService) {}

@@ -16,6 +16,10 @@ export class RolesGuard implements CanActivate {
     }
     const request = context.switchToHttp().getRequest();
     const user = request['user'];
+    // API keys are authorized by their scopes in AuthGuard (read vs write per resource).
+    if (user?.isApiKey) {
+      return true;
+    }
     if (!user || !requiredRoles.includes(user.role)) {
       if (user?.role === 'viewer') {
         throw new ForbiddenException(err('AUTH_DEMO_READONLY'));

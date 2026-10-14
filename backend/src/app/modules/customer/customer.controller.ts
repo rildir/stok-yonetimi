@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiSecurity } from '@nestjs/swagger';
 import { CustomerService } from './customer.service';
 import { Roles } from '../../guards/roles.decorator';
 import { CreateCustomerDto, UpdateCustomerDto } from '../../dto/customer.dto';
 
 @ApiTags('Customers')
 @ApiBearerAuth()
+@ApiSecurity('api-key')
 @Controller('customers')
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}

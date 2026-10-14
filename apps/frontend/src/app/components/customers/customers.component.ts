@@ -112,6 +112,9 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editId() ? 'customers.editTitle' : 'customers.addTitle') | t }}</span>
+            @if (editId() && canDelete()) {
+              <button type="button" class="btn btn-outline btn-sm" style="margin-left: auto; margin-right: 8px;" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'customers', entityId: editId() } })">{{ 'auditLog.history' | t }}</button>
+            }
             <button class="drawer-close" (click)="closeDrawer()">×</button>
           </div>
 

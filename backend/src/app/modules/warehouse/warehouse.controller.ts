@@ -1,3 +1,4 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { Controller, Get, Post, Put, Delete, Body, Param, Req, BadRequestException } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
@@ -5,6 +6,7 @@ import { Roles } from '../../guards/roles.decorator';
 import { CreateWarehouseDto, UpdateWarehouseDto, TransferStockDto } from '../../dto/warehouse.dto';
 import { err } from '../../shared/i18n/app-error';
 
+@ApiSecurity('api-key')
 @Controller('warehouses')
 export class WarehouseController {
   constructor(private readonly warehouseService: WarehouseService) {}

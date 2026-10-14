@@ -34,10 +34,14 @@ import tr_finance from './tr/finance.json';
 import en_finance from './en/finance.json';
 import tr_units from './tr/units.json';
 import en_units from './en/units.json';
+import tr_auditLog from './tr/auditLog.json';
+import en_auditLog from './en/auditLog.json';
+import tr_integrations from './tr/integrations.json';
+import en_integrations from './en/integrations.json';
 
 export type Dict = Record<string, string>;
 
 export const DICTIONARIES: Record<'tr' | 'en', Dict> = {
-  tr: { ...tr_common, ...tr_layout, ...tr_dashboard, ...tr_products, ...tr_orders, ...tr_suppliers, ...tr_purchaseOrders, ...tr_warehouses, ...tr_stockMovements, ...tr_stockCount, ...tr_reports, ...tr_settings, ...tr_login, ...tr_shared, ...tr_customers, ...tr_finance, ...tr_units, },
-  en: { ...en_common, ...en_layout, ...en_dashboard, ...en_products, ...en_orders, ...en_suppliers, ...en_purchaseOrders, ...en_warehouses, ...en_stockMovements, ...en_stockCount, ...en_reports, ...en_settings, ...en_login, ...en_shared, ...en_customers, ...en_finance, ...en_units, },
+  tr: { ...tr_common, ...tr_layout, ...tr_dashboard, ...tr_products, ...tr_orders, ...tr_suppliers, ...tr_purchaseOrders, ...tr_warehouses, ...tr_stockMovements, ...tr_stockCount, ...tr_reports, ...tr_settings, ...tr_login, ...tr_shared, ...tr_customers, ...tr_finance, ...tr_units, ...tr_auditLog, ...tr_integrations, },
+  en: { ...en_common, ...en_layout, ...en_dashboard, ...en_products, ...en_orders, ...en_suppliers, ...en_purchaseOrders, ...en_warehouses, ...en_stockMovements, ...en_stockCount, ...en_reports, ...en_settings, ...en_login, ...en_shared, ...en_customers, ...en_finance, ...en_units, ...en_auditLog, ...en_integrations, },
 };

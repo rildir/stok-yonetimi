@@ -311,3 +311,125 @@ export interface StockCount {
   createdAt: string;
   completedAt?: string;
 }
+
+// ─── Audit log ───
+export interface AuditLog {
+  id: string;
+  companyId: string;
+  userId: string | null;
+  username: string | null;
+  apiKeyId: string | null;
+  action: 'create' | 'update' | 'delete' | 'login' | 'login_failed' | string;
+  entityType: string;
+  entityId: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface Paged<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AuditLogMeta {
+  entityTypes: string[];
+  actions: string[];
+  usernames: string[];
+}
+
+export interface AuditLogQuery {
+  username?: string;
+  entityType?: string;
+  entityId?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+// ─── API keys ───
+export type ApiKeyAccess = 'read' | 'write';
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: Record<string, ApiKeyAccess>;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revoked: boolean;
+  createdBy: string;
+  createdAt: string;
+  /** Only present in the create response. */
+  secret?: string;
+}
+
+export interface CreateApiKeyPayload {
+  name: string;
+  scopes: Record<string, ApiKeyAccess>;
+  expiresAt?: string | null;
+}
+
+// ─── Webhooks ───
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  description: string | null;
+  events: string[];
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** Only present in the create response. */
+  secret?: string;
+}
+
+export interface WebhookPayload {
+  url?: string;
+  description?: string | null;
+  events?: string[];
+  active?: boolean;
+}
+
+export type WebhookDeliveryStatus = 'pending' | 'success' | 'failed';
+
+export interface WebhookDelivery {
+  id: string;
+  endpointId: string;
+  event: string;
+  payload: Record<string, unknown>;
+  status: WebhookDeliveryStatus;
+  attempts: number;
+  responseCode: number | null;
+  responseBody: string | null;
+  error: string | null;
+  nextRetryAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+}
+
+// ─── Import / export ───
+export type ExportResource = 'products' | 'customers' | 'orders' | 'stock';
+export type ImportResource = 'products' | 'customers';
+
+export interface ImportRowError {
+  row: number;
+  field?: string;
+  code: string;
+  message: string;
+}
+
+export interface ImportReport {
+  dryRun: boolean;
+  total: number;
+  valid: number;
+  invalid: number;
+  created: number;
+  updated: number;
+  errors: ImportRowError[];
+}

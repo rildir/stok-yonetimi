@@ -23,6 +23,10 @@ import { UnitEntity } from './app/entities/unit.entity';
 import { ProductUnitEntity } from './app/entities/product-unit.entity';
 import { StockLotEntity } from './app/entities/stock-lot.entity';
 import { SerialNumberEntity } from './app/entities/serial-number.entity';
+import { AuditLogEntity } from './app/entities/audit-log.entity';
+import { ApiKeyEntity } from './app/entities/api-key.entity';
+import { WebhookEndpointEntity } from './app/entities/webhook-endpoint.entity';
+import { WebhookDeliveryEntity } from './app/entities/webhook-delivery.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -56,6 +60,10 @@ export const AppDataSource = new DataSource({
     ProductUnitEntity,
     StockLotEntity,
     SerialNumberEntity,
+    AuditLogEntity,
+    ApiKeyEntity,
+    WebhookEndpointEntity,
+    WebhookDeliveryEntity,
   ],
   migrations: [path.join(__dirname, 'app/migrations/*{.ts,.js}')],
   synchronize: false,

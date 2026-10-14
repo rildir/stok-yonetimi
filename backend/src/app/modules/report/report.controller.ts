@@ -1,6 +1,8 @@
+import { ApiSecurity } from '@nestjs/swagger';
 import { Controller, Get, Query } from '@nestjs/common';
 import { ReportService } from './report.service';
 
+@ApiSecurity('api-key')
 @Controller()
 export class ReportController {
   constructor(private readonly reportService: ReportService) {}

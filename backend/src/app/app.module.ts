@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ApiKeyThrottlerGuard, throttleLimit } from './guards/api-key-throttler.guard';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { I18nExceptionFilter } from './shared/i18n/i18n-exception.filter';
 import { HealthModule } from './modules/health/health.module';
@@ -27,6 +28,10 @@ import { UnitEntity } from './entities/unit.entity';
 import { ProductUnitEntity } from './entities/product-unit.entity';
 import { StockLotEntity } from './entities/stock-lot.entity';
 import { SerialNumberEntity } from './entities/serial-number.entity';
+import { AuditLogEntity } from './entities/audit-log.entity';
+import { ApiKeyEntity } from './entities/api-key.entity';
+import { WebhookEndpointEntity } from './entities/webhook-endpoint.entity';
+import { WebhookDeliveryEntity } from './entities/webhook-delivery.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -50,6 +55,7 @@ import { ReportModule } from './modules/report/report.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { UnitModule } from './modules/unit/unit.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -81,6 +87,10 @@ import { UnitModule } from './modules/unit/unit.module';
         ProductUnitEntity,
         StockLotEntity,
         SerialNumberEntity,
+        AuditLogEntity,
+        ApiKeyEntity,
+        WebhookEndpointEntity,
+        WebhookDeliveryEntity,
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
@@ -93,7 +103,8 @@ import { UnitModule } from './modules/unit/unit.module';
     }),
     ThrottlerModule.forRoot([{
       ttl: 60000,
-      limit: 60,
+      // per IP for browser/JWT traffic, per key for API-key traffic (API_KEY_RATE_LIMIT)
+      limit: throttleLimit,
     }]),
     TenantModule,
     SharedModule,
@@ -112,6 +123,7 @@ import { UnitModule } from './modules/unit/unit.module';
     CustomerModule,
     FinanceModule,
     UnitModule,
+    IntegrationsModule,
     HealthModule,
   ],
   providers: [
@@ -121,7 +133,7 @@ import { UnitModule } from './modules/unit/unit.module';
     },
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: ApiKeyThrottlerGuard,
     },
     {
       provide: APP_GUARD,
