@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, Min } from 'class-validator';
 
 export class CreateWarehouseDto {
   @IsString()
@@ -26,4 +26,35 @@ export class UpdateWarehouseDto {
   @IsString()
   @IsOptional()
   address?: string;
+}
+
+export class TransferStockDto {
+  @IsString()
+  @IsNotEmpty({ message: 'VALIDATION_PRODUCT_ID_REQUIRED' })
+  productId: string;
+
+  @IsString()
+  @IsOptional()
+  fromWarehouseId?: string;
+
+  @IsString()
+  @IsOptional()
+  toWarehouseId?: string;
+
+  /** Legacy: warehouse names */
+  @IsString()
+  @IsOptional()
+  fromWarehouse?: string;
+
+  @IsString()
+  @IsOptional()
+  toWarehouse?: string;
+
+  @IsInt({ message: 'TRANSFER_QUANTITY_INVALID' })
+  @Min(1, { message: 'TRANSFER_QUANTITY_INVALID' })
+  quantity: number;
+
+  @IsString()
+  @IsOptional()
+  note?: string;
 }

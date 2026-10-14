@@ -49,5 +49,6 @@
   "reports.csv.supplierSection": "TEDARİKÇİ BAZLI SATIN ALMA",
   "reports.csv.supplierName": "Tedarikçi Adı",
   "reports.csv.orderCount": "Sipariş Sayısı",
-  "reports.csv.totalPaid": "Toplam Ödeme ({currency})"
+  "reports.csv.totalPaid": "Toplam Ödeme ({currency})",
+  "reports.baseCurrencyNote": "Tüm tutarlar şirket ana para birimine ({currency}) çevrilmiştir."
 }

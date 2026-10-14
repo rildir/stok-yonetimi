@@ -1,6 +1,9 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { IsISO4217CurrencyCode } from 'class-validator';
+
+const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateProductDto {
@@ -48,6 +51,22 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   supplierId?: string;
+
+  @ApiPropertyOptional({ description: 'Fiyat para birimi (ISO 4217)', example: 'TRY' })
+  @IsOptional()
+  @Transform(upper)
+  @IsISO4217CurrencyCode({ message: 'VALIDATION_CURRENCY_CODE' })
+  currency?: string;
+
+  @ApiPropertyOptional({ description: 'Vergi oranı ID' })
+  @IsString()
+  @IsOptional()
+  taxRateId?: string;
+
+  @ApiPropertyOptional({ description: 'Stok girişinin yapılacağı depo ID (varsayılan: ilk depo)' })
+  @IsString()
+  @IsOptional()
+  warehouseId?: string;
 }
 
 export class UpdateProductDto {
@@ -101,6 +120,22 @@ export class UpdateProductDto {
   @IsString()
   @IsOptional()
   supplierId?: string;
+
+  @ApiPropertyOptional({ description: 'Fiyat para birimi (ISO 4217)', example: 'TRY' })
+  @IsOptional()
+  @Transform(upper)
+  @IsISO4217CurrencyCode({ message: 'VALIDATION_CURRENCY_CODE' })
+  currency?: string;
+
+  @ApiPropertyOptional({ description: 'Vergi oranı ID' })
+  @IsString()
+  @IsOptional()
+  taxRateId?: string;
+
+  @ApiPropertyOptional({ description: 'Stok girişinin yapılacağı depo ID (varsayılan: ilk depo)' })
+  @IsString()
+  @IsOptional()
+  warehouseId?: string;
 }
 
 export class BulkDeleteProductsDto {

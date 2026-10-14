@@ -8,12 +8,13 @@ import { ToastComponent } from '../shared/toast/toast.component';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { SocketService } from '../../services/socket.service';
-import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
+import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe } from '../../i18n';
+import { TaxRate, ExchangeRate } from '../../models/inventory.models';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe],
   template: `
     <!-- Amazon Header Style -->
     <header class="page-header" style="border-bottom: none; margin-bottom: 1.5rem; display: block;">
@@ -72,6 +73,24 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                 <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.companyDesc' | t }}</p>
               </div>
             </div>
+
+            <!-- Card: Tax rates (Admin only) -->
+            <div class="ecelon-settings-card" (click)="changeTab('taxRates')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
+              <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">🧾</div>
+              <div>
+                <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.taxRates' | t }}</h3>
+                <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.taxRatesDesc' | t }}</p>
+              </div>
+            </div>
+
+            <!-- Card: Exchange rates (Admin only) -->
+            <div class="ecelon-settings-card" (click)="changeTab('exchangeRates')" style="border: 1px solid #D5D9D9; border-radius: 8px; padding: 16px; background: #FFFFFF; display: flex; gap: 16px; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#F7F8F8'" onmouseout="this.style.backgroundColor='#FFFFFF'">
+              <div style="font-size: 40px; display: flex; align-items: center; justify-content: center; width: 50px;">💱</div>
+              <div>
+                <h3 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 500; color: #0F1111;">{{ 'settings.tab.exchangeRates' | t }}</h3>
+                <p style="margin: 0; font-size: 13px; color: #565959; line-height: 1.4;">{{ 'settings.card.exchangeRatesDesc' | t }}</p>
+              </div>
+            </div>
           }
         </div>
       }
@@ -114,12 +133,165 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                   </select>
                 </div>
               </div>
+              <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                <input id="pricesIncludeTax" type="checkbox" formControlName="pricesIncludeTax" style="width: auto;" />
+                <label for="pricesIncludeTax" style="margin: 0;">{{ 'settings.company.pricesIncludeTax' | t }}</label>
+              </div>
+              <p class="text-muted" style="font-size: 12px; margin-top: -8px;">{{ 'settings.company.pricesIncludeTaxHint' | t }}</p>
               <div class="settings-divider">
                 <button type="submit" class="btn btn-primary" [disabled]="companyForm.invalid || companyForm.pristine || isSavingCompany()">
                   @if (isSavingCompany()) { {{ 'settings.saving' | t }} } @else { {{ 'settings.company.save' | t }} }
                 </button>
               </div>
             </form>
+          </div>
+        }
+
+        <!-- TAX RATES TAB (Admin) -->
+        @if (activeTab() === 'taxRates' && isAdmin()) {
+          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 900px;">
+            <h3 class="card-title">{{ 'settings.taxRates.title' | t }}</h3>
+            <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.taxRates.subtitle' | t }}</p>
+            <form [formGroup]="taxForm" (ngSubmit)="saveTaxRate()">
+              <div class="settings-form-grid">
+                <div class="form-group" [class.has-error]="taxForm.get('name')?.invalid && taxForm.get('name')?.touched">
+                  <label for="taxName">{{ 'settings.taxRates.name' | t }}</label>
+                  <input id="taxName" type="text" formControlName="name" [placeholder]="'settings.taxRates.namePh' | t" />
+                </div>
+                <div class="form-group" [class.has-error]="taxForm.get('rate')?.invalid && taxForm.get('rate')?.touched">
+                  <label for="taxRate">{{ 'finance.taxRate' | t }} (%)</label>
+                  <input id="taxRate" type="number" min="0" max="100" step="0.01" formControlName="rate" />
+                  @if (taxForm.get('rate')?.invalid && taxForm.get('rate')?.touched) { <span class="error-msg">{{ 'settings.taxRates.rateErr' | t }}</span> }
+                </div>
+                <div class="form-group">
+                  <label for="taxCountry">{{ 'settings.company.country' | t }}</label>
+                  <select id="taxCountry" formControlName="country">
+                    <option value="">{{ 'settings.taxRates.anyCountry' | t }}</option>
+                    @for (c of countries; track c.code) { <option [value]="c.code">{{ 'settings.country.' + c.code | t }} ({{ c.code }})</option> }
+                  </select>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px; padding-top: 24px;">
+                  <input id="taxDefault" type="checkbox" formControlName="isDefault" style="width: auto;" />
+                  <label for="taxDefault" style="margin: 0;">{{ 'finance.defaultTax' | t }}</label>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-primary" [disabled]="taxForm.invalid || isSavingTax()">
+                  @if (isSavingTax()) { {{ 'settings.saving' | t }} } @else { {{ (editTaxId() ? 'common.save' : 'settings.taxRates.add') | t }} }
+                </button>
+                @if (editTaxId()) { <button type="button" class="btn btn-secondary" (click)="resetTaxForm()">{{ 'common.cancel' | t }}</button> }
+              </div>
+            </form>
+            <div class="table-scroll" style="margin-top: 1.5rem;">
+              @if (isLoadingTax()) {
+                <div class="loading-state">{{ 'common.loading' | t }}</div>
+              } @else if (taxRates().length === 0) {
+                <div class="empty-state"><p>{{ 'settings.taxRates.empty' | t }}</p></div>
+              } @else {
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{{ 'settings.taxRates.name' | t }}</th>
+                      <th>{{ 'finance.taxRate' | t }}</th>
+                      <th>{{ 'settings.company.country' | t }}</th>
+                      <th>{{ 'finance.defaultTax' | t }}</th>
+                      <th class="th-actions">{{ 'common.actions' | t }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (tr of taxRates(); track tr.id) {
+                      <tr>
+                        <td><strong>{{ tr.name }}</strong></td>
+                        <td>%{{ tr.rate | num }}</td>
+                        <td>{{ tr.country || '-' }}</td>
+                        <td>
+                          @if (tr.isDefault) { <span class="badge badge-instock">{{ 'finance.defaultTax' | t }}</span> }
+                          @else { <button type="button" class="btn btn-outline" style="padding: 2px 8px; font-size: 12px;" (click)="setDefaultTax(tr)">{{ 'settings.taxRates.setDefault' | t }}</button> }
+                        </td>
+                        <td class="td-actions">
+                          <button class="edit-btn" [title]="'common.edit' | t" (click)="editTax(tr)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                          <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteTax(tr)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- EXCHANGE RATES TAB (Admin) -->
+        @if (activeTab() === 'exchangeRates' && isAdmin()) {
+          <div class="settings-card" style="background: #ffffff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 24px; max-width: 900px;">
+            <h3 class="card-title">{{ 'settings.exchangeRates.title' | t }}</h3>
+            <p class="card-subtitle" style="margin-bottom: 1.5rem;">{{ 'settings.exchangeRates.subtitle' | t }}</p>
+            <form [formGroup]="fxForm" (ngSubmit)="saveExchangeRate()">
+              <div class="settings-form-grid">
+                <div class="form-group">
+                  <label for="fxBase">{{ 'settings.exchangeRates.base' | t }}</label>
+                  <select id="fxBase" formControlName="baseCurrency">
+                    @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="fxQuote">{{ 'settings.exchangeRates.quote' | t }}</label>
+                  <select id="fxQuote" formControlName="quoteCurrency">
+                    @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
+                  </select>
+                </div>
+                <div class="form-group" [class.has-error]="fxForm.get('rate')?.invalid && fxForm.get('rate')?.touched">
+                  <label for="fxRate">{{ 'settings.exchangeRates.rate' | t }}</label>
+                  <input id="fxRate" type="number" min="0" step="any" formControlName="rate" />
+                  @if (fxForm.get('rate')?.invalid && fxForm.get('rate')?.touched) { <span class="error-msg">{{ 'settings.exchangeRates.rateErr' | t }}</span> }
+                </div>
+                <div class="form-group">
+                  <label for="fxDate">{{ 'settings.exchangeRates.date' | t }}</label>
+                  <input id="fxDate" type="date" formControlName="date" />
+                </div>
+              </div>
+              @if (fxForm.getRawValue().rate > 0) {
+                <p class="text-muted" style="font-size: 13px;">{{ 'settings.exchangeRates.preview' | t: { base: fxForm.getRawValue().baseCurrency, rate: (fxForm.getRawValue().rate | num: 4), quote: fxForm.getRawValue().quoteCurrency } }}</p>
+              }
+              @if (fxSameCurrency()) { <p class="error-msg">{{ 'settings.exchangeRates.sameErr' | t }}</p> }
+              <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-primary" [disabled]="fxForm.invalid || fxSameCurrency() || isSavingFx()">
+                  @if (isSavingFx()) { {{ 'settings.saving' | t }} } @else { {{ (editFxId() ? 'common.save' : 'settings.exchangeRates.add') | t }} }
+                </button>
+                @if (editFxId()) { <button type="button" class="btn btn-secondary" (click)="resetFxForm()">{{ 'common.cancel' | t }}</button> }
+              </div>
+            </form>
+            <div class="table-scroll" style="margin-top: 1.5rem;">
+              @if (isLoadingFx()) {
+                <div class="loading-state">{{ 'common.loading' | t }}</div>
+              } @else if (sortedExchangeRates().length === 0) {
+                <div class="empty-state"><p>{{ 'settings.exchangeRates.empty' | t }}</p></div>
+              } @else {
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{{ 'settings.exchangeRates.date' | t }}</th>
+                      <th>{{ 'settings.exchangeRates.pair' | t }}</th>
+                      <th>{{ 'settings.exchangeRates.rate' | t }}</th>
+                      <th class="th-actions">{{ 'common.actions' | t }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (fx of sortedExchangeRates(); track fx.id) {
+                      <tr>
+                        <td>{{ fx.date | appDate }}</td>
+                        <td class="mono">{{ fx.baseCurrency }}/{{ fx.quoteCurrency }}</td>
+                        <td>{{ 'settings.exchangeRates.preview' | t: { base: fx.baseCurrency, rate: (fx.rate | num: 4), quote: fx.quoteCurrency } }}</td>
+                        <td class="td-actions">
+                          <button class="edit-btn" [title]="'common.edit' | t" (click)="editFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                          <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </div>
           </div>
         }
 
@@ -639,7 +811,7 @@ export class SettingsComponent implements OnInit {
   
   @ViewChild(ToastComponent) toast!: ToastComponent;
 
-  activeTab = signal<'profile' | 'categories' | 'users' | 'company' | 'dashboard'>('dashboard');
+  activeTab = signal<'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'dashboard'>('dashboard');
 
   // Locale option lists (shared by profile overrides and company settings)
   // Labels are translated in the template via settings.lang.<code> / settings.country.<code> / settings.tz.<tz>
@@ -662,7 +834,175 @@ export class SettingsComponent implements OnInit {
     defaultLanguage: ['tr', Validators.required],
     baseCurrency: ['TRY', Validators.required],
     timezone: ['Europe/Istanbul', Validators.required],
+    pricesIncludeTax: [false],
   });
+
+  isAdmin(): boolean { return this.ui.userProfile()?.role === 'admin'; }
+  /** Company base currency (falls back to the effective locale currency). */
+  companyBaseCurrency(): string { return this.ui.userProfile()?.company?.baseCurrency || this.i18n.currency(); }
+  private today(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  private errMsg(err: any, fallbackKey: string): string {
+    const msg = err?.error?.message;
+    return this.i18n.t('settings.error', { msg: (Array.isArray(msg) ? msg[0] : msg) || this.i18n.t(fallbackKey) });
+  }
+
+  // Tax rates (admin)
+  taxRates = signal<TaxRate[]>([]);
+  isLoadingTax = signal(false);
+  isSavingTax = signal(false);
+  editTaxId = signal<string | null>(null);
+  taxForm: FormGroup = this.fb.group({
+    name: ['', [Validators.required, Validators.maxLength(60)]],
+    rate: [20, [Validators.required, Validators.min(0), Validators.max(100)]],
+    country: [''],
+    isDefault: [false],
+  });
+
+  loadTaxRates() {
+    this.isLoadingTax.set(true);
+    this.inventoryService.getTaxRates().subscribe({
+      next: (list) => { this.taxRates.set(list); this.isLoadingTax.set(false); },
+      error: (err) => { this.isLoadingTax.set(false); this.toast.show(this.errMsg(err, 'settings.taxRates.loadFailed'), 'error'); },
+    });
+  }
+
+  resetTaxForm() {
+    this.editTaxId.set(null);
+    this.taxForm.reset({ name: '', rate: 20, country: this.ui.userProfile()?.company?.country || '', isDefault: false });
+  }
+
+  editTax(tr: TaxRate) {
+    this.editTaxId.set(tr.id);
+    this.taxForm.reset({ name: tr.name, rate: tr.rate, country: tr.country || '', isDefault: tr.isDefault });
+  }
+
+  saveTaxRate() {
+    if (this.taxForm.invalid) { this.taxForm.markAllAsTouched(); return; }
+    const v = this.taxForm.value;
+    const payload: Partial<TaxRate> = { name: String(v.name).trim(), rate: Number(v.rate), country: v.country || null, isDefault: !!v.isDefault };
+    const id = this.editTaxId();
+    this.isSavingTax.set(true);
+    (id ? this.inventoryService.updateTaxRate(id, payload) : this.inventoryService.createTaxRate(payload)).subscribe({
+      next: () => {
+        this.isSavingTax.set(false);
+        this.toast.show('✓ ' + this.i18n.t('settings.taxRates.saved'), 'success');
+        this.resetTaxForm();
+        this.loadTaxRates();
+      },
+      error: (err) => { this.isSavingTax.set(false); this.toast.show(this.errMsg(err, 'settings.toast.saveFailed'), 'error'); },
+    });
+  }
+
+  setDefaultTax(tr: TaxRate) {
+    this.inventoryService.updateTaxRate(tr.id, { isDefault: true }).subscribe({
+      next: () => { this.toast.show('✓ ' + this.i18n.t('settings.taxRates.defaultSet'), 'success'); this.loadTaxRates(); },
+      error: (err) => this.toast.show(this.errMsg(err, 'settings.toast.saveFailed'), 'error'),
+    });
+  }
+
+  deleteTax(tr: TaxRate) {
+    this.ui.openConfirm({
+      title: this.i18n.t('settings.taxRates.deleteTitle'),
+      message: this.i18n.t('settings.taxRates.deleteConfirm', { name: tr.name }),
+      confirmText: this.i18n.t('common.delete'),
+      cancelText: this.i18n.t('common.cancel'),
+      onConfirm: () => {
+        this.inventoryService.deleteTaxRate(tr.id).subscribe({
+          next: () => {
+            this.toast.show('✓ ' + this.i18n.t('settings.taxRates.deleted'), 'success');
+            if (this.editTaxId() === tr.id) this.resetTaxForm();
+            this.loadTaxRates();
+          },
+          error: (err) => this.toast.show(this.errMsg(err, 'settings.taxRates.deleteFailed'), 'error'),
+        });
+      },
+    });
+  }
+
+  // Exchange rates (admin)
+  exchangeRates = signal<ExchangeRate[]>([]);
+  sortedExchangeRates = computed(() =>
+    [...this.exchangeRates()].sort((a, b) => b.date.localeCompare(a.date) || a.quoteCurrency.localeCompare(b.quoteCurrency))
+  );
+  isLoadingFx = signal(false);
+  isSavingFx = signal(false);
+  editFxId = signal<string | null>(null);
+  fxForm: FormGroup = this.fb.group({
+    baseCurrency: ['TRY', Validators.required],
+    quoteCurrency: ['USD', Validators.required],
+    rate: [null as number | null, [Validators.required, Validators.min(0.000001)]],
+    date: [this.today(), Validators.required],
+  });
+
+  fxSameCurrency(): boolean {
+    const v = this.fxForm.getRawValue();
+    return !!v.baseCurrency && v.baseCurrency === v.quoteCurrency;
+  }
+
+  loadExchangeRates() {
+    this.isLoadingFx.set(true);
+    this.inventoryService.getExchangeRates().subscribe({
+      next: (list) => { this.exchangeRates.set(list); this.isLoadingFx.set(false); },
+      error: (err) => { this.isLoadingFx.set(false); this.toast.show(this.errMsg(err, 'settings.exchangeRates.loadFailed'), 'error'); },
+    });
+  }
+
+  resetFxForm() {
+    this.editFxId.set(null);
+    const base = this.companyBaseCurrency();
+    this.fxForm.get('baseCurrency')?.enable();
+    this.fxForm.get('quoteCurrency')?.enable();
+    this.fxForm.reset({ baseCurrency: base, quoteCurrency: base === 'USD' ? 'EUR' : 'USD', rate: null, date: this.today() });
+  }
+
+  editFx(fx: ExchangeRate) {
+    this.editFxId.set(fx.id);
+    this.fxForm.reset({ baseCurrency: fx.baseCurrency, quoteCurrency: fx.quoteCurrency, rate: fx.rate, date: fx.date?.slice(0, 10) });
+    // Only rate/date are editable for an existing row
+    this.fxForm.get('baseCurrency')?.disable();
+    this.fxForm.get('quoteCurrency')?.disable();
+  }
+
+  saveExchangeRate() {
+    if (this.fxForm.invalid || this.fxSameCurrency()) { this.fxForm.markAllAsTouched(); return; }
+    const v = this.fxForm.getRawValue();
+    const id = this.editFxId();
+    const req = id
+      ? this.inventoryService.updateExchangeRate(id, { rate: Number(v.rate), date: v.date })
+      : this.inventoryService.createExchangeRate({ baseCurrency: v.baseCurrency, quoteCurrency: v.quoteCurrency, rate: Number(v.rate), date: v.date });
+    this.isSavingFx.set(true);
+    req.subscribe({
+      next: () => {
+        this.isSavingFx.set(false);
+        this.toast.show('✓ ' + this.i18n.t('settings.exchangeRates.saved'), 'success');
+        this.resetFxForm();
+        this.loadExchangeRates();
+      },
+      error: (err) => { this.isSavingFx.set(false); this.toast.show(this.errMsg(err, 'settings.toast.saveFailed'), 'error'); },
+    });
+  }
+
+  deleteFx(fx: ExchangeRate) {
+    this.ui.openConfirm({
+      title: this.i18n.t('settings.exchangeRates.deleteTitle'),
+      message: this.i18n.t('settings.exchangeRates.deleteConfirm', { pair: `${fx.baseCurrency}/${fx.quoteCurrency}`, date: fx.date }),
+      confirmText: this.i18n.t('common.delete'),
+      cancelText: this.i18n.t('common.cancel'),
+      onConfirm: () => {
+        this.inventoryService.deleteExchangeRate(fx.id).subscribe({
+          next: () => {
+            this.toast.show('✓ ' + this.i18n.t('settings.exchangeRates.deleted'), 'success');
+            if (this.editFxId() === fx.id) this.resetFxForm();
+            this.loadExchangeRates();
+          },
+          error: (err) => this.toast.show(this.errMsg(err, 'settings.exchangeRates.deleteFailed'), 'error'),
+        });
+      },
+    });
+  }
 
   getTabTitle(): string {
     switch (this.activeTab()) {
@@ -670,6 +1010,8 @@ export class SettingsComponent implements OnInit {
       case 'categories': return this.i18n.t('settings.tab.categories');
       case 'users': return this.i18n.t('settings.tab.users');
       case 'company': return this.i18n.t('settings.tab.company');
+      case 'taxRates': return this.i18n.t('settings.tab.taxRates');
+      case 'exchangeRates': return this.i18n.t('settings.tab.exchangeRates');
       default: return this.i18n.t('settings.account');
     }
   }
@@ -736,7 +1078,7 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (tab === 'profile' || tab === 'categories' || tab === 'users' || tab === 'company') {
+      if (tab === 'profile' || tab === 'categories' || tab === 'users' || tab === 'company' || tab === 'taxRates' || tab === 'exchangeRates') {
         this.activeTab.set(tab);
       } else {
         this.activeTab.set('dashboard');
@@ -744,7 +1086,7 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  changeTab(tab: 'profile' | 'categories' | 'users' | 'company' | 'dashboard') {
+  changeTab(tab: 'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'dashboard') {
     if (tab === 'dashboard') {
       this.router.navigate(['/settings']);
     } else {
@@ -765,11 +1107,15 @@ export class SettingsComponent implements OnInit {
           timezone: profile.timezone || ''
         });
         if (profile.company) {
-          this.companyForm.patchValue(profile.company);
+          this.companyForm.patchValue({ ...profile.company, pricesIncludeTax: !!profile.company.pricesIncludeTax });
           this.companyForm.markAsPristine();
         }
         if (profile.role === 'admin') {
           this.loadUsers();
+          this.loadTaxRates();
+          this.loadExchangeRates();
+          if (!this.editTaxId() && !this.taxForm.dirty) this.resetTaxForm();
+          if (!this.editFxId() && !this.fxForm.dirty) this.resetFxForm();
         }
       },
       error: () => {

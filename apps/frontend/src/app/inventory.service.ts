@@ -11,6 +11,10 @@ import {
   Warehouse,
   StockMovement,
   StockCount,
+  Customer,
+  TaxRate,
+  ExchangeRate,
+  DashboardSummary,
 } from './models/inventory.models';
 
 export type {
@@ -25,7 +29,34 @@ export type {
   StockMovement,
   StockCount,
   StockCountItem,
+  Customer,
+  CustomerType,
+  TaxRate,
+  ExchangeRate,
+  DashboardSummary,
+  DocumentAmounts,
 } from './models/inventory.models';
+
+/** Payload for POST /orders (customerId preferred; customerName used when no customer is linked). */
+export interface CreateOrderPayload {
+  customerId?: string;
+  customerName?: string;
+  status: 'Completed' | 'Pending' | 'Cancelled' | string;
+  currency?: string;
+  warehouseId?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  items: { productId: string; productName?: string; quantity: number; unitPrice?: number; warehouseId?: string }[];
+}
+
+/** Payload for POST/PUT /purchase-orders */
+export interface PurchaseOrderPayload {
+  supplierId?: string;
+  currency?: string;
+  warehouseId?: string;
+  notes?: string;
+  items?: { productId: string; quantity: number; unitPrice?: number }[];
+}
 
 @Injectable({
   providedIn: 'root'
@@ -69,7 +100,7 @@ export class InventoryService {
     return this.http.get<Order[]>(`${this.apiUrl}/orders`);
   }
 
-  createOrder(order: Omit<Order, 'id' | 'orderNumber' | 'totalAmount'>): Observable<Order> {
+  createOrder(order: CreateOrderPayload | Omit<Order, 'id' | 'orderNumber' | 'totalAmount'>): Observable<Order> {
     return this.http.post<Order>(`${this.apiUrl}/orders`, order);
   }
 
@@ -100,8 +131,9 @@ export class InventoryService {
     return this.http.get<{ data: StockMovement[], total: number }>(url);
   }
 
-  createManualAdjustment(productId: string, newQuantity: number, note: string): Observable<StockMovement> {
-    return this.http.post<StockMovement>(`${this.apiUrl}/stock-movements/adjust`, { productId, newQuantity, note });
+  /** Sets the product total to newQuantity; the difference is booked on warehouseId (default/greedy if omitted). */
+  createManualAdjustment(productId: string, newQuantity: number, note: string, warehouseId?: string): Observable<StockMovement> {
+    return this.http.post<StockMovement>(`${this.apiUrl}/stock-movements/adjust`, { productId, newQuantity, note, warehouseId });
   }
 
   // Suppliers
@@ -126,15 +158,16 @@ export class InventoryService {
     return this.http.get<PurchaseOrder[]>(`${this.apiUrl}/purchase-orders`);
   }
 
-  createPurchaseOrder(data: Partial<PurchaseOrder>): Observable<PurchaseOrder> {
+  createPurchaseOrder(data: PurchaseOrderPayload | Partial<PurchaseOrder>): Observable<PurchaseOrder> {
     return this.http.post<PurchaseOrder>(`${this.apiUrl}/purchase-orders`, data);
   }
 
-  updatePurchaseOrderStatus(id: string, status: string): Observable<PurchaseOrder> {
-    return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}/status`, { status });
+  /** warehouseId: receiving warehouse when status becomes Received (default warehouse if omitted) */
+  updatePurchaseOrderStatus(id: string, status: string, warehouseId?: string): Observable<PurchaseOrder> {
+    return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}/status`, warehouseId ? { status, warehouseId } : { status });
   }
 
-  updatePurchaseOrder(id: string, data: Partial<PurchaseOrder>): Observable<PurchaseOrder> {
+  updatePurchaseOrder(id: string, data: PurchaseOrderPayload | Partial<PurchaseOrder>): Observable<PurchaseOrder> {
     return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}`, data);
   }
 
@@ -229,7 +262,77 @@ export class InventoryService {
     return this.http.delete<{ success: boolean }>(`${this.apiUrl}/warehouses/${id}`);
   }
 
-  transferWarehouseStock(productId: string, fromWarehouse: string, toWarehouse: string, quantity: number): Observable<{ success: boolean }> {
-    return this.http.post<{ success: boolean }>(`${this.apiUrl}/warehouses/transfer`, { productId, fromWarehouse, toWarehouse, quantity });
+  /**
+   * Transactional warehouse-to-warehouse transfer (TRANSFER_OUT + TRANSFER_IN movements).
+   * from/to are warehouse ids (names still accepted by the API for older callers). Returns the updated product.
+   */
+  transferWarehouseStock(productId: string, fromWarehouseId: string, toWarehouseId: string, quantity: number, note?: string): Observable<Product> {
+    return this.http.post<Product>(`${this.apiUrl}/warehouses/transfer`, { productId, fromWarehouseId, toWarehouseId, quantity, note });
+  }
+
+  getWarehouseStock(id: string): Observable<{ productId: string; productName: string; sku: string; quantity: number }[]> {
+    return this.http.get<{ productId: string; productName: string; sku: string; quantity: number }[]>(`${this.apiUrl}/warehouses/${id}/stock`);
+  }
+
+  // Customers
+  getCustomers(): Observable<Customer[]> {
+    return this.http.get<Customer[]>(`${this.apiUrl}/customers`);
+  }
+
+  createCustomer(data: Partial<Customer>): Observable<Customer> {
+    return this.http.post<Customer>(`${this.apiUrl}/customers`, data);
+  }
+
+  updateCustomer(id: string, data: Partial<Customer>): Observable<Customer> {
+    return this.http.put<Customer>(`${this.apiUrl}/customers/${id}`, data);
+  }
+
+  deleteCustomer(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/customers/${id}`);
+  }
+
+  // Tax rates (write: admin)
+  getTaxRates(): Observable<TaxRate[]> {
+    return this.http.get<TaxRate[]>(`${this.apiUrl}/tax-rates`);
+  }
+
+  createTaxRate(data: Partial<TaxRate>): Observable<TaxRate> {
+    return this.http.post<TaxRate>(`${this.apiUrl}/tax-rates`, data);
+  }
+
+  updateTaxRate(id: string, data: Partial<TaxRate>): Observable<TaxRate> {
+    return this.http.put<TaxRate>(`${this.apiUrl}/tax-rates/${id}`, data);
+  }
+
+  deleteTaxRate(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/tax-rates/${id}`);
+  }
+
+  // Exchange rates (write: admin). POST upserts per (pair, date).
+  getExchangeRates(): Observable<ExchangeRate[]> {
+    return this.http.get<ExchangeRate[]>(`${this.apiUrl}/exchange-rates`);
+  }
+
+  createExchangeRate(data: Partial<ExchangeRate>): Observable<ExchangeRate> {
+    return this.http.post<ExchangeRate>(`${this.apiUrl}/exchange-rates`, data);
+  }
+
+  updateExchangeRate(id: string, data: Partial<ExchangeRate>): Observable<ExchangeRate> {
+    return this.http.put<ExchangeRate>(`${this.apiUrl}/exchange-rates/${id}`, data);
+  }
+
+  deleteExchangeRate(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/exchange-rates/${id}`);
+  }
+
+  convertCurrency(amount: number, from: string, to?: string): Observable<{ amount: number; from: string; to: string; rate: number; result: number }> {
+    let url = `${this.apiUrl}/exchange-rates/convert?amount=${amount}&from=${from}`;
+    if (to) url += `&to=${to}`;
+    return this.http.get<{ amount: number; from: string; to: string; rate: number; result: number }>(url);
+  }
+
+  /** Dashboard headline numbers, all converted to the company base currency. */
+  getDashboardSummary(): Observable<DashboardSummary> {
+    return this.http.get<DashboardSummary>(`${this.apiUrl}/reports/dashboard-summary`);
   }
 }

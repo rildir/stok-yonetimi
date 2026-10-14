@@ -2,7 +2,7 @@ import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { InventoryService, Product } from '../../inventory.service';
+import { InventoryService, Product, Warehouse } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
@@ -39,6 +39,14 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
           <input type="text" [placeholder]="'stockMovements.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
         </div>
 
+        <!-- Depo Filtresi -->
+        <select class="form-select date-input" style="min-width: 160px;" [ngModel]="selectedWarehouseId()" (ngModelChange)="selectedWarehouseId.set($event)" [title]="'stockMovements.filter.warehouse' | t">
+          <option value="">{{ 'stockMovements.filter.allWarehouses' | t }}</option>
+          @for (w of warehouses(); track w.id) {
+            <option [value]="w.id">{{ w.name }}</option>
+          }
+        </select>
+
         <!-- Tarih Filtresi -->
         <div class="date-filters">
           <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">{{ 'stockMovements.startDate' | t }}:</span>
@@ -60,6 +68,8 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
         <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('IN')" (click)="toggleType('IN')">{{ 'stockMovements.type.in' | t }}</button>
         <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('ORDER')" (click)="toggleType('ORDER')">{{ 'stockMovements.type.order' | t }}</button>
         <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('RETURN')" (click)="toggleType('RETURN')">{{ 'stockMovements.type.return' | t }}</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('TRANSFER_OUT')" (click)="toggleType('TRANSFER_OUT')">{{ 'stockMovements.type.transferOut' | t }}</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('TRANSFER_IN')" (click)="toggleType('TRANSFER_IN')">{{ 'stockMovements.type.transferIn' | t }}</button>
       </div>
     </div>
 
@@ -78,6 +88,7 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                 <th>{{ 'stockMovements.col.date' | t }}</th>
                 <th>{{ 'stockMovements.col.productName' | t }}</th>
                 <th>{{ 'stockMovements.col.type' | t }}</th>
+                <th>{{ 'stockMovements.col.warehouse' | t }}</th>
                 <th style="text-align: right;">{{ 'stockMovements.col.quantity' | t }}</th>
                 <th style="text-align: right;">{{ 'stockMovements.col.previousStock' | t }}</th>
                 <th style="text-align: right;">{{ 'stockMovements.col.newStock' | t }}</th>
@@ -95,6 +106,7 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
                        {{ getTypeName(m.type) }}
                     </span>
                   </td>
+                  <td>{{ getWarehouseName(m.warehouseId) }}</td>
                   <td style="text-align: right;">
                     <span [class.text-success]="m.quantity > 0" [class.text-danger]="m.quantity < 0">
                       {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
@@ -218,6 +230,8 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
     .badge-order { background: rgba(59, 130, 246, 0.08); color: #2563EB; }
     .badge-return { background: rgba(196, 85, 0, 0.08); color: #C45500; }
     .badge-adjustment { background: rgba(100, 116, 139, 0.08); color: #64748B; }
+    .badge-transfer-out { background: rgba(219, 39, 119, 0.08); color: #DB2777; }
+    .badge-transfer-in { background: rgba(13, 148, 136, 0.08); color: #0D9488; }
     .badge-out { background: rgba(177, 39, 4, 0.08); color: #B12704; }
     .performed-badge {
       display: inline-flex;
@@ -248,6 +262,9 @@ export class StockMovementsComponent implements OnInit {
   
   movements = signal<any[]>([]);
   products = signal<Product[]>([]);
+  warehouses = signal<Warehouse[]>([]);
+  selectedWarehouseId = signal<string>('');
+  warehouseMap = computed(() => new Map(this.warehouses().map(w => [w.id, w.name])));
   isLoading = signal(true);
   searchQuery = signal('');
 
@@ -276,6 +293,7 @@ export class StockMovementsComponent implements OnInit {
   ngOnInit() {
     this.loadMovements(1);
     this.loadProducts();
+    this.inventory.getWarehouses().subscribe({ next: (data) => this.warehouses.set(data || []) });
     this.route.queryParams.subscribe(params => {
       this.searchQuery.set(params['q'] || '');
       this.loadMovements(1);
@@ -361,19 +379,21 @@ export class StockMovementsComponent implements OnInit {
       typeParam
     ).subscribe({
       next: (res) => {
-        const list = res.data;
+        const wid = this.selectedWarehouseId();
+        const list = wid ? res.data.filter((m: any) => m.warehouseId === wid) : res.data;
         if (!list || list.length === 0) {
           this.ui.showToast(this.i18n.t('stockMovements.toast.nothingToExport'), 'error');
           return;
         }
 
-        const headers = ['stockMovements.csv.date', 'stockMovements.csv.productName', 'stockMovements.csv.type', 'stockMovements.csv.quantity', 'stockMovements.csv.previousStock', 'stockMovements.csv.newStock', 'stockMovements.csv.note', 'stockMovements.csv.referenceType', 'stockMovements.csv.referenceId', 'stockMovements.csv.performedBy'].map(k => this.i18n.t(k));
+        const headers = ['stockMovements.csv.date', 'stockMovements.csv.productName', 'stockMovements.csv.type', 'stockMovements.csv.warehouse', 'stockMovements.csv.quantity', 'stockMovements.csv.previousStock', 'stockMovements.csv.newStock', 'stockMovements.csv.note', 'stockMovements.csv.referenceType', 'stockMovements.csv.referenceId', 'stockMovements.csv.performedBy'].map(k => this.i18n.t(k));
         const rows = list.map((m: any) => {
           const dateStr = this.i18n.formatDate(m.createdAt, 'datetime');
           return [
             `"${dateStr}"`,
             `"${m.productName.replace(/"/g, '""')}"`,
             `"${this.getTypeName(m.type)}"`,
+            `"${this.getWarehouseName(m.warehouseId).replace(/"/g, '""')}"`,
             m.quantity,
             m.previousQuantity,
             m.newQuantity,
@@ -414,8 +434,16 @@ export class StockMovementsComponent implements OnInit {
     }, 300);
   }
 
+  // getStockMovements has no warehouseId param, so the warehouse filter is applied client-side to the loaded page
   filteredMovements() {
-    return this.movements();
+    const wid = this.selectedWarehouseId();
+    const list = this.movements();
+    return wid ? list.filter(m => m.warehouseId === wid) : list;
+  }
+
+  getWarehouseName(id: string | null | undefined): string {
+    if (!id) return '-';
+    return this.warehouseMap().get(id) || '-';
   }
 
   getStartCount(): number {
@@ -538,6 +566,8 @@ export class StockMovementsComponent implements OnInit {
       case 'ORDER': return this.i18n.t('stockMovements.type.order');
       case 'RETURN': return this.i18n.t('stockMovements.type.return');
       case 'ADJUSTMENT': return this.i18n.t('stockMovements.type.adjustment');
+      case 'TRANSFER_OUT': return this.i18n.t('stockMovements.type.transferOut');
+      case 'TRANSFER_IN': return this.i18n.t('stockMovements.type.transferIn');
       default: return type;
     }
   }
@@ -549,6 +579,8 @@ export class StockMovementsComponent implements OnInit {
       case 'RETURN': return 'badge-return';
       case 'ADJUSTMENT': return 'badge-adjustment';
       case 'OUT': return 'badge-out';
+      case 'TRANSFER_OUT': return 'badge-transfer-out';
+      case 'TRANSFER_IN': return 'badge-transfer-in';
       default: return '';
     }
   }

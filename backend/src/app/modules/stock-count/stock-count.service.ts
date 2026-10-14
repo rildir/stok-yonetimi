@@ -5,7 +5,7 @@ import { Repository, DataSource } from 'typeorm';
 import { StockCountEntity, StockCountItem } from '../../entities/stock-count.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
-import { WarehouseEntity } from '../../entities/warehouse.entity';
+import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -19,6 +19,7 @@ export class StockCountService {
     @InjectRepository(ProductEntity)
     private readonly productRepo: Repository<ProductEntity>,
     private readonly stockHelper: StockHelperService,
+    private readonly warehouseStock: WarehouseStockService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -119,32 +120,15 @@ export class StockCountService {
           item.difference = difference;
 
           if (difference !== 0) {
-            const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
-            const activeNames = activeWarehouses.map(w => w.name);
-            if (difference > 0) {
-              product.warehouses = this.stockHelper.addStockToWarehouses(product.warehouses, difference, activeNames);
-            } else {
-              product.warehouses = this.stockHelper.deductStockFromWarehouses(product.warehouses, Math.abs(difference), activeNames);
-            }
-
-            product.quantity = item.countedQuantity;
-            product.status = this.stockHelper.calculateStatus(product.quantity, product.minQuantity);
-            const savedProd = await manager.save(ProductEntity, product);
-
-            const newMovement = manager.create(StockMovementEntity, {
-              companyId: this.companyId,
-              productId: product.id,
-              productName: product.name,
+            const allocations = await this.warehouseStock.setTotal(manager, product, Number(item.countedQuantity));
+            await this.warehouseStock.recordMovements(manager, product, oldQty, allocations, {
               type: 'ADJUSTMENT',
-              quantity: difference,
-              previousQuantity: oldQty,
-              newQuantity: item.countedQuantity,
               referenceId: count.id,
               referenceType: 'stock_count',
               note: `Sayım Düzeltmesi (Fark: ${difference > 0 ? '+' : ''}${difference})`,
-              performedBy: performedBy || 'System'
+              performedBy: performedBy || 'System',
             });
-            await manager.save(StockMovementEntity, newMovement);
+            const savedProd = product;
 
             this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: savedProd });
           }

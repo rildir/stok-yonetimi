@@ -1,0 +1,19 @@
+{
+  "finance.currency": "Currency",
+  "finance.subtotal": "Subtotal",
+  "finance.tax": "Tax",
+  "finance.taxTotal": "Tax total",
+  "finance.grandTotal": "Grand total",
+  "finance.taxRate": "Tax rate",
+  "finance.taxAmount": "Tax amount",
+  "finance.unitPrice": "Unit price",
+  "finance.lineTotal": "Line total",
+  "finance.taxBreakdown": "Tax breakdown",
+  "finance.taxLine": "{rate}% tax (on {base})",
+  "finance.pricesIncludeTax": "Prices include tax",
+  "finance.pricesExcludeTax": "Prices exclude tax",
+  "finance.inBaseCurrency": "in {currency}",
+  "finance.exchangeRateNote": "1 {from} = {rate} {to}",
+  "finance.defaultTax": "Default tax",
+  "finance.noTax": "No tax"
+}

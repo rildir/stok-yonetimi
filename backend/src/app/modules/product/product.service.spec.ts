@@ -10,6 +10,16 @@ import { SupplierEntity } from '../../entities/supplier.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
+import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
+import { FinanceService } from '../../shared/services/finance.service';
+
+const financeStub = { getCompany: jest.fn().mockResolvedValue({ baseCurrency: 'TRY' }), assertTaxRate: jest.fn() };
+const stockStub = () => ({
+  add: jest.fn().mockResolvedValue([{ warehouseId: 'w1', delta: 3 }]),
+  recordMovements: jest.fn().mockImplementation(async (m: any, p: any, prev: number, alloc: any[]) =>
+    Promise.all(alloc.map((a) => m.save('StockMovement', m.create('StockMovement', { companyId: p.companyId, productId: p.id, quantity: a.delta }))))),
+  attachWarehouseMap: jest.fn().mockImplementation(async (_m: any, _c: string, ps: any[]) => ps),
+});
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
@@ -71,6 +81,8 @@ describe('ProductService', () => {
         { provide: getRepositoryToken(StockMovementEntity), useValue: stockMovementRepoMock },
         { provide: getRepositoryToken(WarehouseEntity), useValue: warehouseRepoMock },
         { provide: StockHelperService, useValue: stockHelperMock },
+        { provide: WarehouseStockService, useValue: stockStub() },
+        { provide: FinanceService, useValue: financeStub },
         { provide: AppGateway, useValue: appGatewayMock },
         { provide: TenantContext, useValue: { companyId: COMPANY_ID } },
         { provide: DataSource, useValue: dataSourceMock },
@@ -89,6 +101,7 @@ describe('ProductService', () => {
       const mockProducts = [{ id: '1', name: 'Product 1', isDeleted: false }];
       productRepoMock.find.mockResolvedValue(mockProducts);
 
+      (service as any).dataSource.manager = {};
       const result = await service.getProducts();
       expect(result).toEqual(mockProducts);
       expect(productRepoMock.find).toHaveBeenCalledWith({ where: { companyId: COMPANY_ID, isDeleted: false } });
@@ -100,6 +113,7 @@ describe('ProductService', () => {
       const mockProd = { id: 'prod-1', name: 'Keyboard', isDeleted: false };
       productRepoMock.findOne.mockResolvedValue(mockProd);
 
+      (service as any).dataSource.manager = {};
       const result = await service.getProductById('prod-1');
       expect(result).toEqual(mockProd);
       expect(productRepoMock.findOne).toHaveBeenCalledWith({ where: { companyId: COMPANY_ID, id: 'prod-1', isDeleted: false } });
@@ -150,6 +164,8 @@ describe('ProductService tenant isolation', () => {
         { provide: getRepositoryToken(StockMovementEntity), useValue: {} },
         { provide: getRepositoryToken(WarehouseEntity), useValue: {} },
         { provide: StockHelperService, useValue: { calculateStatus: () => 'In stock' } },
+        { provide: WarehouseStockService, useValue: stockStub() },
+        { provide: FinanceService, useValue: financeStub },
         { provide: AppGateway, useValue: { emitToCompany: jest.fn() } },
         { provide: TenantContext, useValue: { companyId: 'tenant-A' } },
         { provide: DataSource, useValue: { transaction: (cb: any) => cb(manager) } },

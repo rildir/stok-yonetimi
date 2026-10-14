@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, BadRequestException } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { Roles } from '../../guards/roles.decorator';
-import { CreateWarehouseDto, UpdateWarehouseDto } from '../../dto/warehouse.dto';
+import { CreateWarehouseDto, UpdateWarehouseDto, TransferStockDto } from '../../dto/warehouse.dto';
+import { err } from '../../shared/i18n/app-error';
 
 @Controller('warehouses')
 export class WarehouseController {
@@ -34,16 +35,18 @@ export class WarehouseController {
     return { success: await this.warehouseService.deleteWarehouse(id) };
   }
 
+  @Get(':id/stock')
+  async getWarehouseStock(@Param('id') id: string) {
+    return this.warehouseService.getWarehouseStock(id);
+  }
+
   @Roles('admin', 'manager')
   @Post('transfer')
-  async transferWarehouseStock(
-    @Body('productId') productId: string,
-    @Body('fromWarehouse') fromWarehouse: string,
-    @Body('toWarehouse') toWarehouse: string,
-    @Body('quantity') quantity: number,
-    @Req() req: any
-  ) {
+  async transferWarehouseStock(@Body() dto: TransferStockDto, @Req() req: any) {
     const user = req.user?.username || 'Admin';
-    return this.warehouseService.transferWarehouseStock(productId, fromWarehouse, toWarehouse, quantity, user);
+    const from = dto.fromWarehouseId || dto.fromWarehouse;
+    const to = dto.toWarehouseId || dto.toWarehouse;
+    if (!from || !to) throw new BadRequestException(err('WAREHOUSE_NOT_FOUND'));
+    return this.warehouseService.transferWarehouseStock(dto.productId, from, to, dto.quantity, user, dto.note);
   }
 }

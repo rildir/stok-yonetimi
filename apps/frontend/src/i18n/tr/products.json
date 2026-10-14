@@ -125,5 +125,11 @@
   "products.csv.supplierId": "Tedarikçi ID",
   "products.print.title": "Ecelon — Ürün Listesi",
   "products.print.subtitle": "Yazdırma Tarihi: {date} | Toplam: {count} ürün",
-  "products.print.minLimit": "Min. Limit"
+  "products.print.minLimit": "Min. Limit",
+  "products.form.initialWarehouse": "Başlangıç Stoğu Deposu",
+  "products.form.defaultWarehouse": "varsayılan",
+  "products.transferModal.note": "Not (İsteğe Bağlı)",
+  "products.transferModal.sameWarehouse": "Kaynak ve hedef depo farklı olmalıdır.",
+  "products.transferModal.exceedsAvailable": "Miktar kaynak depodaki mevcut stoğu aşıyor.",
+  "products.transferModal.invalidQuantity": "Sıfırdan büyük bir miktar girin."
 }

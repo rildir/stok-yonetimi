@@ -119,6 +119,31 @@ export const MESSAGES: Catalog = {
   VALIDATION_SUPPLIER_NAME_REQUIRED: { tr: 'Tedarikçi adı boş olamaz.', en: 'Supplier name is required.' },
   VALIDATION_WAREHOUSE_NAME_REQUIRED: { tr: 'Depo adı boş olamaz.', en: 'Warehouse name is required.' },
   VALIDATION_WAREHOUSE_CODE_REQUIRED: { tr: 'Depo kodu boş olamaz.', en: 'Warehouse code is required.' },
+  VALIDATION_FAILED: { tr: 'Geçersiz istek parametreleri.', en: 'Invalid request parameters.' },
+  VALIDATION_DATE: { tr: 'Geçerli bir tarih girin (YYYY-AA-GG).', en: 'Enter a valid date (YYYY-MM-DD).' },
+  VALIDATION_CUSTOMER_TYPE: { tr: 'Müşteri tipi "individual" veya "company" olmalıdır.', en: 'Customer type must be "individual" or "company".' },
+  VALIDATION_TAX_NAME_REQUIRED: { tr: 'Vergi adı boş olamaz.', en: 'Tax name is required.' },
+  VALIDATION_TAX_RATE_NUMBER: { tr: 'Vergi oranı geçerli bir sayı olmalıdır.', en: 'Tax rate must be a valid number.' },
+  VALIDATION_TAX_RATE_RANGE: { tr: 'Vergi oranı 0 ile 100 arasında olmalıdır.', en: 'Tax rate must be between 0 and 100.' },
+  VALIDATION_EXCHANGE_RATE_POSITIVE: { tr: 'Kur pozitif bir sayı olmalıdır.', en: 'Exchange rate must be a positive number.' },
+
+  // Warehouse stock / transfer
+  WAREHOUSE_NOT_FOUND: { tr: 'Depo bulunamadı.', en: 'Warehouse not found.' },
+  WAREHOUSE_NONE_ACTIVE: { tr: 'Stok işlemi için en az bir aktif depo gereklidir.', en: 'At least one active warehouse is required for stock operations.' },
+  TRANSFER_QUANTITY_INVALID: { tr: 'Transfer miktarı pozitif bir tam sayı olmalıdır.', en: 'Transfer quantity must be a positive integer.' },
+  TRANSFER_SAME_WAREHOUSE: { tr: 'Kaynak ve hedef depo aynı olamaz.', en: 'Source and target warehouse must differ.' },
+
+  // Customers / orders
+  CUSTOMER_NOT_FOUND: { tr: 'Müşteri bulunamadı.', en: 'Customer not found.' },
+  ORDER_ITEMS_REQUIRED: { tr: 'Sipariş en az bir ürün içermelidir.', en: 'An order must contain at least one item.' },
+
+  // Tax / currency
+  TAX_RATE_NOT_FOUND: { tr: 'Vergi oranı bulunamadı.', en: 'Tax rate not found.' },
+  TAX_RATE_DEFAULT_DELETE: { tr: 'Varsayılan vergi oranı silinemez. Önce başka bir oranı varsayılan yapın.', en: 'The default tax rate cannot be deleted. Make another rate the default first.' },
+  EXCHANGE_RATE_MISSING: { tr: '{from} → {to} için döviz kuru tanımlı değil. Ayarlar > Döviz Kurları bölümünden ekleyin.', en: 'No exchange rate defined for {from} → {to}. Add one under Settings > Exchange rates.' },
+  EXCHANGE_RATE_NOT_FOUND: { tr: 'Döviz kuru bulunamadı.', en: 'Exchange rate not found.' },
+  EXCHANGE_RATE_SAME_CURRENCY: { tr: 'Kaynak ve hedef para birimi aynı olamaz.', en: 'Base and quote currency must differ.' },
+  EXCHANGE_RATE_DUPLICATE: { tr: 'Bu para birimi çifti için o tarihte zaten bir kur var.', en: 'A rate for this currency pair already exists on that date.' },
 };
 
 export type MessageParams = Record<string, string | number | undefined | null>;

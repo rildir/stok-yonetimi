@@ -11,6 +11,7 @@ import {
   IsISO4217CurrencyCode,
   IsTimeZone,
   Matches,
+  IsBoolean,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -46,6 +47,11 @@ export class CompanySettingsDto {
 }
 
 export class UpdateCompanyDto extends CompanySettingsDto {
+  @ApiPropertyOptional({ description: 'Fiyatlar KDV dahil mi?' })
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeTax?: boolean;
+
   @ApiPropertyOptional({ description: 'Şirket adı' })
   @IsOptional()
   @IsString()

@@ -125,5 +125,11 @@
   "products.csv.supplierId": "Supplier ID",
   "products.print.title": "Ecelon — Product List",
   "products.print.subtitle": "Printed: {date} | Total: {count} products",
-  "products.print.minLimit": "Min. Limit"
+  "products.print.minLimit": "Min. Limit",
+  "products.form.initialWarehouse": "Initial Stock Warehouse",
+  "products.form.defaultWarehouse": "default",
+  "products.transferModal.note": "Note (Optional)",
+  "products.transferModal.sameWarehouse": "Source and target warehouse must be different.",
+  "products.transferModal.exceedsAvailable": "Quantity exceeds available stock in the source warehouse.",
+  "products.transferModal.invalidQuantity": "Enter a quantity greater than zero."
 }

@@ -62,5 +62,6 @@
   "layout.loggedOut": "Logged out.",
   "layout.linkCopied": "Page link copied to clipboard.",
   "layout.linkCopyError": "Could not copy link.",
-  "layout.documentTitle": "{page} — Ecelon"
+  "layout.documentTitle": "{page} — Ecelon",
+  "layout.nav.customers": "Customers"
 }

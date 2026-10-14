@@ -7,10 +7,12 @@ import { ProductEntity } from '../../entities/product.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
+import { SharedModule } from '../../shared/shared.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([OrderEntity, ProductEntity, StockMovementEntity, SupplierEntity, WarehouseEntity]),
+    SharedModule,
   ],
   controllers: [ReportController],
   providers: [ReportService],

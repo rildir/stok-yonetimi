@@ -19,5 +19,8 @@
   "dashboard.topSelling.title": "Top Selling Products",
   "dashboard.topSelling.empty": "No sales data available.",
   "dashboard.recentOrders.title": "Recent Orders",
-  "dashboard.units": "{qty} units"
+  "dashboard.units": "{qty} units",
+  "dashboard.stat.taxCollected": "Tax collected",
+  "dashboard.stat.inventoryValue": "Inventory value",
+  "dashboard.unconverted": "No exchange rate for: {currencies}"
 }

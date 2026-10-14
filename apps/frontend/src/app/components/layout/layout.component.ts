@@ -180,6 +180,10 @@ import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
                 <span class="nav-text">{{ 'layout.nav.orders' | t }}</span>
               </a>
+              <a routerLink="/customers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.customers' | t">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span class="nav-text">{{ 'layout.nav.customers' | t }}</span>
+              </a>
               <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.purchaseOrders' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                 <span class="nav-text">{{ 'layout.nav.purchaseOrders' | t }}</span>
@@ -487,6 +491,14 @@ export class LayoutComponent implements OnInit {
       route: '/orders',
       icon: '🛒',
       keywords: ['sipariş', 'takibi', 'orders', 'order', 'sales', 'siparişler', 'müşteri', 'satış']
+    },
+    {
+      titleKey: 'layout.nav.customers',
+      type: 'nav',
+      categoryKey: 'layout.group.operations',
+      route: '/customers',
+      icon: '👥',
+      keywords: ['müşteri', 'müşteriler', 'customer', 'customers', 'client', 'cari', 'alıcı']
     },
     {
       titleKey: 'layout.nav.purchaseOrders',
@@ -960,6 +972,7 @@ export class LayoutComponent implements OnInit {
     if (url.includes('/products')) return this.i18n.t('layout.nav.products');
     if (url.includes('/stock-movements')) return this.i18n.t('layout.nav.stockMovements');
     if (url.includes('/suppliers')) return this.i18n.t('layout.nav.suppliers');
+    if (url.includes('/customers')) return this.i18n.t('layout.nav.customers');
     if (url.includes('/purchase-orders')) return this.i18n.t('layout.nav.purchaseOrders');
     if (url.includes('/orders')) return this.i18n.t('layout.nav.orders');
     if (url.includes('/reports')) return this.i18n.t('layout.nav.reportsAnalytics');
@@ -976,6 +989,7 @@ export class LayoutComponent implements OnInit {
     if (url.includes('/stock-movements')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockMovements') };
     if (url.includes('/stock-count')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockCount') };
     if (url.includes('/warehouses')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.warehouses') };
+    if (url.includes('/customers')) return { category: this.i18n.t('layout.group.operations'), page: this.i18n.t('layout.nav.customers') };
     if (url.includes('/orders')) return { category: this.i18n.t('layout.group.operations'), page: this.i18n.t('layout.nav.orders') };
     if (url.includes('/purchase-orders')) return { category: this.i18n.t('layout.group.operations'), page: this.i18n.t('layout.nav.purchaseOrders') };
     if (url.includes('/suppliers')) return { category: this.i18n.t('layout.group.operations'), page: this.i18n.t('layout.nav.suppliers') };

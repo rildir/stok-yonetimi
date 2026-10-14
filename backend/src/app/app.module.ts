@@ -20,6 +20,9 @@ import { WarehouseEntity } from './entities/warehouse.entity';
 import { ProductWarehouseStockEntity } from './entities/product-warehouse-stock.entity';
 import { UserEntity } from './entities/user.entity';
 import { CompanyEntity } from './entities/company.entity';
+import { CustomerEntity } from './entities/customer.entity';
+import { TaxRateEntity } from './entities/tax-rate.entity';
+import { ExchangeRateEntity } from './entities/exchange-rate.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -40,6 +43,8 @@ import { StockMovementModule } from './modules/stock-movement/stock-movement.mod
 import { StockCountModule } from './modules/stock-count/stock-count.module';
 import { UserModule } from './modules/user/user.module';
 import { ReportModule } from './modules/report/report.module';
+import { CustomerModule } from './modules/customer/customer.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 @Module({
   imports: [
@@ -64,6 +69,9 @@ import { ReportModule } from './modules/report/report.module';
         ProductWarehouseStockEntity,
         UserEntity,
         CompanyEntity,
+        CustomerEntity,
+        TaxRateEntity,
+        ExchangeRateEntity,
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
@@ -92,6 +100,8 @@ import { ReportModule } from './modules/report/report.module';
     StockCountModule,
     UserModule,
     ReportModule,
+    CustomerModule,
+    FinanceModule,
     HealthModule,
   ],
   providers: [

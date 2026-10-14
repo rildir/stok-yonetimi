@@ -58,6 +58,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
         <div>
           <span class="stat-label">{{ 'dashboard.stat.totalRevenue' | t }}</span>
           <div class="stat-value good">{{ state.totalRevenue() | money }}</div>
+          @if (state.summary(); as sm) {
+            <div style="font-size:0.75rem; color:#565959; margin-top:2px;">{{ 'dashboard.stat.taxCollected' | t }}: {{ sm.taxCollected | money }} · {{ 'dashboard.stat.inventoryValue' | t }}: {{ sm.inventoryValue | money }}</div>
+            @if (sm.unconvertedCurrencies.length) {
+              <div style="font-size:0.72rem; color:#B12704;">{{ 'dashboard.unconverted' | t: { currencies: sm.unconvertedCurrencies.join(', ') } }}</div>
+            }
+          }
         </div>
       </div>
  
@@ -189,7 +195,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                 <span>{{ o.orderNumber }} · {{ o.date | appDate }}</span>
               </div>
               <div class="list-item-right">
-                <strong class="mono" style="font-size:0.82rem;">{{ o.totalAmount | money }}</strong>
+                <strong class="mono" style="font-size:0.82rem;">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</strong>
                 <span class="sdot" [class.completed]="o.status === 'Completed'" [class.pending]="o.status === 'Pending'" [class.cancelled]="o.status === 'Cancelled'"></span>
               </div>
             </div>
@@ -237,7 +243,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           productQuantities[item.productId] = { name: item.productName, quantity: 0, totalAmount: 0 };
         }
         productQuantities[item.productId].quantity += item.quantity;
-        productQuantities[item.productId].totalAmount += item.quantity * item.price;
+        productQuantities[item.productId].totalAmount += (item.lineTotal ?? item.quantity * item.price) * (order.exchangeRate ?? 1);
       }
     }
     const list = Object.values(productQuantities).sort((a, b) => b.quantity - a.quantity);

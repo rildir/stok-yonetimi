@@ -1,5 +1,4 @@
-import { err } from '../i18n/app-error';
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
@@ -9,46 +8,6 @@ export class StockHelperService {
     if (quantity <= 0) return 'Out of stock';
     if (quantity <= minQuantity) return 'Low stock';
     return 'In stock';
-  }
-
-  deductStockFromWarehouses(
-    warehouses: Record<string, number> | null,
-    quantityToSubtract: number,
-    activeWarehouseNames: string[]
-  ): Record<string, number> {
-    const wh = { ...(warehouses || {}) };
-    let remaining = quantityToSubtract;
-
-    for (const name of activeWarehouseNames) {
-      if (remaining <= 0) break;
-      const currentQty = wh[name] || 0;
-      if (currentQty > 0) {
-        const toSubtract = Math.min(currentQty, remaining);
-        wh[name] = currentQty - toSubtract;
-        remaining -= toSubtract;
-      }
-    }
-
-    if (remaining > 0) {
-      throw new BadRequestException(
-        err('STOCK_INSUFFICIENT_BY_WAREHOUSE', { missing: remaining })
-      );
-    }
-
-    return wh;
-  }
-
-  addStockToWarehouses(
-    warehouses: Record<string, number> | null,
-    quantityToAdd: number,
-    activeWarehouseNames: string[]
-  ): Record<string, number> {
-    const wh = { ...(warehouses || {}) };
-    if (activeWarehouseNames.length > 0) {
-      const firstWhName = activeWarehouseNames[0];
-      wh[firstWhName] = (wh[firstWhName] || 0) + quantityToAdd;
-    }
-    return wh;
   }
 
   slugify(text: string): string {

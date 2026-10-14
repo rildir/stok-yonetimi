@@ -6,16 +6,33 @@ import { OrderEntity } from '../../entities/order.entity';
 import { OrderItemEntity } from '../../entities/order-item.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
-import { WarehouseEntity } from '../../entities/warehouse.entity';
-import { StockHelperService } from '../../shared/services/stock-helper.service';
+import { CustomerEntity } from '../../entities/customer.entity';
+import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
+import { FinanceService } from '../../shared/services/finance.service';
 import { AppGateway } from '../../app.gateway';
 import { OrderStatus, StockMovementType } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
 export interface OrderItemInput {
   productId: string;
-  productName: string;
+  productName?: string;
   quantity: number;
+  /** Unit price in document currency as entered (optional; defaults to the product price) */
+  unitPrice?: number | null;
+  /** Source warehouse (optional; otherwise taken greedily across warehouses) */
+  warehouseId?: string | null;
+}
+
+export interface CreateOrderInput {
+  customerId?: string | null;
+  customerName?: string;
+  status: OrderStatus | string;
+  items: OrderItemInput[];
+  currency?: string;
+  warehouseId?: string | null;
+  carrier?: string;
+  trackingNumber?: string;
+  date?: string;
 }
 
 @Injectable()
@@ -26,7 +43,8 @@ export class OrderService {
     private readonly orderRepo: Repository<OrderEntity>,
     @InjectRepository(ProductEntity)
     private readonly productRepo: Repository<ProductEntity>,
-    private readonly stockHelper: StockHelperService,
+    private readonly warehouseStock: WarehouseStockService,
+    private readonly finance: FinanceService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -50,19 +68,12 @@ export class OrderService {
     });
   }
 
-  async createOrder(
-    data: {
-      customerName: string;
-      status: OrderStatus | string;
-      items: OrderItemInput[];
-      carrier?: string;
-      trackingNumber?: string;
-      date?: string;
-    },
-    performedBy = 'System'
-  ): Promise<OrderEntity> {
+  async createOrder(data: CreateOrderInput, performedBy = 'System'): Promise<OrderEntity> {
     if (data.status === OrderStatus.CANCELLED) {
       throw new BadRequestException(err('ORDER_CANNOT_CREATE_CANCELLED'));
+    }
+    if (!data.items || data.items.length === 0) {
+      throw new BadRequestException(err('ORDER_ITEMS_REQUIRED'));
     }
 
     const productsToEmit: ProductEntity[] = [];
@@ -83,20 +94,34 @@ export class OrderService {
         throw new BadRequestException(err('ORDER_NUMBER_GENERATION_FAILED'));
       }
 
-      // Merge duplicates in payload
+      let customer: CustomerEntity | null = null;
+      if (data.customerId) {
+        customer = await manager.findOne(CustomerEntity, {
+          where: { companyId: this.companyId, id: data.customerId, isDeleted: false },
+        });
+        if (!customer) throw new BadRequestException(err('CUSTOMER_NOT_FOUND'));
+      }
+      const customerName = (customer?.name || data.customerName || '').trim();
+      if (!customerName) throw new BadRequestException(err('VALIDATION_CUSTOMER_NAME_REQUIRED'));
+
+      const company = await this.finance.getCompany(manager);
+      const currency = (data.currency || customer?.currency || company.baseCurrency).toUpperCase();
+      const orderDate = data.date ? new Date(data.date) : new Date();
+
+      // Merge duplicates in payload (same product + same source warehouse)
       const mergedMap = new Map<string, OrderItemInput>();
       for (const item of data.items) {
-        if (mergedMap.has(item.productId)) {
-          mergedMap.get(item.productId)!.quantity += item.quantity;
+        const key = `${item.productId}|${item.warehouseId || data.warehouseId || ''}`;
+        const existing = mergedMap.get(key);
+        if (existing) {
+          existing.quantity += item.quantity;
         } else {
-          mergedMap.set(item.productId, { ...item });
+          mergedMap.set(key, { ...item });
         }
       }
       const orderItems = Array.from(mergedMap.values());
 
-      let totalAmount = 0;
-      const orderItemEntities: OrderItemEntity[] = [];
-
+      const priced: { product: ProductEntity; quantity: number; unitPrice?: number | null }[] = [];
       for (const item of orderItems) {
         const prod = await manager.findOne(ProductEntity, {
           where: { companyId: this.companyId, id: item.productId, isDeleted: false },
@@ -104,7 +129,7 @@ export class OrderService {
         });
 
         if (!prod) {
-          throw new BadRequestException(err('PRODUCT_NOT_FOUND_NAME', { name: item.productName }));
+          throw new BadRequestException(err('PRODUCT_NOT_FOUND_NAME', { name: item.productName || item.productId }));
         }
         if (prod.quantity < item.quantity) {
           throw new BadRequestException(err('ORDER_INSUFFICIENT_STOCK', { name: prod.name, available: prod.quantity }));
@@ -112,55 +137,49 @@ export class OrderService {
 
         if (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING) {
           const oldQty = prod.quantity;
-
-          const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
-          const activeNames = activeWarehouses.map((w) => w.name);
-          prod.warehouses = this.stockHelper.deductStockFromWarehouses(prod.warehouses, item.quantity, activeNames);
-
-          prod.quantity -= item.quantity;
-          prod.status = this.stockHelper.calculateStatus(prod.quantity, prod.minQuantity);
-          const savedProd = await manager.save(ProductEntity, prod);
-          productsToEmit.push(savedProd);
-
-          await manager.save(
-            StockMovementEntity,
-            manager.create(StockMovementEntity, {
-              companyId: this.companyId,
-              productId: savedProd.id,
-              productName: savedProd.name,
-              type: StockMovementType.ORDER,
-              quantity: -item.quantity,
-              previousQuantity: oldQty,
-              newQuantity: prod.quantity,
-              referenceId: orderNumber,
-              referenceType: 'order',
-              note: `Sipariş oluşturuldu: ${orderNumber}`,
-              performedBy,
-            })
-          );
+          const allocations = await this.warehouseStock.deduct(manager, prod, item.quantity, item.warehouseId || data.warehouseId);
+          await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
+            type: StockMovementType.ORDER,
+            referenceId: orderNumber,
+            referenceType: 'order',
+            note: `Sipariş oluşturuldu: ${orderNumber}`,
+            performedBy,
+          });
+          productsToEmit.push(prod);
         }
-
-        const itemPrice = prod.price;
-        totalAmount += itemPrice * item.quantity;
-
-        const orderItem = manager.create(OrderItemEntity, {
-          productId: prod.id,
-          productName: prod.name,
-          quantity: item.quantity,
-          price: itemPrice,
-        });
-        orderItemEntities.push(orderItem);
+        priced.push({ product: prod, quantity: item.quantity, unitPrice: item.unitPrice });
       }
+
+      const { lines, totals, exchangeRate } = await this.finance.priceLines(priced, currency, orderDate, manager);
+
+      const orderItemEntities = priced.map((p, i) =>
+        manager.create(OrderItemEntity, {
+          productId: p.product.id,
+          productName: p.product.name,
+          quantity: p.quantity,
+          price: lines[i].unitPrice,
+          unitPrice: lines[i].unitPrice,
+          taxRate: lines[i].taxRate,
+          taxAmount: lines[i].taxAmount,
+          lineTotal: lines[i].lineTotal,
+        })
+      );
 
       const newOrder = manager.create(OrderEntity, {
         companyId: this.companyId,
-        customerName: data.customerName,
+        customerId: customer?.id ?? null,
+        customerName,
         status: data.status || OrderStatus.PENDING,
         carrier: data.carrier,
         trackingNumber: data.trackingNumber,
-        date: data.date ? new Date(data.date) : new Date(),
+        date: orderDate,
         orderNumber,
-        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        currency,
+        exchangeRate,
+        subtotal: totals.subtotal,
+        taxTotal: totals.taxTotal,
+        grandTotal: totals.grandTotal,
+        totalAmount: totals.grandTotal,
         items: orderItemEntities,
       });
 
@@ -203,35 +222,29 @@ export class OrderService {
             where: { companyId: this.companyId, id: item.productId },
             lock: { mode: 'pessimistic_write' },
           });
-          if (prod) {
-            const oldQty = prod.quantity;
+          if (!prod) continue;
+          const oldQty = prod.quantity;
 
-            const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
-            const activeNames = activeWarehouses.map((w) => w.name);
-            prod.warehouses = this.stockHelper.addStockToWarehouses(prod.warehouses, item.quantity, activeNames);
-
-            prod.quantity += item.quantity;
-            prod.status = this.stockHelper.calculateStatus(prod.quantity, prod.minQuantity);
-            const savedProd = await manager.save(ProductEntity, prod);
-            productsToEmit.push(savedProd);
-
-            await manager.save(
-              StockMovementEntity,
-              manager.create(StockMovementEntity, {
-                companyId: this.companyId,
-                productId: savedProd.id,
-                productName: savedProd.name,
-                type: StockMovementType.RETURN,
-                quantity: item.quantity,
-                previousQuantity: oldQty,
-                newQuantity: prod.quantity,
-                referenceId: order.orderNumber,
-                referenceType: 'order',
-                note: `Sipariş iptal edildi: ${order.orderNumber}`,
-                performedBy,
-              })
-            );
+          // Put stock back into the warehouses it was taken from (else the default one).
+          const outs = await manager.find(StockMovementEntity, {
+            where: { companyId: this.companyId, productId: prod.id, referenceId: order.orderNumber, type: StockMovementType.ORDER },
+          });
+          let allocations = outs
+            .filter((m) => !!m.warehouseId)
+            .map((m) => ({ warehouseId: m.warehouseId as string, delta: Math.abs(m.quantity) }));
+          if (allocations.reduce((s, a) => s + a.delta, 0) === item.quantity) {
+            await this.warehouseStock.apply(manager, prod, allocations);
+          } else {
+            allocations = await this.warehouseStock.add(manager, prod, item.quantity);
           }
+          await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
+            type: StockMovementType.RETURN,
+            referenceId: order.orderNumber,
+            referenceType: 'order',
+            note: `Sipariş iptal edildi: ${order.orderNumber}`,
+            performedBy,
+          });
+          productsToEmit.push(prod);
         }
       }
 

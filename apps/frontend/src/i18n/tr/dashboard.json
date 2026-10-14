@@ -19,5 +19,8 @@
   "dashboard.topSelling.title": "En Çok Satan Ürünler",
   "dashboard.topSelling.empty": "Satış verisi bulunmuyor.",
   "dashboard.recentOrders.title": "Son Siparişler",
-  "dashboard.units": "{qty} Adet"
+  "dashboard.units": "{qty} Adet",
+  "dashboard.stat.taxCollected": "Tahsil edilen vergi",
+  "dashboard.stat.inventoryValue": "Stok değeri",
+  "dashboard.unconverted": "Kur bulunamayan para birimleri: {currencies}"
 }

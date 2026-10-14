@@ -49,5 +49,6 @@
   "reports.csv.supplierSection": "PURCHASES BY SUPPLIER",
   "reports.csv.supplierName": "Supplier Name",
   "reports.csv.orderCount": "Order Count",
-  "reports.csv.totalPaid": "Total Paid ({currency})"
+  "reports.csv.totalPaid": "Total Paid ({currency})",
+  "reports.baseCurrencyNote": "All amounts are converted to the company base currency ({currency})."
 }

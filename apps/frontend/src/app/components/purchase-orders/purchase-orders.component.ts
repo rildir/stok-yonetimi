@@ -2,7 +2,8 @@ import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormArray, FormsModule } from '@angular/forms';
-import { InventoryService } from '../../inventory.service';
+import { InventoryService, PurchaseOrderPayload } from '../../inventory.service';
+import { TaxRate, Warehouse } from '../../models/inventory.models';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
@@ -83,7 +84,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                 </div>
                 <div>
                   <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.totalAmount' | t }}</div>
-                  <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">{{ o.totalAmount | money }}</div>
+                  <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</div>
                 </div>
                 <div>
                   <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.supplier' | t }}</div>
@@ -114,7 +115,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                   @for (item of getGroupedItems(o.items); track item.productId) {
                     <div style="display: flex; justify-content: space-between; width: 100%; max-width: 550px; font-size: 13px;">
                       <span style="color: #0F1111; font-weight: 500;">
-                        {{ item.productName }} — {{ 'purchaseOrders.itemLine' | t: { qty: (item.quantity | num), price: (item.price | money), total: ((item.quantity * item.price) | money) } }}
+                        {{ item.productName }} — {{ 'purchaseOrders.itemLine' | t: { qty: (item.quantity | num), price: (item.price | money: o.currency), total: (item.lineTotal | money: o.currency) } }}
                       </span>
                     </div>
                   }
@@ -187,6 +188,23 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                 @if (isFieldInvalid('supplierId')) { <div class="form-error">⚠ {{ 'purchaseOrders.supplierRequired' | t }}</div> }
               </div>
 
+              <div style="display:flex; gap:12px;">
+                <div class="form-field" style="flex:1;">
+                  <select formControlName="currency" class="form-input form-select has-value">
+                    @for (c of currencies(); track c) { <option [value]="c">{{ c }}</option> }
+                  </select>
+                  <label class="form-label">{{ 'finance.currency' | t }}</label>
+                </div>
+                <div class="form-field" style="flex:1;">
+                  <select formControlName="warehouseId" class="form-input form-select has-value">
+                    <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
+                    @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+                  </select>
+                  <label class="form-label">{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
+                </div>
+              </div>
+              <div class="text-muted" style="font-size:12px; margin:-6px 0 12px;">{{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}</div>
+
               <div class="form-field">
                 <input type="date" formControlName="expectedDate" class="form-input has-value" />
                 <label class="form-label">{{ 'purchaseOrders.expectedDate' | t }}</label>
@@ -205,9 +223,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
 
                 <div formArrayName="items" style="display: flex; flex-direction: column; gap: 10px;">
                   @for (item of itemsArray.controls; track i; let i = $index) {
-                    <div [formGroupName]="i" style="display: flex; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px;">
+                    <div [formGroupName]="i" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px;">
                       <div style="flex: 2;">
-                        <select formControlName="productId" class="form-input form-select" style="height: 40px; padding: 0 12px; font-size: 13px;">
+                        <select formControlName="productId" class="form-input form-select" (change)="onProductChange(i)" style="height: 40px; padding: 0 12px; font-size: 13px;">
                           <option value="" disabled selected>{{ 'purchaseOrders.selectProduct' | t }}</option>
                           @for (p of state.products(); track p.id) {
                             <option [value]="p.id">{{ p.name }} ({{ 'purchaseOrders.available' | t: { n: p.quantity } }})</option>
@@ -217,9 +235,33 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                       <div style="flex: 1;">
                         <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'purchaseOrders.quantity' | t" min="1" />
                       </div>
+                      <div style="flex: 1;">
+                        <input type="number" formControlName="unitPrice" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'finance.unitPrice' | t" min="0" step="0.01" [title]="'finance.unitPrice' | t" />
+                      </div>
                       <button type="button" class="delete-btn" (click)="removeItem(i)" style="padding: 6px;">
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                       </button>
+                      @if (preview().lines[i]; as ln) {
+                        <div style="flex-basis:100%; font-size:12px; color:#565959; display:flex; gap:12px; flex-wrap:wrap;">
+                          @if (ln.hasPrice) {
+                            <span>{{ 'finance.taxRate' | t }}: {{ ln.rate | num }}%</span>
+                            <span>{{ 'finance.taxAmount' | t }}: {{ ln.tax | money: formCurrency() }}</span>
+                            <span>{{ 'finance.lineTotal' | t }}: <strong>{{ ln.gross | money: formCurrency() }}</strong></span>
+                          } @else if (ln.productId) {
+                            <span>{{ 'purchaseOrders.serverPriceHint' | t }}</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                  @if (itemsArray.length > 0) {
+                    <div style="padding:12px; border:1px solid var(--secondary); border-radius:8px; font-size:13px; display:flex; flex-direction:column; gap:4px;">
+                      <div style="display:flex; justify-content:space-between;"><span>{{ 'finance.subtotal' | t }}</span><span>{{ preview().subtotal | money: formCurrency() }}</span></div>
+                      @for (b of preview().breakdown; track b.rate) {
+                        <div style="display:flex; justify-content:space-between; color:#565959;"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: formCurrency()) } }}</span><span>{{ b.tax | money: formCurrency() }}</span></div>
+                      }
+                      <div style="display:flex; justify-content:space-between; font-weight:700;"><span>{{ 'finance.grandTotal' | t }}</span><span>{{ preview().total | money: formCurrency() }}</span></div>
+                      @if (preview().incomplete) { <div class="text-muted" style="font-size:12px;">{{ 'purchaseOrders.previewIncomplete' | t }}</div> }
                     </div>
                   }
                   @if (itemsArray.length === 0) {
@@ -280,13 +322,30 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
                   <span class="detail-item-name">
                     {{ item.productName }}
                   </span>
-                  <span class="detail-item-qty" style="font-size: 13px; font-weight: normal; color: #565959;">
-                    {{ 'purchaseOrders.itemQtyPrice' | t: { qty: (item.quantity | num), price: (item.price | money) } }} = <strong style="color: #0f1111; font-weight: bold;">{{ (item.quantity * item.price) | money }}</strong>
+                  <span class="detail-item-qty" style="font-size: 13px; font-weight: normal; color: #565959; text-align:right;">
+                    {{ 'purchaseOrders.itemQtyPrice' | t: { qty: (item.quantity | num), price: (item.price | money: detailOrder().currency) } }}
+                    · {{ 'finance.taxRate' | t }} {{ item.taxRate | num }}% · {{ 'finance.tax' | t }} {{ item.taxAmount | money: detailOrder().currency }}
+                    = <strong style="color: #0f1111; font-weight: bold;">{{ item.lineTotal | money: detailOrder().currency }}</strong>
                   </span>
                 </div>
               }
             </div>
             
+            <div style="margin-top:12px; padding:12px 16px; border:1px solid var(--secondary); border-radius:8px; font-size:13px; display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; justify-content:space-between;"><span>{{ 'finance.subtotal' | t }}</span><span>{{ detailTotals().subtotal | money: detailOrder().currency }}</span></div>
+              @for (b of detailTotals().breakdown; track b.rate) {
+                <div style="display:flex; justify-content:space-between; color:#565959;"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: detailOrder().currency) } }}</span><span>{{ b.tax | money: detailOrder().currency }}</span></div>
+              }
+              <div style="display:flex; justify-content:space-between; font-weight:700;"><span>{{ 'finance.grandTotal' | t }}</span><span>{{ detailTotals().total | money: detailOrder().currency }}</span></div>
+              @if (detailOrder().currency && detailOrder().currency !== i18n.currency()) {
+                <div style="display:flex; justify-content:space-between; color:#565959;"><span>{{ 'finance.inBaseCurrency' | t: { currency: i18n.currency() } }}</span><span>{{ (detailTotals().total * (detailOrder().exchangeRate ?? 1)) | money }}</span></div>
+                <div class="text-muted" style="font-size:12px;">{{ 'finance.exchangeRateNote' | t: { from: detailOrder().currency, rate: ((detailOrder().exchangeRate ?? 1) | num), to: i18n.currency() } }}</div>
+              }
+              @if (warehouseName(detailOrder().warehouseId); as wn) {
+                <div class="text-muted" style="font-size:12px;">{{ 'purchaseOrders.receivingWarehouse' | t }}: {{ wn }}</div>
+              }
+            </div>
+
             @if (detailOrder().notes) {
               <div style="margin-top: 24px;">
                 <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">{{ 'purchaseOrders.notes' | t }}</h3>
@@ -323,6 +382,24 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
       </div>
     }
     
+    @if (receiveTarget()) {
+      <div class="drawer-overlay" (click)="receiveTarget.set(null)" style="display:flex; align-items:center; justify-content:center;">
+        <div (click)="$event.stopPropagation()" style="background:var(--surface-card, #fff); border-radius:12px; padding:20px; width:min(420px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:12px;">
+          <h3 style="margin:0; font-size:16px;">{{ 'purchaseOrders.receive' | t }}</h3>
+          <p style="margin:0; font-size:13px; color:#565959;">{{ 'purchaseOrders.receiveMessage' | t: { no: formatPoNumber(receiveTarget().poNumber) } }}</p>
+          <label style="font-size:12px; font-weight:600;">{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
+          <select class="form-input form-select" [ngModel]="receiveWarehouseId()" (ngModelChange)="receiveWarehouseId.set($event)">
+            <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
+            @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+          </select>
+          <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <button class="btn btn-secondary" (click)="receiveTarget.set(null)">{{ 'common.cancel' | t }}</button>
+            <button class="btn btn-primary" [disabled]="isSaving()" (click)="confirmReceive()">{{ 'purchaseOrders.receive' | t }}</button>
+          </div>
+        </div>
+      </div>
+    }
+
     <app-toast></app-toast>
   `,
   styles: [`
@@ -405,6 +482,100 @@ export class PurchaseOrdersComponent implements OnInit {
   isAutoDrafting = signal(false);
   detailOrder = signal<any>(null);
   editingPoId = signal<string | null>(null);
+  taxRates = signal<TaxRate[]>([]);
+  warehouses = signal<Warehouse[]>([]);
+  receiveTarget = signal<any>(null);
+  receiveWarehouseId = signal<string>('');
+  private formValue = signal<any>(null);
+
+  pricesIncludeTax = computed(() => !!this.ui.userProfile()?.company?.pricesIncludeTax);
+  currencies = computed(() => Array.from(new Set([this.i18n.currency(), 'TRY', 'USD', 'EUR', 'GBP'])));
+  formCurrency = computed(() => this.formValue()?.currency || this.i18n.currency());
+  defaultWarehouseId = computed(() => this.warehouses().find(w => w.isDefault)?.id || '');
+
+  preview = computed(() => {
+    const v = this.formValue();
+    const lines = (v?.items || []).map((it: any) => {
+      const hasPrice = it.unitPrice !== null && it.unitPrice !== '' && it.unitPrice !== undefined && !isNaN(Number(it.unitPrice));
+      const res = this.calcLine(it.productId, Number(it.quantity) || 0, hasPrice ? Number(it.unitPrice) : 0);
+      return { ...res, productId: it.productId, hasPrice };
+    });
+    const priced = lines.filter((l: any) => l.hasPrice && l.productId);
+    return {
+      lines,
+      ...this.summarize(priced.map((l: any) => ({ rate: l.rate, net: l.net, tax: l.tax }))),
+      incomplete: lines.some((l: any) => l.productId && !l.hasPrice)
+    };
+  });
+
+  detailTotals = computed(() => {
+    const o = this.detailOrder();
+    if (!o) return { subtotal: 0, total: 0, breakdown: [] as { rate: number; base: number; tax: number }[] };
+    const s = this.summarize((o.items || []).map((it: any) => {
+      const tax = Number(it.taxAmount) || 0;
+      const gross = Number(it.lineTotal ?? 0);
+      return { rate: Number(it.taxRate) || 0, net: this.round(gross - tax), tax };
+    }));
+    return {
+      subtotal: o.subtotal ?? s.subtotal,
+      total: o.grandTotal ?? o.totalAmount ?? s.total,
+      breakdown: s.breakdown
+    };
+  });
+
+  private round(n: number) { return Math.round(n * 100) / 100; }
+
+  private taxRateFor(productId: string): number {
+    const p: any = this.state.products().find(x => x.id === productId);
+    const rates = this.taxRates();
+    const r = (p?.taxRateId && rates.find(t => t.id === p.taxRateId)) || rates.find(t => t.isDefault);
+    return r ? Number(r.rate) || 0 : 0;
+  }
+
+  private calcLine(productId: string, qty: number, price: number) {
+    const rate = productId ? this.taxRateFor(productId) : 0;
+    let net: number, tax: number, gross: number;
+    if (this.pricesIncludeTax()) {
+      gross = this.round(price * qty);
+      net = this.round(gross / (1 + rate / 100));
+      tax = this.round(gross - net);
+    } else {
+      net = this.round(price * qty);
+      tax = this.round(net * rate / 100);
+      gross = this.round(net + tax);
+    }
+    return { rate, net, tax, gross };
+  }
+
+  private summarize(lines: { rate: number; net: number; tax: number }[]) {
+    const map = new Map<number, { rate: number; base: number; tax: number }>();
+    let subtotal = 0, taxTotal = 0;
+    for (const l of lines) {
+      subtotal += l.net; taxTotal += l.tax;
+      const e = map.get(l.rate) || { rate: l.rate, base: 0, tax: 0 };
+      e.base = this.round(e.base + l.net); e.tax = this.round(e.tax + l.tax);
+      map.set(l.rate, e);
+    }
+    subtotal = this.round(subtotal); taxTotal = this.round(taxTotal);
+    return { subtotal, taxTotal, total: this.round(subtotal + taxTotal), breakdown: Array.from(map.values()).sort((a, b) => a.rate - b.rate) };
+  }
+
+  warehouseName(id?: string | null): string {
+    return id ? (this.warehouses().find(w => w.id === id)?.name || '') : '';
+  }
+
+  /** Prefill unit price only when product currency matches PO currency */
+  private suggestedPrice(productId: string): number | null {
+    const p: any = this.state.products().find(x => x.id === productId);
+    if (!p) return null;
+    const pc = p.currency || this.i18n.currency();
+    return pc === this.formCurrency() ? Number(p.price) : null;
+  }
+
+  onProductChange(i: number) {
+    const g = this.itemsArray.at(i);
+    g.patchValue({ unitPrice: this.suggestedPrice(g.get('productId')?.value) });
+  }
 
   // Filter Signals
   poSearch = signal('');
@@ -415,6 +586,8 @@ export class PurchaseOrdersComponent implements OnInit {
   poForm: FormGroup = this.fb.group({
     supplierId: ['', Validators.required],
     supplierName: [''],
+    currency: [''],
+    warehouseId: [''],
     expectedDate: [''],
     notes: [''],
     items: this.fb.array([])
@@ -462,6 +635,18 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.poForm.valueChanges.subscribe(v => this.formValue.set(v));
+    let lastCurrency = '';
+    this.poForm.get('currency')!.valueChanges.subscribe(c => {
+      if (c && lastCurrency && c !== lastCurrency) {
+        this.formValue.set(this.poForm.getRawValue());
+        this.itemsArray.controls.forEach(g => g.patchValue({ unitPrice: this.suggestedPrice(g.get('productId')?.value) }, { emitEvent: false }));
+        this.formValue.set(this.poForm.getRawValue());
+      }
+      lastCurrency = c;
+    });
+    this.inventory.getTaxRates().subscribe({ next: r => this.taxRates.set(r), error: () => {} });
+    this.inventory.getWarehouses().subscribe({ next: w => this.warehouses.set(w), error: () => {} });
     this.loadData();
     if (this.state.products().length === 0) {
       this.state.loadData();
@@ -501,11 +686,14 @@ export class PurchaseOrdersComponent implements OnInit {
     this.poForm.reset({
       supplierId: '',
       supplierName: '',
+      currency: this.i18n.currency(),
+      warehouseId: this.defaultWarehouseId(),
       expectedDate: '',
       notes: ''
     });
     this.itemsArray.clear();
     this.addItem();
+    this.formValue.set(this.poForm.getRawValue());
     this.isDrawerOpen.set(true);
   }
 
@@ -533,7 +721,8 @@ export class PurchaseOrdersComponent implements OnInit {
   addItem() {
     this.itemsArray.push(this.fb.group({
       productId: ['', Validators.required],
-      quantity: [1, [Validators.required, Validators.min(1)]]
+      quantity: [1, [Validators.required, Validators.min(1)]],
+      unitPrice: [null as number | null, [Validators.min(0)]]
     }));
   }
 
@@ -551,33 +740,28 @@ export class PurchaseOrdersComponent implements OnInit {
     const data = this.poForm.value;
     
     // Merge duplicate items by summing their quantities
-    const mergedMap = new Map<string, number>();
+    const mergedMap = new Map<string, { productId: string; quantity: number; unitPrice?: number }>();
     data.items.forEach((it: any) => {
-      const existingQty = mergedMap.get(it.productId) || 0;
-      mergedMap.set(it.productId, existingQty + Number(it.quantity));
-    });
-    
-    const mergedItems = Array.from(mergedMap.entries()).map(([productId, quantity]) => {
-      return {
-        productId,
-        quantity
-      };
+      const e: { productId: string; quantity: number; unitPrice?: number } = mergedMap.get(it.productId) || { productId: it.productId, quantity: 0 };
+      e.quantity += Number(it.quantity);
+      const hasPrice = it.unitPrice !== null && it.unitPrice !== '' && it.unitPrice !== undefined;
+      if (hasPrice && e.unitPrice === undefined) e.unitPrice = Number(it.unitPrice);
+      mergedMap.set(it.productId, e);
     });
 
-    // Add product names to items
-    const items = mergedItems.map((it: any) => {
-      const p = this.state.products().find(x => x.id === it.productId);
-      return {
-        ...it,
-        productName: p?.name || this.i18n.t('purchaseOrders.unknownProduct')
-      };
-    });
+    const payload: PurchaseOrderPayload & { expectedDate?: string } = {
+      supplierId: data.supplierId,
+      currency: data.currency || undefined,
+      warehouseId: data.warehouseId || undefined,
+      notes: data.notes || undefined,
+      items: Array.from(mergedMap.values())
+    };
+    if (data.expectedDate) payload.expectedDate = data.expectedDate;
 
-    data.items = items;
 
     const request$ = this.editingPoId()
-      ? this.inventory.updatePurchaseOrder(this.editingPoId()!, data)
-      : this.inventory.createPurchaseOrder(data);
+      ? this.inventory.updatePurchaseOrder(this.editingPoId()!, payload as PurchaseOrderPayload)
+      : this.inventory.createPurchaseOrder(payload as PurchaseOrderPayload);
 
     request$.subscribe({
       next: () => {
@@ -599,6 +783,8 @@ export class PurchaseOrdersComponent implements OnInit {
     this.poForm.reset({
       supplierId: order.supplierId,
       supplierName: order.supplierName,
+      currency: order.currency || this.i18n.currency(),
+      warehouseId: order.warehouseId || '',
       expectedDate: order.expectedDate ? order.expectedDate.slice(0, 10) : '',
       notes: order.notes || ''
     });
@@ -606,9 +792,11 @@ export class PurchaseOrdersComponent implements OnInit {
     order.items.forEach((it: any) => {
       this.itemsArray.push(this.fb.group({
         productId: [it.productId, Validators.required],
-        quantity: [it.quantity, [Validators.required, Validators.min(1)]]
+        quantity: [it.quantity, [Validators.required, Validators.min(1)]],
+        unitPrice: [it.unitPrice ?? it.price ?? null, [Validators.min(0)]]
       }));
     });
+    this.formValue.set(this.poForm.getRawValue());
     this.closeDetailDrawer();
     this.isDrawerOpen.set(true);
   }
@@ -655,21 +843,26 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   receivePurchaseOrder(order: any) {
-    this.ui.openConfirm({
-      title: this.i18n.t('purchaseOrders.receive'),
-      message: this.i18n.t('purchaseOrders.receiveMessage', { no: this.formatPoNumber(order.poNumber) }),
-      onConfirm: () => {
-        this.inventory.updatePurchaseOrderStatus(order.id, 'Received').subscribe({
-          next: () => {
-            this.closeDetailDrawer();
-            this.loadData();
-            this.state.loadData(); // Refetch products to get updated stocks
-            this.ui.showToast(this.i18n.t('purchaseOrders.receivedToast'), 'success');
-          },
-          error: () => {
-            this.ui.showToast(this.i18n.t('purchaseOrders.actionFailed'), 'error');
-          }
-        });
+    this.receiveWarehouseId.set(order.warehouseId || this.defaultWarehouseId());
+    this.receiveTarget.set(order);
+  }
+
+  confirmReceive() {
+    const order = this.receiveTarget();
+    if (!order) return;
+    this.isSaving.set(true);
+    this.inventory.updatePurchaseOrderStatus(order.id, 'Received', this.receiveWarehouseId() || undefined).subscribe({
+      next: () => {
+        this.isSaving.set(false);
+        this.receiveTarget.set(null);
+        this.closeDetailDrawer();
+        this.loadData();
+        this.state.loadData(); // Refetch products to get updated stocks
+        this.ui.showToast(this.i18n.t('purchaseOrders.receivedToast'), 'success');
+      },
+      error: (err) => {
+        this.isSaving.set(false);
+        this.ui.showToast(err.error?.message || this.i18n.t('purchaseOrders.actionFailed'), 'error');
       }
     });
   }
@@ -719,16 +912,21 @@ export class PurchaseOrdersComponent implements OnInit {
       const productId = item.productId;
       if (!grouped[productId]) {
         const p = this.state.products().find(x => x.id === productId);
-        const price = item.price !== undefined && item.price !== null ? item.price : (p ? p.price : 0);
+        const price = item.unitPrice ?? item.price ?? item.unitCost ?? 0;
         grouped[productId] = {
           productId: item.productId,
           productName: item.productName || p?.name || this.i18n.t('purchaseOrders.unknownProduct'),
           quantity: 0,
           price: price,
+          taxRate: item.taxRate ?? 0,
+          taxAmount: 0,
+          lineTotal: 0,
           occurrenceCount: 0
         };
       }
       grouped[productId].quantity += item.quantity;
+      grouped[productId].taxAmount += Number(item.taxAmount) || 0;
+      grouped[productId].lineTotal += Number(item.lineTotal ?? item.quantity * grouped[productId].price) || 0;
       grouped[productId].occurrenceCount += 1;
     }
     return Object.values(grouped);

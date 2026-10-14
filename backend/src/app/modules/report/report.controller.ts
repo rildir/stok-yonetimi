@@ -40,6 +40,11 @@ export class ReportController {
     return this.reportService.getTopSelling(days ? parseInt(days, 10) : 30);
   }
 
+  @Get('reports/dashboard-summary')
+  async getDashboardSummary() {
+    return this.reportService.getDashboardSummary();
+  }
+
   @Get('reports/supplier-summary')
   async getSupplierSummary() {
     return this.reportService.getSupplierSummary();

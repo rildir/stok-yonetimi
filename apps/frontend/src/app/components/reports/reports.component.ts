@@ -15,6 +15,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
       <div>
         <h1>{{ 'reports.title' | t }}</h1>
         <p>{{ 'reports.subtitle' | t }}</p>
+        <p class="text-muted" style="font-size:12px; margin-top:2px;">{{ 'reports.baseCurrencyNote' | t: { currency: i18n.currency() } }}</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-primary" (click)="exportToCsv()" [disabled]="isLoading()">

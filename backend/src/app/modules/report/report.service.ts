@@ -10,6 +10,8 @@ import { SupplierEntity } from '../../entities/supplier.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { OrderStatus, PurchaseOrderStatus } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
+import { FinanceService } from '../../shared/services/finance.service';
+import { convertAmount } from '../../shared/finance/currency';
 
 @Injectable()
 export class ReportService {
@@ -25,6 +27,7 @@ export class ReportService {
     private readonly supplierRepo: Repository<SupplierEntity>,
     @InjectRepository(WarehouseEntity)
     private readonly warehouseRepo: Repository<WarehouseEntity>,
+    private readonly finance: FinanceService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -82,23 +85,68 @@ export class ReportService {
     }));
   }
 
+  /** Category totals; stock value is converted to the company base currency. */
   async getCategoryDistribution() {
     const rawResults = await this.productRepo.createQueryBuilder('p')
       .select('COALESCE(p.category, \'Diğer\')', 'category')
+      .addSelect('p.currency', 'currency')
       .addSelect('COUNT(p.id)', 'productCount')
       .addSelect('COALESCE(SUM(p.quantity), 0)', 'totalStock')
       .addSelect('COALESCE(SUM(p.quantity * p.price), 0)', 'totalValue')
       .where('p.companyId = :companyId', { companyId: this.companyId })
       .andWhere('p.isDeleted = false')
       .groupBy('p.category')
+      .addGroupBy('p.currency')
       .getRawMany();
 
-    return rawResults.map((r) => ({
-      category: r.category,
-      productCount: Number(r.productCount || 0),
-      totalStock: Number(r.totalStock || 0),
-      totalValue: Number(r.totalValue || 0),
-    }));
+    const company = await this.finance.getCompany();
+    const rates = await this.finance.getRates();
+    const byCategory = new Map<string, { category: string; productCount: number; totalStock: number; totalValue: number; currency: string; unconverted: string[] }>();
+    for (const r of rawResults) {
+      const row = byCategory.get(r.category) || { category: r.category, productCount: 0, totalStock: 0, totalValue: 0, currency: company.baseCurrency, unconverted: [] as string[] };
+      row.productCount += Number(r.productCount || 0);
+      row.totalStock += Number(r.totalStock || 0);
+      const converted = convertAmount(Number(r.totalValue || 0), r.currency || company.baseCurrency, company.baseCurrency, rates, null, company.baseCurrency);
+      if (converted === null) row.unconverted.push(r.currency);
+      else row.totalValue = Math.round((row.totalValue + converted) * 100) / 100;
+      byCategory.set(r.category, row);
+    }
+    return [...byCategory.values()];
+  }
+
+  /**
+   * Headline numbers for the dashboard, all in the company base currency.
+   * Documents are converted with the rate frozen on them at creation time.
+   */
+  async getDashboardSummary() {
+    const company = await this.finance.getCompany();
+    const orders = await this.orderRepo.createQueryBuilder('o')
+      .select('COUNT(o.id)', 'orderCount')
+      .addSelect(`COALESCE(SUM(CASE WHEN o.status = '${OrderStatus.COMPLETED}' THEN o.grandTotal * o.exchangeRate ELSE 0 END), 0)`, 'revenue')
+      .addSelect(`COALESCE(SUM(CASE WHEN o.status = '${OrderStatus.COMPLETED}' THEN o.subtotal * o.exchangeRate ELSE 0 END), 0)`, 'netRevenue')
+      .addSelect(`COALESCE(SUM(CASE WHEN o.status = '${OrderStatus.COMPLETED}' THEN o.taxTotal * o.exchangeRate ELSE 0 END), 0)`, 'taxCollected')
+      .addSelect(`SUM(CASE WHEN o.status = '${OrderStatus.PENDING}' THEN 1 ELSE 0 END)`, 'pendingCount')
+      .where('o.companyId = :companyId', { companyId: this.companyId })
+      .getRawOne();
+    const purchases = await this.dataSource.getRepository(PurchaseOrderEntity).createQueryBuilder('po')
+      .select(`COALESCE(SUM(CASE WHEN po.status = '${PurchaseOrderStatus.RECEIVED}' THEN po.grandTotal * po.exchangeRate ELSE 0 END), 0)`, 'received')
+      .addSelect(`COALESCE(SUM(CASE WHEN po.status IN ('${PurchaseOrderStatus.DRAFT}', '${PurchaseOrderStatus.SENT}') THEN po.grandTotal * po.exchangeRate ELSE 0 END), 0)`, 'open')
+      .where('po.companyId = :companyId', { companyId: this.companyId })
+      .getRawOne();
+    const categories = await this.getCategoryDistribution();
+    const round = (n: unknown) => Math.round(Number(n || 0) * 100) / 100;
+    return {
+      currency: company.baseCurrency,
+      orderCount: Number(orders?.orderCount || 0),
+      pendingOrderCount: Number(orders?.pendingCount || 0),
+      revenue: round(orders?.revenue),
+      netRevenue: round(orders?.netRevenue),
+      taxCollected: round(orders?.taxCollected),
+      purchasesReceived: round(purchases?.received),
+      purchasesOpen: round(purchases?.open),
+      inventoryValue: round(categories.reduce((s, c) => s + c.totalValue, 0)),
+      unconvertedCurrencies: [...new Set(categories.flatMap((c) => c.unconverted))],
+    };
   }
 
   async getTopSelling(days = 30) {
@@ -111,7 +159,7 @@ export class ReportService {
       .select('oi.productId', 'productId')
       .addSelect('MAX(oi.productName)', 'productName')
       .addSelect('SUM(oi.quantity)', 'totalQty')
-      .addSelect('SUM(oi.quantity * oi.price)', 'totalRevenue')
+      .addSelect('SUM(oi.quantity * oi.unitPrice * o.exchangeRate)', 'totalRevenue')
       .where('o.companyId = :companyId', { companyId: this.companyId })
       .andWhere('o.status = :status', { status: OrderStatus.COMPLETED })
       .andWhere('o.date >= :thresholdDate', { thresholdDate })
@@ -123,7 +171,7 @@ export class ReportService {
     return rawResults.map((r) => ({
       productName: r.productName || 'Bilinmeyen Ürün',
       totalQty: Number(r.totalQty || 0),
-      totalRevenue: Number(r.totalRevenue || 0),
+      totalRevenue: Math.round(Number(r.totalRevenue || 0) * 100) / 100,
     }));
   }
 
@@ -134,7 +182,7 @@ export class ReportService {
       .addSelect('MAX(po.supplierName)', 'supplierName')
       .addSelect('COUNT(po.id)', 'poCount')
       .addSelect(
-        `COALESCE(SUM(CASE WHEN po.status = '${PurchaseOrderStatus.RECEIVED}' THEN po.totalAmount ELSE 0 END), 0)`,
+        `COALESCE(SUM(CASE WHEN po.status = '${PurchaseOrderStatus.RECEIVED}' THEN po.grandTotal * po.exchangeRate ELSE 0 END), 0)`,
         'totalAmount'
       )
       .where('po.companyId = :companyId', { companyId: this.companyId })

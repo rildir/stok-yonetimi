@@ -6,7 +6,9 @@ import { DataSource } from 'typeorm';
 import { OrderService } from './order.service';
 import { OrderEntity } from '../../entities/order.entity';
 import { ProductEntity } from '../../entities/product.entity';
-import { StockHelperService } from '../../shared/services/stock-helper.service';
+import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
+import { FinanceService } from '../../shared/services/finance.service';
+import { calculateLine, calculateTotals } from '../../shared/finance/tax';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
@@ -18,6 +20,7 @@ describe('OrderService', () => {
   let orderRepoMock: any;
   let productRepoMock: any;
   let stockHelperMock: any;
+  let financeMock: any;
   let appGatewayMock: any;
   let dataSourceMock: any;
 
@@ -32,9 +35,20 @@ describe('OrderService', () => {
     };
 
     stockHelperMock = {
-      calculateStatus: jest.fn().mockReturnValue('In stock'),
-      deductStockFromWarehouses: jest.fn().mockReturnValue({ 'Ana Depo': 9 }),
-      addStockToWarehouses: jest.fn().mockReturnValue({ 'Ana Depo': 10 }),
+      deduct: jest.fn().mockImplementation(async (_m: any, p: any, qty: number) => {
+        p.quantity -= qty;
+        return [{ warehouseId: 'w1', delta: -qty }];
+      }),
+      add: jest.fn().mockResolvedValue([{ warehouseId: 'w1', delta: 1 }]),
+      apply: jest.fn(),
+      recordMovements: jest.fn().mockResolvedValue([]),
+    };
+    financeMock = {
+      getCompany: jest.fn().mockResolvedValue({ id: COMPANY_ID, baseCurrency: 'TRY', pricesIncludeTax: true }),
+      priceLines: jest.fn().mockImplementation(async (items: any[]) => {
+        const lines = items.map((i) => calculateLine({ quantity: i.quantity, unitPrice: i.unitPrice ?? i.product.price, taxRate: 20 }, true));
+        return { lines, totals: calculateTotals(lines), exchangeRate: 1, pricesIncludeTax: true };
+      }),
     };
 
     appGatewayMock = {
@@ -61,7 +75,8 @@ describe('OrderService', () => {
         OrderService,
         { provide: getRepositoryToken(OrderEntity), useValue: orderRepoMock },
         { provide: getRepositoryToken(ProductEntity), useValue: productRepoMock },
-        { provide: StockHelperService, useValue: stockHelperMock },
+        { provide: WarehouseStockService, useValue: stockHelperMock },
+        { provide: FinanceService, useValue: financeMock },
         { provide: AppGateway, useValue: appGatewayMock },
         { provide: TenantContext, useValue: { companyId: COMPANY_ID } },
         { provide: DataSource, useValue: dataSourceMock },
@@ -112,6 +127,13 @@ describe('OrderService', () => {
 
       expect(result).toBeDefined();
       expect(result.customerName).toEqual('Ahmet Yılmaz');
+      // 2 x 1000 gross incl. 20% tax
+      expect(result.grandTotal).toBe(2000);
+      expect(result.totalAmount).toBe(2000);
+      expect(result.taxTotal).toBe(333.33);
+      expect(result.subtotal).toBe(1666.67);
+      expect(result.currency).toBe('TRY');
+      expect(stockHelperMock.deduct).toHaveBeenCalled();
       expect(dataSourceMock.transaction).toHaveBeenCalled();
       expect(appGatewayMock.emitToCompany).toHaveBeenCalledWith(COMPANY_ID, 'order_mutated', expect.any(Object));
     });

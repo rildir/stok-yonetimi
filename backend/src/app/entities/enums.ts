@@ -30,4 +30,6 @@ export enum StockMovementType {
   ORDER = 'ORDER',
   RETURN = 'RETURN',
   ADJUSTMENT = 'ADJUSTMENT',
+  TRANSFER_OUT = 'TRANSFER_OUT',
+  TRANSFER_IN = 'TRANSFER_IN',
 }

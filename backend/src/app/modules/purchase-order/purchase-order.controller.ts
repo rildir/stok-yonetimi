@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/co
 import { PurchaseOrderService } from './purchase-order.service';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { Roles } from '../../guards/roles.decorator';
-import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto } from '../../dto/purchase-order.dto';
+import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, UpdatePurchaseOrderStatusDto } from '../../dto/purchase-order.dto';
 
 @Controller('purchase-orders')
 export class PurchaseOrderController {
@@ -35,11 +35,11 @@ export class PurchaseOrderController {
   @Put(':id/status')
   async updatePurchaseOrderStatus(
     @Param('id') id: string,
-    @Body('status') status: string,
+    @Body() dto: UpdatePurchaseOrderStatusDto,
     @Req() req: any
   ): Promise<PurchaseOrderEntity | null> {
     const user = req.user?.username || 'System';
-    return this.poService.updatePurchaseOrderStatus(id, status, user);
+    return this.poService.updatePurchaseOrderStatus(id, dto.status, user, dto.warehouseId);
   }
 
   @Roles('admin', 'manager')

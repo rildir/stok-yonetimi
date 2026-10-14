@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyTo
 import { CompanyEntity } from './company.entity';
 import { ProductEntity } from './product.entity';
 import { StockMovementType } from './enums';
+import { WarehouseEntity } from './warehouse.entity';
 
 @Entity('stock_movements')
 @Index('IDX_stock_movements_companyId', ['companyId'])
@@ -39,6 +40,14 @@ export class StockMovementEntity {
 
   @Column('int')
   newQuantity: number;
+
+  @Index('IDX_stock_movements_warehouseId')
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  warehouseId?: string | null;
+
+  @ManyToOne(() => WarehouseEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'warehouseId', foreignKeyConstraintName: 'FK_stock_movements_warehouse' })
+  warehouse?: WarehouseEntity | null;
 
   @Column({ nullable: true })
   referenceId: string;

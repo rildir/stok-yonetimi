@@ -57,5 +57,11 @@
   "stockMovements.type.adjustment": "Adjustment",
   "stockMovements.ref.prefix": "Ref",
   "stockMovements.type.out": "Stock out",
-  "stockMovements.system": "System"
+  "stockMovements.system": "System",
+  "stockMovements.type.transferOut": "Transfer out",
+  "stockMovements.type.transferIn": "Transfer in",
+  "stockMovements.col.warehouse": "Warehouse",
+  "stockMovements.csv.warehouse": "Warehouse",
+  "stockMovements.filter.warehouse": "Warehouse",
+  "stockMovements.filter.allWarehouses": "All warehouses"
 }

@@ -68,5 +68,10 @@
   "orders.toast.deleteError": "Sipariş silinirken hata oluştu.",
   "orders.toast.statusUpdated": "Sipariş durumu güncellendi.",
   "orders.toast.stockReloadFailed": "Durum güncellendi ancak stoklar alınamadı.",
-  "orders.toast.updateError": "Sipariş güncellenirken hata oluştu."
+  "orders.toast.updateError": "Sipariş güncellenirken hata oluştu.",
+  "orders.create.customer": "Müşteri",
+  "orders.create.newCustomerOption": "— Yeni müşteri (adı yazın) —",
+  "orders.create.unitPriceOverride": "Birim fiyat (boş bırakılırsa ürün fiyatı kullanılır)",
+  "orders.create.priceWillConvert": "Fiyat sipariş para birimine çevrilecek",
+  "orders.create.totalsIncomplete": "Bazı satırların fiyatı sunucuda çevrilecek; toplamlar kesinleşmemiştir."
 }

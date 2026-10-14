@@ -1,14 +1,13 @@
 import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { PurchaseOrderItemEntity } from '../../entities/purchase-order-item.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
-import { StockMovementEntity } from '../../entities/stock-movement.entity';
-import { WarehouseEntity } from '../../entities/warehouse.entity';
-import { StockHelperService } from '../../shared/services/stock-helper.service';
+import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
+import { FinanceService } from '../../shared/services/finance.service';
 import { AppGateway } from '../../app.gateway';
 import { PurchaseOrderStatus, StockMovementType } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -17,7 +16,9 @@ export interface PurchaseOrderItemInput {
   productId: string;
   productName?: string;
   quantity: number;
+  /** Legacy alias of unitPrice */
   price?: number;
+  unitPrice?: number;
 }
 
 @Injectable()
@@ -30,7 +31,8 @@ export class PurchaseOrderService {
     private readonly productRepo: Repository<ProductEntity>,
     @InjectRepository(SupplierEntity)
     private readonly supplierRepo: Repository<SupplierEntity>,
-    private readonly stockHelper: StockHelperService,
+    private readonly warehouseStock: WarehouseStockService,
+    private readonly finance: FinanceService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -54,10 +56,54 @@ export class PurchaseOrderService {
     });
   }
 
+  /** Validates products and prices PO lines in `currency` (tax per product). */
+  private async buildItems(
+    manager: EntityManager,
+    items: PurchaseOrderItemInput[],
+    currency: string,
+    date: Date,
+  ): Promise<{ items: PurchaseOrderItemEntity[]; subtotal: number; taxTotal: number; grandTotal: number; exchangeRate: number }> {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
+    }
+    const priced: { product: ProductEntity; quantity: number; unitPrice?: number | null }[] = [];
+    for (const item of items) {
+      if (!item.productId) {
+        throw new BadRequestException(err('PO_ITEM_PRODUCT_REQUIRED'));
+      }
+      const product = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId, isDeleted: false } });
+      if (!product) {
+        throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id: item.productId }));
+      }
+      priced.push({ product, quantity: item.quantity || 0, unitPrice: item.unitPrice ?? item.price });
+    }
+    const { lines, totals, exchangeRate } = await this.finance.priceLines(priced, currency, date, manager);
+    return {
+      items: priced.map((p, i) =>
+        manager.create(PurchaseOrderItemEntity, {
+          productId: p.product.id,
+          productName: p.product.name,
+          quantity: p.quantity,
+          price: lines[i].unitPrice,
+          unitPrice: lines[i].unitPrice,
+          taxRate: lines[i].taxRate,
+          taxAmount: lines[i].taxAmount,
+          lineTotal: lines[i].lineTotal,
+        })
+      ),
+      subtotal: totals.subtotal,
+      taxTotal: totals.taxTotal,
+      grandTotal: totals.grandTotal,
+      exchangeRate,
+    };
+  }
+
   async createPurchaseOrder(data: {
     supplierId: string;
     supplierName?: string;
     items: PurchaseOrderItemInput[];
+    currency?: string;
+    warehouseId?: string | null;
     expectedDate?: string;
     notes?: string;
     totalAmount?: number;
@@ -83,45 +129,30 @@ export class PurchaseOrderService {
       if (!supplier) {
         throw new BadRequestException(err('PO_SUPPLIER_NOT_FOUND', { id: data.supplierId }));
       }
-
-      if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
-        throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
+      if (data.warehouseId) {
+        await this.warehouseStock.requireWarehouse(manager, this.companyId, data.warehouseId);
       }
 
-      let calculatedTotal = 0;
-      const itemEntities: PurchaseOrderItemEntity[] = [];
-
-      for (const item of data.items) {
-        if (!item.productId) {
-          throw new BadRequestException(err('PO_ITEM_PRODUCT_REQUIRED'));
-        }
-        const product = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId, isDeleted: false } });
-        if (!product) {
-          throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id: item.productId }));
-        }
-
-        const itemPrice = item.price !== undefined && item.price !== null && item.price > 0 ? item.price : product.price;
-        calculatedTotal += itemPrice * (item.quantity || 0);
-
-        const poItem = manager.create(PurchaseOrderItemEntity, {
-          productId: product.id,
-          productName: product.name,
-          quantity: item.quantity,
-          price: itemPrice,
-        });
-        itemEntities.push(poItem);
-      }
+      const company = await this.finance.getCompany(manager);
+      const currency = (data.currency || company.baseCurrency).toUpperCase();
+      const built = await this.buildItems(manager, data.items, currency, new Date());
 
       const newPo = manager.create(PurchaseOrderEntity, {
         companyId: this.companyId,
         supplierId: supplier.id,
         supplierName: supplier.name,
+        warehouseId: data.warehouseId || null,
         expectedDate: data.expectedDate,
         notes: data.notes,
         poNumber,
         status: PurchaseOrderStatus.DRAFT,
-        totalAmount: parseFloat(calculatedTotal.toFixed(2)),
-        items: itemEntities,
+        currency,
+        exchangeRate: built.exchangeRate,
+        subtotal: built.subtotal,
+        taxTotal: built.taxTotal,
+        grandTotal: built.grandTotal,
+        totalAmount: built.grandTotal,
+        items: built.items,
       });
 
       const saved = await manager.save(PurchaseOrderEntity, newPo);
@@ -130,7 +161,13 @@ export class PurchaseOrderService {
     });
   }
 
-  async updatePurchaseOrderStatus(id: string, status: PurchaseOrderStatus | string, performedBy = 'System'): Promise<PurchaseOrderEntity | null> {
+  async updatePurchaseOrderStatus(
+    id: string,
+    status: PurchaseOrderStatus | string,
+    performedBy = 'System',
+    warehouseId?: string | null,
+  ): Promise<PurchaseOrderEntity | null> {
+    const productsToEmit: ProductEntity[] = [];
     const saved = await this.dataSource.transaction(async (manager) => {
       const po = await manager.findOne(PurchaseOrderEntity, {
         where: { companyId: this.companyId, id },
@@ -149,41 +186,24 @@ export class PurchaseOrderService {
         throw new BadRequestException(err('PO_CANCELLED_IMMUTABLE'));
       }
 
-      if (oldStatus !== PurchaseOrderStatus.RECEIVED && status === PurchaseOrderStatus.RECEIVED) {
+      if (status === PurchaseOrderStatus.RECEIVED) {
+        const targetWarehouse = warehouseId || po.warehouseId || null;
         for (const item of po.items) {
           if (!item.productId) continue;
           const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId }, lock: { mode: 'pessimistic_write' } });
-          if (prod) {
-            const oldQty = prod.quantity;
-
-            const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
-            const activeNames = activeWarehouses.map((w) => w.name);
-            prod.warehouses = this.stockHelper.addStockToWarehouses(prod.warehouses, item.quantity, activeNames);
-
-            prod.quantity += item.quantity;
-            prod.status = this.stockHelper.calculateStatus(prod.quantity, prod.minQuantity);
-            await manager.save(ProductEntity, prod);
-
-            await manager.save(
-              StockMovementEntity,
-              manager.create(StockMovementEntity, {
-                companyId: this.companyId,
-                productId: prod.id,
-                productName: prod.name,
-                type: StockMovementType.IN,
-                quantity: item.quantity,
-                previousQuantity: oldQty,
-                newQuantity: prod.quantity,
-                referenceId: po.poNumber,
-                referenceType: 'purchase_order',
-                note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
-                performedBy,
-              })
-            );
-
-            this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: prod });
-          }
+          if (!prod) continue;
+          const oldQty = prod.quantity;
+          const allocations = await this.warehouseStock.add(manager, prod, item.quantity, targetWarehouse);
+          await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
+            type: StockMovementType.IN,
+            referenceId: po.poNumber,
+            referenceType: 'purchase_order',
+            note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
+            performedBy,
+          });
+          productsToEmit.push(prod);
         }
+        if (targetWarehouse) po.warehouseId = targetWarehouse;
       }
 
       po.status = status;
@@ -191,63 +211,61 @@ export class PurchaseOrderService {
     });
 
     if (saved) {
+      for (const p of productsToEmit) {
+        this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: p });
+      }
       this.appGateway.emitToCompany(this.companyId, 'purchase_order_mutated', { type: 'update', purchaseOrder: saved });
     }
     return saved;
   }
 
   async updatePurchaseOrder(id: string, updates: any): Promise<PurchaseOrderEntity | null> {
-    const po = await this.poRepo.findOne({ where: { companyId: this.companyId, id }, relations: { items: true } });
-    if (!po) return null;
-    if (po.status !== PurchaseOrderStatus.DRAFT) {
-      throw new BadRequestException(err('PO_UPDATE_ONLY_DRAFT'));
-    }
-
-    if (updates.supplierId && updates.supplierId !== po.supplierId) {
-      const supplier = await this.supplierRepo.findOne({ where: { companyId: this.companyId, id: updates.supplierId, isDeleted: false } });
-      if (!supplier) {
-        throw new BadRequestException(err('PO_SUPPLIER_NOT_FOUND', { id: updates.supplierId }));
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const po = await manager.findOne(PurchaseOrderEntity, { where: { companyId: this.companyId, id }, relations: { items: true } });
+      if (!po) return null;
+      if (po.status !== PurchaseOrderStatus.DRAFT) {
+        throw new BadRequestException(err('PO_UPDATE_ONLY_DRAFT'));
       }
-      po.supplierId = updates.supplierId;
-      po.supplierName = supplier.name;
-    }
 
-    if (updates.items) {
-      if (!Array.isArray(updates.items) || updates.items.length === 0) {
-        throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
-      }
-      let calculatedTotal = 0;
-      const newItems: PurchaseOrderItemEntity[] = [];
-
-      for (const item of updates.items) {
-        if (!item.productId) {
-          throw new BadRequestException(err('PO_ITEM_PRODUCT_REQUIRED'));
+      if (updates.supplierId && updates.supplierId !== po.supplierId) {
+        const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: updates.supplierId, isDeleted: false } });
+        if (!supplier) {
+          throw new BadRequestException(err('PO_SUPPLIER_NOT_FOUND', { id: updates.supplierId }));
         }
-        const product = await this.productRepo.findOne({ where: { companyId: this.companyId, id: item.productId, isDeleted: false } });
-        if (!product) {
-          throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id: item.productId }));
-        }
-        const itemPrice = item.price !== undefined && item.price !== null && item.price > 0 ? item.price : product.price;
-        calculatedTotal += itemPrice * (item.quantity || 0);
-
-        const poItem = this.dataSource.getRepository(PurchaseOrderItemEntity).create({
-          productId: product.id,
-          productName: product.name,
-          quantity: item.quantity,
-          price: itemPrice,
-        });
-        newItems.push(poItem);
+        po.supplierId = updates.supplierId;
+        po.supplierName = supplier.name;
       }
-      po.items = newItems;
-      po.totalAmount = parseFloat(calculatedTotal.toFixed(2));
-    }
+      if (updates.warehouseId !== undefined) {
+        if (updates.warehouseId) await this.warehouseStock.requireWarehouse(manager, this.companyId, updates.warehouseId);
+        po.warehouseId = updates.warehouseId || null;
+      }
 
-    if (updates.notes !== undefined) {
-      po.notes = updates.notes;
-    }
+      const currencyChanged = !!updates.currency && updates.currency !== po.currency;
+      if (currencyChanged) po.currency = updates.currency;
 
-    const saved = await this.poRepo.save(po);
-    this.appGateway.emitToCompany(this.companyId, 'purchase_order_mutated', { type: 'update', purchaseOrder: saved });
+      if (updates.items || currencyChanged) {
+        const source: PurchaseOrderItemInput[] =
+          updates.items ||
+          po.items.map((i) => ({ productId: i.productId, quantity: i.quantity })); // re-price in the new currency
+        const built = await this.buildItems(manager, source, po.currency, new Date());
+        await manager.delete(PurchaseOrderItemEntity, { purchaseOrderId: po.id });
+        po.items = built.items;
+        po.exchangeRate = built.exchangeRate;
+        po.subtotal = built.subtotal;
+        po.taxTotal = built.taxTotal;
+        po.grandTotal = built.grandTotal;
+        po.totalAmount = built.grandTotal;
+      }
+
+      if (updates.notes !== undefined) {
+        po.notes = updates.notes;
+      }
+
+      return manager.save(PurchaseOrderEntity, po);
+    });
+    if (saved) {
+      this.appGateway.emitToCompany(this.companyId, 'purchase_order_mutated', { type: 'update', purchaseOrder: saved });
+    }
     return saved;
   }
 
@@ -270,60 +288,46 @@ export class PurchaseOrderService {
       return [];
     }
 
-    const supplierGroups: Record<string, { supplierId: string; supplierName: string; items: any[] }> = {};
+    const supplierGroups: Record<string, { supplierId: string; supplierName: string; items: PurchaseOrderItemInput[] }> = {};
     const suppliers = await this.supplierRepo.find({ where: { companyId: this.companyId } });
 
     for (const p of lowStockProducts) {
-      const supplierId = p.supplierId || null;
-      let supplierName = 'Genel Tedarikçi';
-
-      if (supplierId) {
-        const sup = suppliers.find((s) => s.id === supplierId);
-        if (sup) supplierName = sup.name;
-      }
-
-      const key = supplierId || '__default__';
-      if (!supplierGroups[key]) {
-        supplierGroups[key] = { supplierId: supplierId || '', supplierName, items: [] };
+      const sup = suppliers.find((s) => s.id === p.supplierId);
+      if (!sup) continue;
+      if (!supplierGroups[sup.id]) {
+        supplierGroups[sup.id] = { supplierId: sup.id, supplierName: sup.name, items: [] };
       }
       const reorderQty = Math.max(p.minQuantity * 2 - p.quantity, p.minQuantity);
-      supplierGroups[key].items.push({
-        productId: p.id,
-        productName: p.name,
-        quantity: reorderQty,
-        price: p.price,
-      });
+      supplierGroups[sup.id].items.push({ productId: p.id, productName: p.name, quantity: reorderQty });
     }
 
-    const createdPOs: any[] = [];
+    const createdPOs: PurchaseOrderEntity[] = [];
     const now = new Date();
 
     for (const group of Object.values(supplierGroups)) {
-      const poNumber = `PO-AUTO-${now.getTime().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-      const totalAmount = group.items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
-
-      const items = group.items.map((i) =>
-        this.dataSource.getRepository(PurchaseOrderItemEntity).create({
-          productId: i.productId,
-          productName: i.productName,
-          quantity: i.quantity,
-          price: i.price,
-        })
-      );
-
-      const newPO = this.poRepo.create({
-        companyId: this.companyId,
-        poNumber,
-        supplierId: group.supplierId,
-        supplierName: group.supplierName,
-        status: PurchaseOrderStatus.DRAFT,
-        items,
-        totalAmount: parseFloat(totalAmount.toFixed(2)),
-        notes: 'Otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
-        createdAt: now,
+      const saved = await this.dataSource.transaction(async (manager) => {
+        const poNumber = `PO-AUTO-${now.getTime().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+        const company = await this.finance.getCompany(manager);
+        const built = await this.buildItems(manager, group.items, company.baseCurrency, now);
+        return manager.save(
+          PurchaseOrderEntity,
+          manager.create(PurchaseOrderEntity, {
+            companyId: this.companyId,
+            poNumber,
+            supplierId: group.supplierId,
+            supplierName: group.supplierName,
+            status: PurchaseOrderStatus.DRAFT,
+            currency: company.baseCurrency,
+            exchangeRate: built.exchangeRate,
+            items: built.items,
+            subtotal: built.subtotal,
+            taxTotal: built.taxTotal,
+            grandTotal: built.grandTotal,
+            totalAmount: built.grandTotal,
+            notes: 'Otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
+          })
+        );
       });
-
-      const saved = await this.poRepo.save(newPO);
       createdPOs.push(saved);
     }
 

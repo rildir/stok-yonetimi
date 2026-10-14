@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Product } from '../../inventory.service';
+import { TaxRate, Warehouse } from '../../models/inventory.models';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { tap } from 'rxjs';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
@@ -350,7 +351,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
 
                 <!-- Price -->
                 <div style="flex: 1; text-align: right; padding-right: 12px; min-width: 100px; font-weight: 600; color: #0F172A; font-family: var(--font-mono); font-size: 0.85rem;">
-                  {{ p.price | money }}
+                  {{ p.price | money: p.currency }}
                 </div>
 
                 <!-- Sales (Mocked) -->
@@ -480,7 +481,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
                   <div>
                     <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.unitPrice' | t }}</span>
-                    <strong style="color: #0F172A; font-family: var(--font-mono);">{{ p.price | money }}</strong>
+                    <strong style="color: #0F172A; font-family: var(--font-mono);">{{ p.price | money: p.currency }}</strong>
                   </div>
                   <div>
                     <span style="color: #64748B; display: block; font-size: 0.7rem; text-transform: uppercase; font-weight: 500;">{{ 'products.card.currentStock' | t }}</span>
@@ -659,15 +660,45 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
               <div class="form-field">
                 <input id="productPrice" type="number" formControlName="price" class="form-input form-input--prefix" [class.has-value]="hasValue('price')" min="0" step="0.01" [disabled]="isSaveLoading()" />
                 <label for="productPrice" class="form-label">{{ 'products.form.unitPrice' | t }}</label>
-                <span class="form-prefix">{{ i18n.currencySymbol() }}</span>
+                <span class="form-prefix">{{ productForm.get('currency')?.value }}</span>
                 @if (isFieldInvalid('price')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
               </div>
               
+              <div class="form-field">
+                <select id="productCurrency" formControlName="currency" class="form-input form-select" [class.has-value]="hasValue('currency')">
+                  @for (c of currencyOptions(); track c) {
+                    <option [value]="c">{{ c }}</option>
+                  }
+                </select>
+                <label for="productCurrency" class="form-label">{{ 'finance.currency' | t }}</label>
+              </div>
+
+              <div class="form-field">
+                <select id="productTaxRate" formControlName="taxRateId" class="form-input form-select has-value">
+                  <option [ngValue]="null">{{ defaultTaxLabel() }}</option>
+                  @for (tr of taxRates(); track tr.id) {
+                    <option [ngValue]="tr.id">{{ tr.name }} (%{{ tr.rate | num }})</option>
+                  }
+                </select>
+                <label for="productTaxRate" class="form-label">{{ 'finance.taxRate' | t }}</label>
+              </div>
+
               <div class="form-field">
                 <input id="productQuantity" type="number" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" min="0" [disabled]="isSaveLoading()" />
                 <label for="productQuantity" class="form-label">{{ 'products.form.currentStock' | t }}</label>
                 @if (isFieldInvalid('quantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
               </div>
+
+              @if (!editingProductId()) {
+                <div class="form-field">
+                  <select id="productWarehouse" formControlName="warehouseId" class="form-input form-select has-value">
+                    @for (wh of allWarehouses(); track wh.id) {
+                      <option [ngValue]="wh.id">{{ wh.name }}{{ wh.isDefault ? ' (' + ('products.form.defaultWarehouse' | t) + ')' : '' }}</option>
+                    }
+                  </select>
+                  <label for="productWarehouse" class="form-label">{{ 'products.form.initialWarehouse' | t }}</label>
+                </div>
+              }
 
               <div class="form-field">
                 <select id="productUnit" formControlName="unit" class="form-input form-select" [class.has-value]="hasValue('unit')" [disabled]="isSaveLoading()">
@@ -764,8 +795,8 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
             <div class="form-field">
               <select class="form-select" [ngModel]="transferFromWarehouse()" (ngModelChange)="transferFromWarehouse.set($event); onTransferFromWarehouseChange()">
                 <option value="" disabled selected>{{ 'products.transferModal.selectWarehouse' | t }}</option>
-                @for (wh of availableFromWarehouses(); track wh.name) {
-                  <option [value]="wh.name">{{ wh.name }} ({{ 'products.transferModal.available' | t: { qty: wh.qty } }})</option>
+                @for (wh of availableFromWarehouses(); track wh.id) {
+                  <option [value]="wh.id">{{ wh.name }} ({{ 'products.transferModal.available' | t: { qty: wh.qty } }})</option>
                 }
               </select>
               <label class="form-label">{{ 'products.transferModal.from' | t }}</label>
@@ -775,8 +806,8 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
             <div class="form-field">
               <select class="form-select" [ngModel]="transferToWarehouse()" (ngModelChange)="transferToWarehouse.set($event)">
                 <option value="" disabled selected>{{ 'products.transferModal.selectWarehouse' | t }}</option>
-                @for (wh of availableToWarehouses(); track wh) {
-                  <option [value]="wh">{{ wh }}</option>
+                @for (wh of availableToWarehouses(); track wh.id) {
+                  <option [value]="wh.id">{{ wh.name }}</option>
                 }
               </select>
               <label class="form-label">{{ 'products.transferModal.to' | t }}</label>
@@ -790,6 +821,15 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                 <span class="form-error" style="color: var(--text-muted);">{{ 'products.transferModal.max' | t: { max: maxTransferQuantity() } }}</span>
               }
             </div>
+
+            <div class="form-field">
+              <input type="text" class="form-input" [class.has-value]="!!transferNote()" [ngModel]="transferNote()" (ngModelChange)="transferNote.set($event)" />
+              <label class="form-label">{{ 'products.transferModal.note' | t }}</label>
+            </div>
+
+            @if (transferValidationError(); as ve) {
+              <div style="font-size: 12px; color: #dc2626;">⚠ {{ ve | t }}</div>
+            }
 
             <!-- Hata ve Bilgi Mesajı -->
             @if (transferError()) {
@@ -940,51 +980,77 @@ export class ProductsComponent implements OnInit {
   transferError = signal<string | null>(null);
   isTransferLoading = signal(false);
 
-  allWarehouses = signal<any[]>([]);
+  transferNote = signal('');
+
+  allWarehouses = signal<Warehouse[]>([]);
+  taxRates = signal<TaxRate[]>([]);
+
+  readonly currencyOptions = computed(() => {
+    const list = ['TRY', 'USD', 'EUR', 'GBP'];
+    const base = this.i18n.currency();
+    return list.includes(base) ? list : [base, ...list];
+  });
+
+  defaultTaxLabel(): string {
+    const def = this.taxRates().find(t => t.isDefault);
+    const label = this.i18n.t('finance.defaultTax');
+    return def ? `${label} (${def.name} %${this.i18n.formatNumber(def.rate)})` : label;
+  }
+
+  defaultWarehouseId(): string | null {
+    const list = this.allWarehouses();
+    return (list.find(w => w.isDefault) || list[0])?.id ?? null;
+  }
 
   loadWarehouses() {
     this.inventoryService.getWarehouses().subscribe({
       next: (data) => {
         this.allWarehouses.set(data);
+        if (!this.editingProductId() && !this.productForm.get('warehouseId')?.value) {
+          this.productForm.get('warehouseId')?.setValue(this.defaultWarehouseId());
+        }
       }
     });
+  }
+
+  loadTaxRates() {
+    this.inventoryService.getTaxRates().subscribe({
+      next: (data) => this.taxRates.set(data)
+    });
+  }
+
+  private warehouseQty(prod: Product, wh: Warehouse): number {
+    return Number(prod.warehouses?.[wh.name]) || 0;
   }
 
   availableFromWarehouses = computed(() => {
     const prod = this.selectedProductForTransfer();
     if (!prod) return [];
-    if (prod.warehouses && Object.keys(prod.warehouses).length > 0) {
-      return Object.entries(prod.warehouses)
-        .map(([name, qty]) => ({ name, qty: qty as number }))
-        .filter(w => w.qty > 0);
-    }
-    if (prod.quantity > 0) {
-      const mainWhName = this.allWarehouses().length > 0 ? this.allWarehouses()[0].name : 'Merkez Depo';
-      return [{ name: mainWhName, qty: prod.quantity }];
-    }
-    return [];
+    return this.allWarehouses()
+      .map(wh => ({ id: wh.id, name: wh.name, qty: this.warehouseQty(prod, wh) }))
+      .filter(w => w.qty > 0);
   });
 
   availableToWarehouses = computed(() => {
-    const prod = this.selectedProductForTransfer();
-    if (!prod) return [];
-    const allWhNames = this.allWarehouses().map(w => w.name);
-    if (allWhNames.length === 0) {
-      allWhNames.push('Merkez Depo', 'Ataşehir Şube');
-    }
-    return allWhNames.filter(name => name !== this.transferFromWarehouse());
+    if (!this.selectedProductForTransfer()) return [];
+    const from = this.transferFromWarehouse();
+    return this.allWarehouses().filter(w => w.id !== from);
   });
 
   maxTransferQuantity = computed(() => {
-    const prod = this.selectedProductForTransfer();
-    const fromWh = this.transferFromWarehouse();
-    if (!prod || !fromWh) return 0;
-    if (prod.warehouses && prod.warehouses[fromWh] !== undefined) {
-      return (prod.warehouses[fromWh] as number) || 0;
-    }
-    const available = this.availableFromWarehouses();
-    const matched = available.find(w => w.name === fromWh);
-    return matched ? matched.qty : 0;
+    const fromId = this.transferFromWarehouse();
+    if (!fromId) return 0;
+    return this.availableFromWarehouses().find(w => w.id === fromId)?.qty ?? 0;
+  });
+
+  transferValidationError = computed<string | null>(() => {
+    const from = this.transferFromWarehouse();
+    const to = this.transferToWarehouse();
+    const qty = Number(this.transferQuantity());
+    if (from && to && from === to) return 'products.transferModal.sameWarehouse';
+    if (from && qty > this.maxTransferQuantity()) return 'products.transferModal.exceedsAvailable';
+    if (from && to && !(qty > 0)) return 'products.transferModal.invalidQuantity';
+    return null;
   });
 
   getBarcodeBars(sku: string): { width: number, isBar: boolean }[] {
@@ -1203,7 +1269,10 @@ export class ProductsComponent implements OnInit {
     minQuantity: [5, [Validators.required, Validators.min(0)]],
     unit: ['Adet', Validators.required],
     supplierId: [null],
-    imageUrl: ['']
+    imageUrl: [''],
+    currency: ['TRY', Validators.required],
+    taxRateId: [null as string | null],
+    warehouseId: [null as string | null]
   });
 
 
@@ -1264,6 +1333,7 @@ export class ProductsComponent implements OnInit {
     this.loadSuppliers();
     this.loadCategories();
     this.loadWarehouses();
+    this.loadTaxRates();
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
@@ -1316,7 +1386,8 @@ export class ProductsComponent implements OnInit {
     this.editingProductId.set(null);
     const defaultCat = this.categories().length > 0 ? this.categories()[0].slug : '';
     this.productForm.reset({
-      name: '', sku: '', category: defaultCat, price: 0, quantity: 0, minQuantity: 5, unit: 'Adet', supplierId: null, imageUrl: ''
+      name: '', sku: '', category: defaultCat, price: 0, quantity: 0, minQuantity: 5, unit: 'Adet', supplierId: null, imageUrl: '',
+      currency: this.i18n.currency(), taxRateId: null, warehouseId: this.defaultWarehouseId()
     });
     this.showProductFormModal.set(true);
   }
@@ -1332,7 +1403,10 @@ export class ProductsComponent implements OnInit {
       minQuantity: p.minQuantity,
       unit: p.unit || 'Adet',
       supplierId: p.supplierId,
-      imageUrl: p.imageUrl || ''
+      imageUrl: p.imageUrl || '',
+      currency: p.currency || this.i18n.currency(),
+      taxRateId: p.taxRateId ?? null,
+      warehouseId: null
     });
     this.showProductFormModal.set(true);
   }
@@ -1352,8 +1426,12 @@ export class ProductsComponent implements OnInit {
     if (this.isSaveLoading()) return;
     this.isSaveLoading.set(true);
 
-    const payload = this.productForm.value;
     const editingId = this.editingProductId();
+    const { warehouseId, ...rest } = this.productForm.value;
+    // `warehouses` is server-managed; never send it. warehouseId only on create (omitted -> default warehouse).
+    const payload: any = { ...rest };
+    delete payload.warehouses;
+    if (!editingId && warehouseId) payload.warehouseId = warehouseId;
 
     if (editingId) {
       // Edit mode
@@ -1623,11 +1701,12 @@ export class ProductsComponent implements OnInit {
   }
 
   isTransferValid(): boolean {
-    const maxQty = this.maxTransferQuantity();
-    return !!this.transferFromWarehouse() && 
-           !!this.transferToWarehouse() && 
-           this.transferQuantity() > 0 && 
-           this.transferQuantity() <= maxQty;
+    const qty = Number(this.transferQuantity());
+    return !!this.transferFromWarehouse() &&
+           !!this.transferToWarehouse() &&
+           this.transferFromWarehouse() !== this.transferToWarehouse() &&
+           qty > 0 &&
+           qty <= this.maxTransferQuantity();
   }
 
   openTransferModal(product: Product) {
@@ -1635,7 +1714,9 @@ export class ProductsComponent implements OnInit {
     this.transferFromWarehouse.set('');
     this.transferToWarehouse.set('');
     this.transferQuantity.set(1);
+    this.transferNote.set('');
     this.transferError.set(null);
+    if (this.allWarehouses().length === 0) this.loadWarehouses();
     this.isTransferModalOpen.set(true);
   }
 
@@ -1659,12 +1740,13 @@ export class ProductsComponent implements OnInit {
       prod.id,
       this.transferFromWarehouse(),
       this.transferToWarehouse(),
-      this.transferQuantity()
+      Number(this.transferQuantity()),
+      this.transferNote().trim() || undefined
     ).subscribe({
-      next: (res) => {
+      next: (updated) => {
         this.isTransferLoading.set(false);
-        if (res && res.success) {
-          this.state.loadData();
+        if (updated && updated.id) {
+          this.state.products.update(list => list.map(p => p.id === updated.id ? updated : p));
           this.ui.showToast(this.i18n.t('products.toast.transferDone'), 'success');
           this.closeTransferModal();
         } else {

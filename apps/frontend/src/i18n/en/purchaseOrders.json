@@ -73,5 +73,9 @@
   "purchaseOrders.status.cancelled": "Cancelled",
   "purchaseOrders.autoDraftCreated": "{count} automatic order drafts created.",
   "purchaseOrders.autoDraftNone": "All products have sufficient stock. No order drafts needed.",
-  "purchaseOrders.autoDraftFailed": "Failed to create automatic order drafts."
+  "purchaseOrders.autoDraftFailed": "Failed to create automatic order drafts.",
+  "purchaseOrders.defaultWarehouse": "Default warehouse",
+  "purchaseOrders.receivingWarehouse": "Receiving warehouse",
+  "purchaseOrders.serverPriceHint": "No price: the server will convert the product price into the order currency.",
+  "purchaseOrders.previewIncomplete": "Lines without a price are excluded from the preview; the server prices them on save."
 }

@@ -6,6 +6,9 @@ import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs';
+import { Warehouse } from '../../models/inventory.models';
+
+type WarehouseStockItem = { productId: string; productName: string; sku: string; quantity: number };
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
 
 @Component({
@@ -20,6 +23,20 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
       font-style: italic;
       font-weight: normal;
     }
+    .default-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--primary);
+      vertical-align: middle;
+    }
+    .stock-table { width: 100%; border-collapse: collapse; }
+    .stock-table th, .stock-table td { padding: 8px 6px; border-bottom: 1px solid var(--border-color); text-align: left; font-size: 0.875rem; }
+    .stock-table .num-cell { text-align: right; }
     .warehouse-row {
       transition: background-color 0.2s ease;
     }
@@ -111,7 +128,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
             <tbody>
               @for (w of filteredWarehouses(); track w.id) {
                 <tr (click)="goToWarehouseProducts(w)" style="cursor: pointer;" class="warehouse-row">
-                  <td><strong>{{ w.name }}</strong></td>
+                  <td><strong>{{ w.name }}</strong>
+                    @if (w.isDefault) { <span class="default-badge" [title]="'warehouses.defaultHint' | t">{{ 'warehouses.default' | t }}</span> }
+                  </td>
                   <td class="mono" style="color: var(--text-primary);">{{ w.code }}</td>
                   <td style="color: var(--text-primary);">{{ w.address || '-' }}</td>
                   <td class="mono" style="text-align: right;">
@@ -136,10 +155,16 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                       </svg>
                     </button>
+                    <button class="edit-btn" [title]="'warehouses.stock.view' | t" (click)="openStock(w); $event.stopPropagation()">
+                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    </button>
+                    <button class="edit-btn" [title]="'warehouses.transfer.action' | t" (click)="openTransfer(w); $event.stopPropagation()" [disabled]="!w.totalStock || warehouses().length < 2">
+                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    </button>
                     <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(w); $event.stopPropagation()">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     </button>
-                    <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteWarehouse(w); $event.stopPropagation()" [disabled]="w.totalStock > 0">
+                    <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteWarehouse(w); $event.stopPropagation()" [disabled]="(w.totalStock ?? 0) > 0">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                   </td>
@@ -193,6 +218,113 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
 
 
     
+
+    <!-- Stock Drawer -->
+    @if (stockWarehouse(); as sw) {
+      <div class="drawer-overlay" (click)="closeStock()">
+        <div class="drawer-panel" (click)="$event.stopPropagation()">
+          <div class="drawer-header">
+            <span class="drawer-title">{{ 'warehouses.stock.title' | t: { name: sw.name } }}</span>
+            <button class="drawer-close" (click)="closeStock()">×</button>
+          </div>
+          <div class="drawer-body">
+            @if (stockLoading()) {
+              <div class="loading-state">{{ 'common.loading' | t }}</div>
+            } @else if (stockItems().length === 0) {
+              <div class="empty-state"><p>{{ 'warehouses.stock.empty' | t }}</p></div>
+            } @else {
+              <table class="stock-table">
+                <thead>
+                  <tr>
+                    <th>{{ 'warehouses.stock.product' | t }}</th>
+                    <th>{{ 'warehouses.stock.sku' | t }}</th>
+                    <th class="num-cell">{{ 'warehouses.stock.quantity' | t }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (it of stockItems(); track it.productId) {
+                    <tr>
+                      <td>{{ it.productName }}</td>
+                      <td class="mono">{{ it.sku }}</td>
+                      <td class="mono num-cell">{{ it.quantity | num }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+          <div class="drawer-footer">
+            <button type="button" class="btn btn-secondary" (click)="closeStock()">{{ 'warehouses.close' | t }}</button>
+            <button type="button" class="btn btn-primary" (click)="openTransfer(sw)" [disabled]="!hasTransferable(stockItems()) || warehouses().length < 2">{{ 'warehouses.transfer.action' | t }}</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Transfer Drawer -->
+    @if (transferSource(); as src) {
+      <div class="drawer-overlay" (click)="closeTransfer()">
+        <div class="drawer-panel" (click)="$event.stopPropagation()">
+          <div class="drawer-header">
+            <span class="drawer-title">{{ 'warehouses.transfer.title' | t: { name: src.name } }}</span>
+            <button class="drawer-close" (click)="closeTransfer()">×</button>
+          </div>
+          <form [formGroup]="transferForm" (ngSubmit)="submitTransfer()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+            <div class="drawer-body">
+              @if (transferLoading()) {
+                <div class="loading-state">{{ 'common.loading' | t }}</div>
+              } @else if (transferItems().length === 0) {
+                <div class="empty-state"><p>{{ 'warehouses.transfer.noStock' | t }}</p></div>
+              } @else {
+                <div class="form-field">
+                  <select id="trProduct" formControlName="productId" class="form-input has-value" (change)="onTransferProductChange()">
+                    <option value="" disabled>{{ 'warehouses.transfer.selectProduct' | t }}</option>
+                    @for (it of transferItems(); track it.productId) {
+                      <option [value]="it.productId">{{ it.productName }} ({{ it.sku }}) — {{ 'warehouses.transfer.available' | t: { qty: it.quantity } }}</option>
+                    }
+                  </select>
+                  <label for="trProduct" class="form-label">{{ 'warehouses.transfer.product' | t }}</label>
+                  @if (isTransferInvalid('productId')) { <div class="form-error">⚠ {{ 'warehouses.transfer.productRequired' | t }}</div> }
+                </div>
+
+                <div class="form-field">
+                  <select id="trTarget" formControlName="toWarehouseId" class="form-input has-value">
+                    <option value="" disabled>{{ 'warehouses.transfer.selectTarget' | t }}</option>
+                    @for (t of transferTargets(); track t.id) {
+                      <option [value]="t.id">{{ t.name }} ({{ t.code }})</option>
+                    }
+                  </select>
+                  <label for="trTarget" class="form-label">{{ 'warehouses.transfer.target' | t }}</label>
+                  @if (isTransferInvalid('toWarehouseId')) { <div class="form-error">⚠ {{ 'warehouses.transfer.targetRequired' | t }}</div> }
+                </div>
+
+                <div class="form-field">
+                  <input id="trQty" type="number" min="1" [max]="availableQty()" step="1" formControlName="quantity" class="form-input has-value" />
+                  <label for="trQty" class="form-label">{{ 'warehouses.transfer.quantity' | t }}</label>
+                  @if (selectedTransferItem()) {
+                    <div class="dim-text" style="margin-top: 4px;">{{ 'warehouses.transfer.available' | t: { qty: availableQty() } }}</div>
+                  }
+                  @if (isTransferInvalid('quantity')) { <div class="form-error">⚠ {{ 'warehouses.transfer.quantityInvalid' | t: { max: availableQty() } }}</div> }
+                </div>
+
+                <div class="form-field">
+                  <textarea id="trNote" formControlName="note" class="form-input" [class.has-value]="!!transferForm.get('note')?.value"></textarea>
+                  <label for="trNote" class="form-label">{{ 'warehouses.transfer.note' | t }}</label>
+                </div>
+              }
+              @if (transferError()) { <div class="form-error">⚠ {{ transferError() }}</div> }
+            </div>
+            <div class="drawer-footer">
+              <button type="button" class="btn btn-secondary" (click)="closeTransfer()" [disabled]="isTransferring()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [disabled]="transferForm.invalid || isTransferring() || transferItems().length === 0">
+                @if (isTransferring()) { <span class="spinner-sm spinner-light"></span> {{ 'warehouses.transfer.submitting' | t }} } @else { {{ 'warehouses.transfer.submit' | t }} }
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+
     <app-toast></app-toast>
   `
 })
@@ -204,7 +336,33 @@ export class WarehousesComponent implements OnInit {
   route = inject(ActivatedRoute);
   router = inject(Router);
 
-  warehouses = signal<any[]>([]);
+  warehouses = signal<Warehouse[]>([]);
+
+  // Stock view
+  stockWarehouse = signal<Warehouse | null>(null);
+  stockItems = signal<WarehouseStockItem[]>([]);
+  stockLoading = signal(false);
+
+  // Transfer
+  transferSource = signal<Warehouse | null>(null);
+  transferItems = signal<WarehouseStockItem[]>([]);
+  transferLoading = signal(false);
+  isTransferring = signal(false);
+  transferError = signal<string | null>(null);
+  selectedProductId = signal<string>('');
+  transferTargets = computed(() => {
+    const src = this.transferSource();
+    return src ? this.warehouses().filter(w => w.id !== src.id) : [];
+  });
+  selectedTransferItem = computed(() => this.transferItems().find(i => i.productId === this.selectedProductId()) || null);
+  availableQty = computed(() => this.selectedTransferItem()?.quantity ?? 0);
+
+  transferForm: FormGroup = this.fb.group({
+    productId: ['', Validators.required],
+    toWarehouseId: ['', Validators.required],
+    quantity: [1, [Validators.required, Validators.min(1)]],
+    note: ['']
+  });
   isLoading = signal(true);
   isDrawerOpen = signal(false);
   isSaving = signal(false);
@@ -357,6 +515,105 @@ export class WarehousesComponent implements OnInit {
             }
           })
         );
+      }
+    });
+  }
+
+  hasTransferable(items: WarehouseStockItem[]): boolean {
+    return items.some(i => i.quantity > 0);
+  }
+
+  openStock(w: Warehouse) {
+    this.stockWarehouse.set(w);
+    this.stockItems.set([]);
+    this.stockLoading.set(true);
+    this.inventory.getWarehouseStock(w.id).subscribe({
+      next: (items) => {
+        this.stockItems.set(items || []);
+        this.stockLoading.set(false);
+      },
+      error: (err) => {
+        this.stockLoading.set(false);
+        this.ui.showToast(err.error?.message || this.i18n.t('warehouses.stock.loadError'), 'error');
+      }
+    });
+  }
+
+  closeStock() {
+    this.stockWarehouse.set(null);
+    this.stockItems.set([]);
+  }
+
+  openTransfer(w: Warehouse) {
+    this.closeStock();
+    this.transferSource.set(w);
+    this.transferError.set(null);
+    this.transferItems.set([]);
+    this.selectedProductId.set('');
+    const others = this.warehouses().filter(x => x.id !== w.id);
+    const defaultTarget = others.find(x => x.isDefault) || others[0];
+    this.transferForm.reset({ productId: '', toWarehouseId: defaultTarget?.id || '', quantity: 1, note: '' });
+    this.transferLoading.set(true);
+    this.inventory.getWarehouseStock(w.id).subscribe({
+      next: (items) => {
+        this.transferItems.set((items || []).filter(i => i.quantity > 0));
+        this.transferLoading.set(false);
+      },
+      error: (err) => {
+        this.transferLoading.set(false);
+        this.transferError.set(err.error?.message || this.i18n.t('warehouses.stock.loadError'));
+      }
+    });
+  }
+
+  closeTransfer() {
+    if (this.isTransferring()) return;
+    this.transferSource.set(null);
+    this.transferItems.set([]);
+    this.transferError.set(null);
+  }
+
+  onTransferProductChange() {
+    this.selectedProductId.set(this.transferForm.get('productId')?.value || '');
+    const max = this.availableQty();
+    const qtyCtrl = this.transferForm.get('quantity')!;
+    qtyCtrl.setValidators([Validators.required, Validators.min(1), Validators.max(max)]);
+    if (qtyCtrl.value > max) qtyCtrl.setValue(max);
+    qtyCtrl.updateValueAndValidity();
+  }
+
+  isTransferInvalid(field: string): boolean {
+    const c = this.transferForm.get(field);
+    return c ? (c.invalid && (c.dirty || c.touched)) : false;
+  }
+
+  submitTransfer() {
+    const src = this.transferSource();
+    if (!src) return;
+    if (this.transferForm.invalid) {
+      this.transferForm.markAllAsTouched();
+      return;
+    }
+    const { productId, toWarehouseId, quantity, note } = this.transferForm.value;
+    const qty = Number(quantity);
+    if (!Number.isInteger(qty) || qty < 1 || qty > this.availableQty()) {
+      this.transferError.set(this.i18n.t('warehouses.transfer.quantityInvalid', { max: this.availableQty() }));
+      return;
+    }
+    this.isTransferring.set(true);
+    this.transferError.set(null);
+    this.inventory.transferWarehouseStock(productId, src.id, toWarehouseId, qty, note?.trim() || undefined).subscribe({
+      next: () => {
+        this.isTransferring.set(false);
+        this.closeTransfer();
+        this.loadWarehouses();
+        this.ui.showToast(this.i18n.t('warehouses.transfer.success'), 'success');
+      },
+      error: (err) => {
+        this.isTransferring.set(false);
+        const msg = err.error?.message || this.i18n.t('warehouses.transfer.error');
+        this.transferError.set(msg);
+        this.ui.showToast(msg, 'error');
       }
     });
   }

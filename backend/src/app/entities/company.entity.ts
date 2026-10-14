@@ -33,6 +33,10 @@ export class CompanyEntity {
   @Column({ type: 'varchar', length: 64, default: 'Europe/Istanbul' })
   timezone: string;
 
+  /** Whether entered product/line prices already include tax */
+  @Column({ default: false })
+  pricesIncludeTax: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

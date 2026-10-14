@@ -15,6 +15,7 @@ export class StockMovementController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('type') type?: string,
+    @Query('warehouseId') warehouseId?: string,
   ) {
     return this.stockMovementService.getStockMovements(
       productId,
@@ -23,7 +24,8 @@ export class StockMovementController {
       search,
       startDate,
       endDate,
-      type
+      type,
+      warehouseId
     );
   }
 
@@ -33,9 +35,10 @@ export class StockMovementController {
     @Body('productId') productId: string,
     @Body('newQuantity') newQuantity: number,
     @Body('note') note: string,
+    @Body('warehouseId') warehouseId: string | undefined,
     @Req() req: any
   ) {
     const user = req.user?.username || 'System';
-    return this.stockMovementService.createManualAdjustment(productId, newQuantity, note, user);
+    return this.stockMovementService.createManualAdjustment(productId, Number(newQuantity), note, user, warehouseId);
   }
 }

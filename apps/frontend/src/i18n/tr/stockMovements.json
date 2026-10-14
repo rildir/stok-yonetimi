@@ -57,5 +57,11 @@
   "stockMovements.type.adjustment": "Düzeltme",
   "stockMovements.ref.prefix": "Ref",
   "stockMovements.type.out": "Stok çıkışı",
-  "stockMovements.system": "Sistem"
+  "stockMovements.system": "Sistem",
+  "stockMovements.type.transferOut": "Transfer çıkışı",
+  "stockMovements.type.transferIn": "Transfer girişi",
+  "stockMovements.col.warehouse": "Depo",
+  "stockMovements.csv.warehouse": "Depo",
+  "stockMovements.filter.warehouse": "Depo",
+  "stockMovements.filter.allWarehouses": "Tüm depolar"
 }

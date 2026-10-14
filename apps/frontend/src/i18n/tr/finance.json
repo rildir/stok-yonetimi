@@ -1,0 +1,19 @@
+{
+  "finance.currency": "Para Birimi",
+  "finance.subtotal": "Ara Toplam",
+  "finance.tax": "KDV/Vergi",
+  "finance.taxTotal": "Vergi Toplamı",
+  "finance.grandTotal": "Genel Toplam",
+  "finance.taxRate": "Vergi Oranı",
+  "finance.taxAmount": "Vergi Tutarı",
+  "finance.unitPrice": "Birim Fiyat",
+  "finance.lineTotal": "Satır Toplamı",
+  "finance.taxBreakdown": "Vergi Dökümü",
+  "finance.taxLine": "%{rate} vergi ({base} üzerinden)",
+  "finance.pricesIncludeTax": "Fiyatlar vergi dahil",
+  "finance.pricesExcludeTax": "Fiyatlar vergi hariç",
+  "finance.inBaseCurrency": "{currency} karşılığı",
+  "finance.exchangeRateNote": "1 {from} = {rate} {to}",
+  "finance.defaultTax": "Varsayılan vergi",
+  "finance.noTax": "Vergi yok"
+}

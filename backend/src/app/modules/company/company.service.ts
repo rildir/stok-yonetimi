@@ -8,6 +8,8 @@ import { UserRole } from '../../entities/enums';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { RegisterCompanyDto, UpdateCompanyDto } from '../../dto/company.dto';
+import { TaxRateEntity } from '../../entities/tax-rate.entity';
+import { defaultTaxRatesFor } from '../../shared/finance/tax-defaults';
 
 export const COMPANY_DEFAULTS = {
   country: 'TR',
@@ -50,6 +52,7 @@ export class CompanyService {
     if (dto.defaultLanguage !== undefined) company.defaultLanguage = dto.defaultLanguage;
     if (dto.baseCurrency !== undefined) company.baseCurrency = dto.baseCurrency;
     if (dto.timezone !== undefined) company.timezone = dto.timezone;
+    if (dto.pricesIncludeTax !== undefined) company.pricesIncludeTax = dto.pricesIncludeTax;
     return this.companyRepo.save(company);
   }
 
@@ -110,6 +113,11 @@ export class CompanyService {
           tokenVersion: 0,
         })
       );
+
+      // Starter tax rates for the company's country (e.g. KDV for TR).
+      for (const t of defaultTaxRatesFor(company.country)) {
+        await manager.save(TaxRateEntity, manager.create(TaxRateEntity, { ...t, companyId: company.id }));
+      }
 
       return { company, admin };
     });

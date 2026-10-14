@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { ProductEntity } from '../../entities/product.entity';
-import { WarehouseEntity } from '../../entities/warehouse.entity';
+import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -18,6 +18,7 @@ export class StockMovementService {
     @InjectRepository(ProductEntity)
     private readonly productRepo: Repository<ProductEntity>,
     private readonly stockHelper: StockHelperService,
+    private readonly warehouseStock: WarehouseStockService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -33,13 +34,17 @@ export class StockMovementService {
     search?: string,
     startDate?: string,
     endDate?: string,
-    type?: string
+    type?: string,
+    warehouseId?: string
   ): Promise<{ data: StockMovementEntity[], total: number }> {
     const query = this.stockMovementRepo.createQueryBuilder('sm').orderBy('sm.createdAt', 'DESC');
     query.where('sm.companyId = :companyId', { companyId: this.companyId });
 
     if (productId) {
       query.andWhere('sm.productId = :productId', { productId });
+    }
+    if (warehouseId) {
+      query.andWhere('sm.warehouseId = :warehouseId', { warehouseId });
     }
     
     if (search) {
@@ -71,7 +76,7 @@ export class StockMovementService {
     return { data, total };
   }
 
-  async createManualAdjustment(productId: string, newQuantity: number, note: string, performedBy: string): Promise<StockMovementEntity> {
+  async createManualAdjustment(productId: string, newQuantity: number, note: string, performedBy: string, warehouseId?: string | null): Promise<StockMovementEntity> {
     const saved = await this.dataSource.transaction(async (manager) => {
       const prod = await manager.findOne(ProductEntity, {
         where: { companyId: this.companyId, id: productId, isDeleted: false },
@@ -80,35 +85,28 @@ export class StockMovementService {
       if (!prod) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
 
       const oldQty = prod.quantity;
-      const diff = newQuantity - oldQty;
-      
-      if (diff !== 0) {
-        const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
-        const activeNames = activeWarehouses.map(w => w.name);
-        if (diff > 0) {
-          prod.warehouses = this.stockHelper.addStockToWarehouses(prod.warehouses, diff, activeNames);
-        } else {
-          prod.warehouses = this.stockHelper.deductStockFromWarehouses(prod.warehouses, Math.abs(diff), activeNames);
-        }
-      }
-
-      prod.quantity = newQuantity;
-      prod.status = this.stockHelper.calculateStatus(prod.quantity, prod.minQuantity);
-      const savedProd = await manager.save(ProductEntity, prod);
-
-      const movement = manager.create(StockMovementEntity, {
-        companyId: this.companyId,
-        productId: savedProd.id,
-        productName: savedProd.name,
+      const allocations = await this.warehouseStock.setTotal(manager, prod, newQuantity, warehouseId);
+      const movements = await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
         type: 'ADJUSTMENT',
-        quantity: diff,
+        referenceType: 'manual',
+        note: note || 'Manuel düzeltme',
+        performedBy,
+      });
+      if (movements.length > 0) return movements[movements.length - 1];
+      // No change: keep an audit row as before.
+      return manager.save(StockMovementEntity, manager.create(StockMovementEntity, {
+        companyId: this.companyId,
+        productId: prod.id,
+        productName: prod.name,
+        warehouseId: warehouseId || null,
+        type: 'ADJUSTMENT',
+        quantity: 0,
         previousQuantity: oldQty,
-        newQuantity: newQuantity,
+        newQuantity: oldQty,
         note: note || 'Manuel düzeltme',
         referenceType: 'manual',
-        performedBy
-      });
-      return await manager.save(StockMovementEntity, movement);
+        performedBy,
+      }));
     });
 
     const updatedProduct = await this.productRepo.findOne({ where: { companyId: this.companyId, id: productId, isDeleted: false } });

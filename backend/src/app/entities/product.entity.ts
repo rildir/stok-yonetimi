@@ -5,6 +5,7 @@ import { CategoryEntity } from './category.entity';
 import { SupplierEntity } from './supplier.entity';
 import { ProductWarehouseStockEntity } from './product-warehouse-stock.entity';
 import { ProductStatus } from './enums';
+import { TaxRateEntity } from './tax-rate.entity';
 
 @Entity('products')
 @Index('UQ_products_company_sku', ['companyId', 'sku'], { unique: true })
@@ -40,7 +41,8 @@ export class ProductEntity {
   @Column('decimal', { precision: 10, scale: 2, transformer: new ColumnNumericTransformer() })
   price: number;
 
-  @Column('int')
+  /** Denormalized SUM(product_warehouse_stocks.quantity); kept in sync by WarehouseStockService. */
+  @Column('int', { default: 0 })
   quantity: number;
 
   @Column('int')
@@ -67,11 +69,26 @@ export class ProductEntity {
   @Column({ nullable: true })
   imageUrl: string;
 
-  @Column('json', { nullable: true })
-  warehouses: Record<string, number> | null;
+  /** ISO 4217 currency of `price` */
+  @Column({ type: 'varchar', length: 3, default: 'TRY' })
+  currency: string;
 
-  @OneToMany(() => ProductWarehouseStockEntity, (pws) => pws.product, { cascade: true })
-  warehouseStocks: ProductWarehouseStockEntity[];
+  @Index('IDX_products_taxRateId')
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  taxRateId?: string | null;
+
+  @ManyToOne(() => TaxRateEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'taxRateId', foreignKeyConstraintName: 'FK_products_tax_rate' })
+  taxRate?: TaxRateEntity | null;
+
+  @OneToMany(() => ProductWarehouseStockEntity, (pws) => pws.product)
+  warehouseStocks?: ProductWarehouseStockEntity[];
+
+  /**
+   * Read-only view of per-warehouse stock (warehouse name -> qty), filled from
+   * product_warehouse_stocks for API compatibility. Not a column.
+   */
+  warehouses?: Record<string, number>;
 
   @CreateDateColumn()
   createdAt: Date;

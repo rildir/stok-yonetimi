@@ -73,5 +73,9 @@
   "purchaseOrders.status.cancelled": "İptal edildi",
   "purchaseOrders.autoDraftCreated": "{count} adet otomatik sipariş taslağı oluşturuldu.",
   "purchaseOrders.autoDraftNone": "Tüm ürünler yeterli stok seviyesinde. Sipariş taslağı gerekmedi.",
-  "purchaseOrders.autoDraftFailed": "Otomatik sipariş taslağı oluşturulamadı."
+  "purchaseOrders.autoDraftFailed": "Otomatik sipariş taslağı oluşturulamadı.",
+  "purchaseOrders.defaultWarehouse": "Varsayılan depo",
+  "purchaseOrders.receivingWarehouse": "Teslim alınacak depo",
+  "purchaseOrders.serverPriceHint": "Fiyat boş: sunucu ürün fiyatını sipariş para birimine çevirerek hesaplayacak.",
+  "purchaseOrders.previewIncomplete": "Fiyatı boş satırlar önizlemeye dahil değildir; kaydedildiğinde sunucu tarafından fiyatlandırılır."
 }

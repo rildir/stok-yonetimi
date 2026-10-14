@@ -8,8 +8,12 @@ import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { OrderEntity } from '../../entities/order.entity';
 import { OrderItemEntity } from '../../entities/order-item.entity';
-import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { StockHelperService } from './stock-helper.service';
+import { WarehouseStockService } from './warehouse-stock.service';
+import { CustomerEntity } from '../../entities/customer.entity';
+import { TaxRateEntity } from '../../entities/tax-rate.entity';
+import { defaultTaxRatesFor } from '../finance/tax-defaults';
+import { calculateLine, calculateTotals } from '../finance/tax';
 import { UserRole, OrderStatus, StockMovementType } from '../../entities/enums';
 
 @Injectable()
@@ -28,6 +32,7 @@ export class SeedService implements OnModuleInit {
     @InjectRepository(OrderEntity)
     private readonly orderRepo: Repository<OrderEntity>,
     private readonly stockHelper: StockHelperService,
+    private readonly warehouseStock: WarehouseStockService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -145,32 +150,37 @@ export class SeedService implements OnModuleInit {
       }
     }
 
+    // Starter tax rates (KDV %20 default, %10, %1 for TR).
+    const taxCount = await this.dataSource.manager.count(TaxRateEntity, { where: { companyId } });
+    if (taxCount === 0) {
+      const company = await this.dataSource.getRepository(CompanyEntity).findOneByOrFail({ id: companyId });
+      for (const t of defaultTaxRatesFor(company.country)) {
+        await this.dataSource.getRepository(TaxRateEntity).save({ ...t, companyId });
+      }
+    }
+
     const productCount = await this.productRepo.count({ where: { companyId } });
     if (productCount > 0) return;
 
     this.logger.log('Database is empty. Seeding initial products & orders...');
 
-    const initialProducts: Partial<ProductEntity>[] = [
-      { name: 'Wireless Mouse M320', sku: 'MS-320', category: 'Accessories', price: 29.99, quantity: 45, minQuantity: 10, warehouses: { 'Merkez Depo': 30, 'Ataşehir Şube': 15 } },
-      { name: 'Mechanical Keyboard K85', sku: 'KB-85', category: 'Accessories', price: 89.99, quantity: 8, minQuantity: 15, warehouses: { 'Merkez Depo': 5, 'Ataşehir Şube': 3 } },
-      { name: 'UltraWide Monitor 34"', sku: 'MN-34U', category: 'Monitors', price: 449.99, quantity: 0, minQuantity: 5, warehouses: { 'Merkez Depo': 0, 'Ataşehir Şube': 0 } },
-      { name: 'USB-C Hub 8-in-1', sku: 'HB-81', category: 'Accessories', price: 49.99, quantity: 60, minQuantity: 10, warehouses: { 'Merkez Depo': 40, 'Ataşehir Şube': 20 } },
-      { name: 'Noise Cancelling Headphones', sku: 'HP-NC4', category: 'Audio', price: 199.99, quantity: 12, minQuantity: 10, warehouses: { 'Merkez Depo': 8, 'Ataşehir Şube': 4 } },
-      { name: 'Ergonomic Office Chair', sku: 'CH-ERGO', category: 'Furniture', price: 289.99, quantity: 3, minQuantity: 5, warehouses: { 'Merkez Depo': 2, 'Ataşehir Şube': 1 } },
-      { name: 'Webcam HD 1080p', sku: 'WC-1080', category: 'Accessories', price: 69.99, quantity: 25, minQuantity: 8, warehouses: { 'Merkez Depo': 15, 'Ataşehir Şube': 10 } },
-      { name: 'Bluetooth Speaker Portable', sku: 'SP-BT5', category: 'Audio', price: 39.99, quantity: 1, minQuantity: 5, warehouses: { 'Merkez Depo': 1, 'Ataşehir Şube': 0 } },
-      { name: 'Smart Watch Series 5', sku: 'SW-S5', category: 'Wearables', price: 249.99, quantity: 0, minQuantity: 8, warehouses: { 'Merkez Depo': 0, 'Ataşehir Şube': 0 } },
-      { name: 'Laptop Stand Aluminum', sku: 'LS-ALUM', category: 'Accessories', price: 34.99, quantity: 80, minQuantity: 10, warehouses: { 'Merkez Depo': 50, 'Ataşehir Şube': 30 } },
-    ];
+    const company = await this.dataSource.getRepository(CompanyEntity).findOneByOrFail({ id: companyId });
+    const defaultTax = await this.dataSource.getRepository(TaxRateEntity).findOne({ where: { companyId, isDefault: true } });
+    const taxPct = defaultTax ? Number(defaultTax.rate) : 0;
 
-    const savedProducts: ProductEntity[] = [];
-    for (const p of initialProducts) {
-      p.status = this.stockHelper.calculateStatus(p.quantity!, p.minQuantity!);
-      p.isDeleted = false;
-      p.companyId = companyId;
-      const created = this.productRepo.create(p);
-      savedProducts.push(await this.productRepo.save(created));
-    }
+    // Per-warehouse opening stock: [Merkez Depo, Ataşehir Şube]
+    const initialProducts: (Partial<ProductEntity> & { stock: [number, number] })[] = [
+      { name: 'Wireless Mouse M320', sku: 'MS-320', category: 'Accessories', price: 29.99, minQuantity: 10, stock: [30, 15] },
+      { name: 'Mechanical Keyboard K85', sku: 'KB-85', category: 'Accessories', price: 89.99, minQuantity: 15, stock: [5, 3] },
+      { name: 'UltraWide Monitor 34"', sku: 'MN-34U', category: 'Monitors', price: 449.99, minQuantity: 5, stock: [0, 0] },
+      { name: 'USB-C Hub 8-in-1', sku: 'HB-81', category: 'Accessories', price: 49.99, minQuantity: 10, stock: [40, 20] },
+      { name: 'Noise Cancelling Headphones', sku: 'HP-NC4', category: 'Audio', price: 199.99, minQuantity: 10, stock: [8, 4] },
+      { name: 'Ergonomic Office Chair', sku: 'CH-ERGO', category: 'Furniture', price: 289.99, minQuantity: 5, stock: [2, 1] },
+      { name: 'Webcam HD 1080p', sku: 'WC-1080', category: 'Accessories', price: 69.99, minQuantity: 8, stock: [15, 10] },
+      { name: 'Bluetooth Speaker Portable', sku: 'SP-BT5', category: 'Audio', price: 39.99, minQuantity: 5, stock: [1, 0] },
+      { name: 'Smart Watch Series 5', sku: 'SW-S5', category: 'Wearables', price: 249.99, minQuantity: 8, stock: [0, 0] },
+      { name: 'Laptop Stand Aluminum', sku: 'LS-ALUM', category: 'Accessories', price: 34.99, minQuantity: 10, stock: [50, 30] },
+    ];
 
     const today = new Date();
     const mockOrderTemplates = [
@@ -182,72 +192,84 @@ export class SeedService implements OnModuleInit {
     ];
 
     await this.dataSource.transaction(async (manager) => {
-      const activeWarehouses = await manager.find(WarehouseEntity, { where: { companyId, isDeleted: false } });
-      const activeNames = activeWarehouses.map((w) => w.name);
+      const warehouses = await this.warehouseStock.activeWarehouses(manager, companyId);
+      const savedProducts: ProductEntity[] = [];
+      for (const { stock, ...p } of initialProducts) {
+        const prod = await manager.save(
+          ProductEntity,
+          manager.create(ProductEntity, {
+            ...p,
+            companyId,
+            currency: company.baseCurrency,
+            quantity: 0,
+            status: this.stockHelper.calculateStatus(0, p.minQuantity!),
+            isDeleted: false,
+          })
+        );
+        const allocations = stock
+          .map((qty, i) => ({ warehouseId: warehouses[i]?.id ?? warehouses[0]?.id, delta: qty }))
+          .filter((a) => a.warehouseId && a.delta > 0);
+        await this.warehouseStock.apply(manager, prod, allocations);
+        await this.warehouseStock.recordMovements(manager, prod, 0, allocations, {
+          type: StockMovementType.IN, referenceType: 'manual', note: 'Initial seed stock', performedBy: 'SeedSystem',
+        });
+        savedProducts.push(prod);
+      }
 
+      // Customers + orders
+      const customers = new Map<string, CustomerEntity>();
       for (let i = 0; i < mockOrderTemplates.length; i++) {
         const template = mockOrderTemplates[i];
         const orderDate = new Date();
         orderDate.setDate(today.getDate() - template.daysAgo);
-
         const orderNum = `ORD-${202600 + i + 1}`;
-        let totalAmount = 0;
-        const itemEntities: OrderItemEntity[] = [];
 
+        let customer = customers.get(template.customer);
+        if (!customer) {
+          customer = await manager.save(CustomerEntity, manager.create(CustomerEntity, {
+            companyId, name: template.customer, type: 'individual', country: company.country, currency: company.baseCurrency,
+          }));
+          customers.set(template.customer, customer);
+        }
+
+        const lines = [];
+        const itemEntities: OrderItemEntity[] = [];
         for (const item of template.items) {
           const prod = savedProducts[item.pIndex];
           const oldQty = prod.quantity;
-
-          if (template.status === OrderStatus.COMPLETED || template.status === OrderStatus.PENDING) {
-            prod.warehouses = this.stockHelper.deductStockFromWarehouses(prod.warehouses, item.qty, activeNames);
-            prod.quantity = Math.max(0, prod.quantity - item.qty);
-            prod.status = this.stockHelper.calculateStatus(prod.quantity, prod.minQuantity);
-            await manager.save(ProductEntity, prod);
-
-            await manager.save(
-              StockMovementEntity,
-              manager.create(StockMovementEntity, {
-                companyId,
-                productId: prod.id,
-                productName: prod.name,
-                type: StockMovementType.ORDER,
-                quantity: -item.qty,
-                previousQuantity: oldQty,
-                newQuantity: prod.quantity,
-                referenceId: orderNum,
-                referenceType: 'order',
-                note: `Initial seed order: ${orderNum}`,
-                performedBy: 'SeedSystem',
-              })
-            );
-          }
-
-          totalAmount += prod.price * item.qty;
-
-          itemEntities.push(
-            manager.create(OrderItemEntity, {
-              productId: prod.id,
-              productName: prod.name,
-              quantity: item.qty,
-              price: prod.price,
-            })
-          );
+          const allocations = await this.warehouseStock.deduct(manager, prod, item.qty);
+          await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
+            type: StockMovementType.ORDER, referenceId: orderNum, referenceType: 'order',
+            note: `Initial seed order: ${orderNum}`, performedBy: 'SeedSystem',
+          });
+          const line = calculateLine({ quantity: item.qty, unitPrice: prod.price, taxRate: taxPct }, company.pricesIncludeTax);
+          lines.push(line);
+          itemEntities.push(manager.create(OrderItemEntity, {
+            productId: prod.id, productName: prod.name, quantity: item.qty,
+            price: line.unitPrice, unitPrice: line.unitPrice, taxRate: line.taxRate, taxAmount: line.taxAmount, lineTotal: line.lineTotal,
+          }));
         }
+        const totals = calculateTotals(lines);
 
-        const newOrder = manager.create(OrderEntity, {
+        await manager.save(OrderEntity, manager.create(OrderEntity, {
           companyId,
           orderNumber: orderNum,
+          customerId: customer.id,
           customerName: template.customer,
           date: orderDate,
           status: template.status,
-          totalAmount: parseFloat(totalAmount.toFixed(2)),
+          currency: company.baseCurrency,
+          exchangeRate: 1,
+          subtotal: totals.subtotal,
+          taxTotal: totals.taxTotal,
+          grandTotal: totals.grandTotal,
+          totalAmount: totals.grandTotal,
           items: itemEntities,
-        });
-
-        await manager.save(OrderEntity, newOrder);
+        }));
       }
     });
 
     this.logger.log('Initial data seed complete with transactional stock deduction.');
   }
 }
+

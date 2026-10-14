@@ -68,5 +68,10 @@
   "orders.toast.deleteError": "An error occurred while deleting the order.",
   "orders.toast.statusUpdated": "Order status updated.",
   "orders.toast.stockReloadFailed": "Status updated but stock could not be reloaded.",
-  "orders.toast.updateError": "An error occurred while updating the order."
+  "orders.toast.updateError": "An error occurred while updating the order.",
+  "orders.create.customer": "Customer",
+  "orders.create.newCustomerOption": "— New customer (type a name) —",
+  "orders.create.unitPriceOverride": "Unit price (leave empty to use product price)",
+  "orders.create.priceWillConvert": "Price will be converted to the order currency",
+  "orders.create.totalsIncomplete": "Some line prices will be converted by the server; totals are not final."
 }
