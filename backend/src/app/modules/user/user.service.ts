@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { CreateUserDto, UpdateUserDto } from '../../dto/user.dto';
-import { UserRole, SubscriptionPlan } from '../../entities/enums';
+import { UserRole } from '../../entities/enums';
 
 import { AppGateway } from '../../app.gateway';
 
@@ -85,28 +85,6 @@ export class UserService {
       throw new BadRequestException('Yönetici bulunamadı.');
     }
 
-    const totalUsers = await this.userRepo.count();
-    const plan = admin.subscriptionPlan || SubscriptionPlan.STANDARD;
-
-    // Standard = 5 seats, Professional = 20 seats, Ultra = unlimited
-    let limit = 5;
-    if (plan === SubscriptionPlan.PROFESSIONAL) limit = 20;
-    else if (plan === SubscriptionPlan.ULTRA) limit = 999999;
-    else if (plan === SubscriptionPlan.NONE) limit = 1;
-
-    if (totalUsers >= limit) {
-      const planName =
-        plan === SubscriptionPlan.STANDARD
-          ? 'Standart'
-          : plan === SubscriptionPlan.PROFESSIONAL
-          ? 'Profesyonel'
-          : 'Ultra';
-      throw new BadRequestException(
-        `Mevcut planınız (${planName}) en fazla ${limit} kullanıcıya izin vermektedir. ` +
-          `Yeni kullanıcı eklemek için lütfen planınızı yükseltin.`
-      );
-    }
-
     const existing = await this.userRepo.findOne({ where: { username: data.username } });
     if (existing) {
       throw new BadRequestException(`"${data.username}" kullanıcı adı zaten kullanımda.`);
@@ -119,7 +97,6 @@ export class UserService {
       fullName: data.fullName,
       email: data.email,
       department: data.department || '',
-      subscriptionPlan: SubscriptionPlan.STANDARD,
       tokenVersion: 0,
     });
 
@@ -160,21 +137,5 @@ export class UserService {
 
     await this.userRepo.remove(user);
     return true;
-  }
-
-  async updateSubscription(username: string, plan: string): Promise<void> {
-    const user = await this.getUserByUsername(username);
-    if (!user) {
-      throw new BadRequestException('Kullanıcı bulunamadı.');
-    }
-    user.subscriptionPlan = plan;
-    if (plan === SubscriptionPlan.NONE) {
-      user.subscriptionExpiresAt = null as any;
-    } else {
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 30);
-      user.subscriptionExpiresAt = expires;
-    }
-    await this.userRepo.save(user);
   }
 }

@@ -20,11 +20,6 @@ import { tap } from 'rxjs';
       </div>
       <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
         <button class="btn btn-primary" (click)="openCreateOrder()">+ Yeni Sipariş</button>
-        <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
-        <button class="btn btn-outline" (click)="ui.toggleAiPanel()">
-          <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #9333ea; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          Yapay Zeka Asistanı
-        </button>
       </div>
     </header>
 

@@ -6,9 +6,6 @@
 
 - **Stok Takibi & CRUD**: Ürün ekleme, silme ve dinamik stok seviyesi takipleri.
 - **Sipariş Yönetimi**: Bekleyen siparişleri tamamlama, iptal etme ve otomatik stok düşümü/iadesi.
-- **Collapsible AI Panel**: Sağ tarafta açılıp kapanabilen, doğal dil sorgularını işleyen yapay zeka paneli.
-- **Answer Cards (Cevap Kartları)**: Yapay zeka sorgularının yanıtları basit sohbet balonları yerine özelleştirilmiş bilgi kartları olarak döner.
-- **Gömülü Mini Grafikler**: Yapılan sorguların sonucuna göre dinamik SVG bar, pasta ve çizgi grafikleri kartların içine gömülü olarak gelir.
 
 ---
 
@@ -17,7 +14,6 @@
 - **Renk Paleti**:
   - **Sidebar Background**: `#1E1B4B` (Lacivert / İndigo)
   - **Primary / Akranlar**: `#0EA5E9` (Gökyüzü Mavisi)
-  - **AI Aksanı**: `#8B5CF6` (Menekşe Moru)
   - **Stok Durumları**:
     - Stokta (In stock): `#059669` (Zümrüt Yeşili)
     - Kritik Stok (Low stock): `#F59E0B` (Amber / Turuncu)
@@ -73,13 +69,3 @@ Angular uygulamasını port 4200 üzerinde başlatmak ve NestJS proxy entegrasyo
 ```bash
 npx nx serve frontend
 ```
-
----
-
-## 🧠 Yapay Zeka Sorgu Örnekleri
-
-Sağ taraftaki AI panelinden aşağıdaki örnek doğal dil sorgularını sorabilirsiniz:
-1. `"Geçen ay en az satan 5 ürünü listele"` (SVG Bar grafik çıktısı verir)
-2. `"En çok satan 5 ürün"` (Dinamik Pasta/Doughnut grafik çıktısı verir)
-3. `"Stok seviyesi kritik limitin altında olanlar"` (Dinamik Tablo çıktısı verir)
-4. `"Genel satış durumunu göster"` (Finansal analiz ve SVG Çizgi grafik çıktısı verir)

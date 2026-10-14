@@ -11,7 +11,6 @@ import {
   Warehouse,
   StockMovement,
   StockCount,
-  AiResponseCard,
 } from './models/inventory.models';
 
 export type {
@@ -26,7 +25,6 @@ export type {
   StockMovement,
   StockCount,
   StockCountItem,
-  AiResponseCard,
 } from './models/inventory.models';
 
 @Injectable({
@@ -81,11 +79,6 @@ export class InventoryService {
 
   deleteOrder(id: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.apiUrl}/orders/${id}`);
-  }
-
-  // AI Assistant
-  askAi(prompt: string): Observable<AiResponseCard> {
-    return this.http.post<AiResponseCard>(`${this.apiUrl}/ai/query`, { prompt });
   }
 
   // Stock Movements
@@ -212,11 +205,6 @@ export class InventoryService {
 
   getSupplierSummaryReport(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/reports/supplier-summary`);
-  }
-
-  // AI Demand Forecasting
-  getAiForecast(productId: string): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/ai/forecast/${productId}`);
   }
 
   // Auto Draft Purchase Orders

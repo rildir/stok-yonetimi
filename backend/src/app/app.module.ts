@@ -36,7 +36,6 @@ import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { StockMovementModule } from './modules/stock-movement/stock-movement.module';
 import { StockCountModule } from './modules/stock-count/stock-count.module';
 import { UserModule } from './modules/user/user.module';
-import { AiModule } from './modules/ai/ai.module';
 import { ReportModule } from './modules/report/report.module';
 
 @Module({
@@ -86,7 +85,6 @@ import { ReportModule } from './modules/report/report.module';
     StockMovementModule,
     StockCountModule,
     UserModule,
-    AiModule,
     ReportModule,
     HealthModule,
   ],

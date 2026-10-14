@@ -31,10 +31,3 @@ export enum StockMovementType {
   RETURN = 'RETURN',
   ADJUSTMENT = 'ADJUSTMENT',
 }
-
-export enum SubscriptionPlan {
-  STANDARD = 'standard',
-  PROFESSIONAL = 'professional',
-  ULTRA = 'ultra',
-  NONE = 'none',
-}

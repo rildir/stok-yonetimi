@@ -308,7 +308,7 @@ export class PurchaseOrderService {
         status: PurchaseOrderStatus.DRAFT,
         items,
         totalAmount: parseFloat(totalAmount.toFixed(2)),
-        notes: 'AI destekli otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
+        notes: 'Otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
         createdAt: now,
       });
 

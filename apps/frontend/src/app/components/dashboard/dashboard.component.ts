@@ -18,33 +18,6 @@ import { Chart } from 'chart.js/auto';
       </div>
     </header>
 
-    <!-- SLEEK AI SEARCH BAR -->
-    @if (ui.subscription().plan === 'ultra') {
-      <div class="ai-search-centerpiece">
-        <div class="ai-search-content-wrapper">
-          <div class="ai-search-bar" [class.ai-loading]="ui.isAiLoading()">
-            <div class="ai-search-icon">✦</div>
-            <input 
-              type="text" 
-              class="ai-search-input" 
-              placeholder="Yapay Zeka Asistanı ile stok analizi yapın, sipariş özetleri isteyin..." 
-              [(ngModel)]="aiPrompt" 
-              (keydown)="onKeydown($event)"
-            />
-            <button class="ai-search-submit" (click)="askQuestion(aiPrompt)" [disabled]="!aiPrompt.trim()">
-               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-          </div>
-          <div class="ai-search-suggestions">
-            <span class="suggestion-label">Şunu deneyin:</span>
-            <button class="suggestion-tag" (click)="askQuestion('Kritik stok seviyesindeki ürünler hangileri?')">⚠️ Kritik Stoklar</button>
-            <button class="suggestion-tag" (click)="askQuestion('En çok satan ürün hangisi?')">🔥 En Çok Satan</button>
-            <button class="suggestion-tag" (click)="askQuestion('Haftalık stok hareket analizi yap')">📊 Stok Hareketi</button>
-          </div>
-        </div>
-      </div>
-    }
-
     <div class="dashboard-unified-grid" style="display: grid; grid-template-columns: repeat(24, 1fr); gap: 16px; width: 100%; padding-bottom: 2.5rem;">
       <!-- ROW 1: Stat Cards -->
       <div class="stat-card" style="grid-column: span 6; height: 100%;">
@@ -156,12 +129,6 @@ import { Chart } from 'chart.js/auto';
             </span>
             <span class="qa-text">Stok Sayımı Başlat</span>
           </a>
-          <button (click)="ui.isAiPanelOpen.set(true)" class="quick-action-row-btn">
-            <span class="qa-badge-icon" style="background: rgba(147, 51, 234, 0.06); color: #9333ea;">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-            </span>
-            <span class="qa-text">Yapay Zeka Asistanı</span>
-          </button>
         </div>
       </div>
 
@@ -236,7 +203,6 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   ui = inject(UiStateService);
   inventoryService = inject(InventoryService);
   
-  aiPrompt = '';
   isBannerDismissed = false;
   isChartEmpty = false;
   isWeeklyLoading = true;
@@ -434,19 +400,5 @@ export class DashboardComponent implements OnInit, AfterViewInit {
         }
       });
     });
-  }
-
-  askQuestion(promptText: string) {
-    if (!promptText.trim()) return;
-    this.ui.isAiPanelOpen.set(true);
-    this.ui.askQuestion(promptText);
-    this.aiPrompt = '';
-  }
-
-  onKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      this.askQuestion(this.aiPrompt);
-    }
   }
 }

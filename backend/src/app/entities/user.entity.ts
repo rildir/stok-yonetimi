@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { UserRole, SubscriptionPlan } from './enums';
+import { UserRole } from './enums';
 
 @Entity('users')
 export class UserEntity {
@@ -29,12 +29,6 @@ export class UserEntity {
 
   @Column({ default: 0 })
   tokenVersion: number;
-
-  @Column({ type: 'varchar', default: SubscriptionPlan.STANDARD })
-  subscriptionPlan: SubscriptionPlan | string;
-
-  @Column({ nullable: true })
-  subscriptionExpiresAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;

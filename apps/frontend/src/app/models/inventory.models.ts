@@ -113,34 +113,3 @@ export interface StockCount {
   createdAt: string;
   completedAt?: string;
 }
-
-export interface AiResponseCard {
-  title: string;
-  type: 'chart' | 'table' | 'metric' | 'list';
-  description: string;
-  chartType?: 'bar' | 'line' | 'pie' | 'doughnut';
-  chartData?: {
-    labels: string[];
-    datasets: {
-      label: string;
-      data: number[];
-      backgroundColor?: string[];
-      borderColor?: string[];
-    }[];
-  };
-  tableData?: {
-    headers: string[];
-    rows: any[][];
-  };
-  metrics?: {
-    label: string;
-    value: string | number;
-    change?: string;
-    isPositive?: boolean;
-  }[];
-  thinking?: string;
-  action?: {
-    type: string;
-    payload: any;
-  };
-}

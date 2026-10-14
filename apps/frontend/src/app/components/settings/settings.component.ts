@@ -302,39 +302,12 @@ import { SocketService } from '../../services/socket.service';
               </div>
               
               <div style="display: flex; gap: 1rem; align-items: center;">
-                <!-- User Limit Status & Progress Bar -->
-                <div class="limit-status-card" style="background: #fff; border: 1px solid #D5D9D9; border-radius: 8px; padding: 6px 14px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 4px; min-width: 160px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                  <div style="display: flex; justify-content: space-between; font-weight: 600; color: var(--text-primary);">
-                    <span>Kullanıcı Limiti:</span>
-                    <span>{{ getUserLimitText() }}</span>
-                  </div>
-                  <div style="width: 100%; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden;">
-                    <div [style.width.%]="getUserLimitPercentage()" style="height: 100%; background: var(--primary); transition: width 0.3s ease;"></div>
-                  </div>
-                </div>
-
                 <button class="btn btn-primary" (click)="openUserDrawer()">
                   <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                   Yeni Kullanıcı Ekle
                 </button>
               </div>
             </div>
-
-            <!-- Limit Warning Alert when standard/pro plan & exceeded -->
-            @if (isLimitReached()) {
-              <div style="background: #fff8f8; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 1.25rem;">⚠</span>
-                  <div>
-                    <h4 style="font-weight: 600; color: #991b1b; font-size: 0.9rem; margin: 0;">Kullanıcı Limitine Ulaşıldı!</h4>
-                    <p style="color: #b91c1c; font-size: 0.8rem; margin: 2px 0 0 0;">Mevcut planınızda yeni kullanıcı oluşturamazsınız. Kullanıcı limiti doldu.</p>
-                  </div>
-                </div>
-                <button class="btn btn-outline" style="border-color: #fca5a5; color: #b91c1c; background: #fff; font-size: 0.8rem; padding: 6px 12px;" (click)="router.navigate(['/billing'])">
-                  Planı Yükselt
-                </button>
-              </div>
-            }
 
             <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
               @if (isLoadingUsers()) {
@@ -968,29 +941,6 @@ export class SettingsComponent implements OnInit {
         this.toast.show('Kullanıcılar yüklenemedi.', 'error');
       }
     });
-  }
-
-  getUserLimit(): number {
-    const plan = this.ui.userProfile()?.subscriptionPlan || 'standard';
-    if (plan === 'professional') return 5;
-    if (plan === 'ultra') return 999999;
-    return 1;
-  }
-
-  getUserLimitText(): string {
-    const limit = this.getUserLimit();
-    return `${this.users().length} / ${limit === 999999 ? '∞' : limit}`;
-  }
-
-  getUserLimitPercentage(): number {
-    const limit = this.getUserLimit();
-    if (limit === 999999) return 0;
-    const pct = (this.users().length / limit) * 100;
-    return Math.min(pct, 100);
-  }
-
-  isLimitReached(): boolean {
-    return this.users().length >= this.getUserLimit();
   }
 
   getInitials(name: string): string {

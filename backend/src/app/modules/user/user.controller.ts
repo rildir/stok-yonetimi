@@ -64,8 +64,6 @@ export class UserController {
       email: user.email,
       department: user.department,
       avatar: user.avatar,
-      subscriptionPlan: user.subscriptionPlan,
-      subscriptionExpiresAt: user.subscriptionExpiresAt,
       createdAt: user.createdAt
     };
   }
@@ -85,9 +83,7 @@ export class UserController {
         fullName: updatedUser.fullName,
         email: updatedUser.email,
         department: updatedUser.department,
-        avatar: updatedUser.avatar,
-        subscriptionPlan: updatedUser.subscriptionPlan,
-        subscriptionExpiresAt: updatedUser.subscriptionExpiresAt
+        avatar: updatedUser.avatar
       }
     };
   }
@@ -152,18 +148,5 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'Kullanıcı silindi' })
   async deleteUser(@Param('id') id: string) {
     return { success: await this.userService.deleteUser(id) };
-  }
-
-  @ApiBearerAuth()
-  @Roles('admin')
-  @Put('user/subscription')
-  @ApiOperation({ summary: 'Abonelik planını güncelle (Admin)' })
-  @ApiResponse({ status: 200, description: 'Abonelik güncellendi' })
-  async updateSubscription(@Body('plan') plan: string, @Req() req: any) {
-    if (!plan) {
-      throw new BadRequestException('Abonelik planı (plan) zorunludur.');
-    }
-    await this.userService.updateSubscription(req.user.username, plan);
-    return { success: true, message: `Abonelik planı ${plan} olarak güncellendi.` };
   }
 }
