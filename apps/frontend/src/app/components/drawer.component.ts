@@ -1,9 +1,10 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslatePipe } from '../i18n';
 
 @Component({
   selector: 'app-drawer',
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   template: `
     <div
       *ngIf="isOpen"
@@ -31,7 +32,7 @@ import { CommonModule } from '@angular/common';
               (click)="close()"
               class="rounded-md text-textMuted hover:text-primary focus:outline-none transition-colors duration-200"
             >
-              <span class="sr-only">Kapat</span>
+              <span class="sr-only">{{ 'common.close' | t }}</span>
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>

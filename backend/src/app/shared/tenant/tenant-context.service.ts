@@ -1,3 +1,4 @@
+import { err } from '../i18n/app-error';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AsyncLocalStorage } from 'async_hooks';
 
@@ -39,7 +40,7 @@ export class TenantContext {
   get companyId(): string {
     const companyId = storage.getStore()?.companyId;
     if (!companyId) {
-      throw new UnauthorizedException('Şirket bağlamı bulunamadı.');
+      throw new UnauthorizedException(err('TENANT_CONTEXT_MISSING'));
     }
     return companyId;
   }

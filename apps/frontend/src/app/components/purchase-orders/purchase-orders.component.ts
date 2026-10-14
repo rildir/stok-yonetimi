@@ -7,30 +7,31 @@ import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs/operators';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
 
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
       <div>
-        <h1>Satın Alma Siparişleri</h1>
-        <p>Tedarikçilere verilen siparişler ve stok kabulleri.</p>
+        <h1>{{ 'purchaseOrders.title' | t }}</h1>
+        <p>{{ 'purchaseOrders.subtitle' | t }}</p>
       </div>
       <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
         <button class="btn btn-primary" (click)="openDrawer()">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          Yeni Sipariş
+          {{ 'purchaseOrders.new' | t }}
         </button>
         <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
-        <button class="btn btn-outline" (click)="autoDraft()" [disabled]="isAutoDrafting()" title="Stok seviyesi düşük ürünler için otomatik sipariş taslağı oluştur">
+        <button class="btn btn-outline" (click)="autoDraft()" [disabled]="isAutoDrafting()" [title]="'purchaseOrders.autoDraftTooltip' | t">
           @if (isAutoDrafting()) {
-            <span class="spinner-sm"></span> Analiz ediliyor...
+            <span class="spinner-sm"></span> {{ 'purchaseOrders.analyzing' | t }}
           } @else {
             <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #9333ea; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            Otomatik Sipariş Taslağı
+            {{ 'purchaseOrders.autoDraft' | t }}
           }
         </button>
       </div>
@@ -40,33 +41,33 @@ import { tap } from 'rxjs/operators';
     <div class="filter-bar">
       <div class="search-box">
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="text" placeholder="Tedarikçi adı veya PO no ara..." [ngModel]="poSearch()" (ngModelChange)="poSearch.set($event)"/>
+        <input type="text" [placeholder]="'purchaseOrders.searchPlaceholder' | t" [ngModel]="poSearch()" (ngModelChange)="poSearch.set($event)"/>
       </div>
       
       <div class="date-filters">
-        <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" title="Başlangıç Tarihi" />
+        <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" [title]="'purchaseOrders.startDate' | t" />
         <span class="date-separator">-</span>
-        <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" title="Bitiş Tarihi" />
+        <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" [title]="'purchaseOrders.endDate' | t" />
         @if (startDate() || endDate()) {
-          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" title="Filtreyi Temizle">✕</button>
+          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" [title]="'purchaseOrders.clearFilter' | t">✕</button>
         }
       </div>
 
       <div class="filter-pills">
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'all'" (click)="poFilterStatus.set('all')">Tümü</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Draft'" (click)="poFilterStatus.set('Draft')">Taslak</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Sent'" (click)="poFilterStatus.set('Sent')">Gönderildi</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Received'" (click)="poFilterStatus.set('Received')">Teslim Alındı</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Cancelled'" (click)="poFilterStatus.set('Cancelled')">İptal Edilen</button>
+        <button class="filter-pill" [class.active]="poFilterStatus() === 'all'" (click)="poFilterStatus.set('all')">{{ 'purchaseOrders.filter.all' | t }}</button>
+        <button class="filter-pill" [class.active]="poFilterStatus() === 'Draft'" (click)="poFilterStatus.set('Draft')">{{ 'purchaseOrders.filter.draft' | t }}</button>
+        <button class="filter-pill" [class.active]="poFilterStatus() === 'Sent'" (click)="poFilterStatus.set('Sent')">{{ 'purchaseOrders.filter.sent' | t }}</button>
+        <button class="filter-pill" [class.active]="poFilterStatus() === 'Received'" (click)="poFilterStatus.set('Received')">{{ 'purchaseOrders.filter.received' | t }}</button>
+        <button class="filter-pill" [class.active]="poFilterStatus() === 'Cancelled'" (click)="poFilterStatus.set('Cancelled')">{{ 'purchaseOrders.filter.cancelled' | t }}</button>
       </div>
     </div>
 
     @if (isLoading()) {
-      <div class="loading-state" style="padding: 3rem; text-align: center; color: #565959;">Yükleniyor...</div>
+      <div class="loading-state" style="padding: 3rem; text-align: center; color: #565959;">{{ 'common.loading' | t }}</div>
     } @else if (filteredOrders().length === 0) {
       <div class="empty-state" style="padding: 3rem; text-align: center; border: 1px dashed #D5D9D9; border-radius: 8px; background: #FFFFFF; width: 100%;">
-        <p style="font-size: 15px; color: #565959; margin-bottom: 16px;">Arama kriterlerine uygun satın alma siparişi bulunamadı.</p>
-        <button class="btn btn-outline" (click)="openDrawer()">Sipariş Oluştur</button>
+        <p style="font-size: 15px; color: #565959; margin-bottom: 16px;">{{ 'purchaseOrders.noResults' | t }}</p>
+        <button class="btn btn-outline" (click)="openDrawer()">{{ 'purchaseOrders.create' | t }}</button>
       </div>
     } @else {
       <!-- Result Cards Stack (Ecelon layout) -->
@@ -77,22 +78,22 @@ import { tap } from 'rxjs/operators';
             <div class="order-card-header" style="background-color: #F0F2F2; border-bottom: 1px solid #D5D9D9; padding: 12px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #565959;">
               <div style="display: flex; gap: 2.5rem; flex-wrap: wrap;">
                 <div>
-                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Sipariş tarihi</div>
-                  <div style="color: #0F1111; font-weight: 500;">{{ o.createdAt | date:'dd.MM.yyyy' }}</div>
+                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.orderDate' | t }}</div>
+                  <div style="color: #0F1111; font-weight: 500;">{{ o.createdAt | appDate }}</div>
                 </div>
                 <div>
-                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Toplam tutar</div>
-                  <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">₺{{ o.totalAmount | number:'1.2-2' }}</div>
+                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.totalAmount' | t }}</div>
+                  <div style="color: #0F1111; font-weight: bold; font-family: var(--font-mono);">{{ o.totalAmount | money }}</div>
                 </div>
                 <div>
-                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">Tedarikçi</div>
+                  <div style="font-size: 11px; text-transform: none; font-weight: bold; margin-bottom: 2px;">{{ 'purchaseOrders.supplier' | t }}</div>
                   <div style="color: #0F1111; font-weight: 500;">{{ o.supplierName }}</div>
                 </div>
               </div>
               <div style="text-align: right;">
-                <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">PO no: {{ formatPoNumber(o.poNumber) }}</div>
+                <div style="font-size: 11px; font-weight: bold; text-transform: none; margin-bottom: 2px; color: #0F1111;">{{ 'purchaseOrders.poNo' | t: { no: formatPoNumber(o.poNumber) } }}</div>
                 <div>
-                  <a href="#" (click)="openDetailDrawer(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">Sipariş Detayları</a>
+                  <a href="#" (click)="openDetailDrawer(o); $event.preventDefault()" style="color: #007185; text-decoration: none; font-weight: 500;" onmouseover="this.style.color='#C45500'" onmouseout="this.style.color='#007185'">{{ 'purchaseOrders.orderDetails' | t }}</a>
                 </div>
               </div>
             </div>
@@ -113,7 +114,7 @@ import { tap } from 'rxjs/operators';
                   @for (item of getGroupedItems(o.items); track item.productId) {
                     <div style="display: flex; justify-content: space-between; width: 100%; max-width: 550px; font-size: 13px;">
                       <span style="color: #0F1111; font-weight: 500;">
-                        {{ item.productName }} — {{ item.quantity }} adet x ₺{{ item.price | number:'1.2-2' }} = ₺{{ (item.quantity * item.price) | number:'1.2-2' }}
+                        {{ item.productName }} — {{ 'purchaseOrders.itemLine' | t: { qty: (item.quantity | num), price: (item.price | money), total: ((item.quantity * item.price) | money) } }}
                       </span>
                     </div>
                   }
@@ -123,11 +124,11 @@ import { tap } from 'rxjs/operators';
                 @if (o.expectedDate || o.notes) {
                   <div style="margin-top: 10px; font-size: 12px; color: #565959; background: #F7FAFA; border: 1px solid #D5D9D9; border-radius: 4px; padding: 6px 12px; display: inline-block; max-width: 450px;">
                     @if (o.expectedDate) {
-                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Beklenen Tarih: <strong>{{ o.expectedDate | date:'dd.MM.yyyy' }}</strong>
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>{{ 'purchaseOrders.expectedDate' | t }}: <strong>{{ o.expectedDate | appDate }}</strong>
                     }
                     @if (o.expectedDate && o.notes) { <span style="margin: 0 8px;">|</span> }
                     @if (o.notes) {
-                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Notlar: <em>{{ o.notes }}</em>
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px; color: #565959;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>{{ 'purchaseOrders.notes' | t }}: <em>{{ o.notes }}</em>
                     }
                   </div>
                 }
@@ -137,24 +138,24 @@ import { tap } from 'rxjs/operators';
               <div style="display: flex; flex-direction: column; gap: 8px; width: 160px; flex-shrink: 0;" (click)="$event.stopPropagation()">
                 @if (o.status === 'Draft') {
                   <button class="btn btn-primary btn-sm" (click)="sendPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
-                    Gönder
+                    {{ 'purchaseOrders.send' | t }}
                   </button>
                   <button class="btn btn-secondary btn-sm" (click)="editPurchaseOrder(o)" style="width: 100%; border-radius: 20px;">
-                    Düzenle
+                    {{ 'common.edit' | t }}
                   </button>
                   <button class="btn btn-secondary btn-sm" (click)="deletePurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
-                    Sil
+                    {{ 'common.delete' | t }}
                   </button>
                 } @else if (o.status === 'Sent') {
                   <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)" style="width: 100%; border-radius: 20px; background-color: #007185; color: #fff; border-color: #005a6a;">
-                    Teslim Al
+                    {{ 'purchaseOrders.receive' | t }}
                   </button>
                   <button class="btn btn-secondary btn-sm" (click)="cancelPurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
-                    İptal Et
+                    {{ 'purchaseOrders.cancelOrder' | t }}
                   </button>
                 } @else if (o.status === 'Cancelled') {
                   <button class="btn btn-secondary btn-sm" (click)="deletePurchaseOrder(o)" style="width: 100%; border-radius: 20px; color: #B12704; border-color: rgba(220,38,38,0.2);">
-                    Sil
+                    {{ 'common.delete' | t }}
                   </button>
                 }
               </div>
@@ -169,7 +170,7 @@ import { tap } from 'rxjs/operators';
       <div class="drawer-overlay" (click)="closeDrawer()">
         <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ editingPoId() ? 'Satın Alma Siparişini Düzenle' : 'Yeni Satın Alma Siparişi' }}</span>
+            <span class="drawer-title">{{ (editingPoId() ? 'purchaseOrders.editTitle' : 'purchaseOrders.newTitle') | t }}</span>
             <button class="drawer-close" (click)="closeDrawer()">×</button>
           </div>
 
@@ -182,24 +183,24 @@ import { tap } from 'rxjs/operators';
                     <option [value]="s.id">{{ s.name }}</option>
                   }
                 </select>
-                <label class="form-label">Tedarikçi</label>
-                @if (isFieldInvalid('supplierId')) { <div class="form-error">⚠ Tedarikçi seçimi zorunludur.</div> }
+                <label class="form-label">{{ 'purchaseOrders.supplier' | t }}</label>
+                @if (isFieldInvalid('supplierId')) { <div class="form-error">⚠ {{ 'purchaseOrders.supplierRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input type="date" formControlName="expectedDate" class="form-input has-value" />
-                <label class="form-label">Beklenen Tarih</label>
+                <label class="form-label">{{ 'purchaseOrders.expectedDate' | t }}</label>
               </div>
 
               <div class="form-field">
                 <textarea formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')"></textarea>
-                <label class="form-label">Notlar</label>
+                <label class="form-label">{{ 'purchaseOrders.notes' | t }}</label>
               </div>
 
               <div style="margin-top: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <h3 style="font-size: 14px; font-weight: 600; margin: 0;">Sipariş Kalemleri</h3>
-                  <button type="button" class="btn btn-sm btn-outline" (click)="addItem()">+ Ürün Ekle</button>
+                  <h3 style="font-size: 14px; font-weight: 600; margin: 0;">{{ 'purchaseOrders.orderItems' | t }}</h3>
+                  <button type="button" class="btn btn-sm btn-outline" (click)="addItem()">+ {{ 'purchaseOrders.addProduct' | t }}</button>
                 </div>
 
                 <div formArrayName="items" style="display: flex; flex-direction: column; gap: 10px;">
@@ -207,14 +208,14 @@ import { tap } from 'rxjs/operators';
                     <div [formGroupName]="i" style="display: flex; gap: 8px; align-items: center; padding: 12px; background: var(--canvas); border: 1px solid var(--secondary); border-radius: 8px;">
                       <div style="flex: 2;">
                         <select formControlName="productId" class="form-input form-select" style="height: 40px; padding: 0 12px; font-size: 13px;">
-                          <option value="" disabled selected>Ürün Seçin</option>
+                          <option value="" disabled selected>{{ 'purchaseOrders.selectProduct' | t }}</option>
                           @for (p of state.products(); track p.id) {
-                            <option [value]="p.id">{{ p.name }} (Mevcut: {{ p.quantity }})</option>
+                            <option [value]="p.id">{{ p.name }} ({{ 'purchaseOrders.available' | t: { n: p.quantity } }})</option>
                           }
                         </select>
                       </div>
                       <div style="flex: 1;">
-                        <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" placeholder="Miktar" min="1" />
+                        <input type="number" formControlName="quantity" class="form-input" style="height: 40px; padding: 0 12px; font-size: 13px;" [placeholder]="'purchaseOrders.quantity' | t" min="1" />
                       </div>
                       <button type="button" class="delete-btn" (click)="removeItem(i)" style="padding: 6px;">
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -222,16 +223,16 @@ import { tap } from 'rxjs/operators';
                     </div>
                   }
                   @if (itemsArray.length === 0) {
-                    <div class="text-muted text-sm" style="text-align: center; padding: 16px; background: var(--canvas); border-radius: 8px; border: 1px dashed var(--secondary);">Henüz ürün eklenmedi.</div>
+                    <div class="text-muted text-sm" style="text-align: center; padding: 16px; background: var(--canvas); border-radius: 8px; border: 1px dashed var(--secondary);">{{ 'purchaseOrders.noItems' | t }}</div>
                   }
                 </div>
               </div>
             </div>
             
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()">Vazgeç</button>
+              <button type="button" class="btn btn-secondary" (click)="closeDrawer()">{{ 'common.cancel' | t }}</button>
               <button type="submit" class="btn btn-primary" [disabled]="poForm.invalid || itemsArray.length === 0 || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { {{ editingPoId() ? 'Güncelle' : 'Oluştur' }} }
+                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'purchaseOrders.saving' | t }} } @else { {{ (editingPoId() ? 'purchaseOrders.update' : 'purchaseOrders.createBtn') | t }} }
               </button>
             </div>
           </form>
@@ -245,34 +246,34 @@ import { tap } from 'rxjs/operators';
         <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <div>
-              <span class="drawer-title">Sipariş Detayı</span>
-              <span class="text-muted" style="font-size:12px; display:block; margin-top:2px;">PO No: {{ formatPoNumber(detailOrder().poNumber) }}</span>
+              <span class="drawer-title">{{ 'purchaseOrders.detailTitle' | t }}</span>
+              <span class="text-muted" style="font-size:12px; display:block; margin-top:2px;">{{ 'purchaseOrders.poNo' | t: { no: formatPoNumber(detailOrder().poNumber) } }}</span>
             </div>
             <button class="drawer-close" (click)="closeDetailDrawer()">×</button>
           </div>
           <div class="drawer-body">
             <div class="detail-grid">
               <div class="detail-field">
-                <span class="detail-label">Tedarikçi</span>
+                <span class="detail-label">{{ 'purchaseOrders.supplier' | t }}</span>
                 <span class="detail-value">{{ detailOrder().supplierName }}</span>
               </div>
               <div class="detail-field">
-                <span class="detail-label">Durum</span>
+                <span class="detail-label">{{ 'purchaseOrders.status' | t }}</span>
                 <div>
                   <span class="badge" [ngClass]="getBadgeClass(detailOrder().status)">{{ getStatusName(detailOrder().status) }}</span>
                 </div>
               </div>
               <div class="detail-field">
-                <span class="detail-label">Oluşturulma</span>
-                <span class="detail-value mono">{{ detailOrder().createdAt | date:'dd.MM.yyyy HH:mm' }}</span>
+                <span class="detail-label">{{ 'purchaseOrders.createdAt' | t }}</span>
+                <span class="detail-value mono">{{ detailOrder().createdAt | appDate: 'datetime' }}</span>
               </div>
               <div class="detail-field">
-                <span class="detail-label">Beklenen tarih</span>
-                <span class="detail-value mono">{{ (detailOrder().expectedDate | date:'dd.MM.yyyy') || '-' }}</span>
+                <span class="detail-label">{{ 'purchaseOrders.expectedDate' | t }}</span>
+                <span class="detail-value mono">{{ detailOrder().expectedDate ? (detailOrder().expectedDate | appDate) : '-' }}</span>
               </div>
             </div>
             
-            <h3 class="detail-items-title">Kalemler</h3>
+            <h3 class="detail-items-title">{{ 'purchaseOrders.items' | t }}</h3>
             <div style="display: flex; flex-direction: column; gap: 8px;">
               @for (item of getGroupedItems(detailOrder().items); track item.productId) {
                 <div class="detail-item-row">
@@ -280,7 +281,7 @@ import { tap } from 'rxjs/operators';
                     {{ item.productName }}
                   </span>
                   <span class="detail-item-qty" style="font-size: 13px; font-weight: normal; color: #565959;">
-                    {{ item.quantity }} adet x ₺{{ item.price | number:'1.2-2' }} = <strong style="color: #0f1111; font-weight: bold;">₺{{ (item.quantity * item.price) | number:'1.2-2' }}</strong>
+                    {{ 'purchaseOrders.itemQtyPrice' | t: { qty: (item.quantity | num), price: (item.price | money) } }} = <strong style="color: #0f1111; font-weight: bold;">{{ (item.quantity * item.price) | money }}</strong>
                   </span>
                 </div>
               }
@@ -288,7 +289,7 @@ import { tap } from 'rxjs/operators';
             
             @if (detailOrder().notes) {
               <div style="margin-top: 24px;">
-                <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">Notlar</h3>
+                <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">{{ 'purchaseOrders.notes' | t }}</h3>
                 <p class="text-muted" style="font-size:14px; line-height:1.5; background: var(--canvas); padding: 12px; border-radius: 8px; border: 1px solid var(--secondary);">{{ detailOrder().notes }}</p>
               </div>
             }
@@ -296,26 +297,26 @@ import { tap } from 'rxjs/operators';
             @if (detailOrder().status === 'Received') {
               <div style="margin-top: 24px; padding: 12px; border-radius: 8px; background-color: rgba(5, 150, 105, 0.08); border: 1px solid rgba(5, 150, 105, 0.2); display: flex; align-items: center; gap: 8px; color: var(--status-instock); font-weight: 500; font-size: 0.88rem;">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Bu sipariş teslim alınarak stoklar güncellenmiştir.
+                {{ 'purchaseOrders.receivedInfo' | t }}
               </div>
             } @else if (detailOrder().status === 'Cancelled') {
               <div style="margin-top: 24px; padding: 12px; border-radius: 8px; background-color: rgba(220, 38, 38, 0.08); border: 1px solid rgba(220, 38, 38, 0.2); display: flex; align-items: center; gap: 8px; color: var(--status-outstock); font-weight: 500; font-size: 0.88rem;">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Bu satın alma siparişi iptal edilmiştir.
+                {{ 'purchaseOrders.cancelledInfo' | t }}
               </div>
             }
           </div>
           <div class="drawer-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
-            <button class="btn btn-secondary" (click)="closeDetailDrawer()">Kapat</button>
+            <button class="btn btn-secondary" (click)="closeDetailDrawer()">{{ 'common.close' | t }}</button>
             @if (detailOrder().status === 'Draft') {
-              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">Sil</button>
-              <button class="btn btn-outline" (click)="editPurchaseOrder(detailOrder())">Düzenle</button>
-              <button class="btn btn-primary" (click)="sendPurchaseOrder(detailOrder())">Gönder</button>
+              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
+              <button class="btn btn-outline" (click)="editPurchaseOrder(detailOrder())">{{ 'common.edit' | t }}</button>
+              <button class="btn btn-primary" (click)="sendPurchaseOrder(detailOrder())">{{ 'purchaseOrders.send' | t }}</button>
             } @else if (detailOrder().status === 'Sent') {
-              <button class="btn btn-danger" (click)="cancelPurchaseOrder(detailOrder())">İptal Et</button>
-              <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">Teslim Al</button>
+              <button class="btn btn-danger" (click)="cancelPurchaseOrder(detailOrder())">{{ 'purchaseOrders.cancelOrder' | t }}</button>
+              <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">{{ 'purchaseOrders.receive' | t }}</button>
             } @else if (detailOrder().status === 'Cancelled') {
-              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">Sil</button>
+              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
             }
           </div>
         </div>
@@ -394,6 +395,7 @@ export class PurchaseOrdersComponent implements OnInit {
   fb = inject(FormBuilder);
   route = inject(ActivatedRoute);
   router = inject(Router);
+  i18n = inject(I18nService);
 
   orders = signal<any[]>([]);
   suppliers = signal<any[]>([]);
@@ -489,7 +491,7 @@ export class PurchaseOrdersComponent implements OnInit {
         },
         error: () => {
           this.isLoading.set(false);
-          this.ui.showToast('Satın alma siparişleri yüklenemedi.', 'error');
+          this.ui.showToast(this.i18n.t('purchaseOrders.loadFailed'), 'error');
         }
       });
     });
@@ -567,7 +569,7 @@ export class PurchaseOrdersComponent implements OnInit {
       const p = this.state.products().find(x => x.id === it.productId);
       return {
         ...it,
-        productName: p?.name || 'Bilinmeyen Ürün'
+        productName: p?.name || this.i18n.t('purchaseOrders.unknownProduct')
       };
     });
 
@@ -582,12 +584,12 @@ export class PurchaseOrdersComponent implements OnInit {
         this.isSaving.set(false);
         this.closeDrawer();
         this.loadData();
-        this.ui.showToast(this.editingPoId() ? 'Satın alma siparişi başarıyla güncellendi.' : 'Satın alma siparişi başarıyla oluşturuldu.', 'success');
+        this.ui.showToast(this.editingPoId() ? this.i18n.t('purchaseOrders.updated') : this.i18n.t('purchaseOrders.created'), 'success');
         this.editingPoId.set(null);
       },
       error: (err) => {
         this.isSaving.set(false);
-        this.ui.showToast(err.error?.message || (this.editingPoId() ? 'Satın alma siparişi güncellenemedi.' : 'Satın alma siparişi oluşturulamadı.'), 'error');
+        this.ui.showToast(err.error?.message || (this.editingPoId() ? this.i18n.t('purchaseOrders.updateFailed') : this.i18n.t('purchaseOrders.createFailed')), 'error');
       }
     });
   }
@@ -613,8 +615,8 @@ export class PurchaseOrdersComponent implements OnInit {
 
   deletePurchaseOrder(order: any) {
     this.ui.openConfirm({
-      title: 'Satın alma siparişini sil',
-      message: `${this.formatPoNumber(order.poNumber)} numaralı sipariş kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      title: this.i18n.t('purchaseOrders.deleteTitle'),
+      message: this.i18n.t('purchaseOrders.deleteMessage', { no: this.formatPoNumber(order.poNumber) }),
       isDelete: true,
       onConfirm: () => {
         return this.inventory.deletePurchaseOrder(order.id).pipe(
@@ -622,10 +624,10 @@ export class PurchaseOrdersComponent implements OnInit {
             next: () => {
               this.closeDetailDrawer();
               this.loadData();
-              this.ui.showToast('Satın alma siparişi silindi.', 'success');
+              this.ui.showToast(this.i18n.t('purchaseOrders.deleted'), 'success');
             },
             error: (err) => {
-              this.ui.showToast(err.error?.message || 'İşlem gerçekleştirilemedi.', 'error');
+              this.ui.showToast(err.error?.message || this.i18n.t('purchaseOrders.actionFailed'), 'error');
             }
           })
         );
@@ -635,17 +637,17 @@ export class PurchaseOrdersComponent implements OnInit {
 
   sendPurchaseOrder(order: any) {
     this.ui.openConfirm({
-      title: 'Siparişi Gönder',
-      message: `${this.formatPoNumber(order.poNumber)} numaralı siparişi tedarikçiye gönderildi olarak işaretlemek istiyor musunuz?`,
+      title: this.i18n.t('purchaseOrders.sendTitle'),
+      message: this.i18n.t('purchaseOrders.sendMessage', { no: this.formatPoNumber(order.poNumber) }),
       onConfirm: () => {
         this.inventory.updatePurchaseOrderStatus(order.id, 'Sent').subscribe({
           next: () => {
             this.closeDetailDrawer();
             this.loadData();
-            this.ui.showToast('Satın alma siparişi gönderildi olarak işaretlendi.', 'success');
+            this.ui.showToast(this.i18n.t('purchaseOrders.sentToast'), 'success');
           },
           error: () => {
-            this.ui.showToast('İşlem gerçekleştirilemedi.', 'error');
+            this.ui.showToast(this.i18n.t('purchaseOrders.actionFailed'), 'error');
           }
         });
       }
@@ -654,18 +656,18 @@ export class PurchaseOrdersComponent implements OnInit {
 
   receivePurchaseOrder(order: any) {
     this.ui.openConfirm({
-      title: 'Teslim Al',
-      message: `${this.formatPoNumber(order.poNumber)} numaralı siparişi teslim alıp ürünleri stoklara eklemek istediğinize emin misiniz?`,
+      title: this.i18n.t('purchaseOrders.receive'),
+      message: this.i18n.t('purchaseOrders.receiveMessage', { no: this.formatPoNumber(order.poNumber) }),
       onConfirm: () => {
         this.inventory.updatePurchaseOrderStatus(order.id, 'Received').subscribe({
           next: () => {
             this.closeDetailDrawer();
             this.loadData();
             this.state.loadData(); // Refetch products to get updated stocks
-            this.ui.showToast('Satın alma siparişi başarıyla teslim alındı.', 'success');
+            this.ui.showToast(this.i18n.t('purchaseOrders.receivedToast'), 'success');
           },
           error: () => {
-            this.ui.showToast('İşlem gerçekleştirilemedi.', 'error');
+            this.ui.showToast(this.i18n.t('purchaseOrders.actionFailed'), 'error');
           }
         });
       }
@@ -674,17 +676,17 @@ export class PurchaseOrdersComponent implements OnInit {
 
   cancelPurchaseOrder(order: any) {
     this.ui.openConfirm({
-      title: 'Siparişi İptal Et',
-      message: `${this.formatPoNumber(order.poNumber)} numaralı siparişi iptal etmek istediğinize emin misiniz?`,
+      title: this.i18n.t('purchaseOrders.cancelTitle'),
+      message: this.i18n.t('purchaseOrders.cancelMessage', { no: this.formatPoNumber(order.poNumber) }),
       onConfirm: () => {
         this.inventory.updatePurchaseOrderStatus(order.id, 'Cancelled').subscribe({
           next: () => {
             this.closeDetailDrawer();
             this.loadData();
-            this.ui.showToast('Satın alma siparişi iptal edildi.', 'success');
+            this.ui.showToast(this.i18n.t('purchaseOrders.cancelledToast'), 'success');
           },
           error: () => {
-            this.ui.showToast('İşlem gerçekleştirilemedi.', 'error');
+            this.ui.showToast(this.i18n.t('purchaseOrders.actionFailed'), 'error');
           }
         });
       }
@@ -693,17 +695,17 @@ export class PurchaseOrdersComponent implements OnInit {
 
   updateStatus(id: string, status: string) {
     this.ui.openConfirm({
-      title: 'Durum Güncelle',
-      message: 'Siparişi teslim alıp ürünleri stoklara eklemek istediğinize emin misiniz?',
+      title: this.i18n.t('purchaseOrders.updateStatusTitle'),
+      message: this.i18n.t('purchaseOrders.updateStatusMessage'),
       onConfirm: () => {
         this.inventory.updatePurchaseOrderStatus(id, status).subscribe({
           next: () => {
             this.loadData();
             this.state.loadData(); // Refetch products to get updated stocks
-            this.ui.showToast('Satın alma siparişi teslim alındı.', 'success');
+            this.ui.showToast(this.i18n.t('purchaseOrders.receivedToastShort'), 'success');
           },
           error: () => {
-            this.ui.showToast('İşlem gerçekleştirilemedi.', 'error');
+            this.ui.showToast(this.i18n.t('purchaseOrders.actionFailed'), 'error');
           }
         });
       }
@@ -720,7 +722,7 @@ export class PurchaseOrdersComponent implements OnInit {
         const price = item.price !== undefined && item.price !== null ? item.price : (p ? p.price : 0);
         grouped[productId] = {
           productId: item.productId,
-          productName: item.productName || p?.name || 'Bilinmeyen Ürün',
+          productName: item.productName || p?.name || this.i18n.t('purchaseOrders.unknownProduct'),
           quantity: 0,
           price: price,
           occurrenceCount: 0
@@ -743,10 +745,10 @@ export class PurchaseOrdersComponent implements OnInit {
 
   getStatusName(status: string) {
     switch (status) {
-      case 'Draft': return 'Taslak';
-      case 'Sent': return 'Gönderildi';
-      case 'Received': return 'Teslim alındı';
-      case 'Cancelled': return 'İptal edildi';
+      case 'Draft': return this.i18n.t('purchaseOrders.status.draft');
+      case 'Sent': return this.i18n.t('purchaseOrders.status.sent');
+      case 'Received': return this.i18n.t('purchaseOrders.status.received');
+      case 'Cancelled': return this.i18n.t('purchaseOrders.status.cancelled');
       default: return status;
     }
   }
@@ -770,14 +772,14 @@ export class PurchaseOrdersComponent implements OnInit {
         this.isAutoDrafting.set(false);
         if (res.count > 0) {
           this.loadData();
-          this.ui.showToast(`${res.count} adet otomatik sipariş taslağı oluşturuldu.`, 'success');
+          this.ui.showToast(this.i18n.t('purchaseOrders.autoDraftCreated', { count: res.count }), 'success');
         } else {
-          this.ui.showToast('Tüm ürünler yeterli stok seviyesinde. Sipariş taslağı gerekmedi.', 'success');
+          this.ui.showToast(this.i18n.t('purchaseOrders.autoDraftNone'), 'success');
         }
       },
       error: () => {
         this.isAutoDrafting.set(false);
-        this.ui.showToast('Otomatik sipariş taslağı oluşturulamadı.', 'error');
+        this.ui.showToast(this.i18n.t('purchaseOrders.autoDraftFailed'), 'error');
       }
     });
   }

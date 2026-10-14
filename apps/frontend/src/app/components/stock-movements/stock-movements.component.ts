@@ -5,27 +5,28 @@ import { FormBuilder, FormGroup, Validators, FormsModule, ReactiveFormsModule } 
 import { InventoryService, Product } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
+import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
 
 @Component({
   selector: 'app-stock-movements',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, ToastComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ToastComponent, TranslatePipe, AppDatePipe],
   template: `
     <header class="page-header">
       <div>
-        <h1>Stok Hareketleri</h1>
-        <p>Depodaki tüm ürün giriş, çıkış ve düzeltme işlemlerinin tarihçesi.</p>
+        <h1>{{ 'stockMovements.title' | t }}</h1>
+        <p>{{ 'stockMovements.subtitle' | t }}</p>
       </div>
       <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
-        <button class="btn btn-outline" (click)="loadMovements(currentPage())">Yenile</button>
+        <button class="btn btn-outline" (click)="loadMovements(currentPage())">{{ 'stockMovements.refresh' | t }}</button>
         <button class="btn btn-outline" (click)="exportToCSV()" style="display: flex; align-items: center; gap: 6px;">
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Dışa Aktar
+          {{ 'stockMovements.export' | t }}
         </button>
         <div style="width: 1px; height: 20px; background-color: #D5D9D9; margin: 0 8px; align-self: center;"></div>
         <button class="btn btn-primary" (click)="openDrawer()">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          Manuel Düzeltme
+          {{ 'stockMovements.manualAdjustment' | t }}
         </button>
       </div>
     </header>
@@ -35,19 +36,19 @@ import { ToastComponent } from '../shared/toast/toast.component';
         <!-- Arama Inputu -->
         <div class="search-box" style="margin: 0; min-width: 240px; flex: 1; max-width: 320px;">
           <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input type="text" placeholder="Ürün adına göre filtrele..." [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
+          <input type="text" [placeholder]="'stockMovements.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
         </div>
 
         <!-- Tarih Filtresi -->
         <div class="date-filters">
-          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">Başlangıç:</span>
-          <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="onStartDateChange($event)" title="Başlangıç Tarihi" />
+          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">{{ 'stockMovements.startDate' | t }}:</span>
+          <input type="date" class="date-input" [ngModel]="startDate()" (ngModelChange)="onStartDateChange($event)" [title]="'stockMovements.startDateTitle' | t" />
           <span class="date-separator">-</span>
-          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">Bitiş:</span>
-          <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="onEndDateChange($event)" title="Bitiş Tarihi" />
+          <span style="font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">{{ 'stockMovements.endDate' | t }}:</span>
+          <input type="date" class="date-input" [ngModel]="endDate()" (ngModelChange)="onEndDateChange($event)" [title]="'stockMovements.endDateTitle' | t" />
           @if (startDate() || endDate()) {
             <button class="btn btn-sm btn-secondary" (click)="clearDateFilter()" style="padding: 4px 8px; font-size: 0.7rem; height: 26px; border-radius: var(--radius-sm); margin-left: 6px;">
-              Temizle
+              {{ 'stockMovements.clear' | t }}
             </button>
           }
         </div>
@@ -55,39 +56,39 @@ import { ToastComponent } from '../shared/toast/toast.component';
 
       <!-- İşlem Tipi Filtresi -->
       <div class="filter-pills">
-        <button type="button" class="filter-pill" [class.active]="selectedTypes().length === 0" (click)="toggleType('ALL')">Tümü</button>
-        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('IN')" (click)="toggleType('IN')">Stok girişi</button>
-        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('ORDER')" (click)="toggleType('ORDER')">Sipariş</button>
-        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('RETURN')" (click)="toggleType('RETURN')">İptal / iade</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().length === 0" (click)="toggleType('ALL')">{{ 'stockMovements.filter.all' | t }}</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('IN')" (click)="toggleType('IN')">{{ 'stockMovements.type.in' | t }}</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('ORDER')" (click)="toggleType('ORDER')">{{ 'stockMovements.type.order' | t }}</button>
+        <button type="button" class="filter-pill" [class.active]="selectedTypes().includes('RETURN')" (click)="toggleType('RETURN')">{{ 'stockMovements.type.return' | t }}</button>
       </div>
     </div>
 
     <div class="table-card">
       @if (isLoading()) {
-        <div class="loading-state">Yükleniyor...</div>
+        <div class="loading-state">{{ 'common.loading' | t }}</div>
       } @else if (filteredMovements().length === 0) {
         <div class="empty-state">
-          <p>Kayıtlı stok hareketi bulunamadı.</p>
+          <p>{{ 'stockMovements.empty' | t }}</p>
         </div>
       } @else {
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Tarih</th>
-                <th>Ürün adı</th>
-                <th>İşlem tipi</th>
-                <th style="text-align: right;">Miktar</th>
-                <th style="text-align: right;">Eski stok</th>
-                <th style="text-align: right;">Yeni stok</th>
-                <th>Not / referans</th>
-                <th>İşlemi yapan</th>
+                <th>{{ 'stockMovements.col.date' | t }}</th>
+                <th>{{ 'stockMovements.col.productName' | t }}</th>
+                <th>{{ 'stockMovements.col.type' | t }}</th>
+                <th style="text-align: right;">{{ 'stockMovements.col.quantity' | t }}</th>
+                <th style="text-align: right;">{{ 'stockMovements.col.previousStock' | t }}</th>
+                <th style="text-align: right;">{{ 'stockMovements.col.newStock' | t }}</th>
+                <th>{{ 'stockMovements.col.noteRef' | t }}</th>
+                <th>{{ 'stockMovements.col.performedBy' | t }}</th>
               </tr>
             </thead>
             <tbody>
               @for (m of filteredMovements(); track m.id) {
                 <tr>
-                  <td>{{ m.createdAt | date:'dd.MM.yyyy HH:mm' }}</td>
+                  <td>{{ m.createdAt | appDate: 'datetime' }}</td>
                   <td><strong>{{ m.productName }}</strong></td>
                   <td>
                     <span class="badge" [ngClass]="getBadgeClass(m.type)">
@@ -111,7 +112,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
                   </td>
                   <td>
                     @if (m.performedBy && m.performedBy.toLowerCase() === 'system') {
-                      <span class="performed-badge performed-system">System</span>
+                      <span class="performed-badge performed-system">{{ 'stockMovements.system' | t }}</span>
                     } @else {
                       <span class="performed-badge performed-admin">{{ m.performedBy || 'Admin' }}</span>
                     }
@@ -125,11 +126,11 @@ import { ToastComponent } from '../shared/toast/toast.component';
         <!-- Pagination Bar -->
         <div class="pagination-bar">
           <div class="pagination-info">
-            Toplam <strong>{{ totalItems() }}</strong> hareketten <strong>{{ getStartCount() }} - {{ getEndCount() }}</strong> arası gösteriliyor
+            {{ 'stockMovements.pagination' | t: { total: totalItems(), start: getStartCount(), end: getEndCount() } }}
           </div>
           <div class="pagination-actions">
             <button class="page-btn" [disabled]="currentPage() === 1" (click)="loadMovements(currentPage() - 1)">
-              Önceki
+              {{ 'stockMovements.prev' | t }}
             </button>
             @for (p of getPagesArray(); track p) {
               <button class="page-btn" [class.active]="p === currentPage()" (click)="loadMovements(p)">
@@ -137,7 +138,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
               </button>
             }
             <button class="page-btn" [disabled]="currentPage() >= totalPages()" (click)="loadMovements(currentPage() + 1)">
-              Sonraki
+              {{ 'stockMovements.next' | t }}
             </button>
           </div>
         </div>
@@ -149,7 +150,7 @@ import { ToastComponent } from '../shared/toast/toast.component';
       <div class="drawer-overlay" (click)="closeDrawer()">
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">Manuel Stok Düzeltme</span>
+            <span class="drawer-title">{{ 'stockMovements.drawerTitle' | t }}</span>
             <button class="drawer-close" (click)="closeDrawer()">×</button>
           </div>
 
@@ -164,14 +165,14 @@ import { ToastComponent } from '../shared/toast/toast.component';
                     <option [value]="p.id">{{ p.name }} (SKU: {{ p.sku }})</option>
                   }
                 </select>
-                <label for="adjProduct" class="form-label">Ürün Seçin</label>
-                @if (isFieldInvalid('productId')) { <div class="form-error">⚠ Ürün seçimi zorunludur.</div> }
+                <label for="adjProduct" class="form-label">{{ 'stockMovements.selectProduct' | t }}</label>
+                @if (isFieldInvalid('productId')) { <div class="form-error">⚠ {{ 'stockMovements.validation.productRequired' | t }}</div> }
               </div>
 
               <!-- Mevcut Stok (Salt Okunur) -->
               @if (selectedProduct()) {
                 <div style="font-size: 0.85rem; padding: 0.75rem 1rem; background: var(--canvas); border-radius: var(--radius-md); border: 1px solid var(--secondary); display: flex; justify-content: space-between; align-items: center;">
-                  <span style="color: var(--text-muted); font-weight: 500;">Mevcut Stok Miktarı:</span>
+                  <span style="color: var(--text-muted); font-weight: 500;">{{ 'stockMovements.currentStock' | t }}:</span>
                   <strong style="color: var(--text-primary); font-size: 1rem;">{{ selectedProduct()?.quantity }}</strong>
                 </div>
               }
@@ -179,23 +180,23 @@ import { ToastComponent } from '../shared/toast/toast.component';
               <!-- Yeni Miktar -->
               <div class="form-field">
                 <input id="adjNewQty" type="number" formControlName="newQuantity" class="form-input" [class.has-value]="hasValue('newQuantity')" min="0" />
-                <label for="adjNewQty" class="form-label">Yeni Stok Miktarı</label>
-                @if (isFieldInvalid('newQuantity')) { <div class="form-error">⚠ Geçerli bir stok miktarı girin (min: 0).</div> }
+                <label for="adjNewQty" class="form-label">{{ 'stockMovements.newQuantity' | t }}</label>
+                @if (isFieldInvalid('newQuantity')) { <div class="form-error">⚠ {{ 'stockMovements.validation.quantityInvalid' | t }}</div> }
               </div>
 
               <!-- Açıklama / Not -->
               <div class="form-field">
                 <textarea id="adjNote" formControlName="note" class="form-input" [class.has-value]="hasValue('note')"></textarea>
-                <label for="adjNote" class="form-label">Düzeltme Nedeni / Açıklama</label>
-                @if (isFieldInvalid('note')) { <div class="form-error">⚠ Açıklama alanı zorunludur.</div> }
+                <label for="adjNote" class="form-label">{{ 'stockMovements.reason' | t }}</label>
+                @if (isFieldInvalid('note')) { <div class="form-error">⚠ {{ 'stockMovements.validation.noteRequired' | t }}</div> }
               </div>
 
             </div>
             
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">Vazgeç</button>
+              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
               <button type="submit" class="btn btn-primary" [disabled]="adjustForm.invalid || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { Kaydet }
+                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'stockMovements.saving' | t }} } @else { {{ 'common.save' | t }} }
               </button>
             </div>
           </form>
@@ -243,6 +244,7 @@ export class StockMovementsComponent implements OnInit {
   fb = inject(FormBuilder);
   route = inject(ActivatedRoute);
   router = inject(Router);
+  i18n = inject(I18nService);
   
   movements = signal<any[]>([]);
   products = signal<Product[]>([]);
@@ -303,7 +305,7 @@ export class StockMovementsComponent implements OnInit {
       },
       error: () => {
         this.isLoading.set(false);
-        this.ui.showToast('Stok hareketleri yüklenemedi.', 'error');
+        this.ui.showToast(this.i18n.t('stockMovements.toast.loadError'), 'error');
       }
     });
   }
@@ -361,13 +363,13 @@ export class StockMovementsComponent implements OnInit {
       next: (res) => {
         const list = res.data;
         if (!list || list.length === 0) {
-          this.ui.showToast('Dışa aktarılacak hareket bulunamadı.', 'error');
+          this.ui.showToast(this.i18n.t('stockMovements.toast.nothingToExport'), 'error');
           return;
         }
 
-        const headers = ['Tarih', 'Ürün Adı', 'İşlem Tipi', 'Miktar', 'Eski Stok', 'Yeni Stok', 'Açıklama', 'Referans Tipi', 'Referans ID', 'Gerçekleştiren'];
+        const headers = ['stockMovements.csv.date', 'stockMovements.csv.productName', 'stockMovements.csv.type', 'stockMovements.csv.quantity', 'stockMovements.csv.previousStock', 'stockMovements.csv.newStock', 'stockMovements.csv.note', 'stockMovements.csv.referenceType', 'stockMovements.csv.referenceId', 'stockMovements.csv.performedBy'].map(k => this.i18n.t(k));
         const rows = list.map((m: any) => {
-          const dateStr = new Date(m.createdAt).toLocaleString('tr-TR');
+          const dateStr = this.i18n.formatDate(m.createdAt, 'datetime');
           return [
             `"${dateStr}"`,
             `"${m.productName.replace(/"/g, '""')}"`,
@@ -388,16 +390,16 @@ export class StockMovementsComponent implements OnInit {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.setAttribute('href', url);
-        link.setAttribute('download', `stok_hareketleri_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `${this.i18n.t('stockMovements.csv.fileName')}_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-        this.ui.showToast('Stok hareketleri CSV olarak indirildi.', 'success');
+        this.ui.showToast(this.i18n.t('stockMovements.toast.exported'), 'success');
       },
       error: () => {
-        this.ui.showToast('Stok hareketleri indirilirken hata oluştu.', 'error');
+        this.ui.showToast(this.i18n.t('stockMovements.toast.exportError'), 'error');
       }
     });
   }
@@ -494,13 +496,13 @@ export class StockMovementsComponent implements OnInit {
       next: () => {
         this.isSaving.set(false);
         this.closeDrawer();
-        this.ui.showToast('Stok düzeltmesi başarıyla uygulandı.', 'success');
+        this.ui.showToast(this.i18n.t('stockMovements.toast.adjusted'), 'success');
         this.loadMovements(1); // Go back to first page to see the new adjustment
         this.loadProducts(); // Reload products to get the updated stock quantity
       },
       error: (err) => {
         this.isSaving.set(false);
-        const errMsg = err?.error?.message || 'Stok düzeltmesi uygulanamadı.';
+        const errMsg = err?.error?.message || this.i18n.t('stockMovements.toast.adjustError');
         this.ui.showToast(errMsg, 'error');
       }
     });
@@ -511,31 +513,31 @@ export class StockMovementsComponent implements OnInit {
     let label = '';
     switch (type.toUpperCase()) {
       case 'ORDER':
-        label = 'Sipariş';
+        label = this.i18n.t('stockMovements.type.order');
         break;
       case 'PURCHASE_ORDER':
-        label = 'Satın Alma';
+        label = this.i18n.t('stockMovements.ref.purchaseOrder');
         break;
       case 'STOCK_COUNT':
-        label = 'Stok Sayımı';
+        label = this.i18n.t('stockMovements.ref.stockCount');
         break;
       case 'ADJUSTMENT':
-        label = 'Düzeltme';
+        label = this.i18n.t('stockMovements.type.adjustment');
         break;
       default:
         label = type;
     }
     const shortId = id.length > 8 ? id.substring(0, 8) : id;
-    return `${label} Ref: #${shortId}`;
+    return `${label} ${this.i18n.t('stockMovements.ref.prefix')}: #${shortId}`;
   }
 
   getTypeName(type: string) {
     switch (type) {
-      case 'IN': return 'Stok girişi';
-      case 'OUT': return 'Stok çıkışı';
-      case 'ORDER': return 'Sipariş';
-      case 'RETURN': return 'İptal / iade';
-      case 'ADJUSTMENT': return 'Düzeltme';
+      case 'IN': return this.i18n.t('stockMovements.type.in');
+      case 'OUT': return this.i18n.t('stockMovements.type.out');
+      case 'ORDER': return this.i18n.t('stockMovements.type.order');
+      case 'RETURN': return this.i18n.t('stockMovements.type.return');
+      case 'ADJUSTMENT': return this.i18n.t('stockMovements.type.adjustment');
       default: return type;
     }
   }

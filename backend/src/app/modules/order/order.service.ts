@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -61,7 +62,7 @@ export class OrderService {
     performedBy = 'System'
   ): Promise<OrderEntity> {
     if (data.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException('Yeni bir sipariş "İptal Edildi" (Cancelled) durumuyla oluşturulamaz.');
+      throw new BadRequestException(err('ORDER_CANNOT_CREATE_CANCELLED'));
     }
 
     const productsToEmit: ProductEntity[] = [];
@@ -79,7 +80,7 @@ export class OrderService {
       }
 
       if (attempts === maxAttempts) {
-        throw new BadRequestException('Benzersiz sipariş numarası üretilemedi, lütfen tekrar deneyin.');
+        throw new BadRequestException(err('ORDER_NUMBER_GENERATION_FAILED'));
       }
 
       // Merge duplicates in payload
@@ -103,10 +104,10 @@ export class OrderService {
         });
 
         if (!prod) {
-          throw new BadRequestException(`Ürün bulunamadı: ${item.productName}`);
+          throw new BadRequestException(err('PRODUCT_NOT_FOUND_NAME', { name: item.productName }));
         }
         if (prod.quantity < item.quantity) {
-          throw new BadRequestException(`Yetersiz stok: ${prod.name} (Mevcut: ${prod.quantity})`);
+          throw new BadRequestException(err('ORDER_INSUFFICIENT_STOCK', { name: prod.name, available: prod.quantity }));
         }
 
         if (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING) {
@@ -189,10 +190,10 @@ export class OrderService {
       if (oldStatus === status) return order;
 
       if (oldStatus === OrderStatus.CANCELLED) {
-        throw new BadRequestException('İptal edilmiş bir siparişin durumu değiştirilemez.');
+        throw new BadRequestException(err('ORDER_CANCELLED_IMMUTABLE'));
       }
       if (oldStatus === OrderStatus.COMPLETED && status === OrderStatus.PENDING) {
-        throw new BadRequestException('Tamamlanmış bir sipariş tekrar "Beklemede" (Pending) durumuna alınamaz.');
+        throw new BadRequestException(err('ORDER_COMPLETED_TO_PENDING'));
       }
 
       if (status === OrderStatus.CANCELLED && (oldStatus === OrderStatus.PENDING || oldStatus === OrderStatus.COMPLETED)) {
@@ -251,7 +252,7 @@ export class OrderService {
     const order = await this.orderRepo.findOne({ where: { companyId: this.companyId, id } });
     if (order) {
       if (order.status !== OrderStatus.CANCELLED) {
-        throw new BadRequestException('Sadece iptal edilmiş siparişler silinebilir.');
+        throw new BadRequestException(err('ORDER_DELETE_ONLY_CANCELLED'));
       }
       await this.orderRepo.softRemove(order);
       this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'delete', orderId: id });

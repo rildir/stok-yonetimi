@@ -1,3 +1,4 @@
+import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -5,32 +6,32 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateProductDto {
   @ApiProperty({ description: 'Ürün adı', example: 'Kablosuz Klavye' })
   @IsString()
-  @IsNotEmpty({ message: 'Ürün adı boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_PRODUCT_NAME_REQUIRED' })
   name: string;
 
   @ApiProperty({ description: 'Stok Takip Kodu (SKU)', example: 'KLV-001' })
   @IsString()
-  @IsNotEmpty({ message: 'SKU kodu boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_SKU_REQUIRED' })
   sku: string;
 
   @ApiProperty({ description: 'Kategori slug', example: 'elektronik' })
   @IsString()
-  @IsNotEmpty({ message: 'Kategori boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_CATEGORY_REQUIRED' })
   category: string;
 
   @ApiProperty({ description: 'Ürün birim fiyatı (₺)', example: 499.90 })
-  @IsNumber({}, { message: 'Fiyat geçerli bir sayı olmalıdır.' })
-  @Min(0, { message: 'Fiyat en az 0 olmalıdır.' })
+  @IsNumber({}, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
   price: number;
 
   @ApiProperty({ description: 'Stok miktarı', example: 50 })
-  @IsInt({ message: 'Miktar bir tam sayı olmalıdır.' })
-  @Min(0, { message: 'Miktar en az 0 olmalıdır.' })
+  @IsInt({ message: 'VALIDATION_QUANTITY_INT' })
+  @Min(0, { message: vmsg('VALIDATION_QUANTITY_MIN', 'min') })
   quantity: number;
 
   @ApiProperty({ description: 'Kritik stok uyarısı verilecek minimum miktar', example: 5 })
-  @IsInt({ message: 'Minimum miktar bir tam sayı olmalıdır.' })
-  @Min(0, { message: 'Minimum miktar en az 0 olmalıdır.' })
+  @IsInt({ message: 'VALIDATION_MIN_QUANTITY_INT' })
+  @Min(0, { message: vmsg('VALIDATION_MIN_QUANTITY_MIN', 'min') })
   minQuantity: number;
 
   @ApiPropertyOptional({ description: 'Görsel URL adresi' })
@@ -104,17 +105,17 @@ export class UpdateProductDto {
 
 export class BulkDeleteProductsDto {
   @ApiProperty({ description: 'Silinecek ürün ID listesi', example: ['uuid-1', 'uuid-2'] })
-  @IsArray({ message: 'IDs bir dizi olmalıdır.' })
-  @ArrayMinSize(1, { message: 'En az bir ID seçilmelidir.' })
-  @IsString({ each: true, message: 'Her bir ID string olmalıdır.' })
+  @IsArray({ message: 'VALIDATION_IDS_ARRAY' })
+  @ArrayMinSize(1, { message: 'VALIDATION_IDS_MIN' })
+  @IsString({ each: true, message: 'VALIDATION_IDS_STRING' })
   ids: string[];
 }
 
 export class BulkUpdateProductsDto {
   @ApiProperty({ description: 'Güncellenecek ürün ID listesi', example: ['uuid-1', 'uuid-2'] })
-  @IsArray({ message: 'IDs bir dizi olmalıdır.' })
-  @ArrayMinSize(1, { message: 'En az bir ID seçilmelidir.' })
-  @IsString({ each: true, message: 'Her bir ID string olmalıdır.' })
+  @IsArray({ message: 'VALIDATION_IDS_ARRAY' })
+  @ArrayMinSize(1, { message: 'VALIDATION_IDS_MIN' })
+  @IsString({ each: true, message: 'VALIDATION_IDS_STRING' })
   ids: string[];
 
   @ApiProperty({ description: 'Uygulanacak güncellemeler' })

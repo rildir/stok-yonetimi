@@ -1,0 +1,16 @@
+{
+  "common.save": "Save",
+  "common.cancel": "Cancel",
+  "common.delete": "Delete",
+  "common.edit": "Edit",
+  "common.close": "Close",
+  "common.confirm": "Confirm",
+  "common.yes": "Yes",
+  "common.no": "No",
+  "common.search": "Search",
+  "common.loading": "Loading...",
+  "common.noData": "No records found.",
+  "common.actions": "Actions",
+  "common.language": "Language",
+  "common.unknownError": "An unexpected error occurred."
+}

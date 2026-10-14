@@ -1,3 +1,4 @@
+import { err } from '../i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -30,7 +31,7 @@ export class StockHelperService {
 
     if (remaining > 0) {
       throw new BadRequestException(
-        `Depo bazında yeterli stok bulunamadı. Eksik: ${remaining} adet.`
+        err('STOCK_INSUFFICIENT_BY_WAREHOUSE', { missing: remaining })
       );
     }
 

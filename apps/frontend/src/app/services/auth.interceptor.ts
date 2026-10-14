@@ -1,10 +1,13 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { I18nService } from '../i18n/i18n.service';
 import { catchError, retry, throwError, timer } from 'rxjs';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
+  const i18n = inject(I18nService);
+  req = req.clone({ setHeaders: { 'Accept-Language': i18n.lang() } });
   // Extract token from localStorage (safe check for SSR)
   const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
   

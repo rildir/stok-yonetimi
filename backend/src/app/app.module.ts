@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
-import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { I18nExceptionFilter } from './shared/i18n/i18n-exception.filter';
 import { HealthModule } from './modules/health/health.module';
 
 // Entities
@@ -97,7 +97,7 @@ import { ReportModule } from './modules/report/report.module';
   providers: [
     {
       provide: APP_FILTER,
-      useClass: AllExceptionsFilter,
+      useClass: I18nExceptionFilter,
     },
     {
       provide: APP_GUARD,

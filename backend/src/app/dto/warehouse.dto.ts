@@ -2,11 +2,11 @@ import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateWarehouseDto {
   @IsString()
-  @IsNotEmpty({ message: 'Depo adı boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_WAREHOUSE_NAME_REQUIRED' })
   name: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'Depo kodu boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_WAREHOUSE_CODE_REQUIRED' })
   code: string;
 
   @IsString()

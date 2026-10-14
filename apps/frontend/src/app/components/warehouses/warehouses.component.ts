@@ -6,11 +6,12 @@ import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
 
 @Component({
   selector: 'app-warehouses',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .dim-text {
@@ -29,13 +30,13 @@ import { tap } from 'rxjs';
   template: `
     <header class="page-header">
       <div>
-        <h1>Depo Yönetimi</h1>
-        <p>Depolarınızı, şubelerinizi ve depolardaki stok durumlarını yönetin.</p>
+        <h1>{{ 'warehouses.title' | t }}</h1>
+        <p>{{ 'warehouses.subtitle' | t }}</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-primary" (click)="openDrawer()">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          Yeni Depo
+          {{ 'warehouses.new' | t }}
         </button>
       </div>
     </header>
@@ -44,7 +45,7 @@ import { tap } from 'rxjs';
     <div class="filter-bar">
       <div class="search-box">
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="text" placeholder="Depo adı veya kodu ara..." [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+        <input type="text" [placeholder]="'warehouses.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
       </div>
     </div>
 
@@ -55,7 +56,7 @@ import { tap } from 'rxjs';
           <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
         </div>
         <div>
-          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Toplam Depo</div>
+          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">{{ 'warehouses.totalWarehouses' | t }}</div>
           <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">{{ totalWarehouseCount() }}</div>
         </div>
       </div>
@@ -65,8 +66,8 @@ import { tap } from 'rxjs';
           <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         </div>
         <div>
-          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Toplam Stok</div>
-          <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">{{ totalStockCount() }}</div>
+          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">{{ 'warehouses.totalStock' | t }}</div>
+          <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">{{ totalStockCount() | num }}</div>
         </div>
       </div>
 
@@ -75,36 +76,36 @@ import { tap } from 'rxjs';
           <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
         <div>
-          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Toplam Değer</div>
-          <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">₺{{ totalStockValue() | number:'1.2-2' }}</div>
+          <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">{{ 'warehouses.totalValue' | t }}</div>
+          <div class="mono" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">{{ totalStockValue() | money }}</div>
         </div>
       </div>
     </div>
  
     <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
       @if (isLoading()) {
-        <div class="loading-state">Yükleniyor...</div>
+        <div class="loading-state">{{ 'common.loading' | t }}</div>
       } @else if (warehouses().length === 0) {
         <div class="empty-state">
-          <p>Henüz hiç depo tanımlanmamış.</p>
-          <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">İlk Depoyu Ekle</button>
+          <p>{{ 'warehouses.empty' | t }}</p>
+          <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">{{ 'warehouses.addFirst' | t }}</button>
         </div>
       } @else if (filteredWarehouses().length === 0) {
         <div class="empty-state">
-          <p>Arama kriterlerinize uygun depo bulunamadı.</p>
+          <p>{{ 'warehouses.noResults' | t }}</p>
         </div>
       } @else {
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Depo adı</th>
-                <th>Depo kodu</th>
-                <th>Adres</th>
-                <th style="text-align: right;">Ürün çeşidi</th>
-                <th style="text-align: right;">Toplam stok</th>
-                <th style="text-align: right;">Toplam değer</th>
-                <th class="th-actions">İşlemler</th>
+                <th>{{ 'warehouses.col.name' | t }}</th>
+                <th>{{ 'warehouses.col.code' | t }}</th>
+                <th>{{ 'warehouses.col.address' | t }}</th>
+                <th style="text-align: right;">{{ 'warehouses.col.productCount' | t }}</th>
+                <th style="text-align: right;">{{ 'warehouses.col.totalStock' | t }}</th>
+                <th style="text-align: right;">{{ 'warehouses.col.totalValue' | t }}</th>
+                <th class="th-actions">{{ 'common.actions' | t }}</th>
               </tr>
             </thead>
             <tbody>
@@ -115,30 +116,30 @@ import { tap } from 'rxjs';
                   <td style="color: var(--text-primary);">{{ w.address || '-' }}</td>
                   <td class="mono" style="text-align: right;">
                     @if (w.productCount === 0) {
-                      <span class="dim-text">Ürün atanmadı</span>
+                      <span class="dim-text">{{ 'warehouses.noProductsAssigned' | t }}</span>
                     } @else {
-                      {{ w.productCount }}
+                      {{ w.productCount | num }}
                     }
                   </td>
                   <td class="mono" style="text-align: right; font-weight: 600;">
                     @if (w.totalStock === 0) {
-                      <span class="dim-text">Ürün atanmadı</span>
+                      <span class="dim-text">{{ 'warehouses.noProductsAssigned' | t }}</span>
                     } @else {
-                      {{ w.totalStock }}
+                      {{ w.totalStock | num }}
                     }
                   </td>
-                  <td class="mono" style="text-align: right; font-weight: 600; color: var(--text-primary);">₺{{ w.totalValue | number:'1.2-2' }}</td>
+                  <td class="mono" style="text-align: right; font-weight: 600; color: var(--text-primary);">{{ w.totalValue | money }}</td>
                   <td class="td-actions" (click)="$event.stopPropagation()">
-                    <button class="edit-btn" title="Detay" (click)="goToWarehouseProducts(w); $event.stopPropagation()" style="color: var(--primary);">
+                    <button class="edit-btn" [title]="'warehouses.details' | t" (click)="goToWarehouseProducts(w); $event.stopPropagation()" style="color: var(--primary);">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 16px; height: 16px;">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                       </svg>
                     </button>
-                    <button class="edit-btn" title="Düzenle" (click)="openDrawer(w); $event.stopPropagation()">
+                    <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(w); $event.stopPropagation()">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     </button>
-                    <button class="delete-btn" title="Sil" (click)="deleteWarehouse(w); $event.stopPropagation()" [disabled]="w.totalStock > 0">
+                    <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteWarehouse(w); $event.stopPropagation()" [disabled]="w.totalStock > 0">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                   </td>
@@ -155,7 +156,7 @@ import { tap } from 'rxjs';
       <div class="drawer-overlay" (click)="closeDrawer()">
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ editId() ? 'Depo Düzenle' : 'Yeni Depo Ekle' }}</span>
+            <span class="drawer-title">{{ (editId() ? 'warehouses.editTitle' : 'warehouses.addTitle') | t }}</span>
             <button class="drawer-close" (click)="closeDrawer()">×</button>
           </div>
 
@@ -163,26 +164,26 @@ import { tap } from 'rxjs';
             <div class="drawer-body">
               <div class="form-field">
                 <input id="warehouseName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" [disabled]="isSaving()" />
-                <label for="warehouseName" class="form-label">Depo Adı</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">⚠ Depo adı zorunludur.</div> }
+                <label for="warehouseName" class="form-label">{{ 'warehouses.form.name' | t }}</label>
+                @if (isFieldInvalid('name')) { <div class="form-error">⚠ {{ 'warehouses.form.nameRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input id="warehouseCode" type="text" formControlName="code" class="form-input" [class.has-value]="hasValue('code')" [disabled]="isSaving()" />
-                <label for="warehouseCode" class="form-label">Depo Kodu</label>
-                @if (isFieldInvalid('code')) { <div class="form-error">⚠ Depo kodu zorunludur.</div> }
+                <label for="warehouseCode" class="form-label">{{ 'warehouses.form.code' | t }}</label>
+                @if (isFieldInvalid('code')) { <div class="form-error">⚠ {{ 'warehouses.form.codeRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <textarea id="warehouseAddress" formControlName="address" class="form-input" [class.has-value]="hasValue('address')" [disabled]="isSaving()"></textarea>
-                <label for="warehouseAddress" class="form-label">Adres</label>
+                <label for="warehouseAddress" class="form-label">{{ 'warehouses.col.address' | t }}</label>
               </div>
             </div>
             
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">Vazgeç</button>
+              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
               <button type="submit" class="btn btn-primary" [disabled]="warehouseForm.invalid || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { Kaydet }
+                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'warehouses.saving' | t }} } @else { {{ 'common.save' | t }} }
               </button>
             </div>
           </form>
@@ -198,6 +199,7 @@ import { tap } from 'rxjs';
 export class WarehousesComponent implements OnInit {
   inventory = inject(InventoryService);
   ui = inject(UiStateService);
+  i18n = inject(I18nService);
   fb = inject(FormBuilder);
   route = inject(ActivatedRoute);
   router = inject(Router);
@@ -277,7 +279,7 @@ export class WarehousesComponent implements OnInit {
       },
       error: () => {
         this.isLoading.set(false);
-        this.ui.showToast('Depolar yüklenirken hata oluştu.', 'error');
+        this.ui.showToast(this.i18n.t('warehouses.loadError'), 'error');
       }
     });
   }
@@ -324,34 +326,34 @@ export class WarehousesComponent implements OnInit {
         this.isSaving.set(false);
         this.closeDrawer();
         this.loadWarehouses();
-        this.ui.showToast(id ? 'Depo başarıyla güncellendi.' : 'Depo başarıyla eklendi.', 'success');
+        this.ui.showToast(this.i18n.t(id ? 'warehouses.updated' : 'warehouses.created'), 'success');
       },
       error: (err) => {
         this.isSaving.set(false);
-        this.ui.showToast(err.error?.message || 'Depo kaydedilirken hata oluştu.', 'error');
+        this.ui.showToast(err.error?.message || this.i18n.t('warehouses.saveError'), 'error');
       }
     });
   }
 
   deleteWarehouse(warehouse: any) {
     if (warehouse.totalStock > 0) {
-      this.ui.showToast('İçinde ürün olan depolar silinemez.', 'error');
+      this.ui.showToast(this.i18n.t('warehouses.cannotDeleteWithStock'), 'error');
       return;
     }
     
     this.ui.openConfirm({
-      title: 'Depoyu sil',
-      message: `${warehouse.name} kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      title: this.i18n.t('warehouses.deleteTitle'),
+      message: this.i18n.t('warehouses.deleteMessage', { name: warehouse.name }),
       isDelete: true,
       onConfirm: () => {
         return this.inventory.deleteWarehouse(warehouse.id).pipe(
           tap({
             next: () => {
               this.loadWarehouses();
-              this.ui.showToast('Depo başarıyla silindi.', 'success');
+              this.ui.showToast(this.i18n.t('warehouses.deleted'), 'success');
             },
             error: (err) => {
-              this.ui.showToast(err.error?.message || 'Depo silinirken hata oluştu.', 'error');
+              this.ui.showToast(err.error?.message || this.i18n.t('warehouses.deleteError'), 'error');
             }
           })
         );

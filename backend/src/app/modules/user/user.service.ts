@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -26,7 +27,7 @@ export class UserService {
   async requestPasswordReset(username: string): Promise<{ success: boolean; message: string }> {
     const user = await this.getUserByUsername(username);
     if (!user) {
-      throw new BadRequestException('Bu kullanıcı adı ile kayıtlı kullanıcı bulunamadı.');
+      throw new BadRequestException(err('USER_NOT_FOUND_BY_USERNAME'));
     }
     this.appGateway.notifyPasswordResetRequest(user.companyId, {
       username: user.username,
@@ -50,7 +51,7 @@ export class UserService {
   async updateUserProfile(username: string, updates: Partial<UserEntity>): Promise<UserEntity> {
     const user = await this.getUserByUsername(username);
     if (!user) {
-      throw new BadRequestException('Kullanıcı bulunamadı.');
+      throw new BadRequestException(err('USER_NOT_FOUND'));
     }
     if (updates.fullName !== undefined) user.fullName = updates.fullName;
     if (updates.email !== undefined) user.email = updates.email;
@@ -67,7 +68,7 @@ export class UserService {
   async updateUserPassword(username: string, newPasswordPlain: string): Promise<void> {
     const user = await this.getUserByUsername(username);
     if (!user) {
-      throw new BadRequestException('Kullanıcı bulunamadı.');
+      throw new BadRequestException(err('USER_NOT_FOUND'));
     }
     user.password = this.stockHelper.hashPassword(newPasswordPlain);
     user.tokenVersion++;
@@ -77,7 +78,7 @@ export class UserService {
   async terminateUserSessions(username: string): Promise<void> {
     const user = await this.getUserByUsername(username);
     if (!user) {
-      throw new BadRequestException('Kullanıcı bulunamadı.');
+      throw new BadRequestException(err('USER_NOT_FOUND'));
     }
     user.tokenVersion++;
     await this.userRepo.save(user);
@@ -91,12 +92,12 @@ export class UserService {
   async createUser(adminUsername: string, data: CreateUserDto): Promise<UserEntity> {
     const admin = await this.getUserByUsername(adminUsername);
     if (!admin || admin.companyId !== this.companyId) {
-      throw new BadRequestException('Yönetici bulunamadı.');
+      throw new BadRequestException(err('ADMIN_NOT_FOUND'));
     }
 
     const existing = await this.userRepo.findOne({ where: { username: data.username } });
     if (existing) {
-      throw new BadRequestException(`"${data.username}" kullanıcı adı zaten kullanımda.`);
+      throw new BadRequestException(err('USERNAME_TAKEN', { username: data.username }));
     }
 
     const newUser = this.userRepo.create({
@@ -123,7 +124,7 @@ export class UserService {
   async updateUser(id: string, updates: UpdateUserDto): Promise<UserEntity> {
     const user = await this.userRepo.findOne({ where: { id, companyId: this.companyId } });
     if (!user) {
-      throw new BadRequestException('Kullanıcı bulunamadı.');
+      throw new BadRequestException(err('USER_NOT_FOUND'));
     }
 
     if (updates.fullName !== undefined) user.fullName = updates.fullName;
@@ -147,7 +148,7 @@ export class UserService {
     if (user.role === UserRole.ADMIN) {
       const adminCount = await this.userRepo.count({ where: { companyId: this.companyId, role: UserRole.ADMIN } });
       if (adminCount <= 1) {
-        throw new BadRequestException('Son yönetici hesabı silinemez.');
+        throw new BadRequestException(err('USER_LAST_ADMIN'));
       }
     }
 

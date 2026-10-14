@@ -6,22 +6,23 @@ import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs/operators';
+import { I18nService, TranslatePipe } from '../../i18n';
 
 @Component({
   selector: 'app-suppliers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
       <div>
-        <h1>Tedarikçiler</h1>
-        <p>Tedarikçi firmaları ve iletişim bilgilerini yönetin.</p>
+        <h1>{{ 'suppliers.title' | t }}</h1>
+        <p>{{ 'suppliers.subtitle' | t }}</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-primary" (click)="openDrawer()">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          Yeni Tedarikçi
+          {{ 'suppliers.new' | t }}
         </button>
       </div>
     </header>
@@ -30,34 +31,34 @@ import { tap } from 'rxjs/operators';
     <div class="filter-bar">
       <div class="search-box">
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="text" placeholder="Tedarikçi adı veya iletişim kişisi ara..." [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+        <input type="text" [placeholder]="'suppliers.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
       </div>
     </div>
 
     <div class="table-card" style="margin-top: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
       @if (isLoading()) {
-        <div class="loading-state">Yükleniyor...</div>
+        <div class="loading-state">{{ 'common.loading' | t }}</div>
       } @else if (suppliers().length === 0) {
         <div class="empty-state">
-          <p>Henüz hiç tedarikçi eklenmemiş.</p>
-          <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">İlk Tedarikçiyi Ekle</button>
+          <p>{{ 'suppliers.empty' | t }}</p>
+          <button class="btn btn-outline" (click)="openDrawer()" style="margin-top: 16px;">{{ 'suppliers.addFirst' | t }}</button>
         </div>
       } @else if (filteredSuppliers().length === 0) {
         <div class="empty-state">
-          <p>Arama kriterlerinize uygun tedarikçi bulunamadı.</p>
+          <p>{{ 'suppliers.noResults' | t }}</p>
         </div>
       } @else {
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Firma adı</th>
-                <th>İletişim kişisi</th>
-                <th>Değerlendirme</th>
-                <th>Teslimat süresi</th>
-                <th>E-posta</th>
-                <th>Telefon</th>
-                <th class="th-actions">İşlemler</th>
+                <th>{{ 'suppliers.col.name' | t }}</th>
+                <th>{{ 'suppliers.col.contact' | t }}</th>
+                <th>{{ 'suppliers.col.rating' | t }}</th>
+                <th>{{ 'suppliers.col.leadTime' | t }}</th>
+                <th>{{ 'suppliers.col.email' | t }}</th>
+                <th>{{ 'suppliers.col.phone' | t }}</th>
+                <th class="th-actions">{{ 'common.actions' | t }}</th>
               </tr>
             </thead>
             <tbody>
@@ -71,7 +72,7 @@ import { tap } from 'rxjs/operators';
                     </div>
                   </td>
                   <td>
-                    <span style="font-weight: 500;">{{ s.leadTimeDays ?? 3 }} gün</span>
+                    <span style="font-weight: 500;">{{ 'suppliers.days' | t: { n: s.leadTimeDays ?? 3 } }}</span>
                   <td>
                     @if (s.email) {
                       <a href="mailto:{{ s.email }}" style="color: #007185; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ s.email }}</a>
@@ -87,10 +88,10 @@ import { tap } from 'rxjs/operators';
                     }
                   </td>
                   <td class="td-actions">
-                    <button class="edit-btn" title="Düzenle" (click)="openDrawer(s)">
+                    <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(s)">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     </button>
-                    <button class="delete-btn" title="Sil" (click)="deleteSupplier(s.id)">
+                    <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteSupplier(s.id)">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                   </td>
@@ -107,7 +108,7 @@ import { tap } from 'rxjs/operators';
       <div class="drawer-overlay" (click)="closeDrawer()">
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ editId() ? 'Tedarikçi Düzenle' : 'Yeni Tedarikçi Ekle' }}</span>
+            <span class="drawer-title">{{ (editId() ? 'suppliers.editTitle' : 'suppliers.addTitle') | t }}</span>
             <button class="drawer-close" (click)="closeDrawer()">×</button>
           </div>
 
@@ -115,27 +116,27 @@ import { tap } from 'rxjs/operators';
             <div class="drawer-body">
               <div class="form-field">
                 <input id="supplierName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" [disabled]="isSaving()" />
-                <label for="supplierName" class="form-label">Firma Adı</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">⚠ Firma adı zorunludur.</div> }
+                <label for="supplierName" class="form-label">{{ 'suppliers.form.name' | t }}</label>
+                @if (isFieldInvalid('name')) { <div class="form-error">⚠ {{ 'suppliers.form.nameRequired' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input id="supplierContact" type="text" formControlName="contactPerson" class="form-input" [class.has-value]="hasValue('contactPerson')" [disabled]="isSaving()" />
-                <label for="supplierContact" class="form-label">İletişim Kişisi</label>
+                <label for="supplierContact" class="form-label">{{ 'suppliers.form.contact' | t }}</label>
               </div>
 
               <div class="form-field">
                 <input id="supplierEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasValue('email')" [disabled]="isSaving()" />
-                <label for="supplierEmail" class="form-label">E-posta Adresi</label>
-                @if (isFieldInvalid('email')) { <div class="form-error">⚠ Geçerli bir e-posta adresi girin.</div> }
+                <label for="supplierEmail" class="form-label">{{ 'suppliers.form.email' | t }}</label>
+                @if (isFieldInvalid('email')) { <div class="form-error">⚠ {{ 'suppliers.form.emailInvalid' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <input id="supplierPhone" type="tel" formControlName="phone" class="form-input" [class.has-value]="hasValue('phone')" [disabled]="isSaving()" />
-                <label for="supplierPhone" class="form-label">Telefon Numarası</label>
+                <label for="supplierPhone" class="form-label">{{ 'suppliers.form.phone' | t }}</label>
               </div>
               <div class="form-field" style="display: flex; flex-direction: column;">
-                <label class="form-label" style="position: static; transform: none; font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 6px;">Tedarikçi puanı</label>
+                <label class="form-label" style="position: static; transform: none; font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 6px;">{{ 'suppliers.form.rating' | t }}</label>
                 <div class="star-rating-container" style="display: flex; gap: 4px; align-items: center; padding: 4px 0;">
                   @for (star of [1, 2, 3, 4, 5]; track star) {
                     <button type="button" 
@@ -145,16 +146,16 @@ import { tap } from 'rxjs/operators';
                             [style.color]="supplierForm.get('rating')?.value >= star ? '#fbbf24' : '#d5d9d9'"
                             onmouseover="this.style.transform='scale(1.2)'"
                             onmouseout="this.style.transform='scale(1)'"
-                            title="{{ star }} Yıldız"
+                            [title]="'suppliers.form.stars' | t: { n: star }"
                     >
                       ★
                     </button>
                   }
                   <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 4px; white-space: nowrap;">
                     @if (supplierForm.get('rating')?.value) {
-                      ({{ supplierForm.get('rating')?.value }} Yıldız)
+                      ({{ 'suppliers.form.stars' | t: { n: supplierForm.get('rating')?.value } }})
                     } @else {
-                      (Puan Seçilmedi)
+                      ({{ 'suppliers.form.noRating' | t }})
                     }
                   </span>
                 </div>
@@ -162,25 +163,25 @@ import { tap } from 'rxjs/operators';
 
               <div class="form-field">
                 <input id="supplierLeadTime" type="number" formControlName="leadTimeDays" class="form-input" [class.has-value]="hasValue('leadTimeDays')" [disabled]="isSaving()" min="0" />
-                <label for="supplierLeadTime" class="form-label">Teslim Süresi (Gün)</label>
-                @if (isFieldInvalid('leadTimeDays')) { <div class="form-error">⚠ Geçerli bir teslim süresi girin.</div> }
+                <label for="supplierLeadTime" class="form-label">{{ 'suppliers.form.leadTime' | t }}</label>
+                @if (isFieldInvalid('leadTimeDays')) { <div class="form-error">⚠ {{ 'suppliers.form.leadTimeInvalid' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <textarea id="supplierAddress" formControlName="address" class="form-input" [class.has-value]="hasValue('address')" [disabled]="isSaving()"></textarea>
-                <label for="supplierAddress" class="form-label">Adres</label>
+                <label for="supplierAddress" class="form-label">{{ 'suppliers.form.address' | t }}</label>
               </div>
 
               <div class="form-field">
                 <textarea id="supplierNotes" formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')" [disabled]="isSaving()"></textarea>
-                <label for="supplierNotes" class="form-label">Notlar (Müşteri Bilgisi vb.)</label>
+                <label for="supplierNotes" class="form-label">{{ 'suppliers.form.notes' | t }}</label>
               </div>
             </div>
             
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">Vazgeç</button>
+              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
               <button type="submit" class="btn btn-primary" [disabled]="supplierForm.invalid || supplierForm.pristine || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> Kaydediliyor... } @else { Kaydet }
+                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'suppliers.saving' | t }} } @else { {{ 'common.save' | t }} }
               </button>
             </div>
           </form>
@@ -197,6 +198,7 @@ export class SuppliersComponent implements OnInit {
   fb = inject(FormBuilder);
   route = inject(ActivatedRoute);
   router = inject(Router);
+  i18n = inject(I18nService);
 
   suppliers = signal<any[]>([]);
   isLoading = signal(true);
@@ -345,18 +347,18 @@ export class SuppliersComponent implements OnInit {
     if (!supplier) return;
 
     this.ui.openConfirm({
-      title: 'Tedarikçiyi sil',
-      message: `${supplier.name} kalıcı olarak silinecek, bu işlem geri alınamaz.`,
+      title: this.i18n.t('suppliers.deleteTitle'),
+      message: this.i18n.t('suppliers.deleteMessage', { name: supplier.name }),
       isDelete: true,
       onConfirm: () => {
         return this.inventory.deleteSupplier(supplier.id).pipe(
           tap({
             next: () => {
               this.loadSuppliers();
-              this.ui.showToast('Tedarikçi başarıyla silindi.', 'success');
+              this.ui.showToast(this.i18n.t('suppliers.deleted'), 'success');
             },
             error: () => {
-              this.ui.showToast('İşlem gerçekleştirilemedi.', 'error');
+              this.ui.showToast(this.i18n.t('suppliers.actionFailed'), 'error');
             }
           })
         );

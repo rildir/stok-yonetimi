@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -38,7 +39,7 @@ export class CompanyService {
 
   async getCurrentCompany(): Promise<CompanyEntity> {
     const company = await this.getCompanyById(this.tenant.companyId);
-    if (!company) throw new NotFoundException('Şirket bulunamadı.');
+    if (!company) throw new NotFoundException(err('COMPANY_NOT_FOUND'));
     return company;
   }
 
@@ -78,10 +79,10 @@ export class CompanyService {
 
     return this.dataSource.transaction(async (manager) => {
       if (await manager.exists(UserEntity, { where: { username } })) {
-        throw new BadRequestException(`"${username}" kullanıcı adı zaten kullanımda.`);
+        throw new BadRequestException(err('USERNAME_TAKEN', { username }));
       }
       if (dto.email && (await manager.exists(UserEntity, { where: { email: dto.email } }))) {
-        throw new BadRequestException('Bu e-posta adresi zaten kullanımda.');
+        throw new BadRequestException(err('EMAIL_TAKEN'));
       }
 
       const company = await manager.save(

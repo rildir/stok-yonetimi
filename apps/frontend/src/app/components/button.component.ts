@@ -1,9 +1,10 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslatePipe } from '../i18n';
 
 @Component({
   selector: 'app-button',
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   template: `
     <button
       [disabled]="disabled || loading"
@@ -33,7 +34,7 @@ import { CommonModule } from '@angular/common';
         ></path>
       </svg>
       <ng-content *ngIf="!loading"></ng-content>
-      <span *ngIf="loading">Yükleniyor...</span>
+      <span *ngIf="loading">{{ 'common.loading' | t }}</span>
     </button>
   `,
   styles: [`

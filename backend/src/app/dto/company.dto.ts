@@ -1,3 +1,4 @@
+import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import {
   IsString,
   IsNotEmpty,
@@ -23,24 +24,24 @@ export class CompanySettingsDto {
   @ApiPropertyOptional({ description: 'Ülke (ISO 3166-1 alpha-2)', example: 'TR' })
   @IsOptional()
   @Transform(upper)
-  @IsISO31661Alpha2({ message: 'Geçerli bir ülke kodu girin (ör. TR, US).' })
+  @IsISO31661Alpha2({ message: 'VALIDATION_COUNTRY_CODE' })
   country?: string;
 
   @ApiPropertyOptional({ description: 'Varsayılan dil', example: 'tr', enum: SUPPORTED_LANGUAGES })
   @IsOptional()
   @Transform(lower)
-  @IsIn(SUPPORTED_LANGUAGES, { message: 'Dil "tr" veya "en" olmalıdır.' })
+  @IsIn(SUPPORTED_LANGUAGES, { message: 'VALIDATION_LANGUAGE' })
   defaultLanguage?: string;
 
   @ApiPropertyOptional({ description: 'Ana para birimi (ISO 4217)', example: 'TRY' })
   @IsOptional()
   @Transform(upper)
-  @IsISO4217CurrencyCode({ message: 'Geçerli bir para birimi kodu girin (ör. TRY, USD).' })
+  @IsISO4217CurrencyCode({ message: 'VALIDATION_CURRENCY_CODE' })
   baseCurrency?: string;
 
   @ApiPropertyOptional({ description: 'Saat dilimi (IANA)', example: 'Europe/Istanbul' })
   @IsOptional()
-  @IsTimeZone({ message: 'Geçerli bir saat dilimi girin (ör. Europe/Istanbul).' })
+  @IsTimeZone({ message: 'VALIDATION_TIMEZONE' })
   timezone?: string;
 }
 
@@ -48,7 +49,7 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @ApiPropertyOptional({ description: 'Şirket adı' })
   @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Şirket adı boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_COMPANY_NAME_REQUIRED' })
   @MaxLength(120)
   name?: string;
 }
@@ -56,30 +57,30 @@ export class UpdateCompanyDto extends CompanySettingsDto {
 export class RegisterCompanyDto extends CompanySettingsDto {
   @ApiProperty({ description: 'Şirket adı', example: 'Acme Ltd.' })
   @IsString()
-  @IsNotEmpty({ message: 'Şirket adı boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_COMPANY_NAME_REQUIRED' })
   @MaxLength(120)
   companyName: string;
 
   @ApiProperty({ description: 'Yönetici kullanıcı adı', example: 'acme.admin' })
   @IsString()
-  @IsNotEmpty({ message: 'Kullanıcı adı boş olamaz.' })
-  @MinLength(3, { message: 'Kullanıcı adı en az 3 karakter olmalıdır.' })
+  @IsNotEmpty({ message: 'VALIDATION_USERNAME_REQUIRED' })
+  @MinLength(3, { message: vmsg('VALIDATION_USERNAME_MIN', 'min') })
   @MaxLength(50)
-  @Matches(/^[a-zA-Z0-9._-]+$/, { message: 'Kullanıcı adı yalnızca harf, rakam, nokta, tire ve alt çizgi içerebilir.' })
+  @Matches(/^[a-zA-Z0-9._-]+$/, { message: 'VALIDATION_USERNAME_PATTERN' })
   username: string;
 
   @ApiProperty({ description: 'Şifre (Min 6 karakter)' })
   @IsString()
-  @MinLength(6, { message: 'Şifre en az 6 karakter olmalıdır.' })
+  @MinLength(6, { message: vmsg('VALIDATION_PASSWORD_MIN', 'min') })
   password: string;
 
   @ApiProperty({ description: 'Yönetici ad soyad', example: 'Jane Doe' })
   @IsString()
-  @IsNotEmpty({ message: 'Ad soyad boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_FULL_NAME_REQUIRED' })
   fullName: string;
 
   @ApiPropertyOptional({ description: 'E-posta' })
   @IsOptional()
-  @IsEmail({}, { message: 'Geçerli bir e-posta adresi girin.' })
+  @IsEmail({}, { message: 'VALIDATION_EMAIL' })
   email?: string;
 }

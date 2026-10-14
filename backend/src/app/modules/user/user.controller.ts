@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Controller, Get, Post, Put, Delete, Body, Param, Req, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { UserService } from './user.service';
@@ -23,7 +24,7 @@ export class UserController {
   private async toProfile(user: UserEntity) {
     const company = await this.companyService.getCompanyById(user.companyId);
     if (!company) {
-      throw new BadRequestException('Şirket bulunamadı.');
+      throw new BadRequestException(err('COMPANY_NOT_FOUND'));
     }
     return {
       username: user.username,
@@ -57,14 +58,14 @@ export class UserController {
     const { username, password } = dto;
     const user = await this.userService.getUserByUsername(username);
     if (!user) {
-      throw new BadRequestException('Kullanıcı adı veya şifre hatalı.');
+      throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
     }
     const onMigration = async (plainPassword: string) => {
       await this.userService.migratePasswordHash(user, plainPassword);
     };
     const valid = await this.stockHelper.verifyPassword(password, user.password, onMigration);
     if (!valid) {
-      throw new BadRequestException('Kullanıcı adı veya şifre hatalı.');
+      throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
     }
     return {
       token: await this.jwtService.signAsync(buildJwtPayload(user)),
@@ -86,7 +87,7 @@ export class UserController {
   async getProfile(@Req() req: any) {
     const user = await this.userService.getUserByUsername(req.user.username);
     if (!user) {
-      throw new BadRequestException('Kullanıcı bulunamadı.');
+      throw new BadRequestException(err('USER_NOT_FOUND'));
     }
     return this.toProfile(user);
   }
@@ -111,11 +112,11 @@ export class UserController {
   async updatePassword(@Body() dto: UpdatePasswordDto, @Req() req: any) {
     const user = await this.userService.getUserByUsername(req.user.username);
     if (!user) {
-      throw new BadRequestException('Kullanıcı bulunamadı.');
+      throw new BadRequestException(err('USER_NOT_FOUND'));
     }
     const isValid = await this.stockHelper.verifyPassword(dto.currentPassword, user.password);
     if (!isValid) {
-      throw new BadRequestException('Mevcut şifreniz yanlış.');
+      throw new BadRequestException(err('AUTH_WRONG_CURRENT_PASSWORD'));
     }
     await this.userService.updateUserPassword(req.user.username, dto.newPassword);
     return { success: true, message: 'Şifreniz başarıyla güncellendi.' };

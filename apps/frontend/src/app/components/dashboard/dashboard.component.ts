@@ -1,4 +1,4 @@
-import { Component, inject, ViewChild, ElementRef, computed, OnInit, AfterViewInit } from '@angular/core';
+import { Component, inject, ViewChild, ElementRef, computed, effect, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -6,15 +6,16 @@ import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService } from '../../inventory.service';
 import { Chart } from 'chart.js/auto';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe],
   template: `
     <header class="page-header" style="border:none; padding-bottom:0; margin-bottom: 1.25rem;">
       <div>
-        <h1 style="font-size: 1.25rem;">Panel Özeti</h1>
+        <h1 style="font-size: 1.25rem;">{{ 'dashboard.title' | t }}</h1>
       </div>
     </header>
 
@@ -25,8 +26,8 @@ import { Chart } from 'chart.js/auto';
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         </div>
         <div>
-          <span class="stat-label">Toplam Ürün</span>
-          <div class="stat-value">{{ state.totalProducts() }}</div>
+          <span class="stat-label">{{ 'dashboard.stat.totalProducts' | t }}</span>
+          <div class="stat-value">{{ state.totalProducts() | num }}</div>
         </div>
       </div>
       
@@ -35,8 +36,8 @@ import { Chart } from 'chart.js/auto';
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
         </div>
         <div>
-          <span class="stat-label">Kritik Stok</span>
-          <div class="stat-value low">{{ state.lowStockCount() }}</div>
+          <span class="stat-label">{{ 'dashboard.stat.lowStock' | t }}</span>
+          <div class="stat-value low">{{ state.lowStockCount() | num }}</div>
         </div>
       </div>
       
@@ -45,8 +46,8 @@ import { Chart } from 'chart.js/auto';
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
         <div>
-          <span class="stat-label">Tükenen Ürün</span>
-          <div class="stat-value out">{{ state.outOfStockCount() }}</div>
+          <span class="stat-label">{{ 'dashboard.stat.outOfStock' | t }}</span>
+          <div class="stat-value out">{{ state.outOfStockCount() | num }}</div>
         </div>
       </div>
       
@@ -55,15 +56,15 @@ import { Chart } from 'chart.js/auto';
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>
         </div>
         <div>
-          <span class="stat-label">Toplam Gelir</span>
-          <div class="stat-value good">₺{{ state.totalRevenue().toLocaleString('tr-TR', { minimumFractionDigits: 2 }) }}</div>
+          <span class="stat-label">{{ 'dashboard.stat.totalRevenue' | t }}</span>
+          <div class="stat-value good">{{ state.totalRevenue() | money }}</div>
         </div>
       </div>
  
       <!-- ROW 2: Charts & Quick Actions -->
       <!-- SON 7 GÜNÜN STOK HAREKETİ -->
       <div class="sidebar-card" style="grid-column: span 10; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; height: 285px;">
-        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.05em;">Son 7 Günün Stok Hareketi (Adet)</h4>
+        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.05em;">{{ 'dashboard.weeklyChart.title' | t }}</h4>
         <div style="flex: 1; position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
           <canvas #weeklyChart [style.display]="(isChartEmpty || isWeeklyLoading) ? 'none' : 'block'"></canvas>
           @if (isWeeklyLoading) {
@@ -91,8 +92,8 @@ import { Chart } from 'chart.js/auto';
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v16.5c0 .621.504 1.125 1.125 1.125h16.5m-15.375-3h15m-15-3.75h12m-12-3.75h9m-9-3.75h3" />
               </svg>
               <div>
-                <strong style="display: block; font-size: 0.8rem; color: var(--text-primary); margin-bottom: 2px;">Henüz Stok Hareketi Yok</strong>
-                <span style="font-size: 0.72rem; line-height: 1.3;">Bu hafta herhangi bir ürün girişi veya çıkışı kaydedilmedi.</span>
+                <strong style="display: block; font-size: 0.8rem; color: var(--text-primary); margin-bottom: 2px;">{{ 'dashboard.weeklyChart.emptyTitle' | t }}</strong>
+                <span style="font-size: 0.72rem; line-height: 1.3;">{{ 'dashboard.weeklyChart.emptyText' | t }}</span>
               </div>
             </div>
           }
@@ -101,7 +102,7 @@ import { Chart } from 'chart.js/auto';
 
       <!-- KATEGORİ BAZLI DAĞILIM -->
       <div class="sidebar-card" style="grid-column: span 8; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; height: 285px;">
-        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: none; color: var(--text-primary); letter-spacing: 0.05em;">Kategori bazlı dağılım</h4>
+        <h4 style="font-size: 0.85rem; font-weight: 700; margin: 0; text-transform: none; color: var(--text-primary); letter-spacing: 0.05em;">{{ 'dashboard.categoryChart.title' | t }}</h4>
         <div style="flex: 1; position: relative; width: 100%; height: 100%; padding: 0.5rem;">
           <canvas #categoryChart></canvas>
         </div>
@@ -109,25 +110,25 @@ import { Chart } from 'chart.js/auto';
 
       <!-- HIZLI İŞLEMLER -->
       <div class="sidebar-card" style="grid-column: span 6; display: flex; flex-direction: column; height: 285px; padding: 1rem;">
-        <h3 class="card-title" style="margin-bottom: 0.75rem;">Hızlı İşlemler</h3>
+        <h3 class="card-title" style="margin-bottom: 0.75rem;">{{ 'dashboard.quick.title' | t }}</h3>
         <div class="quick-actions-list" style="display: flex; flex-direction: column; gap: 8px; flex: 1; justify-content: center;">
           <a routerLink="/products" [queryParams]="{ action: 'new' }" class="quick-action-row-btn">
             <span class="qa-badge-icon" style="background: rgba(17, 24, 39, 0.04); color: var(--primary);">
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             </span>
-            <span class="qa-text">Yeni Ürün Ekle</span>
+            <span class="qa-text">{{ 'dashboard.quick.newProduct' | t }}</span>
           </a>
           <a routerLink="/stock-movements" class="quick-action-row-btn">
             <span class="qa-badge-icon" style="background: rgba(5, 150, 105, 0.06); color: var(--status-instock);">
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
             </span>
-            <span class="qa-text">Yeni Stok Hareketi</span>
+            <span class="qa-text">{{ 'dashboard.quick.newMovement' | t }}</span>
           </a>
           <a routerLink="/stock-count" class="quick-action-row-btn">
             <span class="qa-badge-icon" style="background: rgba(217, 119, 6, 0.06); color: var(--status-lowstock);">
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
             </span>
-            <span class="qa-text">Stok Sayımı Başlat</span>
+            <span class="qa-text">{{ 'dashboard.quick.startCount' | t }}</span>
           </a>
         </div>
       </div>
@@ -135,7 +136,7 @@ import { Chart } from 'chart.js/auto';
       <!-- ROW 3: Alerts & Lists -->
       <!-- DÜŞÜK STOK UYARILARI -->
       <div class="sidebar-card" style="grid-column: span 8; height: 285px; display: flex; flex-direction: column; padding: 1.25rem;">
-        <h3 class="card-title">Düşük Stok Uyarıları</h3>
+        <h3 class="card-title">{{ 'dashboard.lowStock.title' | t }}</h3>
         <div class="scroll-list card-list" style="flex: 1; overflow-y: auto; margin-top: 0.5rem;">
           @for (p of state.products(); track p.id) {
             @if (p.status !== 'In stock') {
@@ -145,26 +146,26 @@ import { Chart } from 'chart.js/auto';
                   <span>{{ p.sku }}</span>
                 </div>
                 <span class="badge" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">
-                  {{ p.quantity }} Adet
+                  {{ 'dashboard.units' | t: { qty: (p.quantity | num) } }}
                 </span>
               </div>
             }
           }
           @if (state.lowStockCount() === 0 && state.outOfStockCount() === 0) {
-            <div class="empty-state">🎉 Harika! Kritik veya tükenmiş stok bulunmuyor.</div>
+            <div class="empty-state">🎉 {{ 'dashboard.lowStock.empty' | t }}</div>
           }
         </div>
       </div>
 
       <!-- EN ÇOK SATAN ÜRÜNLER -->
       <div class="sidebar-card" style="grid-column: span 8; height: 285px; display: flex; flex-direction: column; padding: 1.25rem;">
-        <h3 class="card-title">En Çok Satan Ürünler</h3>
+        <h3 class="card-title">{{ 'dashboard.topSelling.title' | t }}</h3>
         <div class="scroll-list card-list" style="flex: 1; overflow-y: auto; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 12px;">
           @for (tp of topSellingProducts(); track tp.name) {
             <div class="top-selling-item" style="display: flex; flex-direction: column; gap: 4px;">
               <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600;">
                 <span>{{ tp.name }}</span>
-                <span style="font-family: var(--font-mono); color: var(--text-muted);">{{ tp.quantity }} Adet</span>
+                <span style="font-family: var(--font-mono); color: var(--text-muted);">{{ 'dashboard.units' | t: { qty: (tp.quantity | num) } }}</span>
               </div>
               <div class="progress-bar-bg" style="width: 100%; height: 6px; background: var(--secondary); border-radius: 3px; overflow: hidden;">
                 <div class="progress-bar-fill" [style.width.%]="tp.percentage" style="height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.8s ease-out;"></div>
@@ -172,23 +173,23 @@ import { Chart } from 'chart.js/auto';
             </div>
           }
           @if (topSellingProducts().length === 0) {
-            <div class="empty-state">Satış verisi bulunmuyor.</div>
+            <div class="empty-state">{{ 'dashboard.topSelling.empty' | t }}</div>
           }
         </div>
       </div>
 
       <!-- SON SİPARİŞLER -->
       <div class="sidebar-card" style="grid-column: span 8; display: flex; flex-direction: column; height: 285px; padding: 1.25rem;">
-        <h3 class="card-title">Son Siparişler</h3>
+        <h3 class="card-title">{{ 'dashboard.recentOrders.title' | t }}</h3>
         <div class="scroll-list card-list" style="flex: 1; overflow-y: auto; margin-top: 0.5rem;">
           @for (o of state.orders().slice(0, 5); track o.id) {
             <div class="list-item">
               <div class="list-item-name">
                 <strong>{{ o.customerName }}</strong>
-                <span>{{ o.orderNumber }} · {{ o.date | date:'dd.MM.yyyy' }}</span>
+                <span>{{ o.orderNumber }} · {{ o.date | appDate }}</span>
               </div>
               <div class="list-item-right">
-                <strong class="mono" style="font-size:0.82rem;">₺{{ o.totalAmount }}</strong>
+                <strong class="mono" style="font-size:0.82rem;">{{ o.totalAmount | money }}</strong>
                 <span class="sdot" [class.completed]="o.status === 'Completed'" [class.pending]="o.status === 'Pending'" [class.cancelled]="o.status === 'Cancelled'"></span>
               </div>
             </div>
@@ -198,10 +199,24 @@ import { Chart } from 'chart.js/auto';
     </div>
   `
 })
-export class DashboardComponent implements OnInit, AfterViewInit {
+export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   state = inject(AppStateService);
   ui = inject(UiStateService);
   inventoryService = inject(InventoryService);
+  i18n = inject(I18nService);
+  private viewReady = false;
+
+  // Re-render charts when the language/locale changes
+  private langEffect = effect(() => {
+    this.i18n.lang();
+    this.i18n.locale();
+    if (this.viewReady) setTimeout(() => this.renderDashboardCharts(), 0);
+  });
+
+  ngOnDestroy() {
+    this.weeklyChartInstance?.destroy();
+    this.categoryChartInstance?.destroy();
+  }
   
   isBannerDismissed = false;
   isChartEmpty = false;
@@ -248,7 +263,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit() {
-    setTimeout(() => this.renderDashboardCharts(), 50);
+    setTimeout(() => { this.viewReady = true; this.renderDashboardCharts(); }, 50);
   }
 
   renderDashboardCharts() {
@@ -265,7 +280,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       d.setDate(d.getDate() - i);
       const key = d.toDateString();
       daysMap[key] = { in: 0, out: 0 };
-      labels.push(d.toLocaleDateString('tr-TR', { weekday: 'short' }));
+      labels.push(new Intl.DateTimeFormat(this.i18n.locale(), { weekday: 'short' }).format(d));
     }
 
     const sevenDaysAgo = new Date();
@@ -310,13 +325,13 @@ export class DashboardComponent implements OnInit, AfterViewInit {
                 labels,
                 datasets: [
                   {
-                    label: 'Giriş',
+                    label: this.i18n.t('dashboard.weeklyChart.in'),
                     data: entries,
                     backgroundColor: '#4F46E5', /* Indigo */
                     borderRadius: 3
                   },
                   {
-                    label: 'Çıkış',
+                    label: this.i18n.t('dashboard.weeklyChart.out'),
                     data: exits,
                     backgroundColor: '#8B5CF6', /* Violet */
                     borderRadius: 3
@@ -330,13 +345,13 @@ export class DashboardComponent implements OnInit, AfterViewInit {
                   legend: { display: false },
                   tooltip: {
                     callbacks: {
-                      label: function(context: any) {
+                      label: (context: any) => {
                         let label = context.dataset.label || '';
                         if (label) {
                           label += ': ';
                         }
                         if (context.parsed.y !== null) {
-                          label += context.parsed.y + ' Adet';
+                          label += this.i18n.t('dashboard.units', { qty: this.i18n.formatNumber(context.parsed.y) });
                         }
                         return label;
                       }
@@ -349,8 +364,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
                     grid: { color: '#f3f4f6' }, 
                     ticks: { 
                       font: { size: 9, family: 'Inter' },
-                      callback: function(value: any) {
-                        return value + ' Adet';
+                      callback: (value: any) => {
+                        return this.i18n.t('dashboard.units', { qty: this.i18n.formatNumber(value) });
                       }
                     } 
                   },

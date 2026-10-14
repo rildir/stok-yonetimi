@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -58,13 +59,13 @@ export class WarehouseService {
     if (data.name) {
       const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, name: data.name, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu isimde bir depo zaten mevcut: ${data.name}`);
+        throw new BadRequestException(err('WAREHOUSE_NAME_TAKEN', { name: data.name }));
       }
     }
     if (data.code) {
       const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, code: data.code, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu kodda bir depo zaten mevcut: ${data.code}`);
+        throw new BadRequestException(err('WAREHOUSE_CODE_TAKEN', { code: data.code }));
       }
     }
     const newWarehouse = this.warehouseRepo.create({ ...data, companyId: this.companyId });
@@ -80,13 +81,13 @@ export class WarehouseService {
     if (updates.name && updates.name !== warehouse.name) {
       const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, name: updates.name, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu isimde bir depo zaten mevcut: ${updates.name}`);
+        throw new BadRequestException(err('WAREHOUSE_NAME_TAKEN', { name: updates.name }));
       }
     }
     if (updates.code && updates.code !== warehouse.code) {
       const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, code: updates.code, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu kodda bir depo zaten mevcut: ${updates.code}`);
+        throw new BadRequestException(err('WAREHOUSE_CODE_TAKEN', { code: updates.code }));
       }
     }
 
@@ -118,7 +119,7 @@ export class WarehouseService {
       for (const p of activeProducts) {
         const qty = p.warehouses?.[warehouse.name] || 0;
         if (qty > 0) {
-          throw new BadRequestException(`Bu depoda aktif stok bulunduğundan silinemez. Ürün: ${p.name} (${qty} adet)`);
+          throw new BadRequestException(err('WAREHOUSE_HAS_STOCK', { product: p.name, qty }));
         }
       }
       warehouse.isDeleted = true;
@@ -152,7 +153,7 @@ export class WarehouseService {
       const fromQty = warehouses[fromWarehouse] || 0;
       if (fromQty < quantity) {
         throw new BadRequestException(
-          `${fromWarehouse} deposunda yeterli stok yok. Mevcut: ${fromQty}, İstenen: ${quantity}`
+          err('WAREHOUSE_INSUFFICIENT_STOCK', { warehouse: fromWarehouse, available: fromQty, requested: quantity })
         );
       }
 

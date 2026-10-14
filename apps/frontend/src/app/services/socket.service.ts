@@ -4,13 +4,23 @@ import { AppStateService } from './app-state.service';
 import { UiStateService } from './ui-state.service';
 import { NotificationService } from './notification.service';
 import { environment } from '../../environments/environment';
+import { I18nService } from '../i18n';
 
 @Injectable({ providedIn: 'root' })
 export class SocketService {
   private appState = inject(AppStateService);
   private ui = inject(UiStateService);
   private notifications = inject(NotificationService);
+  private i18n = inject(I18nService);
   private socket!: Socket;
+
+  private notify(key: string, params: Record<string, string | number>, type: 'info' | 'success' | 'warning' | 'error') {
+    this.notifications.addNotification(this.i18n.t(key, params), type, key, params);
+  }
+
+  private toast(key: string, params: Record<string, string | number>, type: 'success' | 'error' | 'info') {
+    this.ui.showToast(this.i18n.t(key, params), type);
+  }
 
   init() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
@@ -36,25 +46,25 @@ export class SocketService {
           if (prods.some(p => p.id === data.product.id)) return prods;
           return [data.product, ...prods];
         });
-        this.notifications.addNotification(`Yeni ürün eklendi: ${data.product.name}`, 'success');
-        this.ui.showToast(`✨ Yeni ürün eklendi: ${data.product.name}`, 'success');
+        this.notify('shared.socket.productCreated', { name: data.product.name }, 'success');
+        this.toast('shared.socket.productCreatedToast', { name: data.product.name }, 'success');
       } else if (data.type === 'update') {
         this.appState.products.update(prods => prods.map(p => p.id === data.product.id ? data.product : p));
         
         if (data.product.status === 'Out of stock') {
-          this.notifications.addNotification(`Kritik Stok Uyarısı: ${data.product.name} tükendi!`, 'error');
-          this.ui.showToast(`🔴 Ürün Tükendi: ${data.product.name}`, 'error');
+          this.notify('shared.socket.outOfStock', { name: data.product.name }, 'error');
+          this.toast('shared.socket.outOfStockToast', { name: data.product.name }, 'error');
         } else if (data.product.status === 'Low stock') {
-          this.notifications.addNotification(`Kritik Stok Uyarısı: ${data.product.name} stok seviyesi kritik düzeyde (${data.product.quantity} Adet)`, 'warning');
-          this.ui.showToast(`🟡 Kritik Stok: ${data.product.name} (${data.product.quantity} Adet)`, 'error');
+          this.notify('shared.socket.lowStock', { name: data.product.name, qty: this.i18n.formatNumber(data.product.quantity) }, 'warning');
+          this.toast('shared.socket.lowStockToast', { name: data.product.name, qty: this.i18n.formatNumber(data.product.quantity) }, 'error');
         } else {
-          this.notifications.addNotification(`Ürün güncellendi: ${data.product.name} (Stok: ${data.product.quantity})`, 'info');
+          this.notify('shared.socket.productUpdated', { name: data.product.name, qty: this.i18n.formatNumber(data.product.quantity) }, 'info');
         }
       } else if (data.type === 'delete') {
         const idToDelete = data.productId || data.product?.id;
         this.appState.products.update(prods => prods.filter(p => p.id !== idToDelete));
-        this.notifications.addNotification(`Bir ürün sistemden kaldırıldı.`, 'info');
-        this.ui.showToast(`🗑️ Bir ürün sistemden kaldırıldı.`, 'info');
+        this.notify('shared.socket.productDeleted', {}, 'info');
+        this.toast('shared.socket.productDeletedToast', {}, 'info');
       }
     });
 
@@ -67,82 +77,82 @@ export class SocketService {
           if (ords.some(o => o.id === data.order.id)) return ords;
           return [data.order, ...ords];
         });
-        this.notifications.addNotification(`Yeni sipariş alındı: ${data.order.orderNumber} (₺${data.order.totalAmount})`, 'success');
-        this.ui.showToast(`🛒 Yeni sipariş: ${data.order.orderNumber} (₺${data.order.totalAmount})`, 'success');
+        this.notify('shared.socket.orderCreated', { number: data.order.orderNumber, amount: this.i18n.formatMoney(data.order.totalAmount) }, 'success');
+        this.toast('shared.socket.orderCreatedToast', { number: data.order.orderNumber, amount: this.i18n.formatMoney(data.order.totalAmount) }, 'success');
       } else if (data.type === 'update') {
         this.appState.orders.update(ords => ords.map(o => o.id === data.order.id ? data.order : o));
         
-        const trStatus = data.order.status === 'Completed' 
-          ? 'Tamamlandı' 
-          : data.order.status === 'Cancelled' 
-            ? 'İptal Edildi' 
-            : 'Beklemede';
+        const statusKey = data.order.status === 'Completed'
+          ? 'shared.orderStatus.completed'
+          : data.order.status === 'Cancelled'
+            ? 'shared.orderStatus.cancelled'
+            : 'shared.orderStatus.pending';
             
-        this.notifications.addNotification(`Sipariş durumu güncellendi: ${data.order.orderNumber} (${trStatus})`, 'info');
-        this.ui.showToast(`📋 Sipariş durumu güncellendi: ${data.order.orderNumber}`, 'info');
+        this.notify('shared.socket.orderUpdated', { number: data.order.orderNumber, status: this.i18n.t(statusKey) }, 'info');
+        this.toast('shared.socket.orderUpdatedToast', { number: data.order.orderNumber }, 'info');
       } else if (data.type === 'delete') {
         const idToDelete = data.orderId;
         this.appState.orders.update(ords => ords.filter(o => o.id !== idToDelete));
-        this.notifications.addNotification(`Sipariş silindi.`, 'info');
-        this.ui.showToast(`🗑️ Sipariş silindi.`, 'info');
+        this.notify('shared.socket.orderDeleted', {}, 'info');
+        this.toast('shared.socket.orderDeletedToast', {}, 'info');
       }
     });
 
     this.socket.on('purchase_order_mutated', (data: { type: string; purchaseOrder: any }) => {
       console.log('[SocketService] purchase_order_mutated event received', data);
       if (data.type === 'create') {
-        this.notifications.addNotification(`Yeni satın alma siparişi oluşturuldu: ${data.purchaseOrder.poNumber} (${data.purchaseOrder.supplierName})`, 'success');
-        this.ui.showToast(`✨ Yeni Satın Alma Siparişi: ${data.purchaseOrder.poNumber}`, 'success');
+        this.notify('shared.socket.poCreated', { number: data.purchaseOrder.poNumber, supplier: data.purchaseOrder.supplierName }, 'success');
+        this.toast('shared.socket.poCreatedToast', { number: data.purchaseOrder.poNumber }, 'success');
       } else if (data.type === 'update') {
-        const trStatus = data.purchaseOrder.status === 'Received'
-          ? 'Teslim Alındı'
+        const statusKey = data.purchaseOrder.status === 'Received'
+          ? 'shared.poStatus.received'
           : data.purchaseOrder.status === 'Sent'
-            ? 'Gönderildi'
+            ? 'shared.poStatus.sent'
             : data.purchaseOrder.status === 'Cancelled'
-              ? 'İptal Edildi'
-              : 'Taslak';
-        this.notifications.addNotification(`Satın alma siparişi güncellendi: ${data.purchaseOrder.poNumber} (${trStatus})`, 'info');
-        this.ui.showToast(`📋 Satın Alma Güncellendi: ${data.purchaseOrder.poNumber}`, 'info');
+              ? 'shared.poStatus.cancelled'
+              : 'shared.poStatus.draft';
+        this.notify('shared.socket.poUpdated', { number: data.purchaseOrder.poNumber, status: this.i18n.t(statusKey) }, 'info');
+        this.toast('shared.socket.poUpdatedToast', { number: data.purchaseOrder.poNumber }, 'info');
       }
     });
 
     this.socket.on('stock_count_mutated', (data: { type: string; stockCount: any }) => {
       console.log('[SocketService] stock_count_mutated event received', data);
       if (data.type === 'create') {
-        this.notifications.addNotification(`Yeni stok sayımı başlatıldı: ${data.stockCount.countNumber}`, 'info');
-        this.ui.showToast(`📊 Sayım Başlatıldı: ${data.stockCount.countNumber}`, 'info');
+        this.notify('shared.socket.countCreated', { number: data.stockCount.countNumber }, 'info');
+        this.toast('shared.socket.countCreatedToast', { number: data.stockCount.countNumber }, 'info');
       } else if (data.type === 'update') {
-        this.ui.showToast(`📋 Sayım Güncellendi: ${data.stockCount.countNumber}`, 'info');
+        this.toast('shared.socket.countUpdatedToast', { number: data.stockCount.countNumber }, 'info');
       } else if (data.type === 'complete') {
-        this.notifications.addNotification(`Stok sayımı tamamlandı ve eşitlendi: ${data.stockCount.countNumber}`, 'success');
-        this.ui.showToast(`✅ Sayım Tamamlandı: ${data.stockCount.countNumber}`, 'success');
+        this.notify('shared.socket.countCompleted', { number: data.stockCount.countNumber }, 'success');
+        this.toast('shared.socket.countCompletedToast', { number: data.stockCount.countNumber }, 'success');
       }
     });
 
     this.socket.on('warehouse_mutated', (data: { type: string; warehouse?: any; warehouseId?: string }) => {
       console.log('[SocketService] warehouse_mutated event received', data);
-      this.notifications.addNotification(`Depo verileri güncellendi.`, 'info');
-      this.ui.showToast(`📋 Depo verileri güncellendi.`, 'info');
+      this.notify('shared.socket.warehouseUpdated', {}, 'info');
+      this.toast('shared.socket.warehouseUpdatedToast', {}, 'info');
     });
 
     this.socket.on('supplier_mutated', (data: { type: string; supplier?: any; supplierId?: string }) => {
       console.log('[SocketService] supplier_mutated event received', data);
       if (data.type === 'create') {
-        this.notifications.addNotification(`Yeni tedarikçi eklendi: ${data.supplier.name}`, 'success');
-        this.ui.showToast(`🏢 Tedarikçi Eklendi: ${data.supplier.name}`, 'success');
+        this.notify('shared.socket.supplierCreated', { name: data.supplier.name }, 'success');
+        this.toast('shared.socket.supplierCreatedToast', { name: data.supplier.name }, 'success');
       } else if (data.type === 'update') {
-        this.notifications.addNotification(`Tedarikçi güncellendi: ${data.supplier.name}`, 'info');
-        this.ui.showToast(`🏢 Tedarikçi Güncellendi: ${data.supplier.name}`, 'info');
+        this.notify('shared.socket.supplierUpdated', { name: data.supplier.name }, 'info');
+        this.toast('shared.socket.supplierUpdatedToast', { name: data.supplier.name }, 'info');
       } else if (data.type === 'delete') {
-        this.notifications.addNotification(`Tedarikçi sistemden silindi.`, 'info');
-        this.ui.showToast(`🗑️ Tedarikçi Silindi`, 'info');
+        this.notify('shared.socket.supplierDeleted', {}, 'info');
+        this.toast('shared.socket.supplierDeletedToast', {}, 'info');
       }
     });
 
     this.socket.on('password_reset_requested', (data: { username: string; fullName: string }) => {
       console.log('[SocketService] password_reset_requested event received', data);
-      this.notifications.addNotification(`🔑 Şifre Sıfırlama Talebi: ${data.fullName} (${data.username}) şifre sıfırlama talebinde bulundu.`, 'warning');
-      this.ui.showToast(`🔑 Şifre Sıfırlama Talebi: ${data.username}`, 'info');
+      this.notify('shared.socket.passwordReset', { fullName: data.fullName, username: data.username }, 'warning');
+      this.toast('shared.socket.passwordResetToast', { username: data.username }, 'info');
     });
   }
 

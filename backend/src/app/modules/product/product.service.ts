@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -44,20 +45,20 @@ export class ProductService {
   async createProduct(data: Partial<ProductEntity>, performedBy = 'System'): Promise<ProductEntity> {
     return await this.dataSource.transaction(async manager => {
       if (data.sku && await manager.exists(ProductEntity, { where: { companyId: this.companyId, sku: data.sku } })) {
-        throw new BadRequestException(`Bu SKU zaten kullanımda: ${data.sku}`);
+        throw new BadRequestException(err('PRODUCT_SKU_TAKEN', { sku: data.sku }));
       }
 
       if (data.category) {
         const categoryExists = await manager.findOne(CategoryEntity, { where: { companyId: this.companyId, slug: data.category, isDeleted: false } });
         if (!categoryExists) {
-          throw new BadRequestException(`Geçersiz kategori: ${data.category}`);
+          throw new BadRequestException(err('PRODUCT_INVALID_CATEGORY', { category: data.category }));
         }
       }
 
       if (data.supplierId) {
         const supplierExists = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: data.supplierId, isDeleted: false } });
         if (!supplierExists) {
-          throw new BadRequestException(`Geçersiz tedarikçi: ID ${data.supplierId}`);
+          throw new BadRequestException(err('PRODUCT_INVALID_SUPPLIER', { id: data.supplierId }));
         }
       }
 
@@ -102,7 +103,7 @@ export class ProductService {
     const skus = products.map(p => p.sku).filter(Boolean);
     const duplicateSkusInPayload = skus.filter((item, index) => skus.indexOf(item) !== index);
     if (duplicateSkusInPayload.length > 0) {
-      throw new BadRequestException(`Yüklenen veri içerisinde yinelenen SKU'lar bulundu: ${duplicateSkusInPayload.join(', ')}`);
+      throw new BadRequestException(err('PRODUCT_DUPLICATE_SKUS_IN_PAYLOAD', { skus: duplicateSkusInPayload.join(', ') }));
     }
 
     if (skus.length > 0) {
@@ -112,7 +113,7 @@ export class ProductService {
         .getMany();
       if (existingProducts.length > 0) {
         const existingSkus = existingProducts.map(p => p.sku);
-        throw new BadRequestException(`Sistemde zaten kayıtlı olan SKU'lar bulundu: ${existingSkus.join(', ')}`);
+        throw new BadRequestException(err('PRODUCT_SKUS_EXIST', { skus: existingSkus.join(', ') }));
       }
     }
 
@@ -126,14 +127,14 @@ export class ProductService {
         if (data.category) {
           const categoryExists = await manager.findOne(CategoryEntity, { where: { companyId: this.companyId, slug: data.category, isDeleted: false } });
           if (!categoryExists) {
-            throw new BadRequestException(`Geçersiz kategori: ${data.category}`);
+            throw new BadRequestException(err('PRODUCT_INVALID_CATEGORY', { category: data.category }));
           }
         }
 
         if (data.supplierId) {
           const supplierExists = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: data.supplierId, isDeleted: false } });
           if (!supplierExists) {
-            throw new BadRequestException(`Geçersiz tedarikçi: ID ${data.supplierId}`);
+            throw new BadRequestException(err('PRODUCT_INVALID_SUPPLIER', { id: data.supplierId }));
           }
         }
 
@@ -187,14 +188,14 @@ export class ProductService {
       if (updates.category) {
         const categoryExists = await manager.findOne(CategoryEntity, { where: { companyId: this.companyId, slug: updates.category, isDeleted: false } });
         if (!categoryExists) {
-          throw new BadRequestException(`Geçersiz kategori: ${updates.category}`);
+          throw new BadRequestException(err('PRODUCT_INVALID_CATEGORY', { category: updates.category }));
         }
       }
 
       if (updates.supplierId) {
         const supplierExists = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: updates.supplierId, isDeleted: false } });
         if (!supplierExists) {
-          throw new BadRequestException(`Geçersiz tedarikçi: ID ${updates.supplierId}`);
+          throw new BadRequestException(err('PRODUCT_INVALID_SUPPLIER', { id: updates.supplierId }));
         }
       }
 
@@ -261,7 +262,7 @@ export class ProductService {
           lock: { mode: 'pessimistic_write' }
         });
         if (!prod) {
-          throw new BadRequestException(`Ürün bulunamadı: ID ${id}`);
+          throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id }));
         }
         prod.isDeleted = true;
         const saved = await manager.save(ProductEntity, prod);
@@ -282,20 +283,20 @@ export class ProductService {
           lock: { mode: 'pessimistic_write' },
         });
         if (!current) {
-          throw new BadRequestException(`Ürün bulunamadı: ID ${id}`);
+          throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id }));
         }
 
         if (updates.category) {
           const categoryExists = await manager.findOne(CategoryEntity, { where: { companyId: this.companyId, slug: updates.category, isDeleted: false } });
           if (!categoryExists) {
-            throw new BadRequestException(`Geçersiz kategori: ${updates.category}`);
+            throw new BadRequestException(err('PRODUCT_INVALID_CATEGORY', { category: updates.category }));
           }
         }
 
         if (updates.supplierId) {
           const supplierExists = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: updates.supplierId, isDeleted: false } });
           if (!supplierExists) {
-            throw new BadRequestException(`Geçersiz tedarikçi: ID ${updates.supplierId}`);
+            throw new BadRequestException(err('PRODUCT_INVALID_SUPPLIER', { id: updates.supplierId }));
           }
         }
 

@@ -6,6 +6,9 @@ export interface AppNotification {
   type: 'info' | 'success' | 'warning' | 'error';
   createdAt: string;
   read: boolean;
+  /** i18n key + params so the message can be re-rendered in the active language */
+  key?: string;
+  params?: Record<string, string | number>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -36,13 +39,15 @@ export class NotificationService {
     }
   }
 
-  addNotification(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+  addNotification(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', key?: string, params?: Record<string, string | number>) {
     const newNotif: AppNotification = {
       id: Math.random().toString(36).substr(2, 9),
       message,
       type,
       createdAt: new Date().toISOString(),
-      read: false
+      read: false,
+      key,
+      params
     };
 
     // Keep only last 50 notifications in history

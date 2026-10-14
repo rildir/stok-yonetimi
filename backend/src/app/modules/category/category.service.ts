@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -29,7 +30,7 @@ export class CategoryService {
     const slug = data.slug || this.stockHelper.slugify(data.name || '');
     const existing = await this.categoryRepo.findOne({ where: { companyId: this.companyId, slug, isDeleted: false } });
     if (existing) {
-      throw new BadRequestException('Bu kategori slug bilgisi zaten kullanımda.');
+      throw new BadRequestException(err('CATEGORY_SLUG_TAKEN'));
     }
     const newCategory = this.categoryRepo.create({
       ...data,
@@ -51,7 +52,7 @@ export class CategoryService {
     if (targetSlug && targetSlug !== category.slug) {
       const existing = await this.categoryRepo.findOne({ where: { companyId: this.companyId, slug: targetSlug, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException('Bu kategori slug bilgisi zaten kullanımda.');
+        throw new BadRequestException(err('CATEGORY_SLUG_TAKEN'));
       }
       updates.slug = targetSlug;
     }
@@ -65,7 +66,7 @@ export class CategoryService {
     if (category) {
       const productCount = await this.productRepo.count({ where: { companyId: this.companyId, category: category.slug, isDeleted: false } });
       if (productCount > 0) {
-        throw new BadRequestException('Bu kategoriye ait aktif ürünler bulunduğundan silinemez.');
+        throw new BadRequestException(err('CATEGORY_HAS_PRODUCTS'));
       }
       category.isDeleted = true;
       await this.categoryRepo.save(category);

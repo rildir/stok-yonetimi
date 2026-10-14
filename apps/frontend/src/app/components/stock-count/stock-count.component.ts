@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { AppStateService } from '../../services/app-state.service';
+import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
 
 interface StockCountItem {
   productId: string;
@@ -31,7 +32,7 @@ interface StockCount {
 @Component({
   selector: 'app-stock-count',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe],
   styles: [`
     /* OVERLAY */
     .drawer-overlay {
@@ -240,12 +241,12 @@ interface StockCount {
   template: `
     <header class="page-header">
       <div>
-        <h1>Stok Sayımı</h1>
-        <p>Depodaki fiziksel ürün miktarlarını sayın, farkları tespit edin ve sistemi güncelleyin.</p>
+        <h1>{{ 'stockCount.title' | t }}</h1>
+        <p>{{ 'stockCount.subtitle' | t }}</p>
       </div>
       <div class="header-actions">
         @if (!activeCount()) {
-          <button class="btn btn-primary" (click)="startNewCount()">Yeni Sayım Başlat</button>
+          <button class="btn btn-primary" (click)="startNewCount()">{{ 'stockCount.startNew' | t }}</button>
         }
       </div>
     </header>
@@ -257,25 +258,25 @@ interface StockCount {
           <div>
             <h3 class="mono">{{ activeCount()?.countNumber }}</h3>
             <span style="font-size: 0.75rem; color: var(--text-muted)">
-              Başlangıç: {{ activeCount()?.startedAt | date:'dd.MM.yyyy HH:mm' }} · Yapan: {{ activeCount()?.performedBy }}
+              {{ 'stockCount.startedAt' | t }}: {{ activeCount()?.startedAt | appDate: 'datetime' }} · {{ 'stockCount.performedBy' | t }}: {{ activeCount()?.performedBy }}
             </span>
           </div>
           <div style="display:flex; gap:8px">
-            <button class="btn btn-outline btn-sm" (click)="saveDraft()" [disabled]="isActionLoading()">Sayımı Kaydet</button>
-            <button class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()">Sayımı Tamamla</button>
+            <button class="btn btn-outline btn-sm" (click)="saveDraft()" [disabled]="isActionLoading()">{{ 'stockCount.saveCount' | t }}</button>
+            <button class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()">{{ 'stockCount.completeCount' | t }}</button>
           </div>
         </div>
 
         <div class="drawer-field">
-          <label for="countNotes">Sayım notları (opsiyonel)</label>
-          <input id="countNotes" type="text" [(ngModel)]="activeNotes" class="form-input" style="height:42px" placeholder="örn. A reyonu genel sayımı" [disabled]="isActionLoading()" />
+          <label for="countNotes">{{ 'stockCount.notesOptional' | t }}</label>
+          <input id="countNotes" type="text" [(ngModel)]="activeNotes" class="form-input" style="height:42px" [placeholder]="'stockCount.notesPlaceholder' | t" [disabled]="isActionLoading()" />
         </div>
 
         <!-- Progress Indicator -->
         <div class="progress-container" style="background: var(--canvas); border: 1px solid var(--secondary); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 0.5rem;">
           <div class="progress-info" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
             <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary)">
-              İlerleme: <span class="mono">{{ countedItemsCount() }}</span> / <span class="mono">{{ totalItemsCount() }}</span> ürün sayıldı
+              {{ 'stockCount.progress' | t: { counted: countedItemsCount(), total: totalItemsCount() } }}
             </span>
             <span class="mono" style="font-size: 0.85rem; font-weight: 700; color: var(--primary)">
               {{ progressPercentage() }}%
@@ -291,12 +292,12 @@ interface StockCount {
             <table>
               <thead>
                 <tr>
-                  <th>Ürün Adı</th>
+                  <th>{{ 'stockCount.col.productName' | t }}</th>
                   <th>SKU</th>
-                  <th>Birim</th>
-                  <th style="width: 120px;">Sistem stoku</th>
-                  <th style="width: 120px; text-align: center;">Sayılan stok</th>
-                  <th style="width: 100px;">Fark</th>
+                  <th>{{ 'stockCount.col.unit' | t }}</th>
+                  <th style="width: 120px;">{{ 'stockCount.col.systemStock' | t }}</th>
+                  <th style="width: 120px; text-align: center;">{{ 'stockCount.col.countedStock' | t }}</th>
+                  <th style="width: 100px;">{{ 'stockCount.col.difference' | t }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -306,12 +307,12 @@ interface StockCount {
                       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                         <strong>{{ item.productName }}</strong>
                         @if (item.systemQuantity === 0) {
-                          <span class="zero-stock-badge">Sistemde stok yok</span>
+                          <span class="zero-stock-badge">{{ 'stockCount.noSystemStock' | t }}</span>
                         }
                       </div>
                     </td>
                     <td class="mono" style="color: var(--text-primary);">{{ item.sku }}</td>
-                    <td>{{ item.unit || 'Adet' }}</td>
+                    <td>{{ item.unit || ('stockCount.defaultUnit' | t) }}</td>
                     <td class="mono">{{ item.systemQuantity }}</td>
                     <td style="text-align: center;">
                       <input type="number" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
@@ -336,24 +337,24 @@ interface StockCount {
         <table>
           <thead>
             <tr>
-              <th>Sayım No</th>
-              <th>Tarih</th>
-              <th>Yapan</th>
-              <th>Durum</th>
-              <th>Kalem sayısı</th>
-              <th>Notlar</th>
-              <th class="th-actions">Aksiyon</th>
+              <th>{{ 'stockCount.col.countNo' | t }}</th>
+              <th>{{ 'stockCount.col.date' | t }}</th>
+              <th>{{ 'stockCount.performedBy' | t }}</th>
+              <th>{{ 'stockCount.col.status' | t }}</th>
+              <th>{{ 'stockCount.col.itemCount' | t }}</th>
+              <th>{{ 'stockCount.notes' | t }}</th>
+              <th class="th-actions">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
             @for (c of counts(); track c.id) {
               <tr>
                 <td class="mono"><strong>{{ c.countNumber }}</strong></td>
-                <td>{{ (c.completedAt || c.startedAt) | date:'dd.MM.yyyy HH:mm' }}</td>
+                <td>{{ (c.completedAt || c.startedAt) | appDate: 'datetime' }}</td>
                 <td>{{ c.performedBy }}</td>
                 <td>
                   <span class="badge" [class.badge-instock]="c.status === 'Completed'" [class.badge-lowstock]="c.status === 'InProgress'">
-                    {{ c.status === 'Completed' ? 'Tamamlandı' : 'Devam ediyor' }}
+                    {{ (c.status === 'Completed' ? 'stockCount.status.completed' : 'stockCount.status.inProgress') | t }}
                   </span>
                 </td>
                 <td class="mono">{{ c.items.length }}</td>
@@ -362,15 +363,15 @@ interface StockCount {
                 </td>
                 <td class="td-actions">
                   @if (c.status === 'InProgress') {
-                    <button class="btn btn-outline btn-xs" (click)="resumeCount(c)" style="padding: 4px 8px; font-size:0.75rem">Devam Et</button>
+                    <button class="btn btn-outline btn-xs" (click)="resumeCount(c)" style="padding: 4px 8px; font-size:0.75rem">{{ 'stockCount.resume' | t }}</button>
                   } @else {
-                    <button class="btn btn-outline btn-xs" (click)="viewDetails(c)" style="padding: 4px 8px; font-size:0.75rem">Detay</button>
+                    <button class="btn btn-outline btn-xs" (click)="viewDetails(c)" style="padding: 4px 8px; font-size:0.75rem">{{ 'stockCount.details' | t }}</button>
                   }
                 </td>
               </tr>
             }
             @if (counts().length === 0) {
-              <tr><td colspan="7" class="empty-state">Henüz envanter sayımı yapılmamış.</td></tr>
+              <tr><td colspan="7" class="empty-state">{{ 'stockCount.empty' | t }}</td></tr>
             }
           </tbody>
         </table>
@@ -388,15 +389,15 @@ interface StockCount {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
               </svg>
             </div>
-            <h3 class="delete-modal-title">Sayımı Onayla ve Tamamla</h3>
+            <h3 class="delete-modal-title">{{ 'stockCount.confirm.title' | t }}</h3>
             <p class="delete-modal-desc" style="font-size:0.85rem">
-              Sayımı tamamladıktan sonra düzenleme yapılamaz. Devam edilsin mi?
+              {{ 'stockCount.confirm.message' | t }}
             </p>
           </div>
           <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()">İptal</button>
+            <button class="btn btn-secondary" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()">{{ 'common.cancel' | t }}</button>
             <button class="btn btn-primary" (click)="completeCount()" [disabled]="isActionLoading()">
-              @if (isActionLoading()) { <span class="spinner-sm spinner-light"></span> Onaylanıyor... } @else { Onayla }
+              @if (isActionLoading()) { <span class="spinner-sm spinner-light"></span> {{ 'stockCount.confirming' | t }} } @else { {{ 'common.confirm' | t }} }
             </button>
           </div>
         </div>
@@ -408,45 +409,45 @@ interface StockCount {
       <div class="drawer-overlay" (click)="selectedCount.set(null)">
         <div class="drawer-panel" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">Sayım Detayları</span>
+            <span class="drawer-title">{{ 'stockCount.detailsTitle' | t }}</span>
             <button class="drawer-close" (click)="selectedCount.set(null)">×</button>
           </div>
           
           <div class="drawer-body">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem">
               <div class="drawer-field">
-                <label>Sayım no</label>
+                <label>{{ 'stockCount.col.countNo' | t }}</label>
                 <span class="mono" style="font-weight:700">{{ selectedCount()?.countNumber }}</span>
               </div>
               <div class="drawer-field">
-                <label>Yapan</label>
+                <label>{{ 'stockCount.performedBy' | t }}</label>
                 <span>{{ selectedCount()?.performedBy }}</span>
               </div>
               <div class="drawer-field">
-                <label>Başlangıç</label>
-                <span>{{ selectedCount()?.startedAt | date:'dd.MM.yyyy HH:mm' }}</span>
+                <label>{{ 'stockCount.startedAt' | t }}</label>
+                <span>{{ selectedCount()?.startedAt | appDate: 'datetime' }}</span>
               </div>
               <div class="drawer-field">
-                <label>Tamamlanma</label>
-                <span>{{ selectedCount()?.completedAt ? (selectedCount()?.completedAt | date:'dd.MM.yyyy HH:mm') : '-' }}</span>
+                <label>{{ 'stockCount.completedAt' | t }}</label>
+                <span>{{ selectedCount()?.completedAt ? (selectedCount()?.completedAt | appDate: 'datetime') : '-' }}</span>
               </div>
             </div>
 
             <div class="drawer-field">
-              <label>Notlar</label>
-              <div class="notes-box">{{ selectedCount()?.notes || 'Not eklenmemiş.' }}</div>
+              <label>{{ 'stockCount.notes' | t }}</label>
+              <div class="notes-box">{{ selectedCount()?.notes || ('stockCount.noNotes' | t) }}</div>
             </div>
 
             <div class="drawer-field" style="margin-top:1.5rem">
-              <label>Sayılan kalemler</label>
+              <label>{{ 'stockCount.countedItems' | t }}</label>
               <table class="drawer-table">
                 <thead>
                   <tr>
-                    <th>Ürün Adı</th>
+                    <th>{{ 'stockCount.col.productName' | t }}</th>
                     <th>SKU</th>
-                    <th>Sistem</th>
-                    <th>Sayılan</th>
-                    <th>Fark</th>
+                    <th>{{ 'stockCount.col.system' | t }}</th>
+                    <th>{{ 'stockCount.col.counted' | t }}</th>
+                    <th>{{ 'stockCount.col.difference' | t }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -456,7 +457,7 @@ interface StockCount {
                         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                           <strong>{{ item.productName }}</strong>
                           @if (item.systemQuantity === 0) {
-                            <span class="zero-stock-badge">Sistemde stok yok</span>
+                            <span class="zero-stock-badge">{{ 'stockCount.noSystemStock' | t }}</span>
                           }
                         </div>
                       </td>
@@ -483,6 +484,7 @@ export class StockCountComponent implements OnInit {
   inventoryService = inject(InventoryService);
   ui = inject(UiStateService);
   state = inject(AppStateService);
+  i18n = inject(I18nService);
 
   counts = signal<StockCount[]>([]);
   activeCount = signal<StockCount | null>(null);
@@ -533,7 +535,7 @@ export class StockCountComponent implements OnInit {
         }
       },
       error: () => {
-        this.ui.showToast('Sayım geçmişi yüklenirken hata oluştu.', 'error');
+        this.ui.showToast(this.i18n.t('stockCount.toast.loadError'), 'error');
       }
     });
   }
@@ -544,12 +546,12 @@ export class StockCountComponent implements OnInit {
 
     this.inventoryService.createStockCount('').subscribe({
       next: (data) => {
-        this.ui.showToast('Yeni sayım seansı başlatıldı.', 'success');
+        this.ui.showToast(this.i18n.t('stockCount.toast.started'), 'success');
         this.isActionLoading.set(false);
         this.loadHistory();
       },
       error: () => {
-        this.ui.showToast('Yeni sayım başlatılırken hata oluştu.', 'error');
+        this.ui.showToast(this.i18n.t('stockCount.toast.startError'), 'error');
         this.isActionLoading.set(false);
       }
     });
@@ -569,12 +571,12 @@ export class StockCountComponent implements OnInit {
 
     this.inventoryService.updateStockCount(active.id, this.activeItems(), this.activeNotes).subscribe({
       next: () => {
-        this.ui.showToast('Sayım taslağı kaydedildi.', 'success');
+        this.ui.showToast(this.i18n.t('stockCount.toast.draftSaved'), 'success');
         this.isActionLoading.set(false);
         this.loadHistory();
       },
       error: () => {
-        this.ui.showToast('Taslak kaydedilirken hata oluştu.', 'error');
+        this.ui.showToast(this.i18n.t('stockCount.toast.draftError'), 'error');
         this.isActionLoading.set(false);
       }
     });
@@ -595,7 +597,7 @@ export class StockCountComponent implements OnInit {
         // Complete the count session
         this.inventoryService.completeStockCount(active.id).subscribe({
           next: () => {
-            this.ui.showToast('Sayım tamamlandı ve farklar stoklara uygulandı.', 'success');
+            this.ui.showToast(this.i18n.t('stockCount.toast.completed'), 'success');
             this.showCompleteModal.set(false);
             this.isActionLoading.set(false);
             this.activeCount.set(null);
@@ -605,13 +607,13 @@ export class StockCountComponent implements OnInit {
             this.loadHistory();
           },
           error: () => {
-            this.ui.showToast('Sayım tamamlanırken hata oluştu.', 'error');
+            this.ui.showToast(this.i18n.t('stockCount.toast.completeError'), 'error');
             this.isActionLoading.set(false);
           }
         });
       },
       error: () => {
-        this.ui.showToast('Sayım kaydedilirken hata oluştu.', 'error');
+        this.ui.showToast(this.i18n.t('stockCount.toast.saveError'), 'error');
         this.isActionLoading.set(false);
       }
     });

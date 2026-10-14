@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -37,13 +38,13 @@ export class SupplierService {
     if (data.name) {
       const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, name: data.name, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu isimde bir tedarikçi zaten mevcut: ${data.name}`);
+        throw new BadRequestException(err('SUPPLIER_NAME_TAKEN', { name: data.name }));
       }
     }
     if (data.email) {
       const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, email: data.email, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu e-posta adresine sahip bir tedarikçi zaten mevcut: ${data.email}`);
+        throw new BadRequestException(err('SUPPLIER_EMAIL_TAKEN', { email: data.email }));
       }
     }
     const newSupplier = this.supplierRepo.create({ ...data, companyId: this.companyId });
@@ -59,13 +60,13 @@ export class SupplierService {
     if (updates.name && updates.name !== supplier.name) {
       const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, name: updates.name, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu isimde bir tedarikçi zaten mevcut: ${updates.name}`);
+        throw new BadRequestException(err('SUPPLIER_NAME_TAKEN', { name: updates.name }));
       }
     }
     if (updates.email && updates.email !== supplier.email) {
       const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, email: updates.email, isDeleted: false } });
       if (existing) {
-        throw new BadRequestException(`Bu e-posta adresine sahip bir tedarikçi zaten mevcut: ${updates.email}`);
+        throw new BadRequestException(err('SUPPLIER_EMAIL_TAKEN', { email: updates.email }));
       }
     }
     
@@ -85,7 +86,7 @@ export class SupplierService {
         ]
       });
       if (activePoCount > 0) {
-        throw new BadRequestException('Bu tedarikçiye ait aktif satın alma siparişi bulunduğundan silinemez.');
+        throw new BadRequestException(err('SUPPLIER_HAS_ACTIVE_PO'));
       }
 
       await this.dataSource.transaction(async manager => {

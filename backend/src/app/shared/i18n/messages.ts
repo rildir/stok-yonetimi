@@ -1,0 +1,144 @@
+export type Lang = 'tr' | 'en';
+export const DEFAULT_LANG: Lang = 'tr';
+
+type Catalog = Record<string, { tr: string; en: string }>;
+
+/** Message catalog keyed by stable error codes. `{param}` placeholders are interpolated. */
+export const MESSAGES: Catalog = {
+  // Generic
+  INTERNAL_ERROR: { tr: 'Sunucu hatası oluştu.', en: 'Internal server error.' },
+
+  // Auth / tenant
+  AUTH_LOGIN_REQUIRED: { tr: 'Yetkisiz erişim: Oturum açmanız gerekiyor.', en: 'Unauthorized: you need to sign in.' },
+  AUTH_SESSION_EXPIRED: { tr: 'Geçersiz veya süresi dolmuş oturum.', en: 'Invalid or expired session.' },
+  AUTH_SESSION_INVALID: { tr: 'Geçersiz oturum.', en: 'Invalid session.' },
+  AUTH_DEMO_READONLY: {
+    tr: 'Demo modundasınız: Bu hesaptayken ekleme, güncelleme veya silme işlemi gerçekleştiremezsiniz.',
+    en: 'You are in demo mode: you cannot create, update or delete with this account.',
+  },
+  AUTH_FORBIDDEN: { tr: 'Bu işlemi gerçekleştirmek için yetkiniz bulunmamaktadır.', en: 'You are not authorized to perform this action.' },
+  AUTH_INVALID_CREDENTIALS: { tr: 'Kullanıcı adı veya şifre hatalı.', en: 'Invalid username or password.' },
+  AUTH_WRONG_CURRENT_PASSWORD: { tr: 'Mevcut şifreniz yanlış.', en: 'Your current password is incorrect.' },
+  TENANT_CONTEXT_MISSING: { tr: 'Şirket bağlamı bulunamadı.', en: 'Company context not found.' },
+
+  // Company / user
+  COMPANY_NOT_FOUND: { tr: 'Şirket bulunamadı.', en: 'Company not found.' },
+  USERNAME_TAKEN: { tr: '"{username}" kullanıcı adı zaten kullanımda.', en: 'Username "{username}" is already taken.' },
+  EMAIL_TAKEN: { tr: 'Bu e-posta adresi zaten kullanımda.', en: 'This email address is already in use.' },
+  USER_NOT_FOUND: { tr: 'Kullanıcı bulunamadı.', en: 'User not found.' },
+  USER_NOT_FOUND_BY_USERNAME: { tr: 'Bu kullanıcı adı ile kayıtlı kullanıcı bulunamadı.', en: 'No user found with this username.' },
+  ADMIN_NOT_FOUND: { tr: 'Yönetici bulunamadı.', en: 'Administrator not found.' },
+  USER_LAST_ADMIN: { tr: 'Son yönetici hesabı silinemez.', en: 'The last administrator account cannot be deleted.' },
+
+  // Category
+  CATEGORY_SLUG_TAKEN: { tr: 'Bu kategori slug bilgisi zaten kullanımda.', en: 'This category slug is already in use.' },
+  CATEGORY_HAS_PRODUCTS: { tr: 'Bu kategoriye ait aktif ürünler bulunduğundan silinemez.', en: 'This category cannot be deleted because it has active products.' },
+
+  // Order
+  ORDER_CANNOT_CREATE_CANCELLED: { tr: 'Yeni bir sipariş "İptal Edildi" (Cancelled) durumuyla oluşturulamaz.', en: 'A new order cannot be created with "Cancelled" status.' },
+  ORDER_NUMBER_GENERATION_FAILED: { tr: 'Benzersiz sipariş numarası üretilemedi, lütfen tekrar deneyin.', en: 'Could not generate a unique order number, please try again.' },
+  ORDER_INSUFFICIENT_STOCK: { tr: 'Yetersiz stok: {name} (Mevcut: {available})', en: 'Insufficient stock: {name} (Available: {available})' },
+  ORDER_CANCELLED_IMMUTABLE: { tr: 'İptal edilmiş bir siparişin durumu değiştirilemez.', en: 'The status of a cancelled order cannot be changed.' },
+  ORDER_COMPLETED_TO_PENDING: { tr: 'Tamamlanmış bir sipariş tekrar "Beklemede" (Pending) durumuna alınamaz.', en: 'A completed order cannot be moved back to "Pending".' },
+  ORDER_DELETE_ONLY_CANCELLED: { tr: 'Sadece iptal edilmiş siparişler silinebilir.', en: 'Only cancelled orders can be deleted.' },
+
+  // Product
+  PRODUCT_NOT_FOUND: { tr: 'Ürün bulunamadı', en: 'Product not found' },
+  PRODUCT_NOT_FOUND_NAME: { tr: 'Ürün bulunamadı: {name}', en: 'Product not found: {name}' },
+  PRODUCT_NOT_FOUND_ID: { tr: 'Ürün bulunamadı: ID {id}', en: 'Product not found: ID {id}' },
+  PRODUCT_SKU_TAKEN: { tr: 'Bu SKU zaten kullanımda: {sku}', en: 'This SKU is already in use: {sku}' },
+  PRODUCT_INVALID_CATEGORY: { tr: 'Geçersiz kategori: {category}', en: 'Invalid category: {category}' },
+  PRODUCT_INVALID_SUPPLIER: { tr: 'Geçersiz tedarikçi: ID {id}', en: 'Invalid supplier: ID {id}' },
+  PRODUCT_DUPLICATE_SKUS_IN_PAYLOAD: { tr: "Yüklenen veri içerisinde yinelenen SKU'lar bulundu: {skus}", en: 'Duplicate SKUs found in the uploaded data: {skus}' },
+  PRODUCT_SKUS_EXIST: { tr: "Sistemde zaten kayıtlı olan SKU'lar bulundu: {skus}", en: 'SKUs already registered in the system: {skus}' },
+
+  // Purchase order
+  PO_NUMBER_GENERATION_FAILED: { tr: 'Benzersiz satın alma sipariş numarası üretilemedi, lütfen tekrar deneyin.', en: 'Could not generate a unique purchase order number, please try again.' },
+  PO_SUPPLIER_REQUIRED: { tr: "Tedarikçi ID'si (supplierId) belirtilmelidir.", en: 'Supplier ID (supplierId) is required.' },
+  PO_SUPPLIER_NOT_FOUND: { tr: 'Tedarikçi bulunamadı: ID {id}', en: 'Supplier not found: ID {id}' },
+  PO_ITEMS_REQUIRED: { tr: 'Sipariş kalemi (items) belirtilmelidir.', en: 'Order items (items) are required.' },
+  PO_ITEM_PRODUCT_REQUIRED: { tr: "Sipariş kalemi için ürün ID'si (productId) belirtilmelidir.", en: 'Product ID (productId) is required for each order item.' },
+  PO_RECEIVED_IMMUTABLE: { tr: 'Teslim alınmış bir satın alma siparişinin durumu değiştirilemez.', en: 'The status of a received purchase order cannot be changed.' },
+  PO_CANCELLED_IMMUTABLE: { tr: 'İptal edilmiş bir satın alma siparişinin durumu değiştirilemez.', en: 'The status of a cancelled purchase order cannot be changed.' },
+  PO_UPDATE_ONLY_DRAFT: { tr: 'Sadece "Taslak" (Draft) durumundaki satın alma siparişleri güncellenebilir.', en: 'Only purchase orders in "Draft" status can be updated.' },
+  PO_DELETE_ONLY_DRAFT: { tr: 'Sadece "Taslak" (Draft) durumundaki satın alma siparişleri silinebilir.', en: 'Only purchase orders in "Draft" status can be deleted.' },
+
+  // Stock count / stock
+  STOCK_COUNT_ITEMS_REQUIRED: { tr: 'items array zorunludur.', en: 'The items array is required.' },
+  STOCK_COUNT_IN_PROGRESS: { tr: 'Halihazırda devam eden bir sayım seansı bulunmaktadır.', en: 'A stock count session is already in progress.' },
+  STOCK_INSUFFICIENT_BY_WAREHOUSE: { tr: 'Depo bazında yeterli stok bulunamadı. Eksik: {missing} adet.', en: 'Not enough stock across warehouses. Missing: {missing} units.' },
+
+  // Supplier
+  SUPPLIER_NAME_TAKEN: { tr: 'Bu isimde bir tedarikçi zaten mevcut: {name}', en: 'A supplier with this name already exists: {name}' },
+  SUPPLIER_EMAIL_TAKEN: { tr: 'Bu e-posta adresine sahip bir tedarikçi zaten mevcut: {email}', en: 'A supplier with this email already exists: {email}' },
+  SUPPLIER_HAS_ACTIVE_PO: { tr: 'Bu tedarikçiye ait aktif satın alma siparişi bulunduğundan silinemez.', en: 'This supplier cannot be deleted because it has active purchase orders.' },
+
+  // Warehouse
+  WAREHOUSE_NAME_TAKEN: { tr: 'Bu isimde bir depo zaten mevcut: {name}', en: 'A warehouse with this name already exists: {name}' },
+  WAREHOUSE_CODE_TAKEN: { tr: 'Bu kodda bir depo zaten mevcut: {code}', en: 'A warehouse with this code already exists: {code}' },
+  WAREHOUSE_HAS_STOCK: { tr: 'Bu depoda aktif stok bulunduğundan silinemez. Ürün: {product} ({qty} adet)', en: 'This warehouse cannot be deleted because it has active stock. Product: {product} ({qty} units)' },
+  WAREHOUSE_INSUFFICIENT_STOCK: { tr: '{warehouse} deposunda yeterli stok yok. Mevcut: {available}, İstenen: {requested}', en: 'Not enough stock in warehouse {warehouse}. Available: {available}, Requested: {requested}' },
+
+  // DTO validation ({property} and decorator constraints such as {min} are available)
+  VALIDATION_CATEGORY_NAME_REQUIRED: { tr: 'Kategori adı boş olamaz.', en: 'Category name is required.' },
+  VALIDATION_COUNTRY_CODE: { tr: 'Geçerli bir ülke kodu girin (ör. TR, US).', en: 'Enter a valid country code (e.g. TR, US).' },
+  VALIDATION_LANGUAGE: { tr: 'Dil "tr" veya "en" olmalıdır.', en: 'Language must be "tr" or "en".' },
+  VALIDATION_CURRENCY_CODE: { tr: 'Geçerli bir para birimi kodu girin (ör. TRY, USD).', en: 'Enter a valid currency code (e.g. TRY, USD).' },
+  VALIDATION_TIMEZONE: { tr: 'Geçerli bir saat dilimi girin (ör. Europe/Istanbul).', en: 'Enter a valid time zone (e.g. Europe/Istanbul).' },
+  VALIDATION_COMPANY_NAME_REQUIRED: { tr: 'Şirket adı boş olamaz.', en: 'Company name is required.' },
+  VALIDATION_USERNAME_REQUIRED: { tr: 'Kullanıcı adı boş olamaz.', en: 'Username is required.' },
+  VALIDATION_USERNAME_MIN: { tr: 'Kullanıcı adı en az {min} karakter olmalıdır.', en: 'Username must be at least {min} characters.' },
+  VALIDATION_USERNAME_PATTERN: { tr: 'Kullanıcı adı yalnızca harf, rakam, nokta, tire ve alt çizgi içerebilir.', en: 'Username may only contain letters, digits, dots, hyphens and underscores.' },
+  VALIDATION_PASSWORD_REQUIRED: { tr: 'Şifre boş olamaz.', en: 'Password is required.' },
+  VALIDATION_PASSWORD_MIN: { tr: 'Şifre en az {min} karakter olmalıdır.', en: 'Password must be at least {min} characters.' },
+  VALIDATION_CURRENT_PASSWORD_REQUIRED: { tr: 'Mevcut şifre boş olamaz.', en: 'Current password is required.' },
+  VALIDATION_NEW_PASSWORD_REQUIRED: { tr: 'Yeni şifre boş olamaz.', en: 'New password is required.' },
+  VALIDATION_NEW_PASSWORD_MIN: { tr: 'Yeni şifre en az {min} karakter olmalıdır.', en: 'New password must be at least {min} characters.' },
+  VALIDATION_FULL_NAME_REQUIRED: { tr: 'Ad soyad boş olamaz.', en: 'Full name is required.' },
+  VALIDATION_EMAIL: { tr: 'Geçerli bir e-posta adresi girin.', en: 'Enter a valid email address.' },
+  VALIDATION_ROLE_REQUIRED: { tr: 'Rol boş olamaz.', en: 'Role is required.' },
+  VALIDATION_PRODUCT_ID_REQUIRED: { tr: 'Ürün ID zorunludur.', en: 'Product ID is required.' },
+  VALIDATION_PRODUCT_NAME_REQUIRED: { tr: 'Ürün adı boş olamaz.', en: 'Product name is required.' },
+  VALIDATION_ITEM_PRODUCT_NAME_REQUIRED: { tr: 'Ürün adı zorunludur.', en: 'Product name is required.' },
+  VALIDATION_ITEM_QUANTITY_INT: { tr: 'Ürün adedi tam sayı olmalıdır.', en: 'Item quantity must be an integer.' },
+  VALIDATION_ITEM_QUANTITY_MIN: { tr: 'Ürün adedi en az {min} olmalıdır.', en: 'Item quantity must be at least {min}.' },
+  VALIDATION_CUSTOMER_NAME_REQUIRED: { tr: 'Müşteri adı zorunludur.', en: 'Customer name is required.' },
+  VALIDATION_ORDER_STATUS_REQUIRED: { tr: 'Sipariş durumu zorunludur.', en: 'Order status is required.' },
+  VALIDATION_SKU_REQUIRED: { tr: 'SKU kodu boş olamaz.', en: 'SKU is required.' },
+  VALIDATION_CATEGORY_REQUIRED: { tr: 'Kategori boş olamaz.', en: 'Category is required.' },
+  VALIDATION_PRICE_NUMBER: { tr: 'Fiyat geçerli bir sayı olmalıdır.', en: 'Price must be a valid number.' },
+  VALIDATION_PRICE_MIN: { tr: 'Fiyat en az {min} olmalıdır.', en: 'Price must be at least {min}.' },
+  VALIDATION_QUANTITY_INT: { tr: 'Miktar bir tam sayı olmalıdır.', en: 'Quantity must be an integer.' },
+  VALIDATION_QUANTITY_MIN: { tr: 'Miktar en az {min} olmalıdır.', en: 'Quantity must be at least {min}.' },
+  VALIDATION_MIN_QUANTITY_INT: { tr: 'Minimum miktar bir tam sayı olmalıdır.', en: 'Minimum quantity must be an integer.' },
+  VALIDATION_MIN_QUANTITY_MIN: { tr: 'Minimum miktar en az {min} olmalıdır.', en: 'Minimum quantity must be at least {min}.' },
+  VALIDATION_IDS_ARRAY: { tr: 'IDs bir dizi olmalıdır.', en: 'IDs must be an array.' },
+  VALIDATION_IDS_MIN: { tr: 'En az bir ID seçilmelidir.', en: 'At least one ID must be selected.' },
+  VALIDATION_IDS_STRING: { tr: 'Her bir ID string olmalıdır.', en: 'Each ID must be a string.' },
+  VALIDATION_SUPPLIER_ID_REQUIRED: { tr: 'Tedarikçi ID zorunludur.', en: 'Supplier ID is required.' },
+  VALIDATION_SUPPLIER_NAME_REQUIRED: { tr: 'Tedarikçi adı boş olamaz.', en: 'Supplier name is required.' },
+  VALIDATION_WAREHOUSE_NAME_REQUIRED: { tr: 'Depo adı boş olamaz.', en: 'Warehouse name is required.' },
+  VALIDATION_WAREHOUSE_CODE_REQUIRED: { tr: 'Depo kodu boş olamaz.', en: 'Warehouse code is required.' },
+};
+
+export type MessageParams = Record<string, string | number | undefined | null>;
+
+/** Resolve the response language from an Accept-Language header (default: tr). */
+export function resolveLang(header?: string | string[] | null): Lang {
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (!raw) return DEFAULT_LANG;
+  const first = raw.split(',')[0].trim().toLowerCase();
+  return first.startsWith('en') ? 'en' : DEFAULT_LANG;
+}
+
+export function hasMessage(code: unknown): code is string {
+  return typeof code === 'string' && Object.prototype.hasOwnProperty.call(MESSAGES, code);
+}
+
+/** Translate a code; unknown codes / plain messages pass through unchanged. */
+export function translate(code: string, lang: Lang = DEFAULT_LANG, params: MessageParams = {}): string {
+  const template = hasMessage(code) ? MESSAGES[code][lang] ?? MESSAGES[code][DEFAULT_LANG] : code;
+  return template.replace(/\{(\w+)\}/g, (m, key) =>
+    params[key] !== undefined && params[key] !== null ? String(params[key]) : m,
+  );
+}

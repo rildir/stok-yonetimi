@@ -1,10 +1,11 @@
 import { Component, EventEmitter, Input, Output, OnDestroy, signal, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslatePipe } from '../../i18n';
 
 @Component({
   selector: 'app-barcode-scanner',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   template: `
     <div class="scanner-overlay" (click)="close()">
       <div class="scanner-modal" (click)="$event.stopPropagation()">
@@ -13,9 +14,9 @@ import { CommonModule } from '@angular/common';
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: text-bottom; margin-right: 6px;">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
             </svg>
-            Barkod / QR Tarayıcı
+            {{ 'shared.scanner.title' | t }}
           </h3>
-          <button class="scanner-close" (click)="close()">✕</button>
+          <button class="scanner-close" (click)="close()" [attr.aria-label]="'common.close' | t">✕</button>
         </div>
 
         <div class="scanner-body">
@@ -36,8 +37,8 @@ import { CommonModule } from '@angular/common';
                 <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: var(--text-muted, #6b6b6b);">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                 </svg>
-                <p>Kamera başlatılıyor...</p>
-                <span class="cam-hint">Kamera izni gerekli</span>
+                <p>{{ 'shared.scanner.starting' | t }}</p>
+                <span class="cam-hint">{{ 'shared.scanner.permissionRequired' | t }}</span>
               </div>
             }
           </div>
@@ -46,7 +47,7 @@ import { CommonModule } from '@angular/common';
             <div class="scan-result">
               <div class="scan-result-icon">✓</div>
               <div>
-                <strong>Ürün Bulundu!</strong>
+                <strong>{{ 'shared.scanner.found' | t }}</strong>
                 <span class="scan-sku">SKU: {{ scannedSku() }}</span>
               </div>
             </div>
@@ -57,19 +58,19 @@ import { CommonModule } from '@angular/common';
               <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 6px; flex-shrink: 0;">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
               </svg>
-              <span>{{ scanError() }}</span>
+              <span>{{ scanError()! | t }}</span>
             </div>
           }
 
           <div class="scanner-actions">
             <button class="btn btn-outline" (click)="triggerManualScan()" [disabled]="isScanning()">
               @if (isScanning()) {
-                <span class="spinner-sm"></span> Taranıyor...
+                <span class="spinner-sm"></span> {{ 'shared.scanner.scanning' | t }}
               } @else {
                 <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
-                Taramayı Tetikle
+                {{ 'shared.scanner.trigger' | t }}
               }
             </button>
             @if (scannedSku()) {
@@ -77,7 +78,7 @@ import { CommonModule } from '@angular/common';
                 <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
-                Ürünü Getir
+                {{ 'shared.scanner.fetchProduct' | t }}
               </button>
             }
           </div>
@@ -406,7 +407,7 @@ export class BarcodeScannerComponent implements AfterViewInit, OnDestroy {
       this.isScanning.set(false);
 
       if (!this.cameraActive()) {
-        this.scanError.set('Kamera aktif değil. Lütfen kamera erişim izinlerinizi kontrol edin.');
+        this.scanError.set('shared.scanner.cameraInactive');
         return;
       }
 
@@ -434,7 +435,7 @@ export class BarcodeScannerComponent implements AfterViewInit, OnDestroy {
         }
       }
 
-      this.scanError.set('Kamerada taranabilir bir QR kod bulunamadı. Lütfen QR kodu ortalayıp tekrar deneyin.');
+      this.scanError.set('shared.scanner.noCode');
     }, 800);
   }
 

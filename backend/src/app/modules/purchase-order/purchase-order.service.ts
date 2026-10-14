@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -72,19 +73,19 @@ export class PurchaseOrderService {
         attempts++;
       }
       if (attempts === maxAttempts) {
-        throw new BadRequestException('Benzersiz satın alma sipariş numarası üretilemedi, lütfen tekrar deneyin.');
+        throw new BadRequestException(err('PO_NUMBER_GENERATION_FAILED'));
       }
 
       if (!data.supplierId) {
-        throw new BadRequestException("Tedarikçi ID'si (supplierId) belirtilmelidir.");
+        throw new BadRequestException(err('PO_SUPPLIER_REQUIRED'));
       }
       const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: data.supplierId, isDeleted: false } });
       if (!supplier) {
-        throw new BadRequestException(`Tedarikçi bulunamadı: ID ${data.supplierId}`);
+        throw new BadRequestException(err('PO_SUPPLIER_NOT_FOUND', { id: data.supplierId }));
       }
 
       if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
-        throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
+        throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
       }
 
       let calculatedTotal = 0;
@@ -92,11 +93,11 @@ export class PurchaseOrderService {
 
       for (const item of data.items) {
         if (!item.productId) {
-          throw new BadRequestException("Sipariş kalemi için ürün ID'si (productId) belirtilmelidir.");
+          throw new BadRequestException(err('PO_ITEM_PRODUCT_REQUIRED'));
         }
         const product = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId, isDeleted: false } });
         if (!product) {
-          throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
+          throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id: item.productId }));
         }
 
         const itemPrice = item.price !== undefined && item.price !== null && item.price > 0 ? item.price : product.price;
@@ -142,10 +143,10 @@ export class PurchaseOrderService {
       if (oldStatus === status) return po;
 
       if (oldStatus === PurchaseOrderStatus.RECEIVED) {
-        throw new BadRequestException('Teslim alınmış bir satın alma siparişinin durumu değiştirilemez.');
+        throw new BadRequestException(err('PO_RECEIVED_IMMUTABLE'));
       }
       if (oldStatus === PurchaseOrderStatus.CANCELLED) {
-        throw new BadRequestException('İptal edilmiş bir satın alma siparişinin durumu değiştirilemez.');
+        throw new BadRequestException(err('PO_CANCELLED_IMMUTABLE'));
       }
 
       if (oldStatus !== PurchaseOrderStatus.RECEIVED && status === PurchaseOrderStatus.RECEIVED) {
@@ -199,13 +200,13 @@ export class PurchaseOrderService {
     const po = await this.poRepo.findOne({ where: { companyId: this.companyId, id }, relations: { items: true } });
     if (!po) return null;
     if (po.status !== PurchaseOrderStatus.DRAFT) {
-      throw new BadRequestException('Sadece "Taslak" (Draft) durumundaki satın alma siparişleri güncellenebilir.');
+      throw new BadRequestException(err('PO_UPDATE_ONLY_DRAFT'));
     }
 
     if (updates.supplierId && updates.supplierId !== po.supplierId) {
       const supplier = await this.supplierRepo.findOne({ where: { companyId: this.companyId, id: updates.supplierId, isDeleted: false } });
       if (!supplier) {
-        throw new BadRequestException(`Tedarikçi bulunamadı: ID ${updates.supplierId}`);
+        throw new BadRequestException(err('PO_SUPPLIER_NOT_FOUND', { id: updates.supplierId }));
       }
       po.supplierId = updates.supplierId;
       po.supplierName = supplier.name;
@@ -213,18 +214,18 @@ export class PurchaseOrderService {
 
     if (updates.items) {
       if (!Array.isArray(updates.items) || updates.items.length === 0) {
-        throw new BadRequestException('Sipariş kalemi (items) belirtilmelidir.');
+        throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
       }
       let calculatedTotal = 0;
       const newItems: PurchaseOrderItemEntity[] = [];
 
       for (const item of updates.items) {
         if (!item.productId) {
-          throw new BadRequestException("Sipariş kalemi için ürün ID'si (productId) belirtilmelidir.");
+          throw new BadRequestException(err('PO_ITEM_PRODUCT_REQUIRED'));
         }
         const product = await this.productRepo.findOne({ where: { companyId: this.companyId, id: item.productId, isDeleted: false } });
         if (!product) {
-          throw new BadRequestException(`Ürün bulunamadı: ID ${item.productId}`);
+          throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id: item.productId }));
         }
         const itemPrice = item.price !== undefined && item.price !== null && item.price > 0 ? item.price : product.price;
         calculatedTotal += itemPrice * (item.quantity || 0);
@@ -254,7 +255,7 @@ export class PurchaseOrderService {
     const po = await this.poRepo.findOne({ where: { companyId: this.companyId, id } });
     if (!po) return false;
     if (po.status !== PurchaseOrderStatus.DRAFT) {
-      throw new BadRequestException('Sadece "Taslak" (Draft) durumundaki satın alma siparişleri silinebilir.');
+      throw new BadRequestException(err('PO_DELETE_ONLY_DRAFT'));
     }
     await this.poRepo.remove(po);
     this.appGateway.emitToCompany(this.companyId, 'purchase_order_mutated', { type: 'delete', purchaseOrderId: id });

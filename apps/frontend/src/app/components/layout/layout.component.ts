@@ -1,6 +1,6 @@
-import { Component, inject, ViewChild, ElementRef, signal, computed, HostListener, OnInit } from '@angular/core';
+import { Component, inject, ViewChild, ElementRef, signal, computed, effect, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, Router } from '@angular/router';
+import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { UiStateService } from '../../services/ui-state.service';
@@ -13,11 +13,13 @@ import { InventoryService } from '../../inventory.service';
 import { Subject, of, Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { SearchService, GlobalSearchResult } from '../../services/search.service';
+import { Title } from '@angular/platform-browser';
+import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '../../i18n';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ModalComponent],
+  imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe],
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()">
       <aside class="sidebar">
@@ -33,7 +35,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                   <span style="font-family: var(--font-heading); font-size: 1.15rem; font-weight: 900; color: #0F172A; padding-left: 2px;">e</span>
                 }
               </div>
-              <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="isSidebarCollapsed() ? 'Menüyü Göster' : 'Menüyü Gizle'" style="border: 1px solid #E2E8F0; border-radius: 50%; width: 28px; height: 28px; background: #FFFFFF; color: #64748B; display: flex; align-items: center; justify-content: center; margin: 0;">
+              <button class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" style="border: 1px solid #E2E8F0; border-radius: 50%; width: 28px; height: 28px; background: #FFFFFF; color: #64748B; display: flex; align-items: center; justify-content: center; margin: 0;">
                 <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
               </button>
             </div>
@@ -47,7 +49,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                     #searchInput
                     type="text" 
                     style="border: none; background: transparent; outline: none; font-size: 0.82rem; color: #0F172A; width: 100%; font-family: var(--font-body);"
-                    placeholder="Ara... (Ctrl+K)" 
+                    [placeholder]="'layout.search.placeholder' | t: { shortcut: searchShortcut }" 
                     [ngModel]="navbarSearchQuery()" 
                     (ngModelChange)="onSearchQueryChange($event)"
                     (keyup.enter)="triggerNavbarSearch()"
@@ -56,7 +58,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                     (focus)="onSearchFocus()"
                     (blur)="onSearchBlur()"
                   />
-                  <kbd style="font-size: 0.65rem; color: #94A3B8; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 1px 4px; border-radius: 4px; font-family: var(--font-mono); pointer-events: none;">Ctrl+K</kbd>
+                  <kbd style="font-size: 0.65rem; color: #94A3B8; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 1px 4px; border-radius: 4px; font-family: var(--font-mono); pointer-events: none;">{{ searchShortcut }}</kbd>
                 </div>
 
                 <!-- Autocomplete suggestions floating dropdown overlay -->
@@ -67,7 +69,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                     @if (filteredSuggestionsByType('nav').length > 0) {
                       <div class="search-section">
                         <div class="search-section-header">
-                          Sayfalar ve Menüler
+                          {{ 'layout.search.pages' | t }}
                         </div>
                         @for (s of filteredSuggestionsByType('nav'); track s.title) {
                           <div class="suggestion-item" 
@@ -87,7 +89,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                     @if (filteredSuggestionsByType('action').length > 0) {
                       <div class="search-section">
                         <div class="search-section-header">
-                          Hızlı İşlemler
+                          {{ 'layout.search.actions' | t }}
                         </div>
                         @for (s of filteredSuggestionsByType('action'); track s.title) {
                           <div class="suggestion-item" 
@@ -97,7 +99,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                             <div class="suggestion-item-left">
                               <span class="suggestion-item-title" style="color: var(--primary);" [innerHTML]="highlightMatch(s.title)"></span>
                             </div>
-                            <span class="suggestion-badge action">Tetikle</span>
+                            <span class="suggestion-badge action">{{ 'layout.search.trigger' | t }}</span>
                           </div>
                         }
                       </div>
@@ -107,7 +109,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                     @if (matchingInventory().length > 0) {
                       <div class="search-section">
                         <div class="search-section-header">
-                          Veritabanı Kayıtları
+                          {{ 'layout.search.records' | t }}
                         </div>
                         @for (item of matchingInventory(); track item.type + '-' + (item.id || item.name)) {
                           <div class="suggestion-item" 
@@ -120,7 +122,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                                 <span class="suggestion-item-subtitle">{{ item.subtitle }}</span>
                               </div>
                             </div>
-                            <span class="suggestion-badge">{{ item.type }}</span>
+                            <span class="suggestion-badge">{{ item.typeLabel }}</span>
                           </div>
                         }
                       </div>
@@ -132,74 +134,74 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
             <nav class="nav-list">
               <!-- GENEL -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Ana Menü</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.main' | t }}</div>
               } @else {
                 <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
-              <a routerLink="/dashboard" routerLinkActive="active" class="nav-btn" title="Panel Özeti">
+              <a routerLink="/dashboard" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.dashboard' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
-                <span class="nav-text">Panel Özeti</span>
+                <span class="nav-text">{{ 'layout.nav.dashboard' | t }}</span>
               </a>
 
               <!-- STOK YÖNETİMİ -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Stok Yönetimi</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.stock' | t }}</div>
               } @else {
                 <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
-              <a routerLink="/products" routerLinkActive="active" class="nav-btn" title="Ürün Yönetimi">
+              <a routerLink="/products" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.products' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                <span class="nav-text">Ürün Yönetimi</span>
+                <span class="nav-text">{{ 'layout.nav.products' | t }}</span>
               </a>
-              <a routerLink="/stock-movements" routerLinkActive="active" class="nav-btn" title="Stok Hareketleri">
+              <a routerLink="/stock-movements" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockMovements' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                <span class="nav-text">Stok Hareketleri</span>
+                <span class="nav-text">{{ 'layout.nav.stockMovements' | t }}</span>
               </a>
-              <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" title="Stok Sayımı">
+              <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockCount' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
                 </svg>
-                <span class="nav-text">Stok Sayımı</span>
+                <span class="nav-text">{{ 'layout.nav.stockCount' | t }}</span>
               </a>
-              <a routerLink="/warehouses" routerLinkActive="active" class="nav-btn" title="Depo Yönetimi">
+              <a routerLink="/warehouses" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.warehouses' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
-                <span class="nav-text">Depo Yönetimi</span>
+                <span class="nav-text">{{ 'layout.nav.warehouses' | t }}</span>
               </a>
 
               <!-- OPERASYONLAR -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Operasyonlar</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.operations' | t }}</div>
               } @else {
                 <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
-              <a routerLink="/orders" routerLinkActive="active" class="nav-btn" title="Sipariş Takibi">
+              <a routerLink="/orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.orders' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-                <span class="nav-text">Sipariş Takibi</span>
+                <span class="nav-text">{{ 'layout.nav.orders' | t }}</span>
               </a>
-              <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" title="Satın Alma">
+              <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.purchaseOrders' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                <span class="nav-text">Satın Alma</span>
+                <span class="nav-text">{{ 'layout.nav.purchaseOrders' | t }}</span>
               </a>
-              <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" title="Tedarikçiler">
+              <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.suppliers' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                <span class="nav-text">Tedarikçiler</span>
+                <span class="nav-text">{{ 'layout.nav.suppliers' | t }}</span>
               </a>
 
               <!-- SİSTEM -->
               @if (!isSidebarCollapsed()) {
-                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Sistem</div>
+                <div class="nav-group-label" style="color: #64748B; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding-left: 1.5rem; margin-top: 1.25rem; margin-bottom: 0.5rem; letter-spacing: 0.05em;">{{ 'layout.group.system' | t }}</div>
               } @else {
                 <div class="nav-group-divider" style="border-top: 1px solid #F1F5F9; margin: 0.5rem 0;"></div>
               }
-              <a routerLink="/reports" routerLinkActive="active" class="nav-btn" title="Raporlar">
+              <a routerLink="/reports" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.reports' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                <span class="nav-text">Raporlar</span>
+                <span class="nav-text">{{ 'layout.nav.reports' | t }}</span>
               </a>
-              <a routerLink="/settings" routerLinkActive="active" class="nav-btn" title="Ayarlar">
+              <a routerLink="/settings" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.settings' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="nav-text">Ayarlar</span>
+                <span class="nav-text">{{ 'layout.nav.settings' | t }}</span>
               </a>
             </nav>
           </div>
@@ -215,9 +217,26 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
           </div>
 
           <div class="navbar-right" style="gap: 1.25rem;">
+            <!-- Language switcher (TR / EN) -->
+            <div class="lang-switch" role="group" [attr.aria-label]="'common.language' | t" style="display: flex; align-items: center; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; padding: 2px; gap: 2px;">
+              @for (l of languages; track l) {
+                <button type="button"
+                        (click)="changeLanguage(l)"
+                        [disabled]="isLangSaving()"
+                        [attr.aria-pressed]="i18n.lang() === l"
+                        [attr.title]="('layout.lang.' + l) | t"
+                        [style.background]="i18n.lang() === l ? '#FFFFFF' : 'transparent'"
+                        [style.color]="i18n.lang() === l ? '#0F172A' : '#64748B'"
+                        [style.box-shadow]="i18n.lang() === l ? '0 1px 2px rgba(15,23,42,0.08)' : 'none'"
+                        style="border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.72rem; font-weight: 700; cursor: pointer; font-family: var(--font-body); letter-spacing: 0.03em; transition: all 0.2s;">
+                  {{ l.toUpperCase() }}
+                </button>
+              }
+            </div>
+
             <!-- Shopping Cart styled Notification Widget -->
             <div class="notification-widget">
-              <button class="notif-btn" (click)="toggleNotifDropdown($event)" aria-label="Bildirimler">
+              <button class="notif-btn" (click)="toggleNotifDropdown($event)" [attr.aria-label]="'layout.notifications.title' | t">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
@@ -229,12 +248,12 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
               @if (isNotifOpen()) {
                 <div class="notif-dropdown" (click)="$event.stopPropagation()">
                   <div class="notif-header">
-                    <h4>Bildirimler</h4>
+                    <h4>{{ 'layout.notifications.title' | t }}</h4>
                     <div class="notif-actions">
                       @if (notifService.notifications().length > 0) {
-                        <button class="notif-action-link" (click)="notifService.markAllAsRead()">Tümünü Okundu Say</button>
+                        <button class="notif-action-link" (click)="notifService.markAllAsRead()">{{ 'layout.notifications.markAllRead' | t }}</button>
                         <span class="divider">•</span>
-                        <button class="notif-action-link" (click)="notifService.clearAll()">Temizle</button>
+                        <button class="notif-action-link" (click)="notifService.clearAll()">{{ 'layout.notifications.clear' | t }}</button>
                       }
                     </div>
                   </div>
@@ -244,15 +263,15 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                         <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2m16 4h-2a2 2 0 00-2 2v1a2 2 0 00-2 2H8a2 2 0 00-2-2v-1a2 2 0 00-2-2H2"/>
                         </svg>
-                        <span>Bildirim bulunmuyor.</span>
+                        <span>{{ 'layout.notifications.empty' | t }}</span>
                       </div>
                     } @else {
                       @for (n of notifService.notifications(); track n.id) {
                         <div class="notif-item" [class.unread]="!n.read" (click)="notifService.markAsRead(n.id)">
                           <div class="notif-indicator" [class]="n.type"></div>
                           <div class="notif-content">
-                            <p class="notif-message">{{ n.message }}</p>
-                            <span class="notif-time">{{ n.createdAt | date:'dd.MM HH:mm' }}</span>
+                            <p class="notif-message">{{ n.key ? i18n.t(n.key, n.params) : n.message }}</p>
+                            <span class="notif-time">{{ n.createdAt | appDate: 'short' }}</span>
                           </div>
                         </div>
                       }
@@ -280,9 +299,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                 }
               </div>
               <div class="user-info">
-                <span class="user-name">Merhaba, {{ currentUser().name }}</span>
+                <span class="user-name">{{ 'layout.profile.greeting' | t: { name: currentUser().name } }}</span>
                 <span class="user-role" style="display: flex; align-items: center; gap: 2px;">
-                  Hesap ve Listeler
+                  {{ 'layout.profile.account' | t }}
                   <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/>
                   </svg>
@@ -298,11 +317,11 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                   <div class="dropdown-divider"></div>
                   <a routerLink="/settings" (click)="isProfileOpen.set(false)" class="dropdown-item">
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                    Profil Ayarları
+                    {{ 'layout.profile.settings' | t }}
                   </a>
                   <button (click)="doLogout(); isProfileOpen.set(false)" class="dropdown-item logout">
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                    Çıkış Yap
+                    {{ 'layout.profile.logout' | t }}
                   </button>
                 </div>
               }
@@ -316,7 +335,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
               <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: #F59E0B; flex-shrink: 0;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span><strong>Demo Modundasınız:</strong> Sistemdeki tüm verileri inceleyebilirsiniz. Veri ekleme, güncelleme ve silme yetkileriniz kısıtlanmıştır.</span>
+              <span><strong>{{ 'layout.demo.title' | t }}</strong> {{ 'layout.demo.message' | t }}</span>
             </div>
           }
           <router-outlet></router-outlet>
@@ -346,7 +365,7 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                     (click)="ui.closeConfirm()" 
                     [disabled]="isConfirmLoading()"
                     style="border: 1px solid #D1D5DB; background: transparent; color: #4B5563; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; cursor: pointer;">
-              Vazgeç
+              {{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}
             </button>
             <!-- Sağ: Sil - dolu, kırmızı/danger renk -->
             <button class="btn" 
@@ -354,9 +373,9 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
                     [disabled]="isConfirmLoading()"
                     style="background-color: #DC2626; color: #FFFFFF; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;">
               @if (isConfirmLoading()) {
-                <span class="spinner-sm spinner-light" style="width: 14px; height: 14px; border-width: 2px;"></span> Siliniyor...
+                <span class="spinner-sm spinner-light" style="width: 14px; height: 14px; border-width: 2px;"></span> {{ 'layout.confirm.deleting' | t }}
               } @else {
-                Sil
+                {{ ui.confirmConfig()?.confirmText || ('common.delete' | t) }}
               }
             </button>
           </div>
@@ -367,8 +386,8 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
             {{ ui.confirmConfig()?.message }}
           </div>
           <div footer style="display: flex; gap: 8px;">
-            <button class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || 'Vazgeç' }}</button>
-            <button class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || 'Onayla' }}</button>
+            <button class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}</button>
+            <button class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || ('common.confirm' | t) }}</button>
           </div>
         </app-modal>
       }
@@ -383,7 +402,11 @@ export class LayoutComponent implements OnInit {
   state = inject(AppStateService);
   inventoryService = inject(InventoryService);
   searchService = inject(SearchService);
+  i18n = inject(I18nService);
+  private titleService = inject(Title);
   isConfirmLoading = signal(false);
+  isLangSaving = signal(false);
+  languages: Lang[] = SUPPORTED_LANGS;
   
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
@@ -424,119 +447,119 @@ export class LayoutComponent implements OnInit {
     this.searchSubject.next(val);
   }
 
-  suggestionsList = [
+  private suggestionsSource = [
     {
-      title: 'Depo Yönetimi',
+      titleKey: 'layout.nav.warehouses',
       type: 'nav',
-      category: 'Stok Yönetimi',
+      categoryKey: 'layout.group.stock',
       route: '/warehouses',
       icon: '🏢',
-      keywords: ['depo', 'yönetimi', 'warehouses', 'depolar', 'şube', 'şubeler']
+      keywords: ['depo', 'yönetimi', 'warehouses', 'warehouse', 'depolar', 'şube', 'şubeler']
     },
     {
-      title: 'Ürün Yönetimi',
+      titleKey: 'layout.nav.products',
       type: 'nav',
-      category: 'Stok Yönetimi',
+      categoryKey: 'layout.group.stock',
       route: '/products',
       icon: '📦',
-      keywords: ['ürün', 'yönetimi', 'products', 'ürünler', 'stok', 'stoklar', 'malzeme']
+      keywords: ['ürün', 'yönetimi', 'products', 'product', 'ürünler', 'stok', 'stoklar', 'malzeme']
     },
     {
-      title: 'Stok Hareketleri',
+      titleKey: 'layout.nav.stockMovements',
       type: 'nav',
-      category: 'Stok Yönetimi',
+      categoryKey: 'layout.group.stock',
       route: '/stock-movements',
       icon: '🔄',
-      keywords: ['stok', 'hareketleri', 'giriş', 'çıkış', 'transfer', 'sevk', 'movements']
+      keywords: ['stok', 'hareketleri', 'giriş', 'çıkış', 'transfer', 'sevk', 'movements', 'movement', 'stock']
     },
     {
-      title: 'Stok Sayımı',
+      titleKey: 'layout.nav.stockCount',
       type: 'nav',
-      category: 'Stok Yönetimi',
+      categoryKey: 'layout.group.stock',
       route: '/stock-count',
       icon: '📋',
-      keywords: ['sayım', 'stok sayımı', 'count', 'envanter']
+      keywords: ['sayım', 'stok sayımı', 'count', 'inventory', 'envanter']
     },
     {
-      title: 'Sipariş Takibi',
+      titleKey: 'layout.nav.orders',
       type: 'nav',
-      category: 'Operasyonlar',
+      categoryKey: 'layout.group.operations',
       route: '/orders',
       icon: '🛒',
-      keywords: ['sipariş', 'takibi', 'orders', 'siparişler', 'müşteri', 'satış']
+      keywords: ['sipariş', 'takibi', 'orders', 'order', 'sales', 'siparişler', 'müşteri', 'satış']
     },
     {
-      title: 'Satın Alma',
+      titleKey: 'layout.nav.purchaseOrders',
       type: 'nav',
-      category: 'Operasyonlar',
+      categoryKey: 'layout.group.operations',
       route: '/purchase-orders',
       icon: '💳',
-      keywords: ['satın', 'alma', 'purchase', 'po', 'tedarik', 'sipariş']
+      keywords: ['satın', 'alma', 'purchase', 'po', 'tedarik', 'sipariş', 'procurement']
     },
     {
-      title: 'Tedarikçiler',
+      titleKey: 'layout.nav.suppliers',
       type: 'nav',
-      category: 'Operasyonlar',
+      categoryKey: 'layout.group.operations',
       route: '/suppliers',
       icon: '🏭',
-      keywords: ['tedarikçi', 'tedarikçiler', 'suppliers', 'üretici', 'satıcı']
+      keywords: ['tedarikçi', 'tedarikçiler', 'suppliers', 'supplier', 'vendor', 'üretici', 'satıcı']
     },
     {
-      title: 'Raporlar',
+      titleKey: 'layout.nav.reports',
       type: 'nav',
-      category: 'Analiz & Sistem',
+      categoryKey: 'layout.group.analytics',
       route: '/reports',
       icon: '📊',
-      keywords: ['raporlar', 'analiz', 'reports', 'istatistik', 'grafik']
+      keywords: ['raporlar', 'analiz', 'reports', 'analytics', 'report', 'istatistik', 'grafik']
     },
     {
-      title: 'Ayarlar',
+      titleKey: 'layout.nav.settings',
       type: 'nav',
-      category: 'Analiz & Sistem',
+      categoryKey: 'layout.group.analytics',
       route: '/settings',
       icon: '⚙️',
-      keywords: ['ayarlar', 'settings', 'profil', 'güvenlik', 'şifre']
+      keywords: ['ayarlar', 'settings', 'profile', 'security', 'password', 'language', 'profil', 'güvenlik', 'şifre']
     },
     {
-      title: 'Yeni Sipariş Oluştur',
+      titleKey: 'layout.action.newOrder',
       type: 'action',
-      category: 'Operasyonlar',
+      categoryKey: 'layout.group.operations',
       route: '/orders',
       openParam: 'new',
       icon: '➕🛒',
       keywords: ['yeni', 'sipariş', 'oluştur', 'ekle', 'create', 'order', 'satış']
     },
     {
-      title: 'Yeni Ürün Ekle',
+      titleKey: 'layout.action.newProduct',
       type: 'action',
-      category: 'Stok Yönetimi',
+      categoryKey: 'layout.group.stock',
       route: '/products',
       openParam: 'new',
       icon: '➕📦',
       keywords: ['yeni', 'ürün', 'ekle', 'create', 'product', 'stok']
     },
     {
-      title: 'Yeni Depo Tanımla',
+      titleKey: 'layout.action.newWarehouse',
       type: 'action',
-      category: 'Stok Yönetimi',
+      categoryKey: 'layout.group.stock',
       route: '/warehouses',
       openParam: 'new',
       icon: '➕🏢',
       keywords: ['yeni', 'depo', 'tanımla', 'ekle', 'create', 'warehouse']
     },
     {
-      title: 'Yeni Tedarikçi Ekle',
+      titleKey: 'layout.action.newSupplier',
       type: 'action',
-      category: 'Operasyonlar',
+      categoryKey: 'layout.group.operations',
       route: '/suppliers',
       openParam: 'new',
       icon: '➕🏭',
       keywords: ['yeni', 'tedarikçi', 'ekle', 'create', 'supplier']
     },
     {
-      title: 'Yeni Satın Alma Siparişi',
+      titleKey: 'layout.action.newPurchaseOrder',
       type: 'action',
-      category: 'Operasyonlar',
+      categoryKey: 'layout.group.operations',
       route: '/purchase-orders',
       openParam: 'new',
       icon: '➕💳',
@@ -544,25 +567,32 @@ export class LayoutComponent implements OnInit {
     }
   ];
 
+  /** Suggestions with titles/categories resolved in the active language. */
+  suggestionsList = computed(() => this.suggestionsSource.map(s => ({
+    ...s,
+    title: this.i18n.t(s.titleKey),
+    category: this.i18n.t(s.categoryKey)
+  })));
+
   translateStatus(status: string): string {
-    const translations: Record<string, string> = {
-      'Completed': 'Tamamlandı',
-      'Pending': 'Beklemede',
-      'Cancelled': 'İptal Edildi',
-      'Draft': 'Taslak',
-      'Sent': 'Gönderildi',
-      'Partially Received': 'Kısmen Alındı',
-      'Received': 'Teslim Alındı'
+    const keys: Record<string, string> = {
+      'Completed': 'shared.orderStatus.completed',
+      'Pending': 'shared.orderStatus.pending',
+      'Cancelled': 'shared.orderStatus.cancelled',
+      'Draft': 'shared.poStatus.draft',
+      'Sent': 'shared.poStatus.sent',
+      'Partially Received': 'shared.poStatus.partiallyReceived',
+      'Received': 'shared.poStatus.received'
     };
-    return translations[status] || status;
+    return keys[status] ? this.i18n.t(keys[status]) : status;
   }
 
   filteredSuggestions = computed(() => {
     const query = this.navbarSearchQuery().toLowerCase().trim();
     if (!query) {
-      return this.suggestionsList;
+      return this.suggestionsList();
     }
-    return this.suggestionsList.filter(s =>
+    return this.suggestionsList().filter(s =>
       s.title.toLowerCase().includes(query) ||
       s.category.toLowerCase().includes(query) ||
       s.keywords.some(k => k.toLowerCase().includes(query))
@@ -585,8 +615,9 @@ export class LayoutComponent implements OnInit {
         matches.push({
           id: p.id,
           name: p.name,
-          type: 'Ürün',
-          subtitle: `SKU: ${p.sku} | Stok: ${p.quantity} ${p.unit || 'Adet'}`,
+          type: 'product',
+          typeLabel: this.i18n.t('layout.search.type.product'),
+          subtitle: this.i18n.t('layout.search.productSubtitle', { sku: p.sku, qty: this.i18n.formatNumber(p.quantity), unit: p.unit || this.i18n.t('layout.search.unitDefault') }),
           icon: '📦',
           route: '/products',
           openParam: `edit-${p.id}`
@@ -600,8 +631,9 @@ export class LayoutComponent implements OnInit {
         matches.push({
           id: o.id,
           name: o.orderNumber,
-          type: 'Müşteri Siparişi',
-          subtitle: `Müşteri: ${o.customerName} | Toplam: ₺${o.totalAmount} | Durum: ${this.translateStatus(o.status)}`,
+          type: 'order',
+          typeLabel: this.i18n.t('layout.search.type.order'),
+          subtitle: this.i18n.t('layout.search.orderSubtitle', { customer: o.customerName, total: this.i18n.formatMoney(o.totalAmount), status: this.translateStatus(o.status) }),
           icon: '🛒',
           route: '/orders',
           openParam: `edit-${o.id}`
@@ -615,8 +647,9 @@ export class LayoutComponent implements OnInit {
         matches.push({
           id: po.id,
           name: po.poNumber,
-          type: 'Tedarik Siparişi',
-          subtitle: `Tedarikçi: ${po.supplierName} | Toplam: ₺${po.totalAmount} | Durum: ${this.translateStatus(po.status)}`,
+          type: 'purchaseOrder',
+          typeLabel: this.i18n.t('layout.search.type.purchaseOrder'),
+          subtitle: this.i18n.t('layout.search.poSubtitle', { supplier: po.supplierName, total: this.i18n.formatMoney(po.totalAmount), status: this.translateStatus(po.status) }),
           icon: '💳',
           route: '/purchase-orders',
           openParam: `edit-${po.id}`
@@ -630,8 +663,9 @@ export class LayoutComponent implements OnInit {
         matches.push({
           id: w.id,
           name: w.name,
-          type: 'Depo',
-          subtitle: `Kod: ${w.code} | Adres: ${w.address || '-'}`,
+          type: 'warehouse',
+          typeLabel: this.i18n.t('layout.search.type.warehouse'),
+          subtitle: this.i18n.t('layout.search.warehouseSubtitle', { code: w.code, address: w.address || '-' }),
           icon: '🏢',
           route: '/warehouses'
         });
@@ -644,8 +678,9 @@ export class LayoutComponent implements OnInit {
         matches.push({
           id: s.id,
           name: s.name,
-          type: 'Tedarikçi',
-          subtitle: `İrtibat: ${s.contactPerson || '-'} | Derece: ${s.rating}/5`,
+          type: 'supplier',
+          typeLabel: this.i18n.t('layout.search.type.supplier'),
+          subtitle: this.i18n.t('layout.search.supplierSubtitle', { contact: s.contactPerson || '-', rating: s.rating }),
           icon: '🏭',
           route: '/suppliers'
         });
@@ -787,16 +822,57 @@ export class LayoutComponent implements OnInit {
     }
   }
 
+  /** Current router URL as a signal (used for the document title). */
+  private currentUrl = signal(this.router.url);
+
+  changeLanguage(lang: Lang) {
+    if (this.isLangSaving() || this.i18n.lang() === lang) return;
+    const previous = this.i18n.lang();
+    this.i18n.setLanguage(lang);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
+    if (!token) return;
+    this.isLangSaving.set(true);
+    this.http.put(`${environment.apiUrl}/user/profile`, { language: lang }).subscribe({
+      next: () => {
+        this.http.get(`${environment.apiUrl}/user/profile`).subscribe({
+          next: (profile: any) => {
+            this.ui.userProfile.set(profile);
+            this.i18n.applyLocale(profile?.locale);
+            this.isLangSaving.set(false);
+          },
+          error: () => this.isLangSaving.set(false)
+        });
+      },
+      error: () => {
+        this.isLangSaving.set(false);
+        this.i18n.setLanguage(previous);
+        this.ui.showToast(this.i18n.t('layout.lang.saveError'), 'error');
+      }
+    });
+  }
+
   constructor() {
+    this.router.events.subscribe(e => {
+      if (e instanceof NavigationEnd) this.currentUrl.set(e.urlAfterRedirects);
+    });
+
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
     if (token) {
       this.http.get(`${environment.apiUrl}/user/profile`).subscribe({
         next: (profile: any) => {
           this.ui.userProfile.set(profile);
+          this.i18n.applyLocale(profile?.locale);
         },
         error: () => {}
       });
     }
+
+    // Keep the browser tab title in sync with the active page + language
+    effect(() => {
+      this.i18n.lang();
+      this.currentUrl();
+      this.titleService.setTitle(this.i18n.t('layout.documentTitle', { page: this.getActivePageTitle() }));
+    });
 
     // Global Search Debounced Subscription
     this.searchSubject.pipe(
@@ -848,7 +924,7 @@ export class LayoutComponent implements OnInit {
 
   currentUser = computed(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
-    if (!token) return { username: 'Misafir', role: 'guest', name: 'Misafir Kullanıcı', avatar: null };
+    if (!token) return { username: this.i18n.t('layout.guest'), role: 'guest', name: this.i18n.t('layout.guestUser'), avatar: null };
     try {
       const profile = this.ui.userProfile();
       if (profile) {
@@ -869,8 +945,8 @@ export class LayoutComponent implements OnInit {
         username: payload.username,
         role: payload.role,
         name: payload.username === 'admin' ? 'Ahmet Ildır' :
-              payload.username === 'manager' ? 'Yönetici Demo' :
-              payload.username === 'viewer' ? 'Gözlemci Demo' : payload.username,
+              payload.username === 'manager' ? this.i18n.t('layout.demoManager') :
+              payload.username === 'viewer' ? this.i18n.t('layout.demoViewer') : payload.username,
         avatar: null
       };
     } catch (e) {
@@ -880,46 +956,46 @@ export class LayoutComponent implements OnInit {
 
   getActivePageTitle(): string {
     const url = this.router.url;
-    if (url.includes('/dashboard')) return 'Panel Özeti';
-    if (url.includes('/products')) return 'Ürün Yönetimi';
-    if (url.includes('/stock-movements')) return 'Stok Hareketleri';
-    if (url.includes('/suppliers')) return 'Tedarikçiler';
-    if (url.includes('/purchase-orders')) return 'Satın Alma';
-    if (url.includes('/orders')) return 'Sipariş Takibi';
-    if (url.includes('/reports')) return 'Raporlar & Analiz';
-    if (url.includes('/stock-count')) return 'Stok Sayımı';
-    if (url.includes('/warehouses')) return 'Depo Yönetimi';
-    if (url.includes('/settings')) return 'Ayarlar';
+    if (url.includes('/dashboard')) return this.i18n.t('layout.nav.dashboard');
+    if (url.includes('/products')) return this.i18n.t('layout.nav.products');
+    if (url.includes('/stock-movements')) return this.i18n.t('layout.nav.stockMovements');
+    if (url.includes('/suppliers')) return this.i18n.t('layout.nav.suppliers');
+    if (url.includes('/purchase-orders')) return this.i18n.t('layout.nav.purchaseOrders');
+    if (url.includes('/orders')) return this.i18n.t('layout.nav.orders');
+    if (url.includes('/reports')) return this.i18n.t('layout.nav.reportsAnalytics');
+    if (url.includes('/stock-count')) return this.i18n.t('layout.nav.stockCount');
+    if (url.includes('/warehouses')) return this.i18n.t('layout.nav.warehouses');
+    if (url.includes('/settings')) return this.i18n.t('layout.nav.settings');
     return 'Ecelon';
   }
 
   getBreadcrumbs(): { category: string; page: string } {
     const url = this.router.url;
-    if (url.includes('/dashboard')) return { category: 'Genel', page: 'Panel Özeti' };
-    if (url.includes('/products')) return { category: 'Stok Yönetimi', page: 'Ürün Yönetimi' };
-    if (url.includes('/stock-movements')) return { category: 'Stok Yönetimi', page: 'Stok Hareketleri' };
-    if (url.includes('/stock-count')) return { category: 'Stok Yönetimi', page: 'Stok Sayımı' };
-    if (url.includes('/warehouses')) return { category: 'Stok Yönetimi', page: 'Depo Yönetimi' };
-    if (url.includes('/orders')) return { category: 'Operasyonlar', page: 'Sipariş Takibi' };
-    if (url.includes('/purchase-orders')) return { category: 'Operasyonlar', page: 'Satın Alma' };
-    if (url.includes('/suppliers')) return { category: 'Operasyonlar', page: 'Tedarikçiler' };
-    if (url.includes('/reports')) return { category: 'Analiz & Sistem', page: 'Raporlar' };
-    if (url.includes('/settings')) return { category: 'Analiz & Sistem', page: 'Ayarlar' };
-    return { category: 'Sistem', page: 'Panel' };
+    if (url.includes('/dashboard')) return { category: this.i18n.t('layout.group.general'), page: this.i18n.t('layout.nav.dashboard') };
+    if (url.includes('/products')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.products') };
+    if (url.includes('/stock-movements')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockMovements') };
+    if (url.includes('/stock-count')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockCount') };
+    if (url.includes('/warehouses')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.warehouses') };
+    if (url.includes('/orders')) return { category: this.i18n.t('layout.group.operations'), page: this.i18n.t('layout.nav.orders') };
+    if (url.includes('/purchase-orders')) return { category: this.i18n.t('layout.group.operations'), page: this.i18n.t('layout.nav.purchaseOrders') };
+    if (url.includes('/suppliers')) return { category: this.i18n.t('layout.group.operations'), page: this.i18n.t('layout.nav.suppliers') };
+    if (url.includes('/reports')) return { category: this.i18n.t('layout.group.analytics'), page: this.i18n.t('layout.nav.reports') };
+    if (url.includes('/settings')) return { category: this.i18n.t('layout.group.analytics'), page: this.i18n.t('layout.nav.settings') };
+    return { category: this.i18n.t('layout.group.system'), page: this.i18n.t('layout.nav.panel') };
   }
 
   doLogout() {
     localStorage.removeItem('smart_inventory_token');
     this.socketService.disconnect();
-    this.ui.showToast('Çıkış yapıldı.', 'info');
+    this.ui.showToast(this.i18n.t('layout.loggedOut'), 'info');
     this.router.navigate(['/login']);
   }
 
   copyShareLink() {
     navigator.clipboard.writeText(window.location.href).then(() => {
-      this.ui.showToast('Sayfa bağlantısı panoya kopyalandı.', 'success');
+      this.ui.showToast(this.i18n.t('layout.linkCopied'), 'success');
     }).catch(() => {
-      this.ui.showToast('Bağlantı kopyalanamadı.', 'error');
+      this.ui.showToast(this.i18n.t('layout.linkCopyError'), 'error');
     });
   }
 }

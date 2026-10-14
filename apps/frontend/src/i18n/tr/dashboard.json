@@ -1,0 +1,23 @@
+{
+  "dashboard.title": "Panel Özeti",
+  "dashboard.stat.totalProducts": "Toplam Ürün",
+  "dashboard.stat.lowStock": "Kritik Stok",
+  "dashboard.stat.outOfStock": "Tükenen Ürün",
+  "dashboard.stat.totalRevenue": "Toplam Gelir",
+  "dashboard.weeklyChart.title": "Son 7 Günün Stok Hareketi (Adet)",
+  "dashboard.weeklyChart.emptyTitle": "Henüz Stok Hareketi Yok",
+  "dashboard.weeklyChart.emptyText": "Bu hafta herhangi bir ürün girişi veya çıkışı kaydedilmedi.",
+  "dashboard.weeklyChart.in": "Giriş",
+  "dashboard.weeklyChart.out": "Çıkış",
+  "dashboard.categoryChart.title": "Kategori bazlı dağılım",
+  "dashboard.quick.title": "Hızlı İşlemler",
+  "dashboard.quick.newProduct": "Yeni Ürün Ekle",
+  "dashboard.quick.newMovement": "Yeni Stok Hareketi",
+  "dashboard.quick.startCount": "Stok Sayımı Başlat",
+  "dashboard.lowStock.title": "Düşük Stok Uyarıları",
+  "dashboard.lowStock.empty": "Harika! Kritik veya tükenmiş stok bulunmuyor.",
+  "dashboard.topSelling.title": "En Çok Satan Ürünler",
+  "dashboard.topSelling.empty": "Satış verisi bulunmuyor.",
+  "dashboard.recentOrders.title": "Son Siparişler",
+  "dashboard.units": "{qty} Adet"
+}

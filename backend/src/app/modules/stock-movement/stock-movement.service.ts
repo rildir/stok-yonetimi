@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -76,7 +77,7 @@ export class StockMovementService {
         where: { companyId: this.companyId, id: productId, isDeleted: false },
         lock: { mode: 'pessimistic_write' }
       });
-      if (!prod) throw new BadRequestException('Ürün bulunamadı');
+      if (!prod) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
 
       const oldQty = prod.quantity;
       const diff = newQuantity - oldQty;

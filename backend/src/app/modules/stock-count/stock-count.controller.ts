@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Controller, Get, Post, Put, Body, Param, BadRequestException, Req } from '@nestjs/common';
 import { StockCountService } from './stock-count.service';
 import { Roles } from '../../guards/roles.decorator';
@@ -30,7 +31,7 @@ export class StockCountController {
     @Body('notes') notes?: string
   ) {
     if (!items || !Array.isArray(items)) {
-      throw new BadRequestException('items array zorunludur.');
+      throw new BadRequestException(err('STOCK_COUNT_ITEMS_REQUIRED'));
     }
     return this.stockCountService.updateStockCount(id, items, notes);
   }

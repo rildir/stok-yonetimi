@@ -1,3 +1,4 @@
+import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -36,7 +37,7 @@ export class StockCountService {
   async createStockCount(notes?: string, performedBy?: string): Promise<StockCountEntity> {
     const activeCount = await this.stockCountRepo.findOne({ where: { companyId: this.companyId, status: 'InProgress' } });
     if (activeCount) {
-      throw new BadRequestException('Halihazırda devam eden bir sayım seansı bulunmaktadır.');
+      throw new BadRequestException(err('STOCK_COUNT_IN_PROGRESS'));
     }
     
     const now = new Date();

@@ -31,6 +31,7 @@ import helmet from 'helmet';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app/app.module';
 import { TenantContext } from './app/shared/tenant/tenant-context.service';
+import { validationExceptionFactory } from './app/shared/i18n/i18n-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -55,7 +56,8 @@ async function bootstrap() {
   // Enforce DTO validation rules globally
   app.useGlobalPipes(new ValidationPipe({ 
     whitelist: true, 
-    transform: true 
+    transform: true,
+    exceptionFactory: validationExceptionFactory,
   }));
 
   // Swagger Documentation Setup

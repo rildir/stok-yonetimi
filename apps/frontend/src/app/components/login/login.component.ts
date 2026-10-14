@@ -5,89 +5,95 @@ import { UiStateService } from '../../services/ui-state.service';
 import { SocketService } from '../../services/socket.service';
 import { CommonModule } from '@angular/common';
 import { environment } from '../../../environments/environment';
+import { I18nService, TranslatePipe } from '../../i18n';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   template: `
     <div class="login-page">
       <div class="login-center-column">
+        <!-- Language toggle (user not logged in yet) -->
+        <div class="login-lang-toggle" style="display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 0.5rem;">
+          <button type="button" class="btn btn-secondary" style="padding: 2px 10px; font-size: 0.75rem; height: auto;" [style.fontWeight]="i18n.lang() === 'tr' ? 700 : 400" [attr.aria-pressed]="i18n.lang() === 'tr'" (click)="i18n.setLanguage('tr')">TR</button>
+          <button type="button" class="btn btn-secondary" style="padding: 2px 10px; font-size: 0.75rem; height: auto;" [style.fontWeight]="i18n.lang() === 'en' ? 700 : 400" [attr.aria-pressed]="i18n.lang() === 'en'" (click)="i18n.setLanguage('en')">EN</button>
+        </div>
         <!-- Brand Logo -->
         <div class="login-brand">
           <h1 class="login-brand-text">ecelon</h1>
-          <p class="login-brand-tagline">Stok Yönetim Platformu</p>
+          <p class="login-brand-tagline">{{ 'login.tagline' | t }}</p>
         </div>
 
         @if (mode() === 'register') {
         <!-- Register Card -->
         <div class="login-card">
-          <h2 class="login-card-title">Şirket oluşturun</h2>
+          <h2 class="login-card-title">{{ 'login.register.title' | t }}</h2>
           <form class="login-form" (submit)="doRegister({
               companyName: rCompany.value, country: rCountry.value, defaultLanguage: rLang.value,
               baseCurrency: rCurrency.value, timezone: rTz.value, fullName: rFullName.value,
               username: rUsername.value, email: rEmail.value, password: rPassword.value
             }); $event.preventDefault()">
             <div class="form-field">
-              <input type="text" class="form-input" #rCompany id="regCompany" placeholder="Şirket adı" required [disabled]="isRegisterLoading()">
-              <label for="regCompany" class="form-label">Şirket Adı</label>
+              <input type="text" class="form-input" #rCompany id="regCompany" [placeholder]="'login.register.companyNamePh' | t" required [disabled]="isRegisterLoading()">
+              <label for="regCompany" class="form-label">{{ 'login.register.companyName' | t }}</label>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
               <div class="form-field">
                 <select class="form-input" #rCountry id="regCountry" [disabled]="isRegisterLoading()">
-                  @for (c of countries; track c.code) { <option [value]="c.code">{{ c.name }}</option> }
+                  @for (c of countries; track c.code) { <option [value]="c.code">{{ 'login.country.' + c.code | t }}</option> }
                 </select>
-                <label for="regCountry" class="form-label">Ülke</label>
+                <label for="regCountry" class="form-label">{{ 'login.register.country' | t }}</label>
               </div>
               <div class="form-field">
                 <select class="form-input" #rLang id="regLang" [disabled]="isRegisterLoading()">
-                  <option value="tr">Türkçe</option>
-                  <option value="en">English</option>
+                  <option value="tr">{{ 'login.lang.tr' | t }}</option>
+                  <option value="en">{{ 'login.lang.en' | t }}</option>
                 </select>
-                <label for="regLang" class="form-label">Dil</label>
+                <label for="regLang" class="form-label">{{ 'login.register.language' | t }}</label>
               </div>
               <div class="form-field">
                 <select class="form-input" #rCurrency id="regCurrency" [disabled]="isRegisterLoading()">
                   @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
                 </select>
-                <label for="regCurrency" class="form-label">Para Birimi</label>
+                <label for="regCurrency" class="form-label">{{ 'login.register.currency' | t }}</label>
               </div>
               <div class="form-field">
                 <select class="form-input" #rTz id="regTz" [disabled]="isRegisterLoading()">
-                  @for (tz of timezones; track tz) { <option [value]="tz">{{ tz }}</option> }
+                  @for (tz of timezones; track tz) { <option [value]="tz">{{ 'login.tz.' + tz | t }} ({{ tz }})</option> }
                 </select>
-                <label for="regTz" class="form-label">Saat Dilimi</label>
+                <label for="regTz" class="form-label">{{ 'login.register.timezone' | t }}</label>
               </div>
             </div>
             <div class="form-field">
-              <input type="text" class="form-input" #rFullName id="regFullName" placeholder="Ad Soyad" required [disabled]="isRegisterLoading()">
-              <label for="regFullName" class="form-label">Yönetici Ad Soyad</label>
+              <input type="text" class="form-input" #rFullName id="regFullName" [placeholder]="'login.register.fullNamePh' | t" required [disabled]="isRegisterLoading()">
+              <label for="regFullName" class="form-label">{{ 'login.register.fullName' | t }}</label>
             </div>
             <div class="form-field">
-              <input type="text" class="form-input" #rUsername id="regUsername" placeholder="Kullanıcı adı" required [disabled]="isRegisterLoading()">
-              <label for="regUsername" class="form-label">Kullanıcı Adı</label>
+              <input type="text" class="form-input" #rUsername id="regUsername" [placeholder]="'login.usernamePh' | t" required [disabled]="isRegisterLoading()">
+              <label for="regUsername" class="form-label">{{ 'login.username' | t }}</label>
             </div>
             <div class="form-field">
-              <input type="email" class="form-input" #rEmail id="regEmail" placeholder="ornek@sirket.com" [disabled]="isRegisterLoading()">
-              <label for="regEmail" class="form-label">E-posta (opsiyonel)</label>
+              <input type="email" class="form-input" #rEmail id="regEmail" [placeholder]="'login.register.emailPh' | t" [disabled]="isRegisterLoading()">
+              <label for="regEmail" class="form-label">{{ 'login.register.email' | t }}</label>
             </div>
             <div class="form-field">
-              <input type="password" class="form-input" #rPassword id="regPassword" placeholder="En az 6 karakter" required minlength="6" [disabled]="isRegisterLoading()">
-              <label for="regPassword" class="form-label">Şifre</label>
+              <input type="password" class="form-input" #rPassword id="regPassword" [placeholder]="'login.register.passwordPh' | t" required minlength="6" [disabled]="isRegisterLoading()">
+              <label for="regPassword" class="form-label">{{ 'login.password' | t }}</label>
             </div>
             <button type="submit" class="btn btn-primary login-submit-btn" [disabled]="isRegisterLoading()">
-              @if (isRegisterLoading()) { Oluşturuluyor... } @else { Şirket Oluştur ve Kayıt Ol }
+              @if (isRegisterLoading()) { {{ 'login.register.creating' | t }} } @else { {{ 'login.register.submit' | t }} }
             </button>
           </form>
           <p style="text-align: center; margin-top: 1rem; font-size: 0.875rem;">
-            Zaten hesabınız var mı?
-            <a href="#" class="forgot-link" (click)="$event.preventDefault(); mode.set('login')">Giriş yapın</a>
+            {{ 'login.register.haveAccount' | t }}
+            <a href="#" class="forgot-link" (click)="$event.preventDefault(); mode.set('login')">{{ 'login.register.goLogin' | t }}</a>
           </p>
         </div>
         } @else {
         <!-- Login Card -->
         <div class="login-card">
-          <h2 class="login-card-title">Hesabınıza giriş yapın</h2>
+          <h2 class="login-card-title">{{ 'login.title' | t }}</h2>
           
           <form class="login-form" (submit)="doLogin(usernameInput.value, passwordInput.value); $event.preventDefault()">
             <div class="form-field">
@@ -96,12 +102,12 @@ import { environment } from '../../../environments/environment';
                 class="form-input"
                 #usernameInput 
                 value="" 
-                placeholder="Kullanıcı adı" 
+                [placeholder]="'login.usernamePh' | t" 
                 [disabled]="isLoginLoading()" 
                 id="loginUsername"
                 required
               >
-              <label for="loginUsername" class="form-label">Kullanıcı Adı</label>
+              <label for="loginUsername" class="form-label">{{ 'login.username' | t }}</label>
             </div>
             
             <div class="form-field">
@@ -116,8 +122,8 @@ import { environment } from '../../../environments/environment';
                 required
               >
               <div class="form-label" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <span>Şifre</span>
-                <a href="#" class="forgot-link" (click)="$event.preventDefault(); showForgotModal.set(true)">Şifremi Unuttum</a>
+                <span>{{ 'login.password' | t }}</span>
+                <a href="#" class="forgot-link" (click)="$event.preventDefault(); showForgotModal.set(true)">{{ 'login.forgot' | t }}</a>
               </div>
             </div>
             
@@ -128,20 +134,20 @@ import { environment } from '../../../environments/environment';
             >
               @if (isLoginLoading()) { 
                 <svg class="login-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="30 70" stroke-linecap="round"/></svg>
-                Giriş Yapılıyor... 
+                {{ 'login.signingIn' | t }}
               } @else { 
-                Giriş Yap 
+                {{ 'login.submit' | t }}
               }
             </button>
           </form>
           <p style="text-align: center; margin-top: 1rem; font-size: 0.875rem;">
-            Hesabınız yok mu?
-            <a href="#" class="forgot-link" id="showRegister" (click)="$event.preventDefault(); mode.set('register')">Şirket oluştur / Kayıt ol</a>
+            {{ 'login.noAccount' | t }}
+            <a href="#" class="forgot-link" id="showRegister" (click)="$event.preventDefault(); mode.set('register')">{{ 'login.goRegister' | t }}</a>
           </p>
         </div>
         }
 
-        <p class="login-footer-text">© 2024 Ecelon · Tüm hakları saklıdır.</p>
+        <p class="login-footer-text">© 2024 Ecelon · {{ 'login.rights' | t }}</p>
       </div>
 
       @if (showForgotModal()) {
@@ -153,12 +159,11 @@ import { environment } from '../../../environments/environment';
                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                 </svg>
               </div>
-              <h3 class="forgot-modal-title">Talebiniz İletildi</h3>
+              <h3 class="forgot-modal-title">{{ 'login.reset.sentTitle' | t }}</h3>
               <p class="forgot-modal-desc">
-                Şifre sıfırlama talebiniz sistem yöneticisine canlı olarak iletilmiştir. 
-                Yöneticiniz şifrenizi güncelledikten sonra sisteme giriş yapabilirsiniz.
+                {{ 'login.reset.sentDesc' | t }}
               </p>
-              <button type="button" class="btn btn-primary forgot-modal-btn" (click)="closeForgotModal()">Tamam</button>
+              <button type="button" class="btn btn-primary forgot-modal-btn" (click)="closeForgotModal()">{{ 'login.reset.ok' | t }}</button>
             } @else {
               <div class="forgot-modal-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -166,9 +171,9 @@ import { environment } from '../../../environments/environment';
                   <path d="M7 11V7a5 5 0 0110 0v4"></path>
                 </svg>
               </div>
-              <h3 class="forgot-modal-title">Şifre Sıfırlama Talebi</h3>
+              <h3 class="forgot-modal-title">{{ 'login.reset.title' | t }}</h3>
               <p class="forgot-modal-desc">
-                Şifrenizi sıfırlamak için kullanıcı adınızı girin. Sistem yöneticinize anlık bildirim iletilecektir.
+                {{ 'login.reset.desc' | t }}
               </p>
 
               <form style="width: 100%; text-align: left;" (submit)="doResetPassword(resetUsernameInput.value); $event.preventDefault()">
@@ -177,21 +182,21 @@ import { environment } from '../../../environments/environment';
                     type="text" 
                     class="form-input"
                     #resetUsernameInput 
-                    placeholder="Kullanıcı adınız" 
+                    [placeholder]="'login.reset.usernamePh' | t" 
                     [disabled]="isResetLoading()" 
                     id="resetUsername"
                     required
                   >
-                  <label for="resetUsername" class="form-label">Kullanıcı Adı</label>
+                  <label for="resetUsername" class="form-label">{{ 'login.username' | t }}</label>
                 </div>
 
                 <div style="display: flex; gap: 10px; width: 100%;">
-                  <button type="button" class="btn btn-secondary" style="flex: 1; height: 42px;" (click)="closeForgotModal()" [disabled]="isResetLoading()">İptal</button>
+                  <button type="button" class="btn btn-secondary" style="flex: 1; height: 42px;" (click)="closeForgotModal()" [disabled]="isResetLoading()">{{ 'common.cancel' | t }}</button>
                   <button type="submit" class="btn btn-primary" style="flex: 1; height: 42px;" [disabled]="isResetLoading()">
                     @if (isResetLoading()) {
-                      Gönderiliyor...
+                      {{ 'login.reset.sending' | t }}
                     } @else {
-                      Talep Gönder
+                      {{ 'login.reset.submit' | t }}
                     }
                   </button>
                 </div>
@@ -208,6 +213,7 @@ export class LoginComponent {
   ui = inject(UiStateService);
   http = inject(HttpClient);
   socketService = inject(SocketService);
+  i18n = inject(I18nService);
   isLoginLoading = signal(false);
   showForgotModal = signal(false);
   isResetLoading = signal(false);
@@ -215,10 +221,10 @@ export class LoginComponent {
   mode = signal<'login' | 'register'>('login');
   isRegisterLoading = signal(false);
 
+  // Labels translated in the template via login.country.<code> / login.tz.<tz>
   readonly countries = [
-    { code: 'TR', name: 'Türkiye' }, { code: 'US', name: 'United States' }, { code: 'GB', name: 'United Kingdom' },
-    { code: 'DE', name: 'Deutschland' }, { code: 'FR', name: 'France' }, { code: 'NL', name: 'Nederland' },
-    { code: 'AE', name: 'United Arab Emirates' }, { code: 'AZ', name: 'Azərbaycan' },
+    { code: 'TR' }, { code: 'US' }, { code: 'GB' }, { code: 'DE' },
+    { code: 'FR' }, { code: 'NL' }, { code: 'AE' }, { code: 'AZ' },
   ];
   readonly currencies = ['TRY', 'USD', 'EUR', 'GBP', 'AED', 'AZN'];
   readonly timezones = [
@@ -233,20 +239,28 @@ export class LoginComponent {
       if (v && v.trim()) payload[k] = v.trim();
     }
     this.isRegisterLoading.set(true);
-    this.http.post<{ token: string }>(`${environment.apiUrl}/auth/register`, payload).subscribe({
+    this.http.post<{ token: string; profile?: any; locale?: any }>(`${environment.apiUrl}/auth/register`, payload).subscribe({
       next: (res) => {
         this.isRegisterLoading.set(false);
         localStorage.setItem('smart_inventory_token', res.token);
         this.socketService.connect();
-        this.ui.showToast('Şirketiniz oluşturuldu. Hoş geldiniz!', 'success');
+        this.applyLocaleFromResponse(res);
+        this.ui.showToast(this.i18n.t('login.toast.registered'), 'success');
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.isRegisterLoading.set(false);
         const msg = err.error?.message;
-        this.ui.showToast((Array.isArray(msg) ? msg[0] : msg) || 'Kayıt işlemi başarısız oldu.', 'error');
+        this.ui.showToast((Array.isArray(msg) ? msg[0] : msg) || this.i18n.t('login.toast.registerFailed'), 'error');
       }
     });
+  }
+
+  /** If the auth response carries the profile/effective locale, apply it now; otherwise the layout will fetch it. */
+  private applyLocaleFromResponse(res: { profile?: any; locale?: any }) {
+    if (res?.profile) this.ui.userProfile.set(res.profile);
+    const locale = res?.locale ?? res?.profile?.locale;
+    if (locale) this.i18n.applyLocale(locale);
   }
 
   closeForgotModal() {
@@ -266,7 +280,7 @@ export class LoginComponent {
       },
       error: (err) => {
         this.isResetLoading.set(false);
-        this.ui.showToast(err.error?.message || 'Şifre sıfırlama talebi gönderilemedi.', 'error');
+        this.ui.showToast(err.error?.message || this.i18n.t('login.toast.resetFailed'), 'error');
       }
     });
   }
@@ -275,17 +289,18 @@ export class LoginComponent {
     if (this.isLoginLoading()) return;
     this.isLoginLoading.set(true);
 
-    this.http.post<{ token: string }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
+    this.http.post<{ token: string; profile?: any; locale?: any }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
       next: (res) => {
         this.isLoginLoading.set(false);
         localStorage.setItem('smart_inventory_token', res.token);
         this.socketService.connect();
-        this.ui.showToast('Başarıyla giriş yapıldı.', 'success');
+        this.applyLocaleFromResponse(res);
+        this.ui.showToast(this.i18n.t('login.toast.loggedIn'), 'success');
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.isLoginLoading.set(false);
-        this.ui.showToast(err.error?.message || 'Kullanıcı adı veya şifre hatalı.', 'error');
+        this.ui.showToast(err.error?.message || this.i18n.t('login.toast.invalidCredentials'), 'error');
       }
     });
   }

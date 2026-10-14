@@ -1,24 +1,25 @@
-import { Component, inject, signal, OnInit, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, inject, signal, OnInit, AfterViewInit, ViewChild, ElementRef, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { Chart } from 'chart.js/auto';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslatePipe, MoneyPipe, NumberFormatPipe],
   template: `
     <header class="page-header">
       <div>
-        <h1>Raporlar & Analiz</h1>
-        <p>İşletmenizin stok hareketleri, satış grafikleri ve tedarik maliyeti raporları.</p>
+        <h1>{{ 'reports.title' | t }}</h1>
+        <p>{{ 'reports.subtitle' | t }}</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-primary" (click)="exportToCsv()" [disabled]="isLoading()">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0L8 8m4-4v12"/></svg>
-          CSV Raporu İndir
+          {{ 'reports.downloadCsv' | t }}
         </button>
       </div>
     </header>
@@ -26,51 +27,51 @@ import { Chart } from 'chart.js/auto';
     <!-- Filters -->
     <div class="filter-bar">
       <div class="date-filters" style="padding: 0.4rem 0.85rem;">
-        <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">Tarih Aralığı:</span>
-        <input type="date" class="date-input" [(ngModel)]="startDate" title="Başlangıç Tarihi" />
+        <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-right: 0.25rem;">{{ 'reports.dateRange' | t }}</span>
+        <input type="date" class="date-input" [(ngModel)]="startDate" [title]="'reports.startDate' | t" />
         <span class="date-separator">-</span>
-        <input type="date" class="date-input" [(ngModel)]="endDate" title="Bitiş Tarihi" />
+        <input type="date" class="date-input" [(ngModel)]="endDate" [title]="'reports.endDate' | t" />
       </div>
-      <button class="btn btn-outline" (click)="loadReports()">Uygula</button>
-      <button class="btn btn-outline btn-xs" *ngIf="startDate || endDate" (click)="clearFilters()" style="padding: 0.5rem 0.75rem;">Filtreleri Temizle</button>
+      <button class="btn btn-outline" (click)="loadReports()">{{ 'reports.apply' | t }}</button>
+      <button class="btn btn-outline btn-xs" *ngIf="startDate || endDate" (click)="clearFilters()" style="padding: 0.5rem 0.75rem;">{{ 'reports.clearFilters' | t }}</button>
     </div>
 
     @if (isLoading()) {
-      <div class="loading-state" style="padding: 4rem 0;">Veriler Hesaplanıyor...</div>
+      <div class="loading-state" style="padding: 4rem 0;">{{ 'reports.calculating' | t }}</div>
     } @else {
       <!-- Summary Metrics Cards -->
       <div class="reports-grid-metrics">
         <div class="metric-card">
-          <span class="m-label">Toplam Stok Girişi</span>
-          <h2 class="m-val text-success">+{{ summary().totalIn | number }}</h2>
-          <p class="m-desc">Seçilen dönemde depoya giren toplam ürün</p>
+          <span class="m-label">{{ 'reports.totalIn' | t }}</span>
+          <h2 class="m-val text-success">+{{ summary().totalIn | num }}</h2>
+          <p class="m-desc">{{ 'reports.totalInDesc' | t }}</p>
         </div>
         <div class="metric-card">
-          <span class="m-label">Toplam Stok Çıkışı</span>
-          <h2 class="m-val text-danger">-{{ summary().totalOut | number }}</h2>
-          <p class="m-desc">Seçilen dönemde depodan çıkan toplam ürün</p>
+          <span class="m-label">{{ 'reports.totalOut' | t }}</span>
+          <h2 class="m-val text-danger">-{{ summary().totalOut | num }}</h2>
+          <p class="m-desc">{{ 'reports.totalOutDesc' | t }}</p>
         </div>
         <div class="metric-card">
-          <span class="m-label">Net Stok Değişimi</span>
+          <span class="m-label">{{ 'reports.netChange' | t }}</span>
           <h2 class="m-val" [class.text-success]="summary().netChange > 0" [class.text-danger]="summary().netChange < 0">
-            {{ summary().netChange > 0 ? '+' : '' }}{{ summary().netChange | number }}
+            {{ summary().netChange > 0 ? '+' : '' }}{{ summary().netChange | num }}
           </h2>
-          <p class="m-desc">Depodaki toplam ürün değişimi</p>
+          <p class="m-desc">{{ 'reports.netChangeDesc' | t }}</p>
         </div>
       </div>
 
       <!-- Charts Section -->
       <div class="reports-grid-charts">
         <div class="report-chart-card">
-          <h3 class="card-title">Kategori Dağılımı (Mali Değer)</h3>
-          <p class="card-subtitle">Kategorilerin toplam stok maliyetine göre dağılımı.</p>
+          <h3 class="card-title">{{ 'reports.categoryChartTitle' | t }}</h3>
+          <p class="card-subtitle">{{ 'reports.categoryChartDesc' | t }}</p>
           <div class="chart-container">
             <canvas #catChart></canvas>
           </div>
         </div>
         <div class="report-chart-card">
-          <h3 class="card-title">En Çok Satan Ürünler</h3>
-          <p class="card-subtitle">Seçilen dönemde en yüksek sipariş adedine ulaşan 10 ürün.</p>
+          <h3 class="card-title">{{ 'reports.topChartTitle' | t }}</h3>
+          <p class="card-subtitle">{{ 'reports.topChartDesc' | t }}</p>
           <div class="chart-container">
             <canvas #topChart></canvas>
           </div>
@@ -83,33 +84,33 @@ import { Chart } from 'chart.js/auto';
         <!-- Product Movements Table -->
         <div class="table-card" style="margin: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
           <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #D5D9D9;">
-            <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">Ürün Bazlı Hareket Detayları</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Her ürün için toplam giriş-çıkış adetleri.</p>
+            <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">{{ 'reports.movementsTitle' | t }}</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">{{ 'reports.movementsDesc' | t }}</p>
           </div>
           <div class="table-scroll" style="max-height: 350px;">
             <table>
               <thead>
                 <tr>
-                  <th>Ürün adı</th>
-                  <th class="text-right">Toplam giriş</th>
-                  <th class="text-right">Toplam çıkış</th>
-                  <th class="text-right">Net değişim</th>
+                  <th>{{ 'reports.col.productName' | t }}</th>
+                  <th class="text-right">{{ 'reports.col.totalIn' | t }}</th>
+                  <th class="text-right">{{ 'reports.col.totalOut' | t }}</th>
+                  <th class="text-right">{{ 'reports.col.netChange' | t }}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (p of productMovements(); track p.productId) {
                   <tr>
                     <td class="font-medium">{{ p.productName }}</td>
-                    <td class="text-right text-success">+{{ p.totalIn }}</td>
-                    <td class="text-right text-danger">-{{ p.totalOut }}</td>
+                    <td class="text-right text-success">+{{ p.totalIn | num }}</td>
+                    <td class="text-right text-danger">-{{ p.totalOut | num }}</td>
                     <td class="text-right font-medium" [class.text-success]="p.totalIn - p.totalOut > 0" [class.text-danger]="p.totalIn - p.totalOut < 0">
-                      {{ p.totalIn - p.totalOut }}
+                      {{ p.totalIn - p.totalOut | num }}
                     </td>
                   </tr>
                 }
                 @if (productMovements().length === 0) {
                   <tr>
-                    <td colspan="4" class="text-muted text-center" style="padding: 1.5rem;">Stok hareketi bulunamadı.</td>
+                    <td colspan="4" class="text-muted text-center" style="padding: 1.5rem;">{{ 'reports.noMovements' | t }}</td>
                   </tr>
                 }
               </tbody>
@@ -120,16 +121,16 @@ import { Chart } from 'chart.js/auto';
         <!-- Supplier summary -->
         <div class="table-card" style="margin: 0; border: 1px solid #D5D9D9; border-radius: 8px; overflow: hidden; background: #FFF;">
           <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #D5D9D9;">
-            <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">Tedarikçi Satın Alma Raporu</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Tedarikçilere verilen sipariş adetleri ve maliyetler.</p>
+            <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">{{ 'reports.supplierTitle' | t }}</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">{{ 'reports.supplierDesc' | t }}</p>
           </div>
           <div class="table-scroll" style="max-height: 350px;">
             <table>
               <thead>
                 <tr>
-                  <th>Tedarikçi firması</th>
-                  <th class="text-right">PO sayısı</th>
-                  <th class="text-right">Toplam ödeme</th>
+                  <th>{{ 'reports.col.supplier' | t }}</th>
+                  <th class="text-right">{{ 'reports.col.poCount' | t }}</th>
+                  <th class="text-right">{{ 'reports.col.totalPaid' | t }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -137,12 +138,12 @@ import { Chart } from 'chart.js/auto';
                   <tr>
                     <td class="font-medium">{{ s.supplierName }}</td>
                     <td class="text-right font-medium mono">{{ s.poCount }}</td>
-                    <td class="text-right font-medium mono">₺{{ s.totalAmount | number:'1.2-2' }}</td>
+                    <td class="text-right font-medium mono">{{ s.totalAmount | money }}</td>
                   </tr>
                 }
                 @if (supplierSummary().length === 0) {
                   <tr>
-                    <td colspan="3" class="text-muted text-center" style="padding: 1.5rem;">Satın alma kaydı bulunamadı.</td>
+                    <td colspan="3" class="text-muted text-center" style="padding: 1.5rem;">{{ 'reports.noPurchases' | t }}</td>
                   </tr>
                 }
               </tbody>
@@ -217,6 +218,15 @@ import { Chart } from 'chart.js/auto';
 export class ReportsComponent implements OnInit, AfterViewInit {
   inventoryService = inject(InventoryService);
   ui = inject(UiStateService);
+  i18n = inject(I18nService);
+
+  constructor() {
+    // Re-render charts when the language changes
+    effect(() => {
+      this.i18n.lang();
+      if (!this.isLoading()) setTimeout(() => this.renderCharts(), 0);
+    });
+  }
 
   @ViewChild('catChart') catCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('topChart') topCanvas!: ElementRef<HTMLCanvasElement>;
@@ -254,7 +264,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
   }
 
   getCategoryName(slug: string): string {
-    return this.categories().find(c => c.slug === slug)?.name || slug || 'Diğer';
+    return this.categories().find(c => c.slug === slug)?.name || slug || this.i18n.t('reports.otherCategory');
   }
 
   clearFilters() {
@@ -317,7 +327,8 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: "'Inter', sans-serif", size: 11 } } }
+              legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: "'Inter', sans-serif", size: 11 } } },
+              tooltip: { callbacks: { label: (c: any) => `${c.label}: ${this.i18n.formatMoney(c.parsed)}` } }
             }
           }
         });
@@ -336,7 +347,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
           data: {
             labels: topLabels,
             datasets: [{
-              label: 'Satış Adedi',
+              label: this.i18n.t('reports.salesQty'),
               data: topValues,
               backgroundColor: '#4F46E5',
               borderRadius: 4
@@ -349,7 +360,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
               legend: { display: false }
             },
             scales: {
-              y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { family: "'Inter', sans-serif" } } },
+              y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { family: "'Inter', sans-serif" }, callback: (v: any) => this.i18n.formatNumber(Number(v)) } },
               x: { grid: { display: false }, ticks: { font: { family: "'Inter', sans-serif", size: 10 } } }
             }
           }
@@ -362,30 +373,32 @@ export class ReportsComponent implements OnInit, AfterViewInit {
     let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
     
     // 1. Stock Summary Section
-    csvContent += 'STOK HAREKET OZETI\r\n';
-    csvContent += `Toplam Stok Girisi;${this.summary().totalIn}\r\n`;
-    csvContent += `Toplam Stok Cikisi;${this.summary().totalOut}\r\n`;
-    csvContent += `Net Degisim;${this.summary().netChange}\r\n\r\n`;
+    const t = (key: string, params?: any) => this.i18n.t(key, params);
+    const cur = this.i18n.currency();
+    csvContent += t('reports.csv.summarySection') + '\r\n';
+    csvContent += `${t('reports.totalIn')};${this.summary().totalIn}\r\n`;
+    csvContent += `${t('reports.totalOut')};${this.summary().totalOut}\r\n`;
+    csvContent += `${t('reports.csv.netChange')};${this.summary().netChange}\r\n\r\n`;
 
     // 2. Product movements report
-    csvContent += 'URUN BAZLI HAREKETLER\r\n';
-    csvContent += 'Urun Adi;Giris Miktari;Cikis Miktari;Net Degisim\r\n';
+    csvContent += t('reports.csv.movementsSection') + '\r\n';
+    csvContent += [t('reports.col.productName'), t('reports.csv.inQty'), t('reports.csv.outQty'), t('reports.csv.netChange')].join(';') + '\r\n';
     for (const item of this.productMovements()) {
       csvContent += `${item.productName};${item.totalIn};${item.totalOut};${item.totalIn - item.totalOut}\r\n`;
     }
     csvContent += '\r\n';
 
     // 3. Category distribution
-    csvContent += 'KATEGORI BAZLI STOK DEGERLERI\r\n';
-    csvContent += 'Kategori;Urun Sayisi;Toplam Stok;Toplam Deger (TL)\r\n';
+    csvContent += t('reports.csv.categorySection') + '\r\n';
+    csvContent += [t('reports.csv.category'), t('reports.csv.productCount'), t('reports.csv.totalStock'), t('reports.csv.totalValue', { currency: cur })].join(';') + '\r\n';
     for (const item of this.categoriesDistribution()) {
       csvContent += `${this.getCategoryName(item.category)};${item.productCount};${item.totalStock};${item.totalValue}\r\n`;
     }
     csvContent += '\r\n';
 
     // 4. Supplier summary
-    csvContent += 'TEDARIKCI BAZLI SATIN ALMA\r\n';
-    csvContent += 'Tedarikci Adi;Siparis Sayisi;Toplam Odeme (TL)\r\n';
+    csvContent += t('reports.csv.supplierSection') + '\r\n';
+    csvContent += [t('reports.csv.supplierName'), t('reports.csv.orderCount'), t('reports.csv.totalPaid', { currency: cur })].join(';') + '\r\n';
     for (const item of this.supplierSummary()) {
       csvContent += `${item.supplierName};${item.poCount};${item.totalAmount}\r\n`;
     }
@@ -393,9 +406,9 @@ export class ReportsComponent implements OnInit, AfterViewInit {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    const dateStr = this.startDate || 'tum';
-    const dateEndStr = this.endDate || 'donem';
-    link.setAttribute('download', `Smart_Inventory_Rapor_${dateStr}_${dateEndStr}.csv`);
+    const dateStr = this.startDate || t('reports.csv.fileAll');
+    const dateEndStr = this.endDate || t('reports.csv.filePeriod');
+    link.setAttribute('download', `Smart_Inventory_${t('reports.csv.filePrefix')}_${dateStr}_${dateEndStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

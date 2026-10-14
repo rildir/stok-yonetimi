@@ -1,0 +1,23 @@
+{
+  "dashboard.title": "Dashboard Overview",
+  "dashboard.stat.totalProducts": "Total Products",
+  "dashboard.stat.lowStock": "Low Stock",
+  "dashboard.stat.outOfStock": "Out of Stock",
+  "dashboard.stat.totalRevenue": "Total Revenue",
+  "dashboard.weeklyChart.title": "Stock Movements, Last 7 Days (Units)",
+  "dashboard.weeklyChart.emptyTitle": "No Stock Movements Yet",
+  "dashboard.weeklyChart.emptyText": "No product entries or exits were recorded this week.",
+  "dashboard.weeklyChart.in": "In",
+  "dashboard.weeklyChart.out": "Out",
+  "dashboard.categoryChart.title": "Distribution by category",
+  "dashboard.quick.title": "Quick Actions",
+  "dashboard.quick.newProduct": "Add New Product",
+  "dashboard.quick.newMovement": "New Stock Movement",
+  "dashboard.quick.startCount": "Start Stock Count",
+  "dashboard.lowStock.title": "Low Stock Alerts",
+  "dashboard.lowStock.empty": "Great! No low or out-of-stock items.",
+  "dashboard.topSelling.title": "Top Selling Products",
+  "dashboard.topSelling.empty": "No sales data available.",
+  "dashboard.recentOrders.title": "Recent Orders",
+  "dashboard.units": "{qty} units"
+}

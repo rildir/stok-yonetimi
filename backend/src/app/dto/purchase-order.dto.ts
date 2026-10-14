@@ -1,24 +1,25 @@
+import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PurchaseOrderItemDto {
   @IsString()
-  @IsNotEmpty({ message: 'Ürün ID zorunludur.' })
+  @IsNotEmpty({ message: 'VALIDATION_PRODUCT_ID_REQUIRED' })
   productId: string;
 
-  @IsInt({ message: 'Ürün adedi tam sayı olmalıdır.' })
-  @Min(1, { message: 'Ürün adedi en az 1 olmalıdır.' })
+  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
+  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
   quantity: number;
 
-  @IsNumber({}, { message: 'Fiyat geçerli bir sayı olmalıdır.' })
-  @Min(0, { message: 'Fiyat en az 0 olmalıdır.' })
+  @IsNumber({}, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
   @IsOptional()
   price?: number;
 }
 
 export class CreatePurchaseOrderDto {
   @IsString()
-  @IsNotEmpty({ message: 'Tedarikçi ID zorunludur.' })
+  @IsNotEmpty({ message: 'VALIDATION_SUPPLIER_ID_REQUIRED' })
   supplierId: string;
 
   @IsArray()

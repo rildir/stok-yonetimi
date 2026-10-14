@@ -1,3 +1,4 @@
+import { err } from '../shared/i18n/app-error';
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
@@ -17,9 +18,9 @@ export class RolesGuard implements CanActivate {
     const user = request['user'];
     if (!user || !requiredRoles.includes(user.role)) {
       if (user?.role === 'viewer') {
-        throw new ForbiddenException('Demo modundasınız: Bu hesaptayken ekleme, güncelleme veya silme işlemi gerçekleştiremezsiniz.');
+        throw new ForbiddenException(err('AUTH_DEMO_READONLY'));
       }
-      throw new ForbiddenException('Bu işlemi gerçekleştirmek için yetkiniz bulunmamaktadır.');
+      throw new ForbiddenException(err('AUTH_FORBIDDEN'));
     }
     return true;
   }

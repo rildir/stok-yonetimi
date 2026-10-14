@@ -2,14 +2,14 @@ import { IsString, IsNotEmpty, IsOptional, IsEmail, IsInt, Min, Max } from 'clas
 
 export class CreateSupplierDto {
   @IsString()
-  @IsNotEmpty({ message: 'Tedarikçi adı boş olamaz.' })
+  @IsNotEmpty({ message: 'VALIDATION_SUPPLIER_NAME_REQUIRED' })
   name: string;
 
   @IsString()
   @IsOptional()
   contactPerson?: string;
 
-  @IsEmail({}, { message: 'Geçerli bir e-posta adresi girin.' })
+  @IsEmail({}, { message: 'VALIDATION_EMAIL' })
   @IsOptional()
   email?: string;
 

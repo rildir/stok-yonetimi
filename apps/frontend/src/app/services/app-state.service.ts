@@ -1,11 +1,13 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { InventoryService, Product, Order } from '../inventory.service';
 import { UiStateService } from './ui-state.service';
+import { I18nService } from '../i18n';
 
 @Injectable({ providedIn: 'root' })
 export class AppStateService {
   private inventoryService = inject(InventoryService);
   private ui = inject(UiStateService);
+  private i18n = inject(I18nService);
 
   products = signal<Product[]>([]);
   orders = signal<Order[]>([]);
@@ -22,11 +24,11 @@ export class AppStateService {
   loadData() {
     this.inventoryService.getProducts().subscribe({
       next: (prods) => this.products.set(prods),
-      error: () => this.ui.showToast('Ürünler yüklenirken hata oluştu.', 'error')
+      error: () => this.ui.showToast(this.i18n.t('shared.loadProductsError'), 'error')
     });
     this.inventoryService.getOrders().subscribe({
       next: (ords) => this.orders.set(ords),
-      error: () => this.ui.showToast('Siparişler yüklenirken hata oluştu.', 'error')
+      error: () => this.ui.showToast(this.i18n.t('shared.loadOrdersError'), 'error')
     });
   }
 }
