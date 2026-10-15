@@ -21,7 +21,9 @@ export class UiStateService {
   toasts = signal<Toast[]>([]);
   confirmConfig = signal<ConfirmConfig | null>(null);
   userProfile = signal<any>(null);
-  isReadonly = computed(() => this.userProfile()?.role === 'viewer');
+  /** Read-only roles: the demo viewer and the auditor (denetçi, WP7). */
+  isReadonly = computed(() => this.userProfile()?.role === 'viewer' || this.userProfile()?.role === 'auditor');
+  isAuditor = computed(() => this.userProfile()?.role === 'auditor');
 
   openConfirm(config: ConfirmConfig) {
     this.confirmConfig.set(config);

@@ -13,11 +13,14 @@ import { ToastComponent } from '../shared/toast/toast.component';
 import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
 import { EBelgeService } from '../../services/ebelge.service';
 import { apiError as apiErrorMessage } from '../../services/documents.service';
+import { KvkkService, NOTICE_CHANNELS } from '../../services/kvkk.service';
+import { CustomerConsentsComponent } from './customer-consents.component';
+import { detectSpecialCategoryData, isMaskedValue } from '@stok/tr-compliance';
 
 @Component({
   selector: 'app-customers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe, AddressFieldsComponent, IdentityFieldsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe, AddressFieldsComponent, IdentityFieldsComponent, CustomerConsentsComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .cust-registry { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3); margin-bottom: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
@@ -34,6 +37,7 @@ import { apiError as apiErrorMessage } from '../../services/documents.service';
     .review-badge { margin-left: var(--space-2); }
     .check-row { display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm); }
     .check-row label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+    .pii-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .review-note { display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-3); border-radius: var(--radius-md); border: var(--border-width) solid var(--color-warning-border); background: var(--color-warning-subtle); color: var(--color-warning-text); font-size: var(--text-sm); }
     .addr-list { display: flex; flex-direction: column; gap: var(--space-2); }
     .addr-item { display: flex; gap: var(--space-3); align-items: flex-start; justify-content: space-between; padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); font-size: var(--text-sm); }
@@ -109,6 +113,7 @@ import { apiError as apiErrorMessage } from '../../services/documents.service';
                   <td [attr.data-label]="'customers.col.name' | t">
                     <strong>{{ c.name }}</strong>
                     @if (c.needsReview) { <span class="badge badge-warning review-badge" [title]="('customers.review.' + (c.reviewReason || 'GENERIC')) | t">{{ 'customers.filter.needsReview' | t }}</span> }
+                    @if (c.processingRestricted) { <span class="badge badge-neutral review-badge" [title]="'kvkk.erase.restrictedUntil' | t: { date: (c.erasureRestrictedUntil | appDate) }">{{ 'kvkk.erase.restricted' | t }}</span> }
                     @if (c.identityNumber) { <div class="cust-sub">{{ c.identityType || 'VKN' }} <span class="mono">{{ c.identityNumber }}</span>@if (c.taxOfficeName) { · {{ c.taxOfficeName }} }</div> }
                     @if (c.eInvoiceRegistered) { <span class="badge badge-success" [title]="'ebelge.registry.checkedAt' | t: { date: (c.eInvoiceCheckedAt | appDate: 'datetime') }">{{ 'ebelge.registry.eFatura' | t }}</span> }
                     @if (c.eDespatchRegistered) { <span class="badge badge-neutral">{{ 'ebelge.registry.eIrsaliye' | t }}</span> }
@@ -202,6 +207,12 @@ import { apiError as apiErrorMessage } from '../../services/documents.service';
                 <div class="review-note" role="note">{{ ('customers.review.' + (editingReview() || 'GENERIC')) | t }}</div>
               }
               <app-identity-fields [form]="form" idPrefix="cust" [types]="identityTypes" [provinceCode]="addressGroup.value.provinceCode"></app-identity-fields>
+              @if (editId() && editingCustomer()?.piiMasked && hasMaskedPii()) {
+                <div class="pii-row">
+                  <span class="cust-sub">{{ 'customers.pii.masked' | t }}</span>
+                  @if (canReadPii()) { <button type="button" class="btn btn-secondary btn-sm" (click)="revealPii()" [disabled]="revealBusy()">{{ 'customers.pii.reveal' | t }}</button> }
+                </div>
+              }
               @if (form.value.identityType === 'FOREIGN') {
                 <div class="form-row">
                   <div class="form-field">
@@ -233,6 +244,33 @@ import { apiError as apiErrorMessage } from '../../services/documents.service';
                 <textarea id="custNotes" formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')"></textarea>
                 <label for="custNotes" class="form-label">{{ 'customers.form.notes' | t }}</label>
               </div>
+              @if (notesWarning().length) {
+                <div class="review-note" role="alert">{{ 'customers.notesSensitiveWarning' | t: { categories: notesWarningText() } }}</div>
+              }
+
+              <div class="form-section-title">{{ 'customers.section.kvkk' | t }}</div>
+              <div class="form-row">
+                <div class="form-field">
+                  <input id="custNoticeAt" type="date" formControlName="noticeGivenAt" class="form-input has-value" />
+                  <label for="custNoticeAt" class="form-label">{{ 'customers.notice.givenAt' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <input id="custNoticeVer" type="text" formControlName="noticeVersion" class="form-input" [class.has-value]="hasValue('noticeVersion')" />
+                  <label for="custNoticeVer" class="form-label">{{ 'customers.notice.version' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <select id="custNoticeCh" formControlName="noticeChannel" class="form-input has-value">
+                    <option value="">-</option>
+                    @for (ch of noticeChannels; track ch) { <option [value]="ch">{{ 'kvkk.channel.' + ch | t }}</option> }
+                  </select>
+                  <label for="custNoticeCh" class="form-label">{{ 'customers.notice.channel' | t }}</label>
+                </div>
+              </div>
+              <p class="cust-sub">{{ 'customers.notice.hint' | t }}</p>
+              @if (editId()) {
+                <div class="form-section-title">{{ 'customers.section.consents' | t }}</div>
+                <app-customer-consents [customerId]="editId()!" [canEdit]="canEdit()"></app-customer-consents>
+              }
 
               @if (editId()) {
                 <div class="form-section-title">{{ 'customers.section.addresses' | t }}</div>
@@ -367,13 +405,51 @@ export class CustomersComponent implements OnInit {
     passportNo: [''],
     address: this.addressGroup,
     currency: ['', [Validators.pattern(/^[A-Z]{3}$/)]],
-    notes: ['']
+    notes: [''],
+    noticeGivenAt: [''],
+    noticeVersion: [''],
+    noticeChannel: [''],
   }, { validators: taxIdValidator((f) => f.value?.type || null) });
+
+  // ---------------------------------------------------------------- WP7: KVKK
+  readonly noticeChannels = NOTICE_CHANNELS;
+  private kvkk = inject(KvkkService);
+  revealBusy = signal(false);
+  canReadPii = computed(() => !!this.ui.userProfile()?.permissions?.includes('customers.pii.read'));
+  private notesValue = signal('');
+  notesWarning = computed(() => detectSpecialCategoryData(this.notesValue()));
+  notesWarningText = computed(() => this.notesWarning().map((c) => this.i18n.t('kvkk.special.' + c)).join(', '));
+
+  hasMaskedPii(): boolean {
+    const v = this.form.value;
+    return [v.identityNumber, v.passportNo, v.email, v.phone].some((x) => isMaskedValue(x));
+  }
+
+  /** "Göster": clear identity / contact values (logged by the server as pii_view). */
+  revealPii() {
+    const id = this.editId();
+    if (!id) return;
+    this.revealBusy.set(true);
+    this.inventory.revealCustomer(id).subscribe({
+      next: (r) => {
+        this.revealBusy.set(false);
+        const patch: Record<string, unknown> = {};
+        for (const k of ['identityNumber', 'passportNo', 'email', 'phone'] as const) if (r[k] !== undefined && r[k] !== null) patch[k] = r[k];
+        this.form.patchValue(patch, { emitEvent: true });
+        this.customers.update((list) => list.map((x) => (x.id === id ? { ...x, piiMasked: false } : x)));
+      },
+      error: (e) => {
+        this.revealBusy.set(false);
+        this.ui.showToast(e.error?.message || this.i18n.t('kvkk.error'), 'error');
+      },
+    });
+  }
 
   addrAddressGroup: FormGroup = createAddressGroup(this.fb);
   addrForm: FormGroup = this.fb.group({ kind: ['DELIVERY'], label: [''], isDefault: [false], address: this.addrAddressGroup });
 
   ngOnInit() {
+    this.form.get('notes')?.valueChanges.subscribe((v) => this.notesValue.set(v || ''));
     this.load();
     this.route.queryParams.subscribe(params => {
       this.searchQuery.set(params['q'] || '');
@@ -431,6 +507,7 @@ export class CustomersComponent implements OnInit {
     const blank = {
       name: '', type: 'individual', email: '', phone: '', identityType: 'ANONYMOUS', identityNumber: '', taxOfficeCode: '', taxOfficeName: '',
       isVatTaxpayer: false, isDesignatedBuyer: false, nationality: '', passportNo: '', currency: '', notes: '',
+      noticeGivenAt: '', noticeVersion: '', noticeChannel: '',
     };
     this.addrEditorOpen.set(false);
     this.addresses.set([]);
@@ -440,6 +517,7 @@ export class CustomersComponent implements OnInit {
       const v: any = { ...blank };
       Object.keys(blank).forEach(k => { const val = (c as any)[k]; if (val !== null && val !== undefined) v[k] = val; });
       if (!c.identityType) v.identityType = c.type === 'company' ? 'VKN' : 'ANONYMOUS';
+      if (c.noticeGivenAt) v.noticeGivenAt = String(c.noticeGivenAt).slice(0, 10);
       this.form.reset({ ...v, address: addressToForm(c.address, country) });
       this.compliance.listCustomerAddresses(c.id).subscribe({ next: (list) => this.addresses.set(list), error: () => undefined });
     } else {
@@ -466,13 +544,16 @@ export class CustomersComponent implements OnInit {
       (data as any)[k] = v === '' ? null : v;
     });
     if (data.identityType === 'ANONYMOUS') data.identityNumber = null;
+    // WP7: masked values (*******1234) are the stored ones - not sent back.
+    for (const k of ['identityNumber', 'passportNo', 'email', 'phone'] as const) if (isMaskedValue((data as any)[k])) delete (data as any)[k];
     if (!['VKN', 'TCKN'].includes(String(data.identityType))) { data.taxOfficeCode = null; data.taxOfficeName = null; }
     data.address = addressFromForm(raw.address);
     const id = this.editId();
     const req = id ? this.inventory.updateCustomer(id, data) : this.inventory.createCustomer(data);
     req.subscribe({
-      next: () => {
+      next: (saved: Customer) => {
         this.isSaving.set(false);
+        if (saved?.kvkkWarnings?.length) this.ui.showToast(this.i18n.t('customers.notesSensitiveSaved'), 'info');
         this.closeDrawer();
         this.load();
         this.ui.showToast(this.i18n.t(id ? 'customers.updated' : 'customers.created'), 'success');

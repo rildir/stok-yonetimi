@@ -31,7 +31,13 @@ export class I18nService {
   readonly locale = computed(() => (this.lang() === 'en' ? 'en-US' : 'tr-TR'));
   /** Loaded dictionaries (Turkish is bundled; English arrives from a lazy chunk). */
   private readonly dicts = signal<Partial<Record<Lang, Dict>>>({ tr: TR_DICTIONARY });
-  private dict = computed(() => this.dicts()[this.lang()] ?? TR_DICTIONARY);
+  /** Dictionaries of lazily loaded feature chunks (e.g. Settings > KVKK), merged over the base one. */
+  private readonly extensions = signal<Record<Lang, Dict>>({ tr: {}, en: {} });
+  private dict = computed(() => {
+    const ext = this.extensions()[this.lang()];
+    const base = this.dicts()[this.lang()] ?? TR_DICTIONARY;
+    return Object.keys(ext).length ? { ...base, ...ext } : base;
+  });
   private loading = new Map<Lang, Promise<void>>();
   private requested: Lang | null = null;
   /** Resolves when the initial language's dictionary is loaded (awaited by the app initializer). */
@@ -64,7 +70,7 @@ export class I18nService {
 
   /** Translate a key; `{name}` placeholders are replaced from params. Falls back to tr, then the key. */
   t(key: string, params?: Record<string, unknown> | null): string {
-    let text = this.dict()[key] ?? TR_DICTIONARY[key] ?? key;
+    let text = this.dict()[key] ?? TR_DICTIONARY[key] ?? this.extensions().tr[key] ?? key;
     if (params) {
       for (const [k, v] of Object.entries(params)) {
         text = text.split(`{${k}}`).join(v == null ? '' : String(v));
@@ -75,6 +81,11 @@ export class I18nService {
 
   has(key: string): boolean {
     return key in this.dict();
+  }
+
+  /** Adds the texts of a lazily loaded feature (kept out of the initial bundle). */
+  extend(extra: Partial<Record<Lang, Dict>>) {
+    this.extensions.update((all) => ({ tr: { ...all.tr, ...(extra.tr || {}) }, en: { ...all.en, ...(extra.en || {}) } }));
   }
 
   /** Loads the dictionary of `lang` once. */

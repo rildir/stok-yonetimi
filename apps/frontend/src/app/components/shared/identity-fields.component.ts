@@ -1,7 +1,7 @@
 import { Component, DestroyRef, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormGroup, ReactiveFormsModule, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { validateTaxId } from '@stok/tr-compliance';
+import { validateTaxId, isMaskedValue } from '@stok/tr-compliance';
 import { ComplianceService } from '../../services/compliance.service';
 import { Province, TaxOffice } from '../../models/inventory.models';
 import { TranslatePipe } from '../../i18n';
@@ -23,6 +23,8 @@ export const IDENTITY_ERROR_KEYS: Record<string, string> = {
 export function taxIdValidator(partyType: (form: AbstractControl) => string | null): ValidatorFn {
   return (form: AbstractControl): ValidationErrors | null => {
     const v = form.value || {};
+    // WP7: a masked identity number (*******1234) is the stored value, not an input to validate.
+    if (isMaskedValue(v.identityNumber)) return null;
     const code = validateTaxId({ identityType: v.identityType || null, identityNumber: (v.identityNumber || '').replace(/\s+/g, '') || null, partyType: partyType(form) });
     return code ? { taxId: code } : null;
   };
@@ -109,7 +111,7 @@ export class IdentityFieldsComponent implements OnInit {
   maxLen = computed(() => (this.typeValue() === 'VKN' ? 10 : this.isNumeric() ? 11 : 40));
   error = computed(() => (this.tick(), (this.form?.errors?.['taxId'] as string) || null));
   errorKey = computed(() => IDENTITY_ERROR_KEYS[this.error() || ''] || 'customers.validation.invalidType');
-  checksumOk = computed(() => (this.tick(), this.isNumeric() && !!this.form?.value.identityNumber && !this.error()));
+  checksumOk = computed(() => (this.tick(), this.isNumeric() && !!this.form?.value.identityNumber && !isMaskedValue(this.form?.value.identityNumber) && !this.error()));
   filteredOffices = computed(() => {
     const q = this.officeQuery().trim().toLocaleLowerCase('tr-TR');
     return q ? this.offices().filter((o) => o.name.toLocaleLowerCase('tr-TR').includes(q) || o.code.startsWith(q)) : this.offices();

@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { authGuard, guestGuard, adminGuard, staffGuard } from './guards/auth.guard';
+import { authGuard, guestGuard, adminGuard, staffGuard, auditGuard } from './guards/auth.guard';
 
 export const appRoutes: Route[] = [
   { 
@@ -44,7 +44,7 @@ export const appRoutes: Route[] = [
       { path: 'disposals', canActivate: [staffGuard], loadComponent: () => import('./components/disposals/disposals.component').then(m => m.DisposalsComponent) },
       { path: 'inbox', loadComponent: () => import('./components/ebelge/inbox.component').then(m => m.EBelgeInboxComponent) },
       { path: 'expense-vouchers', loadComponent: () => import('./components/documents/expense-vouchers.component').then(m => m.ExpenseVouchersComponent) },
-      { path: 'audit-log', canActivate: [adminGuard], loadComponent: () => import('./components/audit-log/audit-log.component').then(m => m.AuditLogComponent) },
+      { path: 'audit-log', canActivate: [auditGuard], loadComponent: () => import('./components/audit-log/audit-log.component').then(m => m.AuditLogComponent) },
       { path: 'integrations', canActivate: [adminGuard], loadComponent: () => import('./components/integrations/integrations.component').then(m => m.IntegrationsComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]

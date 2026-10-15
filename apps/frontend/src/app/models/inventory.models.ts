@@ -364,6 +364,16 @@ export interface Customer {
   orderCount?: number;
   lastOrderDate?: string | null;
   createdAt?: string;
+  // WP7 - KVKK
+  /** Identity number masked in the response (use POST /customers/:id/reveal) */
+  piiMasked?: boolean;
+  processingRestricted?: boolean;
+  erasureRestrictedUntil?: string | null;
+  anonymizedAt?: string | null;
+  noticeGivenAt?: string | null;
+  noticeVersion?: string | null;
+  noticeChannel?: string | null;
+  kvkkWarnings?: { code: string; categories: string[] }[];
 }
 
 export interface CustomerAddress {
@@ -762,6 +772,14 @@ export interface WebhookEndpoint {
   updatedAt: string;
   /** Only present in the create response. */
   secret?: string;
+  // WP7 - cross-border transfer (KVKK md. 9) and personal data in payloads
+  destinationCountry?: string;
+  transferBasis?: string;
+  sccSignedAt?: string | null;
+  sccNotifiedAt?: string | null;
+  includePersonalData?: boolean;
+  abroad?: boolean;
+  sccNotice?: { deadline: string | null; late: boolean };
 }
 
 export interface WebhookPayload {
@@ -769,6 +787,11 @@ export interface WebhookPayload {
   description?: string | null;
   events?: string[];
   active?: boolean;
+  destinationCountry?: string;
+  transferBasis?: string | null;
+  sccSignedAt?: string | null;
+  sccNotifiedAt?: string | null;
+  includePersonalData?: boolean;
 }
 
 export type WebhookDeliveryStatus = 'pending' | 'success' | 'failed';

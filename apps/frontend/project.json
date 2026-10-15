@@ -15,7 +15,9 @@
         "outputPath": "dist/apps/frontend",
         "browser": "apps/frontend/src/main.ts",
         "tsConfig": "apps/frontend/tsconfig.app.json",
-        "allowedCommonJsDependencies": ["jsbarcode"],
+        "allowedCommonJsDependencies": [
+          "jsbarcode"
+        ],
         "assets": [
           {
             "glob": "**/*",
@@ -46,7 +48,15 @@
               "replace": "apps/frontend/src/environments/environment.ts",
               "with": "apps/frontend/src/environments/environment.prod.ts"
             }
-          ]
+          ],
+          "optimization": {
+            "scripts": true,
+            "styles": {
+              "minify": true,
+              "inlineCritical": false
+            },
+            "fonts": true
+          }
         },
         "development": {
           "optimization": false,
@@ -69,7 +79,12 @@
       },
       "defaultConfiguration": "development",
       "options": {
-        "proxyConfig": "apps/frontend/proxy.conf.json"
+        "proxyConfig": "apps/frontend/proxy.conf.json",
+        "headers": {
+          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'sha256-0k7VkUajgrx9e9DM5+Ih556jYSfNfne5EntyOToCSo8='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' http://localhost:3001 ws://localhost:3001 ws://localhost:4300 ws://localhost:4200; frame-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "strict-origin-when-cross-origin"
+        }
       }
     },
     "lint": {

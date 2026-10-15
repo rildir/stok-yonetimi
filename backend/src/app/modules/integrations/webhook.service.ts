@@ -9,6 +9,8 @@ import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { redact } from '../../shared/integrations/audit-diff';
 import { checkWebhookUrl } from '../../shared/integrations/url-guard';
+import { stripPersonalData } from '../../shared/kvkk/data-catalog';
+import { isAbroad, sccNoticeStatus, validateTransfer } from '../../shared/kvkk/transfer';
 import {
   MAX_ATTEMPTS,
   SIGNATURE_HEADER,
@@ -31,6 +33,11 @@ export interface WebhookEndpointInput {
   description?: string | null;
   events?: string[];
   active?: boolean;
+  destinationCountry?: string;
+  transferBasis?: string | null;
+  sccSignedAt?: string | null;
+  sccNotifiedAt?: string | null;
+  includePersonalData?: boolean;
 }
 
 const TEST_EVENT = 'webhook.test';
@@ -82,7 +89,19 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
 
   private present(e: WebhookEndpointEntity) {
     const { secret, ...rest } = e;
-    return rest;
+    return { ...rest, abroad: isAbroad(e.destinationCountry), sccNotice: sccNoticeStatus(e.sccSignedAt, e.sccNotifiedAt) };
+  }
+
+  /** KVKK md. 9: an endpoint abroad needs a transfer basis (and the SCC notification) to be active. */
+  private applyTransfer(ep: WebhookEndpointEntity, input: WebhookEndpointInput) {
+    if (input.destinationCountry !== undefined) ep.destinationCountry = (input.destinationCountry || '').toUpperCase();
+    if (input.transferBasis !== undefined) ep.transferBasis = input.transferBasis || (isAbroad(ep.destinationCountry) ? '' : 'DOMESTIC');
+    if (input.sccSignedAt !== undefined) ep.sccSignedAt = input.sccSignedAt || null;
+    if (input.sccNotifiedAt !== undefined) ep.sccNotifiedAt = input.sccNotifiedAt || null;
+    if (input.includePersonalData !== undefined) ep.includePersonalData = !!input.includePersonalData;
+    if (!isAbroad(ep.destinationCountry) && !ep.transferBasis) ep.transferBasis = 'DOMESTIC';
+    const code = validateTransfer({ ...ep, active: ep.active });
+    if (code) throw new BadRequestException(err(code, { country: ep.destinationCountry }));
   }
 
   private validateEvents(events: string[] | undefined): string[] {
@@ -95,7 +114,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
 
   private async validateUrl(url: string) {
     const check = await checkWebhookUrl(url);
-    if (!check.ok) throw new BadRequestException(err(check.code));
+    if (check.ok === false) throw new BadRequestException(err((check as { code: string }).code));
   }
 
   async listEndpoints() {
@@ -111,16 +130,19 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
 
   async createEndpoint(input: WebhookEndpointInput) {
     await this.validateUrl(input.url || '');
-    const ep = await this.endpoints.save(
-      this.endpoints.create({
-        companyId: this.companyId,
-        url: input.url!,
-        description: input.description || null,
-        events: this.validateEvents(input.events),
-        active: input.active ?? true,
-        secret: generateWebhookSecret(),
-      }),
-    );
+    const draft = this.endpoints.create({
+      companyId: this.companyId,
+      url: input.url!,
+      description: input.description || null,
+      events: this.validateEvents(input.events),
+      active: input.active ?? true,
+      secret: generateWebhookSecret(),
+      destinationCountry: 'TR',
+      transferBasis: 'DOMESTIC',
+      includePersonalData: false,
+    });
+    this.applyTransfer(draft, input);
+    const ep = await this.endpoints.save(draft);
     return { ...this.present(ep), secret: ep.secret };
   }
 
@@ -133,6 +155,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     if (input.description !== undefined) ep.description = input.description || null;
     if (input.events !== undefined) ep.events = this.validateEvents(input.events);
     if (input.active !== undefined) ep.active = input.active;
+    this.applyTransfer(ep, input);
     return this.present(await this.endpoints.save(ep));
   }
 
@@ -176,7 +199,8 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     const old = await this.deliveries.findOne({ where: { id: deliveryId, companyId: this.companyId } });
     if (!old) throw new NotFoundException(err('WEBHOOK_DELIVERY_NOT_FOUND'));
     const ep = await this.findEndpoint(old.endpointId);
-    const d = await this.createDelivery(ep, old.event, (old.payload?.['data'] as Record<string, unknown>) ?? {});
+    const data = (old.payload?.['data'] as Record<string, unknown>) ?? {};
+    const d = await this.createDelivery(ep, old.event, ep.includePersonalData ? data : stripPersonalData(data));
     await this.dispatch(d.id);
     return this.deliveries.findOneByOrFail({ id: d.id });
   }
@@ -199,7 +223,8 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     if (!targets.length) return;
     const data = await this.buildData(e);
     for (const ep of targets) {
-      const d = await this.createDelivery(ep, e.event, data);
+      // Data minimisation (KVKK md. 4/2-ç): personal data only for endpoints that opted in.
+      const d = await this.createDelivery(ep, e.event, ep.includePersonalData ? data : stripPersonalData(data));
       void this.dispatch(d.id);
     }
   }
@@ -247,8 +272,14 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       let responseBody: string | null = null;
       let error: string | null = null;
       const check = await checkWebhookUrl(ep.url);
+      const transferError = validateTransfer({ ...ep, active: true });
+      if (transferError) {
+        // An endpoint abroad without a valid basis (legacy row) never receives data.
+        await this.deliveries.update({ id }, { attempts, status: 'failed', error: transferError, nextRetryAt: null });
+        return;
+      }
       if (!check.ok) {
-        error = check.code;
+        error = (check as { code: string }).code;
       } else {
         const body = JSON.stringify(d.payload);
         try {

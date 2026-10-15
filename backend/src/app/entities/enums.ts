@@ -2,6 +2,8 @@ export enum UserRole {
   ADMIN = 'admin',
   MANAGER = 'manager',
   VIEWER = 'viewer',
+  /** Read-only auditor (denetçi): every read, no write; personal identifiers masked */
+  AUDITOR = 'auditor',
 }
 
 export enum ProductStatus {

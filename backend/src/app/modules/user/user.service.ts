@@ -11,6 +11,9 @@ import { UserRole } from '../../entities/enums';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { isLocked, lockoutPolicy, minutesLeft, registerFailedLogin } from '../../shared/security/security-config';
+import { generateRecoveryCodes, generateTotpSecret, hashRecoveryCode, otpauthUrl, verifyTotp } from '../../shared/kvkk/totp';
+import { companyPolicy } from '../../shared/kvkk/company-policy';
+import { SessionService } from './session.service';
 
 export const INVITE_TTL_DAYS = 7;
 const sha256 = (v: string) => createHash('sha256').update(v, 'utf8').digest('hex');
@@ -34,6 +37,7 @@ export class UserService {
     private readonly userRepo: Repository<UserEntity>,
     private readonly stockHelper: StockHelperService,
     private readonly appGateway: AppGateway,
+    private readonly sessions: SessionService,
   ) {}
 
   private get companyId(): string {
@@ -58,9 +62,78 @@ export class UserService {
     };
   }
 
-  private sanitizeUser(user: UserEntity): UserEntity & { invitePending: boolean; locked: boolean } {
-    const { password, inviteTokenHash, ...sanitized } = user;
-    return { ...(sanitized as UserEntity), invitePending: !!inviteTokenHash, locked: isLocked(user, new Date()) };
+  private sanitizeUser(user: UserEntity): UserEntity & { invitePending: boolean; locked: boolean; totpEnabled: boolean } {
+    const { password, inviteTokenHash, totpSecret, totpPendingSecret, totpRecoveryCodes, totpLastStep, ...sanitized } = user;
+    return { ...(sanitized as UserEntity), invitePending: !!inviteTokenHash, locked: isLocked(user, new Date()), totpEnabled: !!user.totpEnabledAt };
+  }
+
+  // ------------------------------------------------------------------ 2FA (TOTP, WP7)
+
+  /** Starts the enrolment: a new secret (kept pending until the first valid code), otpauth URL and QR. */
+  async totpSetup(username: string): Promise<{ secret: string; otpauthUrl: string; qrDataUrl: string }> {
+    const user = await this.getUserByUsername(username);
+    if (!user) throw new BadRequestException(err('USER_NOT_FOUND'));
+    if (user.totpEnabledAt) throw new BadRequestException(err('TOTP_ALREADY_ENABLED'));
+    const secret = generateTotpSecret();
+    await this.userRepo.update({ id: user.id }, { totpPendingSecret: secret });
+    const url = otpauthUrl(secret, user.username);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const QRCode = require('qrcode') as typeof import('qrcode');
+    return { secret, otpauthUrl: url, qrDataUrl: await QRCode.toDataURL(url, { margin: 1, width: 220 }) };
+  }
+
+  /** Confirms the enrolment with a code; returns the one-time recovery codes (shown once). */
+  async totpEnable(username: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    const user = await this.getUserByUsername(username);
+    if (!user) throw new BadRequestException(err('USER_NOT_FOUND'));
+    if (user.totpEnabledAt) throw new BadRequestException(err('TOTP_ALREADY_ENABLED'));
+    if (!user.totpPendingSecret) throw new BadRequestException(err('TOTP_NOT_ENABLED'));
+    const step = verifyTotp(user.totpPendingSecret, code);
+    if (step === null) throw new BadRequestException(err('TOTP_INVALID'));
+    const codes = generateRecoveryCodes();
+    user.totpSecret = user.totpPendingSecret;
+    user.totpPendingSecret = null;
+    user.totpEnabledAt = new Date();
+    user.totpLastStep = String(step);
+    user.totpRecoveryCodes = codes.map(hashRecoveryCode);
+    await this.userRepo.save(user);
+    return { recoveryCodes: codes };
+  }
+
+  /** Turns 2FA off (password + code). Refused for administrators of a company that requires it. */
+  async totpDisable(username: string, password: string, code: string): Promise<void> {
+    const user = await this.getUserByUsername(username);
+    if (!user) throw new BadRequestException(err('USER_NOT_FOUND'));
+    if (!user.totpEnabledAt) throw new BadRequestException(err('TOTP_NOT_ENABLED'));
+    const policy = await companyPolicy(this.userRepo.manager.connection, user.companyId);
+    if (user.role === UserRole.ADMIN && policy.adminTotpRequired) throw new BadRequestException(err('TOTP_REQUIRED'));
+    if (!(await this.stockHelper.verifyPassword(password, user.password))) throw new BadRequestException(err('AUTH_WRONG_CURRENT_PASSWORD'));
+    if (!(await this.verifySecondFactor(user, code))) throw new BadRequestException(err('TOTP_INVALID'));
+    await this.userRepo.update({ id: user.id }, { totpSecret: null, totpPendingSecret: null, totpEnabledAt: null, totpLastStep: null, totpRecoveryCodes: null });
+  }
+
+  /**
+   * Second factor at sign-in: a TOTP code (a time step is never accepted twice) or a recovery code
+   * (consumed). Serialized with a row lock.
+   */
+  async verifySecondFactor(user: UserEntity, code: string): Promise<boolean> {
+    return this.userRepo.manager.transaction(async (m) => {
+      const row = await m.findOne(UserEntity, { where: { id: user.id }, lock: { mode: 'pessimistic_write' } });
+      if (!row?.totpSecret) return false;
+      const step = verifyTotp(row.totpSecret, code);
+      if (step !== null) {
+        if (row.totpLastStep !== null && row.totpLastStep !== undefined && step <= Number(row.totpLastStep)) return false;
+        await m.update(UserEntity, { id: row.id }, { totpLastStep: String(step) });
+        return true;
+      }
+      const h = hashRecoveryCode(code);
+      const list = row.totpRecoveryCodes || [];
+      if (/^[A-Za-z0-9]{5}-?[A-Za-z0-9]{5}$/.test(String(code).trim()) && list.includes(h)) {
+        await m.update(UserEntity, { id: row.id }, { totpRecoveryCodes: list.filter((x) => x !== h) });
+        return true;
+      }
+      return false;
+    });
   }
 
   /** Generates a one-time invitation token (stored hashed) and an unusable random password. */
@@ -166,6 +239,10 @@ export class UserService {
     }
   }
 
+  async getUserById(id: string): Promise<UserEntity | null> {
+    return id ? this.userRepo.findOne({ where: { id } }) : null;
+  }
+
   async getUserByUsername(username: string): Promise<UserEntity | null> {
     return this.userRepo.findOne({ where: { username } });
   }
@@ -197,6 +274,7 @@ export class UserService {
     user.mustChangePassword = false;
     user.passwordChangedAt = new Date();
     await this.userRepo.save(user);
+    await this.sessions.revokeAll(user.id, 'password_changed');
   }
 
   async terminateUserSessions(username: string): Promise<void> {
@@ -206,6 +284,7 @@ export class UserService {
     }
     user.tokenVersion++;
     await this.userRepo.save(user);
+    await this.sessions.revokeAll(user.id, 'terminated');
   }
 
   async getAllUsers() {
@@ -237,6 +316,7 @@ export class UserService {
       email: data.email,
       department: data.department || '',
       tokenVersion: 0,
+      permissions: data.permissions?.length ? data.permissions : null,
     });
     let invite: InviteInfo | undefined;
     if (data.password) {
@@ -266,6 +346,7 @@ export class UserService {
     if (updates.email !== undefined) user.email = updates.email;
     if (updates.department !== undefined) user.department = updates.department;
     if (updates.role !== undefined) user.role = updates.role;
+    if (updates.permissions !== undefined) user.permissions = updates.permissions?.length ? updates.permissions : null;
 
     if (updates.password) {
       // An admin-set password is temporary: the user must choose a new one at next sign-in.
@@ -277,6 +358,7 @@ export class UserService {
     }
 
     const saved = await this.userRepo.save(user);
+    if (updates.password) await this.sessions.revokeAll(user.id, 'password_reset');
     return this.sanitizeUser(saved);
   }
 

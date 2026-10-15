@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import { WP6_ENTITIES } from './app/entities/inventory-accounting.entity';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { dbSslOptions } from './app/shared/security/security-config';
 
 // Entities
 import { ProductEntity } from './app/entities/product.entity';
@@ -44,6 +45,7 @@ import { ReturnEntity, ReturnItemEntity } from './app/entities/return.entity';
 import { GoodsReceiptEntity, GoodsReceiptItemEntity } from './app/entities/goods-receipt.entity';
 import { ExpenseVoucherEntity } from './app/entities/expense-voucher.entity';
 import { EBELGE_ENTITIES } from './app/entities/ebelge.entity';
+import { KVKK_ENTITIES } from './app/entities/kvkk.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -56,6 +58,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'stok_yonetimi',
+  ssl: dbSslOptions() || undefined,
   entities: [
     ProductEntity,
     OrderEntity,
@@ -107,6 +110,7 @@ export const AppDataSource = new DataSource({
     ExpenseVoucherEntity,
     ...EBELGE_ENTITIES,
     ...WP6_ENTITIES,
+    ...KVKK_ENTITIES,
   ],
   timezone: 'Z',
   dateStrings: ['DATE'],

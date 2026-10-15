@@ -1,0 +1,13 @@
+-- WP7 (R61): database-level protection of the audit trail for production.
+-- The application user may read and append audit rows and update only the columns the hash-chain
+-- sealer and the KVKK masking write; it may not delete audit rows. Run as an administrator after
+-- the migrations (replace `stok_app` / host / schema with your values).
+--
+-- REVOKE ALL PRIVILEGES ON `stok_yonetimi`.`audit_logs` FROM 'stok_app'@'%';
+-- GRANT SELECT, INSERT ON `stok_yonetimi`.`audit_logs` TO 'stok_app'@'%';
+-- GRANT UPDATE (`chainSeq`, `prevHash`, `hash`, `maskedAt`, `before`, `after`, `userId`, `username`, `ip`, `userAgent`)
+--   ON `stok_yonetimi`.`audit_logs` TO 'stok_app'@'%';
+-- The triggers (trg_audit_logs_*) additionally allow those updates only once (sealing) or with the
+-- KVKK masking flag, and refuse every delete.
+--
+-- Destruction records and acceptance records are append-only by trigger as well.

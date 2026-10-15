@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn, BeforeInsert, BeforeUpdate } from 'typeorm';
+import { encryptedColumnTransformer, piiHash } from '../shared/kvkk/crypto';
 import { CompanyEntity } from './company.entity';
 import { AddressColumns, formatAddress } from './address.embedded';
 
@@ -7,6 +8,7 @@ export const CUSTOMER_TYPES: CustomerType[] = ['individual', 'company'];
 
 @Entity('customers')
 @Index('IDX_customers_company_name', ['companyId', 'name'])
+@Index('IDX_customers_company_identity_hash', ['companyId', 'identityNumberHash'])
 export class CustomerEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -36,8 +38,13 @@ export class CustomerEntity {
   @Column({ type: 'varchar', length: 10, nullable: true })
   identityType?: string | null;
 
-  @Column({ type: 'varchar', length: 20, nullable: true })
+  /** AES-256-GCM encrypted at rest (WP7); search through identityNumberHash */
+  @Column({ type: 'varchar', length: 100, nullable: true, transformer: encryptedColumnTransformer })
   identityNumber?: string | null;
+
+  /** Keyed HMAC-SHA256 blind index of identityNumber (equality search) */
+  @Column({ type: 'char', length: 64, nullable: true })
+  identityNumberHash?: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
   taxOfficeCode?: string | null;
@@ -52,7 +59,7 @@ export class CustomerEntity {
   @Column({ default: false })
   isDesignatedBuyer: boolean;
 
-  @Column({ type: 'varchar', length: 30, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true, transformer: encryptedColumnTransformer })
   passportNo?: string | null;
 
   /** ISO 3166-1 alpha-2 */
@@ -114,12 +121,38 @@ export class CustomerEntity {
   @Column({ default: false })
   isDeleted: boolean;
 
+  /** Soft-delete time (CUSTOMER_INACTIVE retention starts here) */
+  @Column({ type: 'datetime', nullable: true })
+  deletedAt?: Date | null;
+
+  // ─── WP7: KVKK erasure ───
+
+  /** Erasure requested but legal records require the identity: processing restricted (kısıtlama) */
+  @Column({ default: false })
+  processingRestricted: boolean;
+
+  /** End of the legal retention that restricts the erasure (then the periodic destruction anonymises) */
+  @Column({ type: 'date', nullable: true })
+  erasureRestrictedUntil?: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  erasureRequestedAt?: Date | null;
+
+  /** Irreversibly anonymised */
+  @Column({ type: 'datetime', nullable: true })
+  anonymizedAt?: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
 
+  @BeforeInsert()
+  @BeforeUpdate()
+  syncIdentityHash() {
+    if (this.identityNumber !== undefined) this.identityNumberHash = piiHash(this.identityNumber);
+  }
 }
 
 /**

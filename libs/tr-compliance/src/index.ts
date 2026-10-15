@@ -8,3 +8,4 @@ export * from './documents';
 export * from './ebelge';
 export * from './gs1';
 export * from './valuation';
+export * from './kvkk';

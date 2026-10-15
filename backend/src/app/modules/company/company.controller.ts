@@ -1,4 +1,5 @@
 import { Controller, Get, Put, Post, Patch, Body, Query, Req, Res, HttpStatus } from '@nestjs/common';
+import { SessionService } from '../user/session.service';
 import { resolveLang, translate } from '../../shared/i18n/messages';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
@@ -17,16 +18,17 @@ export class CompanyController {
     private readonly companyService: CompanyService,
     private readonly jwtService: JwtService,
     private readonly compliance: ComplianceService,
+    private readonly sessions: SessionService,
   ) {}
 
   @Public()
   @Post('auth/register')
   @ApiOperation({ summary: 'Yeni şirket ve yönetici hesabı oluştur (Kayıt ol)' })
   @ApiResponse({ status: 201, description: 'Şirket oluşturuldu, JWT token döner' })
-  async register(@Body() dto: RegisterCompanyDto) {
+  async register(@Body() dto: RegisterCompanyDto, @Req() req: any, @Res({ passthrough: true }) res: any) {
     const { company, admin } = await this.companyService.registerCompany(dto);
     return {
-      token: await this.jwtService.signAsync(buildJwtPayload(admin)),
+      token: await this.sessions.start(admin, req, res),
       company,
     };
   }

@@ -15,6 +15,8 @@ import { AuditSubscriber } from './audit.subscriber';
 import { ApiKeyService } from './api-key.service';
 import { WebhookService } from './webhook.service';
 import { ImportExportService } from './import-export.service';
+import { SecurityAlertService } from './security-alert.service';
+import { GatewayModule } from '../../shared/gateway.module';
 import { ApiKeyController, AuditController, ImportExportController, WebhookController } from './integrations.controller';
 
 /** Audit log, API keys, webhooks and CSV import/export. Global so AuthGuard / login can use them. */
@@ -26,9 +28,10 @@ import { ApiKeyController, AuditController, ImportExportController, WebhookContr
     CustomerModule,
     SupplierModule,
     SharedModule,
+    GatewayModule,
   ],
   controllers: [AuditController, ApiKeyController, WebhookController, ImportExportController],
-  providers: [AuditService, AuditSubscriber, ApiKeyService, WebhookService, ImportExportService],
-  exports: [AuditService, ApiKeyService, WebhookService],
+  providers: [AuditService, AuditSubscriber, ApiKeyService, WebhookService, ImportExportService, SecurityAlertService],
+  exports: [AuditService, ApiKeyService, WebhookService, SecurityAlertService],
 })
 export class IntegrationsModule {}

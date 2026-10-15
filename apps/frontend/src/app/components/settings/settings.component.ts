@@ -21,16 +21,19 @@ import { DocumentSettingsComponent } from './document-settings.component';
 import { EBelgeProviderSettingsComponent } from './ebelge-provider-settings.component';
 import { EBelgeArchiveSettingsComponent } from './ebelge-archive-settings.component';
 import { LegalParametersComponent } from './legal-parameters.component';
+import { KvkkSettingsComponent } from './kvkk-settings.component';
+import { TotpSettingsComponent } from './totp-settings.component';
+import { SessionService } from '../../services/session.service';
 
 /** Empty passes (optional field); otherwise the KVKK-guide password policy. */
 const strongPasswordValidator = (c: AbstractControl): ValidationErrors | null => (c.value && !isStrongPassword(c.value) ? { weakPassword: true } : null);
 
-type SettingsTab = 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'ebelgeProvider' | 'archive' | 'documents' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
+type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'ebelgeProvider' | 'archive' | 'documents' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, InventoryAccountingSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent, EBelgeProviderSettingsComponent, EBelgeArchiveSettingsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, InventoryAccountingSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent, EBelgeProviderSettingsComponent, EBelgeArchiveSettingsComponent, KvkkSettingsComponent, TotpSettingsComponent],
   template: `
     <header class="page-header">
       <div>
@@ -44,6 +47,9 @@ type SettingsTab = 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 
       <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'profile'" [attr.aria-selected]="activeTab() === 'profile'" (click)="changeTab('profile')">{{ 'settings.tab.profile' | t }}</button>
       <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'categories'" [attr.aria-selected]="activeTab() === 'categories'" (click)="changeTab('categories')">{{ 'settings.tab.categories' | t }}</button>
       <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'units'" [attr.aria-selected]="activeTab() === 'units'" (click)="changeTab('units')">{{ 'settings.tab.units' | t }}</button>
+      @if (ui.userProfile()?.role === 'admin' || ui.userProfile()?.role === 'auditor') {
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'kvkk'" [attr.aria-selected]="activeTab() === 'kvkk'" (click)="changeTab('kvkk')">{{ 'settings.tab.kvkk' | t }}</button>
+      }
       @if (ui.userProfile()?.role === 'admin') {
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'users'" [attr.aria-selected]="activeTab() === 'users'" (click)="changeTab('users')">{{ 'settings.tab.users' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'company'" [attr.aria-selected]="activeTab() === 'company'" (click)="changeTab('company')">{{ 'settings.tab.company' | t }}</button>
@@ -226,6 +232,7 @@ type SettingsTab = 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 
         }
 
         <!-- FISCAL / E-BELGE / LEGAL PARAMETERS (WP1) -->
+        @if (activeTab() === 'kvkk' && (isAdmin() || ui.isAuditor())) { <app-kvkk-settings></app-kvkk-settings> }
         @if (activeTab() === 'fiscal' && isAdmin()) { <app-fiscal-settings></app-fiscal-settings> }
         @if (activeTab() === 'ebelge' && isAdmin()) { <app-ebelge-settings></app-ebelge-settings> }
         @if (activeTab() === 'documents' && isAdmin()) { <app-document-settings></app-document-settings> }
@@ -491,6 +498,7 @@ type SettingsTab = 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 
         <ng-container *ngIf="activeTab() === 'profile'">
           <div class="settings-container">
             <div class="settings-left-col">
+              <app-totp-settings></app-totp-settings>
               <div class="settings-card" >
                 <h3 class="card-title">{{ 'settings.profile.title' | t }}</h3>
                 <p class="card-subtitle settings-card-sub">{{ 'settings.profile.subtitle' | t }}</p>
@@ -936,8 +944,13 @@ type SettingsTab = 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 
                 <select id="userRole" formControlName="role" class="form-select has-value" [disabled]="isSavingUser()">
                   <option value="manager">{{ 'settings.users.roleManagerOpt' | t }}</option>
                   <option value="viewer">{{ 'settings.users.roleViewerOpt' | t }}</option>
+                  <option value="auditor">{{ 'settings.users.roleAuditorOpt' | t }}</option>
                 </select>
               </div>
+              @if (userForm.value.role === 'viewer' || userForm.value.role === 'auditor') {
+                <label class="check-row"><input type="checkbox" formControlName="piiRead" /> {{ 'settings.users.piiRead' | t }}</label>
+                <span class="field-hint">{{ 'settings.users.piiReadHint' | t }}</span>
+              }
             </div>
             
             <div class="drawer-footer">
@@ -1057,7 +1070,7 @@ export class SettingsComponent implements OnInit {
   readonly demoLastLogin = '2026-06-20T11:00:00';
 
   roleLabel(role: string | null | undefined): string {
-    return role === 'admin' ? 'settings.role.admin' : role === 'manager' ? 'settings.role.manager' : 'settings.role.viewer';
+    return role === 'admin' ? 'settings.role.admin' : role === 'manager' ? 'settings.role.manager' : role === 'auditor' ? 'settings.role.auditor' : 'settings.role.viewer';
   }
   
   @ViewChild(ToastComponent) toast!: ToastComponent;
@@ -1437,7 +1450,8 @@ export class SettingsComponent implements OnInit {
     username: ['', Validators.required],
     password: ['', [strongPasswordValidator]],
     department: [''],
-    role: ['viewer', Validators.required]
+    role: ['viewer', Validators.required],
+    piiRead: [false],
   });
 
   ngOnInit() {
@@ -1445,7 +1459,7 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'ebelgeProvider', 'archive', 'documents', 'compliance', 'inventoryAccounting', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
+      if (['kvkk', 'profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'ebelgeProvider', 'archive', 'documents', 'compliance', 'inventoryAccounting', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
         this.activeTab.set(tab);
         if (tab === 'units') this.loadUnits();
       } else {
@@ -1560,8 +1574,10 @@ export class SettingsComponent implements OnInit {
     });
   }
 
+  private session = inject(SessionService);
+
   doLogout() {
-    localStorage.removeItem('smart_inventory_token');
+    this.session.logout();
     this.socketService.disconnect();
     this.ui.userProfile.set(null);
     this.router.navigate(['/login']);
@@ -1836,7 +1852,8 @@ export class SettingsComponent implements OnInit {
         username: user.username,
         password: '',
         department: user.department,
-        role: user.role || 'viewer'
+        role: user.role || 'viewer',
+        piiRead: (user.permissions || []).includes('customers.pii.read'),
       });
       this.userForm.get('username')?.disable();
     } else {
@@ -1847,7 +1864,8 @@ export class SettingsComponent implements OnInit {
         username: '',
         password: '',
         department: '',
-        role: 'viewer'
+        role: 'viewer',
+        piiRead: false,
       });
       this.userForm.get('username')?.enable();
     }
@@ -1869,6 +1887,9 @@ export class SettingsComponent implements OnInit {
     this.isSavingUser.set(true);
     const data = this.userForm.getRawValue();
     const userId = this.editUserId();
+    // WP7: extra permission on top of the role (customers.pii.read is a manager / admin default)
+    data.permissions = data.piiRead && ['viewer', 'auditor'].includes(data.role) ? ['customers.pii.read'] : [];
+    delete data.piiRead;
 
     const obs = userId
       ? this.http.put(`${environment.apiUrl}/user/users/${userId}`, data)

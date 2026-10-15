@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { TRANSFER_BASES } from '../../services/kvkk.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -207,6 +208,7 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
                     <td [attr.data-label]="'integrations.hooks.col.url' | t" class="url-cell">
                       <span class="mono" [title]="h.url">{{ h.url }}</span>
                       @if (h.description) { <div class="sub">{{ h.description }}</div> }
+                      @if (h.abroad) { <div class="sub">{{ 'integrations.hooks.abroad' | t: { country: h.destinationCountry, basis: ('kvkk.basis.' + h.transferBasis | t) } }}</div> }
                     </td>
                     <td [attr.data-label]="'integrations.hooks.col.events' | t" class="scope-cell">{{ h.events.join(', ') }}</td>
                     <td [attr.data-label]="'integrations.hooks.col.active' | t">
@@ -440,6 +442,36 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
             <label class="inline-check" style="font-size: var(--text-sm);">
               <input type="checkbox" [ngModel]="hookActive()" (ngModelChange)="hookActive.set($event)" /> {{ 'integrations.hooks.form.active' | t }}
             </label>
+            <div class="group-label">{{ 'integrations.hooks.form.transfer' | t }}</div>
+            <div class="form-row">
+              <div class="form-field">
+                <input id="hookCountry" type="text" maxlength="2" class="form-input mono has-value" [ngModel]="hookCountry()" (ngModelChange)="hookCountry.set(($event || '').toUpperCase())" />
+                <label for="hookCountry" class="form-label">{{ 'integrations.hooks.form.country' | t }}</label>
+              </div>
+              <div class="form-field">
+                <select id="hookBasis" class="form-input has-value" [ngModel]="hookBasis()" (ngModelChange)="hookBasis.set($event)">
+                  @for (b of transferBases; track b) { <option [value]="b">{{ 'kvkk.basis.' + b | t }}</option> }
+                </select>
+                <label for="hookBasis" class="form-label">{{ 'integrations.hooks.form.basis' | t }}</label>
+              </div>
+            </div>
+            @if (hookCountry() !== 'TR' && hookBasis() === 'SCC') {
+              <div class="form-row">
+                <div class="form-field">
+                  <input id="hookSccSigned" type="date" class="form-input has-value" [ngModel]="hookSccSigned()" (ngModelChange)="hookSccSigned.set($event)" />
+                  <label for="hookSccSigned" class="form-label">{{ 'integrations.hooks.form.sccSigned' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <input id="hookSccNotified" type="date" class="form-input has-value" [ngModel]="hookSccNotified()" (ngModelChange)="hookSccNotified.set($event)" />
+                  <label for="hookSccNotified" class="form-label">{{ 'integrations.hooks.form.sccNotified' | t }}</label>
+                </div>
+              </div>
+            }
+            @if (hookCountry() !== 'TR') { <p class="sub" style="font-size: var(--text-xs)">{{ 'integrations.hooks.form.abroadHint' | t }}</p> }
+            <label class="inline-check" style="font-size: var(--text-sm);">
+              <input type="checkbox" [ngModel]="hookPii()" (ngModelChange)="hookPii.set($event)" /> {{ 'integrations.hooks.form.includePersonalData' | t }}
+            </label>
+            <p class="sub" style="font-size: var(--text-xs)">{{ 'integrations.hooks.form.piiHint' | t }}</p>
             <div class="group-label">{{ 'integrations.hooks.form.events' | t }}</div>
             <div class="event-grid">
               @for (e of events(); track e) {
@@ -537,6 +569,13 @@ export class IntegrationsComponent implements OnInit {
   hookUrl = signal('');
   hookDesc = signal('');
   hookActive = signal(true);
+  // WP7: KVKK md. 9 transfer fields
+  readonly transferBases = TRANSFER_BASES;
+  hookCountry = signal('TR');
+  hookBasis = signal('DOMESTIC');
+  hookSccSigned = signal('');
+  hookSccNotified = signal('');
+  hookPii = signal(false);
   hookEvents = signal<string[]>([]);
 
   deliveries = signal<WebhookDelivery[]>([]);
@@ -705,6 +744,11 @@ export class IntegrationsComponent implements OnInit {
     this.hookDesc.set(h?.description || '');
     this.hookActive.set(h ? h.active : true);
     this.hookEvents.set(h ? [...h.events] : []);
+    this.hookCountry.set(h?.destinationCountry || 'TR');
+    this.hookBasis.set(h?.transferBasis || 'DOMESTIC');
+    this.hookSccSigned.set(h?.sccSignedAt || '');
+    this.hookSccNotified.set(h?.sccNotifiedAt || '');
+    this.hookPii.set(!!h?.includePersonalData);
     this.hookFormOpen.set(true);
   }
 
@@ -718,6 +762,11 @@ export class IntegrationsComponent implements OnInit {
       description: this.hookDesc().trim() || null,
       events: this.hookEvents(),
       active: this.hookActive(),
+      destinationCountry: this.hookCountry() || 'TR',
+      transferBasis: this.hookCountry() === 'TR' ? 'DOMESTIC' : this.hookBasis() === 'DOMESTIC' ? null : this.hookBasis(),
+      sccSignedAt: this.hookSccSigned() || null,
+      sccNotifiedAt: this.hookSccNotified() || null,
+      includePersonalData: this.hookPii(),
     };
     const id = this.hookEditId();
     this.saving.set(true);

@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { AuditLogEntity } from '../../entities/audit-log.entity';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
-import { redact } from '../../shared/integrations/audit-diff';
+import { redactForAudit } from '../../shared/integrations/audit-diff';
+import { SecurityAlertService } from './security-alert.service';
 import { applyDayRange, companyTimezone } from '../../shared/time/company-day-range';
 
 export interface AuditRecordInput {
@@ -33,6 +34,7 @@ export class AuditService {
   constructor(
     @InjectRepository(AuditLogEntity) private readonly repo: Repository<AuditLogEntity>,
     private readonly tenant: TenantContext,
+    private readonly alerts: SecurityAlertService,
   ) {}
 
   /** Explicit audit entry (login, settings, ...). Never throws: auditing must not break the request. */
@@ -47,14 +49,15 @@ export class AuditService {
         userId: input.userId ?? actor.userId ?? null,
         username: (input.username ?? actor.username ?? null)?.slice(0, 100) ?? null,
         apiKeyId: actor.apiKeyId ?? null,
-        before: redact(input.before) as any,
-        after: redact(input.after) as any,
+        before: redactForAudit(input.before) as any,
+        after: redactForAudit(input.after) as any,
         ip: actor.ip ?? null,
         userAgent: actor.userAgent ?? null,
       });
     } catch {
       /* swallow */
     }
+    if (input.action === 'login_failed') await this.alerts.onLoginFailed(input.companyId);
   }
 
   async list(q: AuditQuery) {

@@ -416,6 +416,11 @@ export class InventoryService {
     return this.http.post<Customer>(`${this.apiUrl}/customers`, data);
   }
 
+  /** KVKK "Göster": clear identity / contact data (customers.pii.read; logged as pii_view). */
+  revealCustomer(id: string): Observable<{ identityNumber: string | null; passportNo: string | null; foreignTaxId: string | null; email: string | null; phone: string | null }> {
+    return this.http.post<{ identityNumber: string | null; passportNo: string | null; foreignTaxId: string | null; email: string | null; phone: string | null }>(`${this.apiUrl}/customers/${id}/reveal`, {});
+  }
+
   updateCustomer(id: string, data: Partial<Customer>): Observable<Customer> {
     return this.http.put<Customer>(`${this.apiUrl}/customers/${id}`, data);
   }

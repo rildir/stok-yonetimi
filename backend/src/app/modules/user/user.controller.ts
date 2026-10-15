@@ -1,5 +1,5 @@
 import { err } from '../../shared/i18n/app-error';
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, Res, BadRequestException, UnauthorizedException, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { JwtService } from '@nestjs/jwt';
@@ -10,8 +10,15 @@ import { CompanyService } from '../company/company.service';
 import { buildJwtPayload } from '../../guards/jwt-payload';
 import { UserEntity } from '../../entities/user.entity';
 import { AuditService } from '../integrations/audit.service';
-import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto, LoginDto, ResetPasswordRequestDto, AcceptInviteDto } from '../../dto/user.dto';
-import { AllowPendingPasswordChange } from '../../guards/security.decorators';
+import { CreateUserDto, UpdateUserDto, UpdateProfileDto, UpdatePasswordDto, LoginDto, ResetPasswordRequestDto, AcceptInviteDto, TotpLoginDto, TotpCodeDto, TotpDisableDto } from '../../dto/user.dto';
+import { AllowPendingPasswordChange, AllowTotpSetup, SelfService } from '../../guards/security.decorators';
+import { SessionService } from './session.service';
+import { effectivePermissions } from '../../shared/kvkk/permissions';
+import { companyPolicy, totpSetupBlocking, totpSetupPending } from '../../shared/kvkk/company-policy';
+import { DataSource } from 'typeorm';
+
+/** Purpose claim of the short-lived token between the password and the 2FA step. */
+const TOTP_CHALLENGE = 'totp-challenge';
 import { isStrongPassword } from '../../shared/tr';
 
 @ApiTags('Auth & Users')
@@ -23,7 +30,24 @@ export class UserController {
     private readonly stockHelper: StockHelperService,
     private readonly companyService: CompanyService,
     private readonly audit: AuditService,
+    private readonly sessions: SessionService,
+    private readonly dataSource: DataSource,
   ) {}
+
+  /** Access token + refresh cookie; reports the 2FA obligation of administrators. */
+  private async completeLogin(user: UserEntity, req: any, res: any, extra: Record<string, unknown> = {}) {
+    await this.userService.recordSuccessfulLogin(user);
+    await this.audit.record({ companyId: user.companyId, action: 'login', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { secondFactor: !!user.totpEnabledAt } });
+    const policy = await companyPolicy(this.dataSource, user.companyId);
+    return {
+      token: await this.sessions.start(user, req, res),
+      mustChangePassword: !!user.mustChangePassword,
+      totpSetupRequired: totpSetupPending(policy, user),
+      totpSetupBlocking: totpSetupBlocking(policy, user),
+      totpGraceUntil: totpSetupPending(policy, user) ? policy.adminTotpGraceUntil : null,
+      ...extra,
+    };
+  }
 
   private async toProfile(user: UserEntity) {
     const company = await this.companyService.getCompanyById(user.companyId);
@@ -42,6 +66,10 @@ export class UserController {
       timezone: user.timezone ?? null,
       isSuperAdmin: !!user.isSuperAdmin,
       mustChangePassword: !!user.mustChangePassword,
+      permissions: effectivePermissions(user.role, user.permissions),
+      totpEnabled: !!user.totpEnabledAt,
+      totpSetupRequired: totpSetupPending(await companyPolicy(this.dataSource, user.companyId), user),
+      totpGraceUntil: company.adminTotpGraceUntil ?? null,
       company: {
         id: company.id,
         name: company.name,
@@ -57,6 +85,9 @@ export class UserController {
         fxAutoFetch: company.fxAutoFetch,
         legalName: company.legalName ?? null,
         bookkeepingType: company.bookkeepingType ?? null,
+        status: company.status,
+        retentionUntil: company.retentionUntil ?? null,
+        adminTotpRequired: company.adminTotpRequired,
       },
       locale: this.companyService.resolveLocale(company, user),
     };
@@ -67,7 +98,7 @@ export class UserController {
   @ApiOperation({ summary: 'Kullanıcı Girişi (JWT Token al)' })
   @ApiResponse({ status: 200, description: 'Giriş başarılı, JWT token döner' })
   @ApiResponse({ status: 400, description: 'Kullanıcı adı veya şifre hatalı' })
-  async login(@Body() dto: LoginDto) {
+  async login(@Body() dto: LoginDto, @Req() req: any, @Res({ passthrough: true }) res: any) {
     const { username, password } = dto;
     const user = await this.userService.getUserByUsername(username);
     if (!user) {
@@ -107,14 +138,88 @@ export class UserController {
     }
     // Parallel wrong attempts may have locked the account while this password was being checked.
     await this.userService.assertNotLockedFresh(user);
-    await this.userService.recordSuccessfulLogin(user);
-    await this.audit.record({ companyId: user.companyId, action: 'login', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username });
-    return {
-      token: await this.jwtService.signAsync(buildJwtPayload(user)),
-      mustChangePassword: !!user.mustChangePassword,
-      // Older accounts may still use a password that predates the policy: the UI suggests a change.
-      passwordPolicyOk: isStrongPassword(password),
-    };
+    // Older accounts may still use a password that predates the policy: the UI suggests a change.
+    const passwordPolicyOk = isStrongPassword(password);
+    if (user.totpEnabledAt) {
+      // 2FA (WP7): a 5-minute challenge token; the session starts after the code is verified.
+      const challenge = await this.jwtService.signAsync({ sub: user.id, purpose: TOTP_CHALLENGE, tv: user.tokenVersion, ppo: passwordPolicyOk }, { expiresIn: 300 });
+      return { totpRequired: true, challenge };
+    }
+    return this.completeLogin(user, req, res, { passwordPolicyOk });
+  }
+
+  @Public()
+  @Post('auth/login/totp')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'İki adımlı doğrulama: şifre adımından sonra 6 haneli kod veya kurtarma kodu' })
+  async loginTotp(@Body() dto: TotpLoginDto, @Req() req: any, @Res({ passthrough: true }) res: any) {
+    let payload: { sub: string; purpose: string; tv: number; ppo?: boolean };
+    try {
+      payload = await this.jwtService.verifyAsync(dto.challenge);
+    } catch {
+      throw new UnauthorizedException(err('TOTP_CHALLENGE_INVALID'));
+    }
+    if (payload?.purpose !== TOTP_CHALLENGE) throw new UnauthorizedException(err('TOTP_CHALLENGE_INVALID'));
+    const user = await this.userService.getUserById(payload.sub);
+    if (!user || user.tokenVersion !== payload.tv || !user.totpEnabledAt) throw new UnauthorizedException(err('TOTP_CHALLENGE_INVALID'));
+    this.userService.assertNotLocked(user);
+    if (!(await this.userService.verifySecondFactor(user, dto.code))) {
+      // Wrong codes count as failed sign-ins (lockout after 5) so the 6 digits cannot be brute-forced.
+      const locked = await this.userService.recordFailedLogin(user);
+      await this.audit.record({ companyId: user.companyId, action: locked ? 'account_locked' : 'login_failed', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { reason: 'invalid_totp' } });
+      if (locked) this.userService.assertNotLocked(user);
+      throw new BadRequestException(err('TOTP_INVALID'));
+    }
+    return this.completeLogin(user, req, res, { passwordPolicyOk: payload.ppo !== false });
+  }
+
+  @Public()
+  @Post('auth/refresh')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Erişim jetonunu yenile (httpOnly yenileme çerezi ile; jeton döndürülür ve çerez yenilenir)' })
+  async refresh(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    const { token } = await this.sessions.refresh(req, res);
+    return { token };
+  }
+
+  @Public()
+  @Post('auth/logout')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Oturumu kapat (yenileme çerezini iptal eder)' })
+  async logout(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    await this.sessions.logout(req, res);
+    return { success: true };
+  }
+
+  // ------------------------------------------------------------------ 2FA (TOTP)
+  @ApiBearerAuth()
+  @SelfService()
+  @AllowTotpSetup()
+  @Post('user/totp/setup')
+  @ApiOperation({ summary: 'İki adımlı doğrulama kurulumunu başlat (gizli anahtar + QR)' })
+  async totpSetup(@Req() req: any) {
+    return this.userService.totpSetup(req.user.username);
+  }
+
+  @ApiBearerAuth()
+  @SelfService()
+  @AllowTotpSetup()
+  @Post('user/totp/enable')
+  @ApiOperation({ summary: 'İlk kodla iki adımlı doğrulamayı etkinleştir; kurtarma kodları yalnızca bu yanıtta döner' })
+  async totpEnable(@Body() dto: TotpCodeDto, @Req() req: any) {
+    const r = await this.userService.totpEnable(req.user.username, dto.code);
+    await this.audit.record({ companyId: req.user.companyId, action: 'totp_enabled', entityType: 'auth', entityId: req.user.sub, username: req.user.username });
+    return r;
+  }
+
+  @ApiBearerAuth()
+  @SelfService()
+  @Post('user/totp/disable')
+  @ApiOperation({ summary: 'İki adımlı doğrulamayı kapat (şifre + kod; zorunlu olan yöneticilerde kapatılamaz)' })
+  async totpDisable(@Body() dto: TotpDisableDto, @Req() req: any) {
+    await this.userService.totpDisable(req.user.username, dto.password, dto.code);
+    await this.audit.record({ companyId: req.user.companyId, action: 'totp_disabled', entityType: 'auth', entityId: req.user.sub, username: req.user.username });
+    return { success: true };
   }
 
   @Public()
@@ -129,10 +234,10 @@ export class UserController {
   @Public()
   @Post('auth/accept-invite')
   @ApiOperation({ summary: 'Daveti kabul et ve ilk şifreyi belirle' })
-  async acceptInvite(@Body() dto: AcceptInviteDto) {
+  async acceptInvite(@Body() dto: AcceptInviteDto, @Req() req: any, @Res({ passthrough: true }) res: any) {
     const user = await this.userService.acceptInvite(dto.token, dto.password);
     await this.audit.record({ companyId: user.companyId, action: 'invite_accepted', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username });
-    return { token: await this.jwtService.signAsync(buildJwtPayload(user)) };
+    return { token: await this.sessions.start(user, req, res) };
   }
 
   @Public()
@@ -145,6 +250,7 @@ export class UserController {
 
   @ApiBearerAuth()
   @AllowPendingPasswordChange()
+  @AllowTotpSetup()
   @Get('user/profile')
   @ApiOperation({ summary: 'Giriş yapmış kullanıcının profil bilgilerini getir' })
   @ApiResponse({ status: 200, description: 'Kullanıcı profili' })
@@ -157,6 +263,8 @@ export class UserController {
   }
 
   @ApiBearerAuth()
+  @SelfService()
+  @AllowTotpSetup()
   @Put('user/profile')
   @ApiOperation({ summary: 'Profil bilgilerini güncelle' })
   @ApiResponse({ status: 200, description: 'Profil güncellendi' })
@@ -171,6 +279,8 @@ export class UserController {
 
   @ApiBearerAuth()
   @AllowPendingPasswordChange()
+  @SelfService()
+  @AllowTotpSetup()
   @Put('user/password')
   @ApiOperation({ summary: 'Kullanıcı kendi şifresini değiştirir' })
   @ApiResponse({ status: 200, description: 'Şifre güncellendi' })
@@ -192,6 +302,8 @@ export class UserController {
 
   @ApiBearerAuth()
   @AllowPendingPasswordChange()
+  @SelfService()
+  @AllowTotpSetup()
   @Post('user/sessions/terminate')
   @ApiOperation({ summary: 'Tüm oturumları sonlandır (Token invalidated)' })
   @ApiResponse({ status: 200, description: 'Oturumlar sonlandırıldı' })

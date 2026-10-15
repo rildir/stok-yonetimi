@@ -20,6 +20,8 @@ export const WEBHOOK_EVENTS = [
   'edocument.received',
   'lot.recalled',
   'period.closed',
+  // WP7: a data subject's erasure was applied (KVKK md. 7, 11/1-f: notify the recipients)
+  'customer.erased',
 ] as const;
 
 export const SIGNATURE_HEADER = 'X-Webhook-Signature';

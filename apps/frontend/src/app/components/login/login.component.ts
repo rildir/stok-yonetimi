@@ -5,12 +5,17 @@ import { UiStateService } from '../../services/ui-state.service';
 import { SocketService } from '../../services/socket.service';
 import { CommonModule } from '@angular/common';
 import { environment } from '../../../environments/environment';
-import { I18nService, TranslatePipe } from '../../i18n';
+import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
+import { FormsModule } from '@angular/forms';
+import { KvkkService, PrivacyNotice } from '../../services/kvkk.service';
+import { SessionService } from '../../services/session.service';
+import { NoticeTextComponent } from '../kvkk/notice-text.component';
+import { ModalComponent } from '../modal.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, TranslatePipe],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NoticeTextComponent, ModalComponent],
   template: `
     <div class="login-page">
       <aside class="login-aside" aria-hidden="false">
@@ -24,7 +29,7 @@ import { I18nService, TranslatePipe } from '../../i18n';
         <div class="login-aside-art" aria-hidden="true">
           <span></span><span></span><span></span><span></span>
         </div>
-        <p class="login-footer-text login-footer-aside">© 2024 Ecelon · {{ 'login.rights' | t }}</p>
+        <p class="login-footer-text login-footer-aside">© 2024 Ecelon · {{ 'login.rights' | t }} · <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button></p>
       </aside>
       <main class="login-center-column">
         <!-- Language toggle (user not logged in yet) -->
@@ -89,6 +94,7 @@ import { I18nService, TranslatePipe } from '../../i18n';
               <input type="password" class="form-input" #rPassword id="regPassword" [placeholder]="'login.register.passwordPh' | t" required minlength="6" [disabled]="isRegisterLoading()">
               <label for="regPassword" class="form-label">{{ 'login.password' | t }}</label>
             </div>
+            <p class="login-totp-hint">{{ 'kvkk.register.noticeText' | t }} <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('DPA')">{{ 'kvkk.footer.dpa' | t }}</button></p>
             <button type="submit" class="btn btn-primary login-submit-btn" [disabled]="isRegisterLoading()">
               @if (isRegisterLoading()) { {{ 'login.register.creating' | t }} } @else { {{ 'login.register.submit' | t }} }
             </button>
@@ -104,6 +110,17 @@ import { I18nService, TranslatePipe } from '../../i18n';
           <h2 class="login-card-title">{{ 'login.title' | t }}</h2>
           
           @if (lockedMessage()) { <div class="readonly-banner" role="alert">{{ lockedMessage() }}</div> }
+          @if (totpChallenge()) {
+          <form class="login-form" (submit)="doTotp(); $event.preventDefault()">
+            <p class="login-totp-hint">{{ 'auth.totp.loginHint' | t }}</p>
+            <div class="form-field">
+              <input type="text" class="form-input mono" id="loginTotp" name="totpCode" [(ngModel)]="totpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="11" [placeholder]="'auth.totp.codePh' | t" [disabled]="isLoginLoading()" required autofocus>
+              <label for="loginTotp" class="form-label">{{ 'auth.totp.code' | t }}</label>
+            </div>
+            <button type="submit" class="btn btn-primary login-submit-btn" [disabled]="isLoginLoading() || !totpCode.trim()">{{ 'auth.totp.verify' | t }}</button>
+            <button type="button" class="btn btn-secondary" (click)="totpChallenge.set(null); totpCode = ''">{{ 'common.cancel' | t }}</button>
+          </form>
+          } @else {
           <form class="login-form" (submit)="lockedMessage.set(null); doLogin(usernameInput.value, passwordInput.value); $event.preventDefault()">
             <div class="form-field">
               <input 
@@ -149,6 +166,7 @@ import { I18nService, TranslatePipe } from '../../i18n';
               }
             </button>
           </form>
+          }
           <p class="login-switch">
             {{ 'login.noAccount' | t }}
             <a href="#" class="forgot-link" id="showRegister" (click)="$event.preventDefault(); mode.set('register')">{{ 'login.goRegister' | t }}</a>
@@ -156,8 +174,15 @@ import { I18nService, TranslatePipe } from '../../i18n';
         </div>
         }
 
-        <p class="login-footer-text login-footer-main">© 2024 Ecelon · {{ 'login.rights' | t }}</p>
+        <p class="login-footer-text login-footer-main">© 2024 Ecelon · {{ 'login.rights' | t }} · <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button></p>
       </main>
+      @if (notice()) {
+        <app-modal [isOpen]="true" [title]="notice()?.title || ''" (onClose)="notice.set(null)">
+          <p class="notice-meta">{{ 'kvkk.notice.version' | t }} {{ notice()?.version }} · {{ notice()?.publishedAt | appDate }}</p>
+          <app-notice-text [text]="notice()?.body"></app-notice-text>
+          <div footer class="modal-actions"><button type="button" class="btn btn-primary" (click)="notice.set(null)">{{ 'common.close' | t }}</button></div>
+        </app-modal>
+      }
 
       @if (showForgotModal()) {
         <div class="forgot-modal-overlay" (click)="closeForgotModal()">
@@ -230,6 +255,57 @@ export class LoginComponent {
   mode = signal<'login' | 'register'>('login');
   isRegisterLoading = signal(false);
   lockedMessage = signal<string | null>(null);
+  // WP7: second factor (TOTP / recovery code) and the privacy notice on the login screen
+  private kvkk = inject(KvkkService);
+  private session = inject(SessionService);
+  totpChallenge = signal<string | null>(null);
+  totpCode = '';
+  notice = signal<PrivacyNotice | null>(null);
+
+  openNotice(docType: 'PRIVACY' | 'TOS' | 'DPA') {
+    this.kvkk.publicNotice(docType, this.i18n.lang()).subscribe({ next: (n) => this.notice.set(n), error: () => undefined });
+  }
+
+  doTotp() {
+    const challenge = this.totpChallenge();
+    if (!challenge || this.isLoginLoading()) return;
+    this.isLoginLoading.set(true);
+    this.http.post<{ token: string; mustChangePassword?: boolean; passwordPolicyOk?: boolean; totpSetupRequired?: boolean }>(`${environment.apiUrl}/auth/login/totp`, { challenge, code: this.totpCode.trim() }).subscribe({
+      next: (res) => {
+        this.isLoginLoading.set(false);
+        this.totpChallenge.set(null);
+        this.totpCode = '';
+        this.afterLogin(res);
+      },
+      error: (err) => {
+        this.isLoginLoading.set(false);
+        if (err.error?.code === 'TOTP_CHALLENGE_INVALID' || err.status === 401) this.totpChallenge.set(null);
+        if (err.error?.code === 'ACCOUNT_LOCKED') {
+          this.totpChallenge.set(null);
+          this.lockedMessage.set(this.i18n.t('login.locked', { detail: err.error?.message || '' }));
+          return;
+        }
+        this.ui.showToast(err.error?.message || this.i18n.t('auth.totp.invalid'), 'error');
+      },
+    });
+  }
+
+  private afterLogin(res: { token: string; profile?: any; locale?: any; mustChangePassword?: boolean; passwordPolicyOk?: boolean; totpSetupRequired?: boolean; totpSetupBlocking?: boolean }) {
+    this.session.setToken(res.token);
+    if (res.mustChangePassword) {
+      this.router.navigate(['/change-password']);
+      return;
+    }
+    this.socketService.connect();
+    this.applyLocaleFromResponse(res);
+    if (res.totpSetupBlocking) {
+      this.ui.showToast(this.i18n.t('auth.totp.setupRequired'), 'info');
+      this.router.navigate(['/settings'], { queryParams: { tab: 'profile' } });
+      return;
+    }
+    this.ui.showToast(this.i18n.t(res.passwordPolicyOk === false ? 'login.toast.weakPassword' : 'login.toast.loggedIn'), res.passwordPolicyOk === false ? 'info' : 'success');
+    this.router.navigate(['/dashboard']);
+  }
 
   // Labels translated in the template via login.country.<code> / login.tz.<tz>
   readonly countries = [
@@ -252,7 +328,7 @@ export class LoginComponent {
     this.http.post<{ token: string; profile?: any; locale?: any }>(`${environment.apiUrl}/auth/register`, payload).subscribe({
       next: (res) => {
         this.isRegisterLoading.set(false);
-        localStorage.setItem('smart_inventory_token', res.token);
+        this.session.setToken(res.token);
         this.socketService.connect();
         this.applyLocaleFromResponse(res);
         this.ui.showToast(this.i18n.t('login.toast.registered'), 'success');
@@ -299,18 +375,14 @@ export class LoginComponent {
     if (this.isLoginLoading()) return;
     this.isLoginLoading.set(true);
 
-    this.http.post<{ token: string; profile?: any; locale?: any; mustChangePassword?: boolean; passwordPolicyOk?: boolean }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
+    this.http.post<{ token: string; profile?: any; locale?: any; mustChangePassword?: boolean; passwordPolicyOk?: boolean; totpRequired?: boolean; challenge?: string; totpSetupBlocking?: boolean }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
       next: (res) => {
         this.isLoginLoading.set(false);
-        localStorage.setItem('smart_inventory_token', res.token);
-        if (res.mustChangePassword) {
-          this.router.navigate(['/change-password']);
+        if (res.totpRequired && res.challenge) {
+          this.totpChallenge.set(res.challenge);
           return;
         }
-        this.socketService.connect();
-        this.applyLocaleFromResponse(res);
-        this.ui.showToast(this.i18n.t(res.passwordPolicyOk === false ? 'login.toast.weakPassword' : 'login.toast.loggedIn'), res.passwordPolicyOk === false ? 'info' : 'success');
-        this.router.navigate(['/dashboard']);
+        this.afterLogin(res);
       },
       error: (err) => {
         this.isLoginLoading.set(false);

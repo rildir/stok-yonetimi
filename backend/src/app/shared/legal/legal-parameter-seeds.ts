@@ -345,6 +345,15 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     confidence: 'medium',
     note: 'Aylık ortalama satış fiyatı VUK 267/1 koşulunu (ay içi satış miktarı >= değerlenen miktarın EMSAL_MIN_MONTHLY_SALES_PCT oranı) sağlamadığında kullanılır.',
   },
+  // ─── WP7: KVKK ───
+  { country: TR, key: 'KVKK_DSR_RESPONSE_DAYS', validFrom: '2016-04-07', validTo: null, value: 30, sourceRef: 'KVKK md. 13/2 (başvuru en kısa sürede ve en geç otuz gün içinde ücretsiz sonuçlandırılır)', confidence: 'high' },
+  { country: TR, key: 'KVKK_BREACH_NOTIFY_HOURS', validFrom: '2019-01-24', validTo: null, value: 72, sourceRef: 'KVKK md. 12/5; Kişisel Verileri Koruma Kurulu Kararı 24.01.2019, 2019/10 (en geç 72 saat)', confidence: 'high' },
+  { country: TR, key: 'KVKK_PERIODIC_DESTRUCTION_MAX_MONTHS', validFrom: '2018-01-01', validTo: null, value: 6, sourceRef: 'Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik md. 11/2 (6 ayı geçmeyen periyot)', confidence: 'high' },
+  { country: TR, key: 'KVKK_DESTRUCTION_LOG_MIN_YEARS', validFrom: '2018-01-01', validTo: null, value: 3, sourceRef: 'Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik md. 7/3 (kayıtlar en az 3 yıl saklanır)', confidence: 'high' },
+  { country: TR, key: 'KVKK_SCC_NOTIFY_BUSINESS_DAYS', validFrom: '2024-06-01', validTo: null, value: 5, sourceRef: 'KVKK md. 9/5 (7499 s.K. ile değişik): standart sözleşme imzadan itibaren 5 iş günü içinde Kurula bildirilir', confidence: 'high' },
+  { country: TR, key: 'VERBIS_EMPLOYEE_THRESHOLD', validFrom: '2018-04-19', validTo: null, value: 50, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 19.07.2018, 2018/87 (yıllık çalışan sayısı 50 ve üzeri)', confidence: 'medium', note: 'Eşik; 2023/1154, 2025/1572 ve 2025/2393 sayılı Kurul kararlarıyla yapılan güncellemeler karşısında teyit edilmeli.' },
+  { country: TR, key: 'VERBIS_BALANCE_SHEET_THRESHOLD', validFrom: '2018-04-19', validTo: '2023-12-31', value: 25000000, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 19.07.2018, 2018/87 (yıllık mali bilanço toplamı 25 milyon TL)', confidence: 'medium' },
+  { country: TR, key: 'VERBIS_BALANCE_SHEET_THRESHOLD', validFrom: '2024-01-01', validTo: null, value: 100000000, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararları 2023/1154, 2025/1572, 2025/2393 (yıllık mali bilanço toplamı eşiği)', confidence: 'low', note: 'Tutar ve yürürlük tarihi teyit edilmeden kullanılmamalı (plan Ek listesi): mali müşavir / hukuk onayıyla POST /admin/legal-parameters ile güncellenir. Uygulama yalnızca uyarı üretir.' },
 ];
 
 
@@ -399,4 +408,15 @@ export const WP6_PARAMETER_KEYS = [
   'MOCK_RECALL_INTERVAL_MONTHS',
   'WARRANTY_MIN_MONTHS',
   'EDEFTER_DOCUMENT_TYPES',
+];
+
+/** Keys added by migration 1784274141000 (WP7 KVKK). */
+export const WP7_PARAMETER_KEYS = [
+  'KVKK_DSR_RESPONSE_DAYS',
+  'KVKK_BREACH_NOTIFY_HOURS',
+  'KVKK_PERIODIC_DESTRUCTION_MAX_MONTHS',
+  'KVKK_DESTRUCTION_LOG_MIN_YEARS',
+  'KVKK_SCC_NOTIFY_BUSINESS_DAYS',
+  'VERBIS_EMPLOYEE_THRESHOLD',
+  'VERBIS_BALANCE_SHEET_THRESHOLD',
 ];

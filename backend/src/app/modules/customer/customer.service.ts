@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { err } from '../../shared/i18n/app-error';
@@ -11,6 +11,14 @@ import { CreateCustomerDto, CustomerAddressDto, CustomerFieldsDto, UpdateCustome
 import { RefdataService } from '../../shared/services/refdata.service';
 import { FinanceService } from '../../shared/services/finance.service';
 import { resolvePartyIdentity, touchesIdentity } from '../../shared/identity/party-identity';
+import { maskCustomer } from '../../shared/kvkk/masking';
+import { detectSpecialCategoryData, isMaskedValue } from '../../shared/tr';
+import { AuditService } from '../integrations/audit.service';
+
+/** Caller's access to personal data (from request.user.permissions). */
+export interface PiiAccess {
+  canReadPii: boolean;
+}
 
 /** Plain columns copied from the DTO as-is ('' -> null). Identity, tax office and address are handled separately. */
 const SIMPLE_FIELDS = [
@@ -26,7 +34,12 @@ const SIMPLE_FIELDS = [
   'nationality',
   'foreignTaxId',
   'preferredProfile',
+  'noticeVersion',
+  'noticeChannel',
 ] as const;
+
+/** Fields whose masked form may come back from a form unchanged (never written). */
+const MASKABLE = ['identityNumber', 'taxNumber', 'passportNo', 'foreignTaxId', 'email', 'phone'];
 
 export interface CustomerFilter {
   needsReview?: boolean;
@@ -44,14 +57,37 @@ export class CustomerService {
     private readonly refdata: RefdataService,
     private readonly finance: FinanceService,
     private readonly dataSource: DataSource,
+    private readonly audit: AuditService,
   ) {}
+
+  /** KVKK presenter: identity numbers masked unless revealed, contact masked without customers.pii.read. */
+  present<T extends Record<string, any>>(c: T, access: PiiAccess = { canReadPii: false }): T {
+    return maskCustomer(c, { canReadPii: access.canReadPii });
+  }
+
+  /**
+   * "Göster": the customer's personal identifiers in clear text, for holders of customers.pii.read.
+   * Every reveal is logged (action pii_view).
+   */
+  async revealCustomer(id: string): Promise<Record<string, unknown>> {
+    const c = await this.findAny(id);
+    await this.audit.record({ companyId: this.companyId, action: 'pii_view', entityType: 'customers', entityId: c.id, after: { fields: ['identityNumber', 'passportNo', 'foreignTaxId', 'email', 'phone'] } });
+    return { id: c.id, identityType: c.identityType ?? null, identityNumber: c.identityNumber ?? null, passportNo: c.passportNo ?? null, foreignTaxId: c.foreignTaxId ?? null, email: c.email ?? null, phone: c.phone ?? null };
+  }
+
+  /** Any customer of the tenant (including soft-deleted / restricted), for KVKK tools. */
+  async findAny(id: string): Promise<CustomerEntity> {
+    const c = await this.customerRepo.findOne({ where: { id, companyId: this.companyId } });
+    if (!c) throw new NotFoundException(err('CUSTOMER_NOT_FOUND'));
+    return c;
+  }
 
   private get companyId(): string {
     return this.tenant.companyId;
   }
 
   /** Customers with order count / last order date; `needsReview` lists legacy records to fix. */
-  async getCustomers(filter: CustomerFilter = {}): Promise<(CustomerEntity & { orderCount: number; lastOrderDate: string | null })[]> {
+  async getCustomers(filter: CustomerFilter = {}, access: PiiAccess = { canReadPii: false }): Promise<Record<string, any>[]> {
     const customers = await this.customerRepo.find({
       where: { companyId: this.companyId, isDeleted: false, ...(filter.needsReview !== undefined ? { needsReview: filter.needsReview } : {}) },
       order: { name: 'ASC' },
@@ -66,12 +102,17 @@ export class CustomerService {
       .groupBy('o.customerId')
       .getRawMany();
     const byId = new Map(stats.map((s) => [s.customerId, s]));
-    return customers.map((c) => ({
-      ...c,
-      ...customerLegacyFields(c),
-      orderCount: Number(byId.get(c.id)?.orderCount || 0),
-      lastOrderDate: byId.get(c.id)?.lastOrderDate || null,
-    }));
+    return customers.map((c) =>
+      this.present(
+        {
+          ...c,
+          ...customerLegacyFields(c),
+          orderCount: Number(byId.get(c.id)?.orderCount || 0),
+          lastOrderDate: byId.get(c.id)?.lastOrderDate || null,
+        },
+        access,
+      ),
+    );
   }
 
   async getCustomer(id: string): Promise<CustomerEntity> {
@@ -81,9 +122,9 @@ export class CustomerService {
   }
 
   /** Customer with its billing / delivery addresses. */
-  async getCustomerDetail(id: string): Promise<CustomerEntity & ReturnType<typeof customerLegacyFields> & { addresses: CustomerAddressEntity[] }> {
+  async getCustomerDetail(id: string, access: PiiAccess = { canReadPii: false }): Promise<Record<string, any>> {
     const c = await this.getCustomer(id);
-    return { ...c, ...customerLegacyFields(c), addresses: await this.listAddresses(id) };
+    return this.present({ ...c, ...customerLegacyFields(c), addresses: await this.listAddresses(id) }, access);
   }
 
   private async defaultCountry(): Promise<string> {
@@ -92,6 +133,9 @@ export class CustomerService {
 
   /** Applies a create / update DTO onto the entity (validated identity, tax office, structured address). */
   private async apply(c: CustomerEntity, dto: CustomerFieldsDto, isCreate: boolean): Promise<void> {
+    // A masked value sent back unchanged by a form means "not changed".
+    for (const k of MASKABLE) if (isMaskedValue((dto as Record<string, unknown>)[k])) delete (dto as Record<string, unknown>)[k];
+    if (dto.noticeGivenAt !== undefined) c.noticeGivenAt = dto.noticeGivenAt ? new Date(dto.noticeGivenAt) : null;
     for (const k of SIMPLE_FIELDS) {
       const v = (dto as Record<string, unknown>)[k];
       if (v !== undefined) (c as unknown as Record<string, unknown>)[k] = v === '' ? null : v;
@@ -132,30 +176,51 @@ export class CustomerService {
     }
   }
 
-  async createCustomer(dto: CreateCustomerDto): Promise<CustomerEntity> {
+  /**
+   * WebSocket payload without personal data (KVKK md. 4/2-ç, R61): only the id and the names of the
+   * changed fields; clients re-read the customer through the authenticated API.
+   */
+  static mutationEvent(type: 'create' | 'update' | 'delete', customerId: string, changedFields: string[] = []) {
+    return { type, customerId, changedFields };
+  }
+
+  /** KVKK md. 6 warning for free-text notes (special-category data). */
+  private kvkkWarnings(notes: string | null | undefined): { code: string; categories: string[] }[] {
+    const cats = detectSpecialCategoryData(notes);
+    return cats.length ? [{ code: 'NOTES_SPECIAL_CATEGORY', categories: cats }] : [];
+  }
+
+  private changedFields(dto: object): string[] {
+    return Object.keys(dto).filter((k) => (dto as Record<string, unknown>)[k] !== undefined);
+  }
+
+  async createCustomer(dto: CreateCustomerDto, access: PiiAccess = { canReadPii: true }): Promise<Record<string, any>> {
     const c = this.customerRepo.create({ companyId: this.companyId, type: 'individual', isVatTaxpayer: false, isDesignatedBuyer: false, needsReview: false });
     await this.apply(c, dto, true);
     c.companyId = this.companyId;
     const saved = await this.customerRepo.save(c);
-    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'create', customer: saved });
-    return saved;
+    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', CustomerService.mutationEvent('create', saved.id, this.changedFields(dto)));
+    return { ...this.present({ ...saved, ...customerLegacyFields(saved) }, access), kvkkWarnings: this.kvkkWarnings(saved.notes) };
   }
 
-  async updateCustomer(id: string, dto: UpdateCustomerDto): Promise<CustomerEntity> {
+  async updateCustomer(id: string, dto: UpdateCustomerDto, access: PiiAccess = { canReadPii: true }): Promise<Record<string, any>> {
     const c = await this.getCustomer(id);
+    // Kısıtlama (KVKK md. 7 / 11): an erasure-restricted record is kept only for the legal duty.
+    if (c.processingRestricted) throw new BadRequestException(err('CUSTOMER_PROCESSING_RESTRICTED', { date: c.erasureRestrictedUntil ?? '-' }));
     await this.apply(c, dto, false);
     c.companyId = this.companyId;
     const saved = await this.customerRepo.save(c);
-    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'update', customer: saved });
-    return saved;
+    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', CustomerService.mutationEvent('update', saved.id, this.changedFields(dto)));
+    return { ...this.present({ ...saved, ...customerLegacyFields(saved) }, access), kvkkWarnings: this.kvkkWarnings(saved.notes) };
   }
 
-  /** Soft delete; orders keep their customerName snapshot. */
+  /** Soft delete; orders keep their customerName snapshot. The CUSTOMER_INACTIVE retention starts now. */
   async deleteCustomer(id: string): Promise<boolean> {
     const c = await this.getCustomer(id);
     c.isDeleted = true;
+    c.deletedAt = new Date();
     await this.customerRepo.save(c);
-    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'delete', customerId: id });
+    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', CustomerService.mutationEvent('delete', id, ['isDeleted']));
     return true;
   }
 
@@ -193,21 +258,21 @@ export class CustomerService {
     await this.getCustomer(customerId);
     const a = this.dataSource.manager.create(CustomerAddressEntity, { companyId: this.companyId, customerId, kind: 'DELIVERY', isDefault: false });
     const saved = await this.saveAddress(a, dto);
-    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'update', customerId });
+    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', CustomerService.mutationEvent('update', customerId, ['addresses']));
     return saved;
   }
 
   async updateAddress(customerId: string, addressId: string, dto: CustomerAddressDto): Promise<CustomerAddressEntity> {
     await this.getCustomer(customerId);
     const saved = await this.saveAddress(await this.requireAddress(customerId, addressId), dto);
-    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'update', customerId });
+    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', CustomerService.mutationEvent('update', customerId, ['addresses']));
     return saved;
   }
 
   async deleteAddress(customerId: string, addressId: string): Promise<boolean> {
     const a = await this.requireAddress(customerId, addressId);
     await this.dataSource.manager.remove(CustomerAddressEntity, a);
-    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'update', customerId });
+    this.appGateway.emitToCompany(this.companyId, 'customer_mutated', CustomerService.mutationEvent('update', customerId, ['addresses']));
     return true;
   }
 }

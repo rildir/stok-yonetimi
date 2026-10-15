@@ -17,11 +17,16 @@ import { Title } from '@angular/platform-browser';
 import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '../../i18n';
 import { ThemeService } from '../../services/theme.service';
 import { EBelgeBannerComponent } from '../ebelge/ebelge-banner.component';
+import { AcceptanceModalComponent } from '../kvkk/acceptance-modal.component';
+import { KvkkBannerComponent } from '../kvkk/kvkk-banner.component';
+import { NoticeTextComponent } from '../kvkk/notice-text.component';
+import { KvkkService, PrivacyNotice } from '../../services/kvkk.service';
+import { SessionService } from '../../services/session.service';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe, EBelgeBannerComponent],
+  imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe, EBelgeBannerComponent, AcceptanceModalComponent, KvkkBannerComponent, NoticeTextComponent],
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()" [class.mobile-nav-open]="isMobileNavOpen()">
       <div class="sidebar-backdrop" (click)="isMobileNavOpen.set(false)"></div>
@@ -234,6 +239,12 @@ import { EBelgeBannerComponent } from '../ebelge/ebelge-banner.component';
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
               <span class="nav-text">{{ 'layout.nav.settings' | t }}</span>
             </a>
+            @if (currentUser().role === 'auditor') {
+              <a routerLink="/audit-log" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.auditLog' | t">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                <span class="nav-text">{{ 'layout.nav.auditLog' | t }}</span>
+              </a>
+            }
             @if (currentUser().role === 'admin') {
               <a routerLink="/audit-log" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.auditLog' | t">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
@@ -369,13 +380,32 @@ import { EBelgeBannerComponent } from '../ebelge/ebelge-banner.component';
           @if (ui.isReadonly()) {
             <div class="readonly-banner">
               <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              <span><strong>{{ 'layout.demo.title' | t }}</strong> {{ 'layout.demo.message' | t }}</span>
+              @if (ui.isAuditor()) {
+                <span><strong>{{ 'kvkk.auditor.title' | t }}</strong> {{ 'kvkk.auditor.message' | t }}</span>
+              } @else {
+                <span><strong>{{ 'layout.demo.title' | t }}</strong> {{ 'layout.demo.message' | t }}</span>
+              }
             </div>
           }
           <app-ebelge-banner></app-ebelge-banner>
+          <app-kvkk-banner></app-kvkk-banner>
           <router-outlet></router-outlet>
+          <footer class="app-legal-footer">
+            <button type="button" class="link-btn" (click)="openNotice()">{{ 'kvkk.footer.notice' | t }}</button>
+            <span aria-hidden="true">·</span>
+            <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button>
+          </footer>
         </main>
       </div>
+
+      <app-acceptance-modal></app-acceptance-modal>
+      @if (noticeOpen()) {
+        <app-modal [isOpen]="true" [title]="noticeOpen()?.title || ('kvkk.footer.notice' | t)" (onClose)="noticeOpen.set(null)">
+          <p class="notice-meta">{{ 'kvkk.notice.version' | t }} {{ noticeOpen()?.version }} · {{ noticeOpen()?.publishedAt | appDate }}</p>
+          <app-notice-text [text]="noticeOpen()?.body"></app-notice-text>
+          <div footer class="modal-actions"><button type="button" class="btn btn-primary" (click)="noticeOpen.set(null)">{{ 'common.close' | t }}</button></div>
+        </app-modal>
+      }
 
       @if (ui.confirmConfig()?.isDelete) {
         <app-modal [isOpen]="!!ui.confirmConfig()" [title]="''" [isDelete]="true" (onClose)="isConfirmLoading() ? null : ui.closeConfirm()">
@@ -876,7 +906,25 @@ export class LayoutComponent implements OnInit {
     });
   }
 
+  private session = inject(SessionService);
+  private kvkkApi = inject(KvkkService);
+  /** Footer: privacy notice / terms in a modal. */
+  noticeOpen = signal<PrivacyNotice | null>(null);
+
+  openNotice(docType: 'PRIVACY' | 'TOS' = 'PRIVACY') {
+    const lang = this.i18n.lang();
+    const req = docType === 'PRIVACY' ? this.kvkkApi.currentNotice('EMPLOYEE', lang) : this.kvkkApi.publicNotice(docType, lang);
+    req.subscribe({ next: (n) => this.noticeOpen.set(n), error: () => this.ui.showToast(this.i18n.t('kvkk.error'), 'error') });
+  }
+
   constructor() {
+    // WP7: close the session after inactivity (the server refuses the refresh after the same time).
+    this.session.onIdleLogout = () => {
+      this.socketService.disconnect();
+      this.ui.userProfile.set(null);
+      this.ui.showToast(this.i18n.t('kvkk.session.idleLogout'), 'info');
+    };
+    this.session.startIdleWatch();
     this.router.events.subscribe(e => {
       if (e instanceof NavigationEnd) { this.currentUrl.set(e.urlAfterRedirects); this.isMobileNavOpen.set(false); }
     });
@@ -1032,7 +1080,7 @@ export class LayoutComponent implements OnInit {
   }
 
   doLogout() {
-    localStorage.removeItem('smart_inventory_token');
+    this.session.logout();
     this.socketService.disconnect();
     this.ui.showToast(this.i18n.t('layout.loggedOut'), 'info');
     this.router.navigate(['/login']);

@@ -6,10 +6,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ApiKeyThrottlerGuard, throttleLimit } from './guards/api-key-throttler.guard';
-import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { I18nExceptionFilter } from './shared/i18n/i18n-exception.filter';
 import { HealthModule } from './modules/health/health.module';
-import { resolveJwtSecret } from './shared/security/security-config';
+import { accessTokenTtlSeconds, dbSslOptions, resolveJwtSecret } from './shared/security/security-config';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { MIGRATIONS } from './shared/db/migration-list';
 import { guardedSynchronize } from './shared/db/schema-sync-guard';
@@ -55,6 +55,7 @@ import { ReturnEntity, ReturnItemEntity } from './entities/return.entity';
 import { GoodsReceiptEntity, GoodsReceiptItemEntity } from './entities/goods-receipt.entity';
 import { ExpenseVoucherEntity } from './entities/expense-voucher.entity';
 import { EBELGE_ENTITIES } from './entities/ebelge.entity';
+import { KVKK_ENTITIES } from './entities/kvkk.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -82,6 +83,8 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { RefdataModule } from './modules/refdata/refdata.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EBelgeModule } from './modules/ebelge/ebelge.module';
+import { KvkkModule } from './modules/kvkk/kvkk.module';
+import { PiiMaskingInterceptor } from './shared/kvkk/pii.interceptor';
 
 @Module({
   imports: [
@@ -93,6 +96,8 @@ import { EBelgeModule } from './modules/ebelge/ebelge.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'stok_yonetimi',
+      // WP7: TLS to the database (required in production unless DB_SSL=false)
+      ssl: dbSslOptions() || undefined,
       entities: [
         ProductEntity,
         OrderEntity,
@@ -144,6 +149,7 @@ import { EBelgeModule } from './modules/ebelge/ebelge.module';
         ExpenseVoucherEntity,
         ...EBELGE_ENTITIES,
         ...WP6_ENTITIES,
+        ...KVKK_ENTITIES,
       ],
       // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
       timezone: 'Z',
@@ -165,7 +171,8 @@ import { EBelgeModule } from './modules/ebelge/ebelge.module';
       global: true,
       // Production refuses to start without a proper JWT_SECRET (see security-config.ts).
       secret: resolveJwtSecret(),
-      signOptions: { expiresIn: '24h' },
+      // WP7: short-lived access tokens (15-60 min); the session continues through the httpOnly refresh cookie.
+      signOptions: { expiresIn: accessTokenTtlSeconds() },
     }),
     ThrottlerModule.forRoot([{
       ttl: 60000,
@@ -195,6 +202,7 @@ import { EBelgeModule } from './modules/ebelge/ebelge.module';
     DocumentsModule,
     EBelgeModule,
     InventoryAccountingModule,
+    KvkkModule,
     HealthModule,
   ],
   providers: [
@@ -213,6 +221,11 @@ import { EBelgeModule } from './modules/ebelge/ebelge.module';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      // WP7: personal identifiers masked in every JSON response for callers without customers.pii.read
+      provide: APP_INTERCEPTOR,
+      useClass: PiiMaskingInterceptor,
     },
   ],
 })

@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { CompanyEntity } from './company.entity';
 import { UserRole } from './enums';
+import { encryptedColumnTransformer } from '../shared/kvkk/crypto';
 
 @Entity('users')
 @Index('IDX_users_companyId', ['companyId'])
@@ -70,6 +71,31 @@ export class UserEntity {
   /** Optional per-user IANA timezone override; falls back to company.timezone */
   @Column({ type: 'varchar', length: 64, nullable: true })
   timezone: string | null;
+
+  // ─── WP7: 2FA (TOTP) and fine-grained permissions ───
+
+  /** Active TOTP secret (base32, AES-256-GCM encrypted) */
+  @Column({ type: 'varchar', length: 255, nullable: true, transformer: encryptedColumnTransformer })
+  totpSecret?: string | null;
+
+  /** Secret being enrolled, confirmed by the first valid code */
+  @Column({ type: 'varchar', length: 255, nullable: true, transformer: encryptedColumnTransformer })
+  totpPendingSecret?: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  totpEnabledAt?: Date | null;
+
+  /** Last accepted time step (a code is never accepted twice) */
+  @Column({ type: 'bigint', nullable: true })
+  totpLastStep?: string | null;
+
+  /** SHA-256 of the unused recovery codes */
+  @Column({ type: 'json', nullable: true })
+  totpRecoveryCodes?: string[] | null;
+
+  /** Extra permissions on top of the role (customers.pii.read, customers.pii.export, kvkk.manage) */
+  @Column({ type: 'json', nullable: true })
+  permissions?: string[] | null;
 
   @CreateDateColumn()
   createdAt: Date;

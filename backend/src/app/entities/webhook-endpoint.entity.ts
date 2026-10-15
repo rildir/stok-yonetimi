@@ -30,6 +30,27 @@ export class WebhookEndpointEntity {
   @Column({ default: true })
   active: boolean;
 
+  // ─── WP7: cross-border transfer (KVKK md. 9) and data minimisation ───
+
+  /** ISO 3166-1 alpha-2 country of the receiver (declared by the administrator) */
+  @Column({ type: 'varchar', length: 2, default: 'TR' })
+  destinationCountry: string;
+
+  /** DOMESTIC | ADEQUACY | SCC | BCR | INCIDENTAL_CONSENT */
+  @Column({ type: 'varchar', length: 20, default: 'DOMESTIC' })
+  transferBasis: string;
+
+  @Column({ type: 'date', nullable: true })
+  sccSignedAt?: string | null;
+
+  /** Notification of the standard contract to the Board (within 5 business days of signing) */
+  @Column({ type: 'date', nullable: true })
+  sccNotifiedAt?: string | null;
+
+  /** Personal data (names, contact, identity, addresses) is removed from payloads unless enabled */
+  @Column({ default: false })
+  includePersonalData: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

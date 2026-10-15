@@ -23,6 +23,31 @@ import { Lang, translate } from '../../shared/i18n/messages';
 import { isCodedErrorBody } from '../../shared/i18n/app-error';
 import { parseValidationMessage } from '../../shared/i18n/i18n-exception.filter';
 import { CsvLocale, parseCsvObjects, toCsv } from '../../shared/integrations/csv';
+import { AuditService } from './audit.service';
+import { SecurityAlertService } from './security-alert.service';
+import { maskEmail, maskIdentifier } from '../../shared/tr';
+
+/** Who exports (WP7: personal-data columns need customers.pii.export; every export is logged). */
+export interface ExportActor {
+  username?: string | null;
+  permissions?: string[];
+}
+
+/** Personal-data columns of a natural person's row, masked without customers.pii.export. */
+function maskPersonRow<T extends Record<string, any>>(row: T, natural: boolean): T {
+  if (!natural) return row;
+  return {
+    ...row,
+    identityNumber: maskIdentifier(row['identityNumber']) ?? '',
+    passportNo: maskIdentifier(row['passportNo']) ?? '',
+    email: maskEmail(row['email']) ?? '',
+    phone: maskIdentifier(row['phone']) ?? '',
+    contactPerson: row['contactPerson'] ? '*****' : '',
+    addressLine1: row['addressLine1'] ? '*****' : '',
+    addressLine2: row['addressLine2'] ? '*****' : '',
+    notes: '',
+  };
+}
 
 export const PRODUCT_CSV_COLUMNS = ['sku', 'name', 'category', 'price', 'quantity', 'minQuantity', 'unit', 'barcode', 'barcodeType', 'supplierId'];
 /** Address columns shared by customer / supplier CSVs (district by name within the province). */
@@ -94,6 +119,8 @@ export class ImportExportService {
     private readonly customers: CustomerService,
     private readonly suppliers: SupplierService,
     private readonly refdata: RefdataService,
+    private readonly audit: AuditService,
+    private readonly alerts: SecurityAlertService,
   ) {}
 
   /** CSV address columns -> AddressDto-like object (district name resolved within the province). */
@@ -147,27 +174,46 @@ export class ImportExportService {
     return toCsv(cols, rows as any, locale);
   }
 
-  async exportCustomers(locale: CsvLocale = 'en'): Promise<string> {
+  /** read_export audit entry (KVKK: reads of personal data in bulk are logged) + bulk-export alarm. */
+  private async logExport(resource: string, rows: number, withPii: boolean, actor: ExportActor) {
+    await this.audit.record({ companyId: this.companyId, action: 'read_export', entityType: resource, after: { rows, personalDataColumns: withPii } });
+    if (withPii) await this.alerts.onExport(this.companyId, resource, rows, actor.username ?? null);
+  }
+
+  async exportCustomers(locale: CsvLocale = 'en', actor: ExportActor = {}): Promise<string> {
     const rows = await this.ds.getRepository(CustomerEntity).find({ where: { companyId: this.companyId, isDeleted: false }, order: { name: 'ASC' } });
+    const withPii = !!actor.permissions?.includes('customers.pii.export');
+    await this.logExport('customers', rows.length, withPii, actor);
     return toCsv(
       [...CUSTOMER_CSV_COLUMNS, 'province', 'needsReview', 'id'],
-      rows.map((c) => ({ ...c, ...flatAddress(c.address) })) as any,
+      rows.map((c) => {
+        const row = { ...c, ...flatAddress(c.address) };
+        const natural = c.type === 'individual' || c.identityType === 'TCKN' || c.identityType === 'YKN';
+        return withPii ? row : maskPersonRow(row, natural);
+      }) as any,
       locale,
     );
   }
 
-  async exportSuppliers(locale: CsvLocale = 'en'): Promise<string> {
+  async exportSuppliers(locale: CsvLocale = 'en', actor: ExportActor = {}): Promise<string> {
     const rows = await this.ds.getRepository(SupplierEntity).find({ where: { companyId: this.companyId, isDeleted: false }, order: { name: 'ASC' } });
+    const withPii = !!actor.permissions?.includes('customers.pii.export');
+    await this.logExport('suppliers', rows.length, withPii, actor);
     return toCsv(
       [...SUPPLIER_CSV_COLUMNS, 'province', 'needsReview', 'id'],
-      rows.map((s) => ({ ...s, ...flatAddress(s.address) })) as any,
+      rows.map((s) => {
+        const row = { ...s, ...flatAddress(s.address) };
+        const natural = s.type !== 'company' || s.identityType === 'TCKN';
+        return withPii ? row : maskPersonRow(row, natural);
+      }) as any,
       locale,
     );
   }
 
-  async exportOrders(locale: CsvLocale = 'en'): Promise<string> {
+  async exportOrders(locale: CsvLocale = 'en', actor: ExportActor = {}): Promise<string> {
     const rows = await this.ds.getRepository(OrderEntity).find({ where: { companyId: this.companyId }, relations: ['items'], order: { date: 'DESC' } });
     const cols = ['orderNumber', 'date', 'status', 'customerName', 'customerId', 'currency', 'exchangeRate', 'subtotal', 'taxTotal', 'grandTotal', 'itemCount', 'carrier', 'trackingNumber', 'id'];
+    await this.logExport('orders', rows.length, true, actor);
     return toCsv(cols, rows.map((o) => ({ ...o, itemCount: o.items?.length ?? 0 })) as any, locale);
   }
 

@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { resolvePiiKeys } from '../kvkk/crypto';
 
 /** Secrets that shipped in earlier versions of the code base and must never be used in production. */
 const KNOWN_DEFAULT_SECRETS = new Set(['secret_smart_inventory_2026', 'secret', 'changeme', 'dev-only-insecure-jwt-secret']);
@@ -32,6 +33,55 @@ export function resolveJwtSecret(env: Env = process.env): string {
 /** Called before Nest bootstraps: fails fast on insecure production configuration. */
 export function assertSecurityConfig(env: Env = process.env): void {
   resolveJwtSecret(env);
+  // WP7: every secret is mandatory in production (PII keys, database password).
+  resolvePiiKeys(env);
+  if (isProduction(env) && !(env['DB_PASSWORD'] || '').trim()) {
+    throw new SecurityConfigError('DB_PASSWORD must be set in production.');
+  }
+}
+
+/**
+ * Access-token lifetime (KVKK Kişisel Veri Güvenliği Rehberi: short sessions): ACCESS_TOKEN_TTL_MINUTES,
+ * clamped to 15-60 minutes, default 30. Sessions continue through the httpOnly refresh cookie.
+ */
+export function accessTokenTtlSeconds(env: Env = process.env): number {
+  const v = Number(env['ACCESS_TOKEN_TTL_MINUTES']);
+  const minutes = Number.isFinite(v) && v > 0 ? Math.min(60, Math.max(15, v)) : 30;
+  return minutes * 60;
+}
+
+/** Refresh session policy: absolute lifetime and idle timeout (boşta kalınca oturum kapatma). */
+export function sessionPolicy(env: Env = process.env): { absoluteHours: number; idleMinutes: number; cookieSecure: boolean } {
+  const n = (v: string | undefined, d: number) => (v && Number(v) > 0 ? Number(v) : d);
+  return {
+    absoluteHours: n(env['REFRESH_TOKEN_TTL_HOURS'], 12),
+    idleMinutes: n(env['SESSION_IDLE_MINUTES'], 30),
+    cookieSecure: isProduction(env) || env['COOKIE_SECURE'] === 'true',
+  };
+}
+
+/**
+ * TLS to MySQL (KVKK md. 12/1: encryption in transit). DB_SSL=true enables it (DB_SSL_CA: CA file,
+ * DB_SSL_REJECT_UNAUTHORIZED=false for self-signed server certificates). Production enables it unless
+ * DB_SSL=false is set explicitly (e.g. a database on the same host / private network), with a warning.
+ */
+export function dbSslOptions(env: Env = process.env): false | { ca?: string; rejectUnauthorized: boolean } {
+  const flag = (env['DB_SSL'] || '').toLowerCase();
+  const enabled = flag === 'true' || (isProduction(env) && flag !== 'false');
+  if (!enabled) {
+    if (isProduction(env)) new Logger('Security').warn('DB_SSL=false: the database connection is not encrypted.');
+    return false;
+  }
+  let ca: string | undefined;
+  if (env['DB_SSL_CA']) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      ca = require('fs').readFileSync(env['DB_SSL_CA'], 'utf8');
+    } catch {
+      throw new SecurityConfigError(`DB_SSL_CA file cannot be read: ${env['DB_SSL_CA']}`);
+    }
+  }
+  return { ...(ca ? { ca } : {}), rejectUnauthorized: env['DB_SSL_REJECT_UNAUTHORIZED'] === 'false' ? false : !!ca };
 }
 
 /** Account lockout policy (KVKK Kişisel Veri Güvenliği Rehberi good practice). Overridable via env. */

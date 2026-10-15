@@ -27,6 +27,9 @@ const NOT_AUDITED = new Set([
   // WP6: per-row bookkeeping of immutable records that are audited as a whole (the export batch,
   // the period close with its snapshot hash) - one audit row per item would only add volume.
   'journal_export_items', 'inventory_period_balances',
+  // WP7: session bookkeeping, the audit chain head and the KVKK records that are logs themselves
+  // (append-only acceptance and destruction records).
+  'user_sessions', 'audit_chain_heads', 'legal_acceptances', 'destruction_logs',
 ]);
 
 /**

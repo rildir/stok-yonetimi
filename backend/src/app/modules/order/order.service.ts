@@ -192,6 +192,8 @@ export class OrderService {
     if (!customerId) return null;
     const customer = await manager.findOne(CustomerEntity, { where: { companyId: this.companyId, id: customerId, isDeleted: false } });
     if (!customer) throw new BadRequestException(err('CUSTOMER_NOT_FOUND'));
+    // KVKK: an erasure-restricted customer is kept only for the legal retention, not for new business.
+    if (customer.processingRestricted) throw new BadRequestException(err('CUSTOMER_PROCESSING_RESTRICTED', { date: customer.erasureRestrictedUntil ?? '-' }));
     return customer;
   }
 

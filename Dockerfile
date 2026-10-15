@@ -29,5 +29,7 @@ CMD ["node", "dist/backend/main.js"]
 # --- Stage 3: Frontend Web Server (Nginx) ---
 FROM nginx:alpine AS frontend-runner
 COPY --from=builder /app/dist/apps/frontend/browser /usr/share/nginx/html
+# WP7: CSP and security headers
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

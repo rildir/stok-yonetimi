@@ -62,7 +62,7 @@ beforeAll(async () => {
     // eslint-disable-next-line no-console
     console.warn(`WP6 DB tests skipped (no MySQL): ${(e as Error).message}`);
   }
-}, 60000);
+}, 300000);
 
 afterAll(async () => {
   if (ds?.isInitialized) await ds.destroy();

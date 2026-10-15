@@ -54,9 +54,25 @@ async function bootstrap() {
   // Per-request tenant context (filled by AuthGuard, read by services)
   app.use(TenantContext.middleware);
 
-  // Helmet HTTP security headers
+  // Helmet HTTP security headers. WP7: CSP on API responses too - JSON, the printable legal pages
+  // (inline styles, data: images / QR codes, no scripts) and Swagger UI (inline bootstrap script).
   app.use(helmet({
-    contentSecurityPolicy: false, // Allows Swagger UI to load scripts & inline styles cleanly
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        fontSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'same-site' },
   }));
 
   // CORS configuration

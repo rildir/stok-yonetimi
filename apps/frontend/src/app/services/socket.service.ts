@@ -163,6 +163,18 @@ export class SocketService {
       this.notify('compliance.socket.parameterMissing', { keys: (data.keys || []).join(', '), year: data.year }, 'warning');
     });
 
+    // WP7 KVKK: request deadlines, breach alarms and pending destruction lists (administrators only).
+    this.socket.on('kvkk_dsr_due', (data: { requestNo: string; daysLeft: number; overdue: boolean }) => {
+      this.notify(data.overdue ? 'kvkk.socket.dsrOverdue' : 'kvkk.socket.dsrDue', { no: data.requestNo, days: data.daysLeft }, 'warning');
+    });
+    this.socket.on('kvkk_alert', (data: { incidentNo: string; title: string }) => {
+      this.notify('kvkk.socket.alert', { no: data.incidentNo, title: data.title }, 'warning');
+      this.toast('kvkk.socket.alert', { no: data.incidentNo, title: data.title }, 'info');
+    });
+    this.socket.on('kvkk_destruction_pending', (data: { runNo: string; items: number }) => {
+      this.notify('kvkk.socket.destruction', { no: data.runNo, n: data.items }, 'info');
+    });
+
     // WP5 e-Belge: status timeline / inbox / outage / integrity / MATBUDAN deadline.
     for (const ev of ['edocument_status', 'ebelge_status', 'inbox_updated', 'invoice_mutated', 'despatch_mutated']) {
       this.socket.on(ev, (data: any) => this.ebelge$.next({ event: ev, data }));

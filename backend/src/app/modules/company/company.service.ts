@@ -187,6 +187,9 @@ export class CompanyService {
           fxAutoFetch: (dto.country || COMPANY_DEFAULTS.country).toUpperCase() === 'TR',
           // TR: stock leaves on despatch approval (VUK 230/5, KDVK 10); elsewhere at order creation.
           stockDeductOn: (dto.country || COMPANY_DEFAULTS.country).toUpperCase() === 'TR' ? 'despatch' : 'order',
+          // WP7: administrators set up 2FA within 7 days of registration.
+          adminTotpRequired: true,
+          adminTotpGraceUntil: new Date(Date.now() + 7 * 86400000),
         })
       );
       for (const s of DEFAULT_SERIES) {

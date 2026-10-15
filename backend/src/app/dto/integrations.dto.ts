@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsArray, IsBoolean, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -45,6 +45,35 @@ export class CreateWebhookDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({ example: 'TR', description: 'ISO 3166-1 alpha-2 country of the receiver (KVKK md. 9)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]{2}$/, { message: 'TRANSFER_COUNTRY_INVALID' })
+  destinationCountry?: string;
+
+  @ApiPropertyOptional({ enum: ['DOMESTIC', 'ADEQUACY', 'SCC', 'BCR', 'INCIDENTAL_CONSENT'] })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsIn(['DOMESTIC', 'ADEQUACY', 'SCC', 'BCR', 'INCIDENTAL_CONSENT'], { message: 'TRANSFER_BASIS_INVALID' })
+  transferBasis?: string | null;
+
+  @ApiPropertyOptional({ example: '2026-10-01', nullable: true })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  sccSignedAt?: string | null;
+
+  @ApiPropertyOptional({ example: '2026-10-05', nullable: true, description: 'Notification of the standard contract to the Board (5 business days)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  sccNotifiedAt?: string | null;
+
+  @ApiPropertyOptional({ default: false, description: 'Send personal data (names, contact, identity, addresses) in payloads' })
+  @IsOptional()
+  @IsBoolean()
+  includePersonalData?: boolean;
 }
 
 export class UpdateWebhookDto {
@@ -71,6 +100,35 @@ export class UpdateWebhookDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({ example: 'TR', description: 'ISO 3166-1 alpha-2 country of the receiver (KVKK md. 9)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]{2}$/, { message: 'TRANSFER_COUNTRY_INVALID' })
+  destinationCountry?: string;
+
+  @ApiPropertyOptional({ enum: ['DOMESTIC', 'ADEQUACY', 'SCC', 'BCR', 'INCIDENTAL_CONSENT'] })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsIn(['DOMESTIC', 'ADEQUACY', 'SCC', 'BCR', 'INCIDENTAL_CONSENT'], { message: 'TRANSFER_BASIS_INVALID' })
+  transferBasis?: string | null;
+
+  @ApiPropertyOptional({ example: '2026-10-01', nullable: true })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  sccSignedAt?: string | null;
+
+  @ApiPropertyOptional({ example: '2026-10-05', nullable: true, description: 'Notification of the standard contract to the Board (5 business days)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  sccNotifiedAt?: string | null;
+
+  @ApiPropertyOptional({ default: false, description: 'Send personal data (names, contact, identity, addresses) in payloads' })
+  @IsOptional()
+  @IsBoolean()
+  includePersonalData?: boolean;
 }
 
 export class CsvImportDto {

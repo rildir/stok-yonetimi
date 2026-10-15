@@ -25,11 +25,12 @@ import tr_compliance from './tr/compliance.json';
 import tr_documents from './tr/documents.json';
 import tr_ebelge from './tr/ebelge.json';
 import tr_accounting from './tr/accounting.json';
+import tr_kvkk from './tr/kvkk.json';
 
 export type Dict = Record<string, string>;
 export type DictLang = 'tr' | 'en';
 
-export const TR_DICTIONARY: Dict = { ...tr_common, ...tr_layout, ...tr_dashboard, ...tr_products, ...tr_orders, ...tr_suppliers, ...tr_purchaseOrders, ...tr_warehouses, ...tr_stockMovements, ...tr_stockCount, ...tr_reports, ...tr_settings, ...tr_login, ...tr_shared, ...tr_customers, ...tr_finance, ...tr_units, ...tr_auditLog, ...tr_integrations, ...tr_compliance, ...tr_documents, ...tr_ebelge, ...tr_accounting, };
+export const TR_DICTIONARY: Dict = { ...tr_common, ...tr_layout, ...tr_dashboard, ...tr_products, ...tr_orders, ...tr_suppliers, ...tr_purchaseOrders, ...tr_warehouses, ...tr_stockMovements, ...tr_stockCount, ...tr_reports, ...tr_settings, ...tr_login, ...tr_shared, ...tr_customers, ...tr_finance, ...tr_units, ...tr_auditLog, ...tr_integrations, ...tr_compliance, ...tr_documents, ...tr_ebelge, ...tr_accounting, ...tr_kvkk, };
 
 /** Dictionary of a language: Turkish synchronously, English from its lazy chunk. */
 export function loadDictionary(lang: DictLang): Promise<Dict> {

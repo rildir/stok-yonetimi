@@ -2,8 +2,14 @@
 
 export const REDACTED = '[REDACTED]';
 
-/** Field names that must never reach the audit log in clear text. */
-const SENSITIVE = /(password|secret|hash|token|apikey|api_key|authorization)/i;
+/** Field names that must never reach the audit log (or a webhook) in clear text. */
+const SENSITIVE = /(password|secret|hash|token|apikey|api_key|authorization|recovery)/i;
+
+/**
+ * Identity and contact fields (KVKK, WP7): kept out of the audit log. A change is still recorded
+ * (the field is listed as changed), but both sides show only the marker.
+ */
+const PERSONAL = /^(identityNumber|passportNo|foreignTaxId|taxNumber|tckn|email|phone|contactPerson|contactName|addressLine1|addressLine2|addressUavtCode|line1|line2|drivers|avatar|kepAddress)$/i;
 
 /** Noise fields that are never interesting in a diff. */
 const IGNORED = new Set(['updatedAt', 'createdAt']);
@@ -21,15 +27,25 @@ function isRelation(value: unknown): boolean {
   return !!value && typeof value === 'object' && !(value instanceof Date) && 'id' in (value as object);
 }
 
-/** Shallow, JSON-safe, redacted copy of an entity (relations dropped). */
-export function redact(obj: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+/** Shallow, JSON-safe, redacted copy of an entity (relations dropped). `personal`: also hide identity / contact fields. */
+export function redact(obj: Record<string, unknown> | null | undefined, personal = false): Record<string, unknown> | null {
   if (!obj) return null;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (typeof v === 'function' || isRelation(v)) continue;
-    out[k] = SENSITIVE.test(k) ? (v === null || v === undefined ? null : REDACTED) : normalize(v);
+    out[k] = SENSITIVE.test(k) || (personal && PERSONAL.test(k)) ? (v === null || v === undefined ? null : REDACTED) : normalize(v);
   }
   return out;
+}
+
+/** Audit-log flavour of redact: secrets and personal identity / contact fields. */
+export function redactForAudit(obj: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  return redact(obj, true);
+}
+
+/** True when `key` is an identity / contact field kept out of the audit log. */
+export function isPersonalField(key: string): boolean {
+  return PERSONAL.test(key);
 }
 
 function same(a: unknown, b: unknown): boolean {
@@ -59,17 +75,21 @@ export function computeDiff(
   before: Record<string, unknown> | null | undefined,
   after: Record<string, unknown> | null | undefined,
 ): AuditDiff {
-  const b = redact(before);
-  const a = redact(after);
+  const b = redactForAudit(before);
+  const a = redactForAudit(after);
   if (!b || !a) {
     return { before: b, after: a, changed: Object.keys(a || b || {}).filter((k) => !IGNORED.has(k)) };
   }
+  // Changes are detected on the real values (secrets / personal fields are compared before redaction).
+  const rawB = redact(before) as Record<string, unknown>;
+  const rawA = redact(after) as Record<string, unknown>;
   const changed: string[] = [];
   const outB: Record<string, unknown> = {};
   const outA: Record<string, unknown> = {};
   for (const key of Object.keys(a)) {
     if (IGNORED.has(key) || !(key in b)) continue;
-    if (!same(b[key], a[key])) {
+    const differs = PERSONAL.test(key) ? !same(normalize(before?.[key]), normalize(after?.[key])) : !same(rawB[key], rawA[key]);
+    if (differs) {
       changed.push(key);
       outB[key] = b[key];
       outA[key] = a[key];

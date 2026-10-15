@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsIn, IsTimeZone, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsIn, IsTimeZone, ValidateIf, IsArray } from 'class-validator';
+import { PERMISSIONS, ROLES } from '../shared/kvkk/permissions';
 import { IsStrongPassword } from '../shared/identity/validators';
 import { SUPPORTED_LANGUAGES } from '../entities/company.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -29,10 +30,17 @@ export class CreateUserDto {
   @IsStrongPassword()
   password?: string;
 
-  @ApiProperty({ description: 'Kullanıcı rolü (admin, manager, viewer)', example: 'manager' })
+  @ApiProperty({ description: 'Kullanıcı rolü (admin, manager, viewer, auditor)', example: 'manager' })
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_ROLE_REQUIRED' })
+  @IsIn([...ROLES], { message: 'VALIDATION_ROLE_INVALID' })
   role: string;
+
+  @ApiPropertyOptional({ description: 'Ek yetkiler (customers.pii.read, customers.pii.export, kvkk.manage)', example: ['customers.pii.read'] })
+  @IsOptional()
+  @IsArray()
+  @IsIn([...PERMISSIONS], { each: true, message: 'VALIDATION_PERMISSION_INVALID' })
+  permissions?: string[];
 
   @ApiProperty({ description: 'Ad Soyad', example: 'Ahmet Yavuz' })
   @IsString()
@@ -69,7 +77,14 @@ export class UpdateUserDto {
   @ApiPropertyOptional({ description: 'Rol' })
   @IsString()
   @IsOptional()
+  @IsIn([...ROLES], { message: 'VALIDATION_ROLE_INVALID' })
   role?: string;
+
+  @ApiPropertyOptional({ description: 'Ek yetkiler (customers.pii.read, customers.pii.export, kvkk.manage)' })
+  @IsOptional()
+  @IsArray()
+  @IsIn([...PERMISSIONS], { each: true, message: 'VALIDATION_PERMISSION_INVALID' })
+  permissions?: string[];
 
   @ApiPropertyOptional({ description: 'Yeni geçici şifre (kullanıcı ilk girişte değiştirir)' })
   @IsString()
@@ -141,4 +156,35 @@ export class AcceptInviteDto {
   @IsNotEmpty({ message: 'VALIDATION_PASSWORD_REQUIRED' })
   @IsStrongPassword()
   password: string;
+}
+
+export class TotpLoginDto {
+  @ApiProperty({ description: 'Şifre adımından dönen kısa ömürlü doğrulama jetonu' })
+  @IsString()
+  @IsNotEmpty({ message: 'TOTP_CHALLENGE_INVALID' })
+  challenge: string;
+
+  @ApiProperty({ description: 'Doğrulama uygulamasındaki 6 haneli kod veya bir kurtarma kodu', example: '123456' })
+  @IsString()
+  @IsNotEmpty({ message: 'TOTP_INVALID' })
+  code: string;
+}
+
+export class TotpCodeDto {
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @IsNotEmpty({ message: 'TOTP_INVALID' })
+  code: string;
+}
+
+export class TotpDisableDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty({ message: 'VALIDATION_PASSWORD_REQUIRED' })
+  password: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @IsNotEmpty({ message: 'TOTP_INVALID' })
+  code: string;
 }

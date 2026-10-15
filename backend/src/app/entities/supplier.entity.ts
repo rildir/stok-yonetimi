@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn, BeforeInsert, BeforeUpdate } from 'typeorm';
+import { encryptedColumnTransformer, piiHash } from '../shared/kvkk/crypto';
 import { CompanyEntity } from './company.entity';
 import { AddressColumns, formatAddress } from './address.embedded';
 
@@ -7,6 +8,7 @@ export const SUPPLIER_TYPES: SupplierType[] = ['company', 'individual', 'farmer'
 
 @Entity('suppliers')
 @Index('IDX_suppliers_companyId', ['companyId'])
+@Index('IDX_suppliers_company_identity_hash', ['companyId', 'identityNumberHash'])
 export class SupplierEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -37,8 +39,12 @@ export class SupplierEntity {
   @Column({ type: 'varchar', length: 10, nullable: true })
   identityType?: string | null;
 
-  @Column({ type: 'varchar', length: 20, nullable: true })
+  /** AES-256-GCM encrypted at rest (WP7: farmers / individuals hold a TCKN) */
+  @Column({ type: 'varchar', length: 100, nullable: true, transformer: encryptedColumnTransformer })
   identityNumber?: string | null;
+
+  @Column({ type: 'char', length: 64, nullable: true })
+  identityNumberHash?: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
   taxOfficeCode?: string | null;
@@ -89,6 +95,12 @@ export class SupplierEntity {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  syncIdentityHash() {
+    if (this.identityNumber !== undefined) this.identityNumberHash = piiHash(this.identityNumber);
+  }
 
 }
 

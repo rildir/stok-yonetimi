@@ -186,6 +186,55 @@ export class CompanyEntity {
   @Column({ type: 'varchar', length: 12, nullable: true })
   gs1CompanyPrefix?: string | null;
 
+  // ─── WP7: KVKK, tenant closure, VERBİS ───
+
+  /** ACTIVE | CLOSED (tenant closed: read-only until retentionUntil, R35) */
+  @Column({ type: 'varchar', length: 10, default: 'ACTIVE' })
+  status: string;
+
+  @Column({ type: 'datetime', nullable: true })
+  closedAt?: Date | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  closedBy?: string | null;
+
+  /** 31.12.(closing year + 10): the frozen data is destroyed after this date */
+  @Column({ type: 'date', nullable: true })
+  retentionUntil?: string | null;
+
+  /** Last full data export (required shortly before closing) */
+  @Column({ type: 'datetime', nullable: true })
+  lastFullExportAt?: Date | null;
+
+  /** Contact for data-subject applications (KVKK md. 13; shown in the privacy notice) */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  kvkkContactEmail?: string | null;
+
+  /** VERBİS threshold inputs (KVKK md. 16; exemption thresholds in legal_parameters) */
+  @Column({ type: 'int', nullable: true })
+  verbisEmployeeCount?: number | null;
+
+  @Column('decimal', { precision: 18, scale: 2, nullable: true, transformer: new ColumnNumericTransformer() })
+  verbisBalanceSheetTotal?: number | null;
+
+  /** Main activity is processing special-category data (no VERBİS exemption) */
+  @Column({ default: false })
+  verbisMainActivitySpecial: boolean;
+
+  @Column({ default: false })
+  verbisRegistered: boolean;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  verbisRegistrationNo?: string | null;
+
+  /** Administrators must use TOTP 2FA */
+  @Column({ default: true })
+  adminTotpRequired: boolean;
+
+  /** Until this time administrators without 2FA can still work (warning only) */
+  @Column({ type: 'datetime', nullable: true })
+  adminTotpGraceUntil?: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

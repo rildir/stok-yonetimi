@@ -16,13 +16,16 @@ import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CUSTOMER_TYPES } from '../entities/customer.entity';
 import { CUSTOMER_ADDRESS_KINDS } from '../entities/customer-address.entity';
-import { IDENTITY_TYPES } from '../shared/tr';
+import { IDENTITY_TYPES, isMaskedValue } from '../shared/tr';
 import { IsTaxIdFor } from '../shared/identity/validators';
 import { AddressDto, addressFromLegacy } from './address.dto';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() || null : value);
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const digits = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.replace(/\s+/g, '') : value);
+/** WP7: a masked value (`*******1234`, `a*****@x.com`) sent back unchanged by a form means "not changed". */
+const unmasked = (fn: (a: { value: unknown }) => unknown) => (a: { value: unknown }) => (isMaskedValue(a.value) ? undefined : fn(a));
+export const NOTICE_CHANNELS = ['WEB', 'PAPER', 'EMAIL', 'SMS', 'PHONE', 'IN_PERSON', 'KEP'];
 /** Treat '' / null as "not provided" so optional validators are skipped. */
 const present = (_: unknown, v: unknown) => v !== undefined && v !== null && v !== '';
 
@@ -46,7 +49,7 @@ export class CustomerFieldsDto {
   identityType?: string | null;
 
   @ApiPropertyOptional({ example: '4890598016' })
-  @Transform(digits)
+  @Transform(unmasked(digits))
   @IsOptional()
   @IsString()
   @MaxLength(20)
@@ -54,7 +57,7 @@ export class CustomerFieldsDto {
 
   /** @deprecated pre-WP1 field: 10 digits -> VKN, 11 digits -> TCKN */
   @ApiPropertyOptional({ deprecated: true, description: 'Eski alan; identityType/identityNumber kullanın.' })
-  @Transform(digits)
+  @Transform(unmasked(digits))
   @IsOptional()
   @IsString()
   @MaxLength(50)
@@ -81,7 +84,7 @@ export class CustomerFieldsDto {
   @IsBoolean()
   isDesignatedBuyer?: boolean;
 
-  @Transform(trim)
+  @Transform(unmasked(trim))
   @IsOptional()
   @IsString()
   @MaxLength(30)
@@ -92,7 +95,7 @@ export class CustomerFieldsDto {
   @IsISO31661Alpha2({ message: 'VALIDATION_COUNTRY_CODE' })
   nationality?: string | null;
 
-  @Transform(trim)
+  @Transform(unmasked(trim))
   @IsOptional()
   @IsString()
   @MaxLength(40)
@@ -103,13 +106,32 @@ export class CustomerFieldsDto {
   @Matches(/^[A-Z]{4,20}$/, { message: 'VALIDATION_FAILED' })
   preferredProfile?: string | null;
 
+  @Transform(unmasked(trim))
   @ValidateIf(present)
   @IsEmail({}, { message: 'VALIDATION_EMAIL' })
   email?: string | null;
 
+  @Transform(unmasked(trim))
   @IsOptional()
   @IsString()
   phone?: string | null;
+
+  // KVKK md. 10: privacy notice given to the customer (aydınlatma yapıldı)
+  @ApiPropertyOptional({ example: '2026-10-15T09:30:00Z', nullable: true })
+  @ValidateIf(present)
+  @Matches(/^\d{4}-\d{2}-\d{2}/, { message: 'VALIDATION_DATE' })
+  noticeGivenAt?: string | null;
+
+  @ApiPropertyOptional({ example: '1.0', nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  noticeVersion?: string | null;
+
+  @ApiPropertyOptional({ enum: NOTICE_CHANNELS, nullable: true })
+  @ValidateIf(present)
+  @IsIn(NOTICE_CHANNELS, { message: 'VALIDATION_FAILED' })
+  noticeChannel?: string | null;
 
   @ApiPropertyOptional({ type: AddressDto })
   @Transform(addressFromLegacy)
