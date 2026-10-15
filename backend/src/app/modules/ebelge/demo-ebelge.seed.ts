@@ -21,7 +21,7 @@ import { DespatchService } from '../documents/despatch.service';
 import { InvoiceService } from '../documents/invoice.service';
 import { partyFromSnapshot } from '../../shared/ebelge/ubl/mapper';
 import { sampleDespatch, sampleInvoice } from '../../shared/ebelge/samples';
-import { MockEDocumentProvider } from '../../shared/ebelge/provider';
+import { MockEDocumentProvider, providerUsageAllowed } from '../../shared/ebelge/provider';
 import { EBelgeSettingsService } from './ebelge-settings.service';
 import { EDocumentService } from './edocument.service';
 import { InboxService } from './inbox.service';
@@ -85,6 +85,11 @@ export class EBelgeDemoSeeder implements OnApplicationBootstrap {
     // Once: the demo is complete when the tenant has outgoing e-documents (a failed run is retried on the next start).
     if (await m.exists(EDocumentEntity, { where: { companyId, direction: 'OUT' } })) return;
     if (settings.provider && settings.provider !== 'MOCK') return;
+    // The demo runs on the mock integrator, which a production server only allows with EBELGE_ALLOW_MOCK=true.
+    if (!providerUsageAllowed({ testOnly: true }, 'TEST')) {
+      this.logger.log('WP5 demo seed skipped: the mock integrator is disabled on this server (EBELGE_ALLOW_MOCK).');
+      return;
+    }
     // WP4 demo must exist (farmer purchase is its last step).
     const farmer = await m.findOne(SupplierEntity, { where: { companyId, identityNumber: '28461593794' } });
     if (!farmer) return;

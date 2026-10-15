@@ -43,7 +43,7 @@ import { EDocumentDetail, edocBadge } from '../../models/ebelge.models';
             <button class="btn btn-secondary btn-sm" (click)="preview(d)">{{ 'ebelge.panel.preview' | t }}</button>
             <button class="btn btn-secondary btn-sm" (click)="downloadPdf(d)" [disabled]="busy()">PDF</button>
             <button class="btn btn-secondary btn-sm" (click)="downloadXml(d)">XML</button>
-            @if (canRetry(d) && !ui.isReadonly()) { <button class="btn btn-primary btn-sm" (click)="retry(d)" [disabled]="busy()">{{ 'ebelge.panel.retry' | t }}</button> }
+            @if (canRetry(d) && !ui.isReadonly()) { <button class="btn btn-primary btn-sm" (click)="retry(d)" [disabled]="busy()">{{ (isPending(d) ? 'ebelge.panel.sendNow' : 'ebelge.panel.retry') | t }}</button> }
           </div>
         </div>
         <div class="edoc-meta">
@@ -67,6 +67,19 @@ import { EDocumentDetail, edocBadge } from '../../models/ebelge.models';
           </div>
         }
 
+        @if (d.noticeWindow; as nw) {
+          <div class="doc-alert" [class.info]="nw.open">
+            <div class="edoc-window">
+              <strong>{{ 'ebelge.noticeWindow.title' | t }}:</strong>
+              @if (nw.open) {
+                <span>{{ 'ebelge.noticeWindow.open' | t: { days: nw.days, date: (nw.lastDay | appDate) } }}</span>
+              } @else {
+                <span>{{ 'ebelge.noticeWindow.closed' | t: { days: nw.days, date: (nw.lastDay | appDate) } }}</span>
+              }
+            </div>
+          </div>
+        }
+
         @for (o of d.outbox; track o.id) {
           @if (o.status !== 'DONE') {
             <div class="doc-alert" [class.danger]="o.status === 'DEAD'">
@@ -81,7 +94,7 @@ import { EDocumentDetail, edocBadge } from '../../models/ebelge.models';
           @for (e of d.events; track e.id) {
             <li [class.muted]="e.source === 'SYSTEM'">
               <div class="tl-head"><span class="badge" [ngClass]="badge(e.status)">{{ 'ebelge.status.' + e.status | t }}</span><span>{{ e.at | appDate: 'datetime' }}</span></div>
-              <div class="tl-sub">{{ 'ebelge.source.' + e.source | t }}@if (e.code) { · {{ e.code }} }@if (e.message) { · {{ e.message }} }@if (e.actor) { · {{ e.actor }} }</div>
+              <div class="tl-sub">{{ 'ebelge.source.' + e.source | t }}@if (e.code && e.code !== 'CHANNEL') { · {{ eventCode(e.code) }} }@if (e.message) { · {{ eventMessage(e) }} }@if (e.actor) { · {{ e.actor }} }</div>
             </li>
           }
         </ul>
@@ -161,7 +174,43 @@ export class EdocPanelComponent implements OnChanges, OnDestroy {
   }
 
   canRetry(d: EDocumentDetail): boolean {
-    return d.direction === 'OUT' && d.outbox.some((o) => o.status === 'FAILED' || o.status === 'DEAD') && !['REJECTED', 'CANCELLED'].includes(String(d.gibStatus));
+    return d.direction === 'OUT' && d.outbox.some((o) => o.status === 'PENDING' || o.status === 'FAILED' || o.status === 'DEAD') && !['REJECTED', 'CANCELLED'].includes(String(d.gibStatus));
+  }
+
+  /** Still waiting in the queue (e.g. automatic sending is off): "Send now" instead of "Retry". */
+  isPending(d: EDocumentDetail): boolean {
+    return d.outbox.some((o) => o.status === 'PENDING') && !d.outbox.some((o) => o.status === 'FAILED' || o.status === 'DEAD');
+  }
+
+  eventCode(code: string): string {
+    if (code.startsWith('NOTICE_') && this.i18n.has('ebelge.noticeChannel.' + code.slice(7))) return this.i18n.t('ebelge.noticeChannel.' + code.slice(7));
+    const key = 'ebelge.eventCode.' + code;
+    return this.i18n.has(key) ? this.i18n.t(key) : code;
+  }
+
+  /**
+   * Timeline text in the user's language: CHANNEL carries a channel value, known codes carry JSON
+   * parameters for ebelge.event.<code>; anything else (integrator text, user notes) is shown as is.
+   */
+  eventMessage(e: { code: string | null; message: string | null }): string {
+    if (!e.message) return '';
+    if (e.code === 'CHANNEL') return this.i18n.has('ebelge.channel.' + e.message) ? this.i18n.t('ebelge.channel.' + e.message) : e.message;
+    const key = 'ebelge.event.' + e.code;
+    if (e.code && this.i18n.has(key) && e.message.startsWith('{')) {
+      try {
+        return this.i18n.t(key, JSON.parse(e.message));
+      } catch {
+        return e.message;
+      }
+    }
+    // Rows written before the messages became language-neutral (the timeline is append-only).
+    const legacyChannel = /^e-(?:Arşiv|İrsaliye) \(([A-Z]+)\)$/.exec(e.message);
+    if (legacyChannel && this.i18n.has('ebelge.channel.' + legacyChannel[1])) return this.i18n.t('ebelge.channel.' + legacyChannel[1]);
+    const legacyFull = /^İrsaliye yanıtı (\S+): tamamı kabul edildi\.$/.exec(e.message);
+    if (legacyFull) return this.i18n.t('ebelge.event.RECEIPT_ACCEPTED', { no: legacyFull[1] });
+    const legacyPartial = /^İrsaliye yanıtı (\S+): (\S+) kabul, (\S+) kabul edilmeyen \/ eksik\.$/.exec(e.message);
+    if (legacyPartial) return this.i18n.t('ebelge.event.RECEIPT_ADVICE', { no: legacyPartial[1], received: legacyPartial[2], rejected: legacyPartial[3] });
+    return e.message;
   }
 
   preview(d: EDocumentDetail) {

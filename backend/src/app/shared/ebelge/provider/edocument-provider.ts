@@ -136,6 +136,11 @@ export interface EDocumentProvider {
   readonly name: string;
   /** Human-readable name */
   readonly label: string;
+  /**
+   * A simulator that never reaches GİB (mock): only allowed in the TEST environment on non-production
+   * servers, otherwise documents would be numbered and shown as delivered without being sent (VUK 353).
+   */
+  readonly testOnly?: boolean;
   capabilities(): ProviderCapabilities;
   testConnection(ctx: ProviderContext): Promise<{ ok: boolean; message?: string | null }>;
   /** GİB registered-user query (e-Fatura and e-İrsaliye separately) */
@@ -154,4 +159,14 @@ export interface EDocumentProvider {
   getNextNumber?(ctx: ProviderContext, series: string): Promise<string>;
   /** Verifies and parses a status callback (null: signature invalid) */
   parseWebhook?(ctx: ProviderContext, headers: Record<string, string | undefined>, rawBody: string): ProviderWebhookUpdate[] | null;
+}
+
+/**
+ * Whether a test-only adapter may be used: never with environment LIVE, and on a production server
+ * (NODE_ENV=production) only when EBELGE_ALLOW_MOCK=true is set explicitly (demo installations).
+ */
+export function providerUsageAllowed(provider: Pick<EDocumentProvider, 'testOnly'>, environment: string, env: Record<string, string | undefined> = process.env): boolean {
+  if (!provider.testOnly) return true;
+  if (environment !== 'TEST') return false;
+  return env['NODE_ENV'] !== 'production' || env['EBELGE_ALLOW_MOCK'] === 'true';
 }

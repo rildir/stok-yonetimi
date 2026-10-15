@@ -7,7 +7,7 @@ import { CompanyEntity } from '../../entities/company.entity';
 import { AuditService } from '../integrations/audit.service';
 import { AppGateway } from '../../app.gateway';
 import { credentialKeyId, CredentialKeyError, decryptCredentials, encryptCredentials, maskCredentials } from '../../shared/ebelge/credentials';
-import { EDocumentProvider, ProviderContext, ProviderError } from '../../shared/ebelge/provider';
+import { EDocumentProvider, ProviderContext, ProviderError, providerUsageAllowed } from '../../shared/ebelge/provider';
 import { EARSIV_DELIVERY_CHANNELS, EBELGE_ENVIRONMENTS } from '../../shared/tr';
 import { ProviderRegistry } from './provider-registry.service';
 
@@ -74,7 +74,7 @@ export class EBelgeSettingsService {
       hasCredentials: !!s.credentialsEnc,
       credentialsKeyId: credentialKeyId(s.credentialsEnc),
       credentialsError,
-      providers: this.registry.list(),
+      providers: this.registry.list().map((p) => ({ ...p, allowed: providerUsageAllowed({ testOnly: p.testOnly }, 'TEST') })),
       outboxPending: pending,
     };
   }
@@ -90,6 +90,9 @@ export class EBelgeSettingsService {
       if (!(EBELGE_ENVIRONMENTS as readonly string[]).includes(input.environment)) throw new BadRequestException(err('VALIDATION_FIELD_IN'));
       s.environment = input.environment;
     }
+    // A simulator (mock) never reaches GİB: refuse it for LIVE and on production servers.
+    const chosen = this.registry.get(s.provider);
+    if (chosen && !providerUsageAllowed(chosen, s.environment)) throw new UnprocessableEntityException(err('EBELGE_MOCK_TEST_ONLY'));
     if (input.credentials !== undefined) {
       const current = this.safeDecrypt(s);
       const mask = maskCredentials(current);
@@ -150,6 +153,8 @@ export class EBelgeSettingsService {
     const settings = await this.getOrCreate(m, companyId);
     const provider = this.registry.get(settings.provider);
     if (!provider) throw new UnprocessableEntityException(err('PROVIDER_NOT_CONFIGURED'));
+    // Also for rows saved before the guard existed: nothing is numbered or "sent" through a simulator in LIVE / production.
+    if (!providerUsageAllowed(provider, settings.environment)) throw new UnprocessableEntityException(err('EBELGE_MOCK_TEST_ONLY'));
     const company = await m.findOneOrFail(CompanyEntity, { where: { id: companyId } });
     let credentials: Record<string, unknown>;
     try {

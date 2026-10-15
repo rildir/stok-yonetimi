@@ -431,5 +431,9 @@
   "despatches.externalDocNo": "e-İrsaliye / harici irsaliye numarası",
   "returns.refundPending": "Mal taşıyıcıya teslim edilince / size ulaşınca başlar",
   "returns.goodsHandedOverDate": "Malın taşıyıcıya teslim tarihi",
-  "returns.goodsHandedOverHint": "Tüketici malı ön bilgilendirmede belirtilen taşıyıcıya teslim ettiyse o günü girin; 14 günlük iade süresi bu tarihten başlar. Boş bırakılırsa malın size ulaştığı gün (iade tamamlama) esas alınır (Mesafeli Sözleşmeler Yön. md. 12/1)."
+  "returns.goodsHandedOverHint": "Tüketici malı ön bilgilendirmede belirtilen taşıyıcıya teslim ettiyse o günü girin; 14 günlük iade süresi bu tarihten başlar. Boş bırakılırsa malın size ulaştığı gün (iade tamamlama) esas alınır (Mesafeli Sözleşmeler Yön. md. 12/1).",
+  "invoices.disputedDespatch": "Alıcı {no} numaralı e-İrsaliyeye \"{status}\" yanıtı verdi. Stok ve faturalanabilir miktar otomatik düzeltilmez: yalnızca kabul edilen miktarı faturalayın veya iade kaydı oluşturun.",
+  "invoices.cancelAfterSend": "Belge gönderim kuyruğunda. Numara sırasında boşluk oluşmaması için önce gönderilmeli, ardından iptal edilebilir.",
+  "despatches.receiverDisputed": "Alıcı bu irsaliyeyi kısmen veya tamamen kabul etmedi. Stok ve faturalanabilir miktar otomatik düzeltilmez; geri gelen mal için iade kaydı oluşturun ve faturada yalnızca kabul edilen miktarı kullanın.",
+  "docSettings.kinds.RECEIPT_ADVICE": "İrsaliye yanıtı"
 }

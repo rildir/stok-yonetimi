@@ -5,7 +5,7 @@ import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { AppGateway } from '../../app.gateway';
 import { CompanyEntity } from '../../entities/company.entity';
 import { CompanyEBelgeSettingsEntity, EDocumentDeliveryEntity, EDocumentEntity, EDocumentEventEntity, EDocumentNoticeEntity, EDocumentOutboxEntity, IncomingDocumentEntity } from '../../entities/ebelge.entity';
-import { addBusinessDays, dateKeyInZone, dayWindow, daysBetween, isDateKey, todayKey } from '../../shared/tr';
+import { addBusinessDays, addDays, dateKeyInZone, dayWindow, daysBetween, isDateKey, todayKey } from '../../shared/tr';
 import { htmlToPdf, renderHtml } from '../../shared/ebelge/render';
 import { buildArchivePackage, sha256 } from '../../shared/ebelge/archive-package';
 import { parseUbl } from '../../shared/ebelge/ubl/parser';
@@ -77,6 +77,16 @@ export class EDocumentArchiveService {
       const w = dayWindow(new Date(deliveries[0].deliveredAt), days, new Date(), company.timezone);
       cancelWindow = { days, deliveredAt: deliveries[0].deliveredAt, ...w };
     }
+    // e-Fatura: cancellation / objection notices are expected within EFATURA_CANCEL_OBJECTION_DAYS of
+    // the delivery (TTK 21/2; low-confidence parameter) - a warning only, nothing is blocked.
+    let noticeWindow: { days: number; deliveredAt: Date; lastDay: string; deadline: Date; open: boolean; daysLeft: number } | null = null;
+    if (e.documentType === 'INVOICE' && e.direction === 'OUT' && e.gibStatus !== 'CANCELLED') {
+      const delivered = events.filter((x) => x.status === 'DELIVERED').sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())[0];
+      if (delivered) {
+        const days = Number(await this.edocs.param('EFATURA_CANCEL_OBJECTION_DAYS', 8, company.country)) || 8;
+        noticeWindow = { days, deliveredAt: delivered.at, ...dayWindow(new Date(delivered.at), days, new Date(), company.timezone) };
+      }
+    }
     let qr: Record<string, string> | null = null;
     try {
       qr = qrPayload(parseUbl(e.xml));
@@ -88,7 +98,7 @@ export class EDocumentArchiveService {
     const rank = (s: string) => (RANK.indexOf(s) < 0 ? 50 : RANK.indexOf(s));
     events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime() || rank(a.status) - rank(b.status));
     const { xml: _x, signedXml: _s, ...rest } = e;
-    return { ...rest, hasSignedXml: !!e.signedXml, events, deliveries, notices, outbox: outbox.map(({ payload: _p, ...o }) => o), cancelWindow, qr, legalArchive: 'PROVIDER' };
+    return { ...rest, hasSignedXml: !!e.signedXml, events, deliveries, notices, outbox: outbox.map(({ payload: _p, ...o }) => o), cancelWindow, noticeWindow, qr, legalArchive: 'PROVIDER' };
   }
 
   async xml(id: string, signed = false): Promise<{ fileName: string; xml: string }> {
@@ -152,7 +162,13 @@ export class EDocumentArchiveService {
     let noticeDeadline: string | null = null;
     if (mismatches.length) {
       const days = Number(await this.edocs.param('EDOC_INTEGRITY_NOTICE_BUSINESS_DAYS', 3, company.country)) || 3;
-      noticeDeadline = addBusinessDays(todayKey(company.timezone), days);
+      const today = todayKey(company.timezone);
+      // Public holidays (one legal-parameter row per year): this year's and, near the year end, next year's.
+      const holidays = [
+        ...((await this.edocs.param<string[]>('TCMB_NO_BULLETIN_DAYS', [], company.country, today)) || []),
+        ...(addDays(today, 21).slice(0, 4) !== today.slice(0, 4) ? (await this.edocs.param<string[]>('TCMB_NO_BULLETIN_DAYS', [], company.country, addDays(today, 21))) || [] : []),
+      ];
+      noticeDeadline = addBusinessDays(today, days, holidays);
       const payload = { mismatches: mismatches.length, documents: mismatches.slice(0, 20), noticeDeadline };
       this.gateway.emitToCompanyAdmins(companyId, 'edocument_integrity_alert', payload);
       await this.audit.record({ companyId, action: 'edocument.integrity_failed', entityType: 'e_documents', username: 'ebelge-worker', after: payload });

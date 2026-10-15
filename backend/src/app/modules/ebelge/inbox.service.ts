@@ -22,6 +22,7 @@ import { InboxItem, MockEDocumentProvider, partyFromParsed, ProviderError } from
 import { sampleDespatch, sampleInvoice } from '../../shared/ebelge/samples';
 import { AuditService } from '../integrations/audit.service';
 import { companySnapshot } from '../documents/document-support';
+import { DocumentNumberService } from '../documents/document-number.service';
 import { EBelgeSettingsService } from './ebelge-settings.service';
 import { EDocumentService, ublValidationError } from './edocument.service';
 
@@ -51,6 +52,7 @@ export class InboxService {
     private readonly edocs: EDocumentService,
     private readonly audit: AuditService,
     private readonly gateway: AppGateway,
+    private readonly numbers: DocumentNumberService,
   ) {}
 
   private get companyId(): string {
@@ -212,7 +214,8 @@ export class InboxService {
     const rejected = p.lines.reduce((s, l) => s + (l.rejected || 0) + (l.short || 0), 0);
     const received = p.lines.reduce((s, l) => s + (l.received || 0), 0);
     if (rejected <= 0) {
-      await this.edocs.event(m, ours, ours.gibStatus || 'GIB_ACCEPTED', 'PROVIDER', 'RECEIPT_ACCEPTED', `İrsaliye yanıtı ${p.id}: tamamı kabul edildi.`);
+      // Message = JSON parameters of the code (the UI renders ebelge.event.<code> in the user's language).
+      await this.edocs.event(m, ours, ours.gibStatus || 'GIB_ACCEPTED', 'PROVIDER', 'RECEIPT_ACCEPTED', JSON.stringify({ no: p.id }));
       return;
     }
     // REJECTED / PARTIALLY_ACCEPTED are despatch statuses; the provider status stays GIB_ACCEPTED.
@@ -224,7 +227,7 @@ export class InboxService {
       this.gateway.emitToCompany(this.companyId, 'despatch_mutated', { type: 'update', despatchId: d.id });
       await this.audit.record({ companyId: this.companyId, action: 'despatch.status_changed', entityType: 'despatches', entityId: d.id, username: 'ebelge-worker', before: { status: d.status }, after: { status: target, receiptAdvice: p.id } });
     }
-    await this.edocs.event(m, ours, target, 'PROVIDER', 'RECEIPT_ADVICE', `İrsaliye yanıtı ${p.id}: ${received} kabul, ${rejected} kabul edilmeyen / eksik.`);
+    await this.edocs.event(m, ours, target, 'PROVIDER', 'RECEIPT_ADVICE', JSON.stringify({ no: p.id, received: roundQty(received), rejected: roundQty(rejected) }));
   }
 
   // ------------------------------------------------------------------ matching (three-way)
@@ -311,14 +314,15 @@ export class InboxService {
     }
   }
 
-  /** Receipt advice numbers: own series IRY + year + 9 digits (UBL-TR document number format), gap-free per company and year. */
-  private async nextResponseNo(m: EntityManager, series: string, issueDate: string): Promise<string> {
-    const year = issueDate.slice(0, 4);
-    const rows: { n: number }[] = await m.query(
-      "SELECT COUNT(*) AS n FROM `e_documents` WHERE `companyId` = ? AND `direction` = 'OUT' AND `documentType` = 'RECEIPT_ADVICE' AND `documentNo` LIKE ? FOR UPDATE",
-      [this.companyId, `${series}${year}%`],
-    );
-    return `${series}${year}${String(Number(rows[0]?.n || 0) + 1).padStart(9, '0')}`;
+  /**
+   * Receipt advice numbers (İrsaliye Yanıtı): EDOCUMENT series of kind RECEIPT_ADVICE from Settings >
+   * Documents (gap-free counter of DocumentNumberService, VUK 231/1; 509 V.4). A company without such a
+   * series gets the default "IRY" series on first use.
+   */
+  private async nextResponseNo(m: EntityManager, issueDate: string): Promise<string> {
+    await this.numbers.ensureDefaults(m, this.companyId, [{ kind: 'RECEIPT_ADVICE', mode: 'EDOCUMENT', seriesCode: 'IRY', note: 'İrsaliye Yanıtı (e-İrsaliye) serisi' }]);
+    const series = await this.numbers.resolveSeries(m, 'RECEIPT_ADVICE', 'EDOCUMENT');
+    return (await this.numbers.next(m, 'RECEIPT_ADVICE', 'EDOCUMENT', series, issueDate)).documentNo;
   }
 
   /** KABUL / RED for a TICARIFATURA (UBL-TR ApplicationResponse; TTK 21/2). */
@@ -358,7 +362,7 @@ export class InboxService {
       if (code === 'KABUL') await this.linkReceiptInvoice(m, row);
     });
     await this.audit.record({ companyId: this.companyId, action: 'edocument.responded', entityType: 'incoming_documents', entityId: id, after: { response: code, note: input.note || null } });
-    void this.edocs.processOutbox(5, this.companyId).catch(() => undefined);
+    void this.edocs.processOutbox(5, this.companyId, { automatic: true }).catch(() => undefined);
     return this.get(id);
   }
 
@@ -388,7 +392,7 @@ export class InboxService {
       const issueDate = dateKeyInZone(now, company.timezone);
       const xml = buildReceiptAdviceXml({
         ettn,
-        documentNo: await this.nextResponseNo(m, 'IRY', issueDate),
+        documentNo: await this.nextResponseNo(m, issueDate),
         profileId: 'TEMELIRSALIYE',
         issueDate,
         issueTime: timeKeyInZone(now, company.timezone),
@@ -412,7 +416,7 @@ export class InboxService {
       await m.save(IncomingDocumentEntity, row);
     });
     await this.audit.record({ companyId: this.companyId, action: 'edocument.receipt_advice', entityType: 'incoming_documents', entityId: id, after: { lines: input.lines?.length || 0 } });
-    void this.edocs.processOutbox(5, this.companyId).catch(() => undefined);
+    void this.edocs.processOutbox(5, this.companyId, { automatic: true }).catch(() => undefined);
     return this.get(id);
   }
 

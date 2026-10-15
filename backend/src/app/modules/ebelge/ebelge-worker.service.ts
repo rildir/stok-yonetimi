@@ -53,7 +53,7 @@ export class EBelgeWorker {
   @Interval('ebelge-outbox', 20_000)
   outbox() {
     return this.once('outbox', async () => {
-      const r = await this.edocs.processOutbox(25);
+      const r = await this.edocs.processOutbox(25, undefined, { automatic: true });
       if (r.processed) this.logger.log(`outbox: ${r.sent} sent, ${r.failed} failed`);
     });
   }

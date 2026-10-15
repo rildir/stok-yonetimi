@@ -120,6 +120,8 @@ export interface TaxBreakdownRow {
 export interface Invoice {
   id: string;
   ettn: string;
+  /** Referenced e-İrsaliyes the receiver partially / fully rejected (warning only) */
+  disputedDespatches?: { id: string; documentNo: string | null; status: string }[];
   documentNo?: string | null;
   numberMode?: string | null;
   kind: string;

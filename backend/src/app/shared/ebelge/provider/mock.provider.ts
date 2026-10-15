@@ -35,6 +35,8 @@ import {
 export class MockEDocumentProvider implements EDocumentProvider {
   readonly name = 'MOCK';
   readonly label = 'Mock entegratör (test)';
+  /** Never reaches GİB: TEST environment only (see providerUsageAllowed). */
+  readonly testOnly = true;
 
   constructor(private readonly store: MockStore) {}
 

@@ -94,6 +94,10 @@ describe('e-Belge routing and periods', () => {
   it('retention and the 3-business-day notice', () => {
     expect(retentionUntil('2026-10-15')).toBe('2036-12-31');
     expect(addBusinessDays('2026-10-16', 3)).toBe('2026-10-21'); // Friday -> Wednesday
+    // Kurban Bayramı 27-29.05.2026 (Wed-Fri): Tuesday 26.05 + 3 business days -> Wednesday 03.06.
+    expect(addBusinessDays('2026-05-26', 3, ['2026-05-27', '2026-05-28', '2026-05-29'])).toBe('2026-06-03');
+    // 29 Ekim (Thursday) is skipped.
+    expect(addBusinessDays('2026-10-27', 3, ['2026-10-29'])).toBe('2026-11-02');
   });
 });
 

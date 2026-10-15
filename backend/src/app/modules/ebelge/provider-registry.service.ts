@@ -56,7 +56,7 @@ export class ProviderRegistry {
     return name ? this.providers.get(name) || null : null;
   }
 
-  list(): { name: string; label: string; capabilities: ReturnType<EDocumentProvider['capabilities']> }[] {
-    return [...this.providers.values()].map((p) => ({ name: p.name, label: p.label, capabilities: p.capabilities() }));
+  list(): { name: string; label: string; testOnly: boolean; capabilities: ReturnType<EDocumentProvider['capabilities']> }[] {
+    return [...this.providers.values()].map((p) => ({ name: p.name, label: p.label, testOnly: !!p.testOnly, capabilities: p.capabilities() }));
   }
 }

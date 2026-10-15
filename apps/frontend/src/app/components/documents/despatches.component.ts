@@ -95,6 +95,7 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
           <div class="drawer-body">
             @if (d.status === 'DRAFT') { <div class="doc-alert info">{{ 'despatches.draftInfo' | t }}</div> }
             @else { <div class="doc-alert">{{ 'despatches.noCancelInfo' | t }}</div> }
+            @if (d.status === 'PARTIALLY_ACCEPTED' || d.status === 'REJECTED') { <div class="doc-alert danger">{{ 'despatches.receiverDisputed' | t }}</div> }
             <div class="doc-grid">
               <div class="doc-field"><label>{{ 'despatches.col.status' | t }}</label><span><span class="badge" [ngClass]="badge(d.status)">{{ 'despatches.status.' + d.status | t }}</span></span></div>
               <div class="doc-field"><label>{{ 'despatches.col.purpose' | t }}</label><span>{{ 'despatches.purpose.' + d.purpose | t }}</span></div>

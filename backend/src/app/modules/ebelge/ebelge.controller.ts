@@ -28,6 +28,7 @@ export class EBelgeController {
     private readonly archive: EDocumentArchiveService,
     private readonly inbox: InboxService,
     private readonly providers: ProviderRegistry,
+    private readonly tenant: TenantContext,
   ) {}
 
   @Roles('admin')
@@ -77,12 +78,13 @@ export class EBelgeController {
     return this.registry.checkCustomer(id);
   }
 
-  @ApiOperation({ summary: 'Gönderim kuyruğunu şimdi işle' })
+  @ApiOperation({ summary: 'Gönderim kuyruğunu şimdi işle (yalnızca bu şirketin kuyruğu; otomatik gönderim kapalıyken de)' })
   @Roles('admin')
   @Post('outbox/process')
   @HttpCode(200)
-  process(@Req() _req: any) {
-    return this.edocs.processOutbox(25, undefined);
+  process() {
+    // Tenant-scoped: an admin can only push the outbox of their own company.
+    return this.edocs.processOutbox(25, this.tenant.companyId);
   }
 
   @ApiOperation({ summary: 'Mock entegratör: örnek gelen belge oluştur (yalnızca MOCK)' })

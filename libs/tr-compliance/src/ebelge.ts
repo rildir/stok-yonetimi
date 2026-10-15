@@ -128,14 +128,19 @@ export function outboxBackoffMs(attempt: number): number {
   return Math.min(6 * 3600_000, 60_000 * 2 ** (n - 1));
 }
 
-/** Three-business-day notice to GİB after loss / integrity breach of e-documents (509 VI; VUK 13). */
-export function addBusinessDays(day: string, n: number): string {
+/**
+ * Three-business-day notice to GİB after loss / integrity breach of e-documents (509 VI; VUK 13).
+ * Weekends and the given public holidays (YYYY-MM-DD, e.g. legal parameter TCMB_NO_BULLETIN_DAYS:
+ * full-day weekday holidays of Law 2429) are not business days.
+ */
+export function addBusinessDays(day: string, n: number, holidays: readonly string[] = []): string {
+  const off = new Set(holidays);
   let d = day;
   let left = n;
   while (left > 0) {
     d = addDays(d, 1);
     const wd = new Date(`${d}T00:00:00Z`).getUTCDay();
-    if (wd !== 0 && wd !== 6) left--;
+    if (wd !== 0 && wd !== 6 && !off.has(d)) left--;
   }
   return d;
 }

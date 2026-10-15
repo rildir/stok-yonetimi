@@ -15,6 +15,7 @@ import { TaxEngineReviewFixes21784274134000 } from '../../migrations/17842741340
 import { DocumentRegime1784274135000 } from '../../migrations/1784274135000-DocumentRegime';
 import { DocumentRegimeReviewFixes1784274136000 } from '../../migrations/1784274136000-DocumentRegimeReviewFixes';
 import { EBelgeIntegration1784274137000 } from '../../migrations/1784274137000-EBelgeIntegration';
+import { EBelgeReviewFixes1784274138000 } from '../../migrations/1784274138000-EBelgeReviewFixes';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -40,4 +41,5 @@ export const MIGRATIONS = [
   DocumentRegime1784274135000,
   DocumentRegimeReviewFixes1784274136000,
   EBelgeIntegration1784274137000,
+  EBelgeReviewFixes1784274138000,
 ];

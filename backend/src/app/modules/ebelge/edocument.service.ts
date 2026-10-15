@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { err } from '../../shared/i18n/app-error';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -191,7 +191,8 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
       gibStatus: 'QUEUED',
     });
     await this.enqueue(m, eDoc, 'SEND', docType === 'EARCHIVE' ? { sendType, channel, recipient: channel === 'EMAIL' ? buyer.email : null } : { receiverTaxId: eDoc.counterpartyTaxId });
-    await this.event(m, eDoc, 'QUEUED', 'SYSTEM', null, docType === 'EARCHIVE' ? `e-Arşiv (${channel})` : inv.profileId);
+    // Language-neutral: code CHANNEL + the channel value (translated by the UI), else the scenario.
+    await this.event(m, eDoc, 'QUEUED', 'SYSTEM', docType === 'EARCHIVE' ? 'CHANNEL' : null, docType === 'EARCHIVE' ? channel : inv.profileId);
     return this.setInvoiceStatus(m, inv.id, 'QUEUED');
   }
 
@@ -202,11 +203,9 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
     const outbox = await m.findOne(EDocumentOutboxEntity, { where: { ettn: inv.ettn, operation: 'SEND' }, lock: { mode: 'pessimistic_write' } });
     if (outbox && outbox.status === 'PROCESSING') throw new ConflictException(err('EDOC_ALREADY_SENT', { ettn: inv.ettn }));
     if (outbox && outbox.status !== 'DONE') {
-      // Never handed to the integrator: stop the queue; the number stays used (VUK 231/1) and the cancellation is logged.
-      await m.update(EDocumentOutboxEntity, { id: outbox.id }, { status: 'DEAD', lastErrorCode: 'CANCELLED_BEFORE_SEND', lastError: input.reason, processedAt: new Date() });
-      await this.updateEDoc(m, eDoc, { gibStatus: 'CANCELLED' });
-      await this.event(m, eDoc, 'CANCELLED', 'USER', 'CANCELLED_BEFORE_SEND', input.reason, this.tenant.actor.username);
-      return;
+      // Not yet handed to the integrator. Withdrawing it would leave a gap in the series GİB / the
+      // integrator sees (VUK 231/1; 509 V.4): it has to be sent first and cancelled afterwards.
+      throw new ConflictException(err('EDOC_CANCEL_BEFORE_SEND', { documentNo: inv.documentNo || inv.ettn }));
     }
     const company = await m.findOneOrFail(CompanyEntity, { where: { id: inv.companyId } });
     const r = await this.settings.resolve(inv.companyId, m);
@@ -240,6 +239,8 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
       }
     }
     await this.updateEDoc(m, eDoc, { gibStatus: 'CANCELLED' });
+    // The caller saves the invoice header from this object: keep invoices.gibStatus in line with the archive.
+    inv.gibStatus = 'CANCELLED';
     await this.event(m, eDoc, 'CANCELLED', 'USER', eDoc.documentType === 'EARCHIVE' ? 'EARSIV_CANCEL' : `NOTICE_${input.noticeChannel}`, input.reason, this.tenant.actor.username);
   }
 
@@ -307,7 +308,7 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
       deadlineAt = zonedDayEnd(addDays(String(d.paperDate), days), company.timezone);
     }
     await this.enqueue(m, eDoc, 'SEND', { receiverTaxId: eDoc.counterpartyTaxId, deliveryChannel: d.deliveryChannel }, deadlineAt);
-    await this.event(m, eDoc, 'QUEUED', 'SYSTEM', null, `e-İrsaliye (${d.deliveryChannel || 'GIB'})`);
+    await this.event(m, eDoc, 'QUEUED', 'SYSTEM', 'CHANNEL', d.deliveryChannel || 'GIB');
   }
 
   // ------------------------------------------------------------------ archive / outbox / timeline
@@ -472,19 +473,30 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
   }
 
   // ------------------------------------------------------------------ outbox worker
-  /** Sends due outbox items of every company (lease per item; ETTN + operation never twice). */
-  async processOutbox(limit = 25, companyId?: string): Promise<{ processed: number; sent: number; failed: number }> {
+  /**
+   * Sends due outbox items (lease per item; ETTN + operation never twice). `companyId` limits the run
+   * to one company (manual "process now" is always tenant-scoped); `automatic` runs (worker, follow-up
+   * after a response) skip companies whose "autoSend" setting is off.
+   */
+  async processOutbox(limit = 25, companyId?: string, opts: { automatic?: boolean } = {}): Promise<{ processed: number; sent: number; failed: number }> {
     const now = new Date();
-    const where: any = { status: In(['PENDING', 'FAILED']), nextRetryAt: LessThanOrEqual(now) };
-    if (companyId) where.companyId = companyId;
-    const due = await this.dataSource.manager.find(EDocumentOutboxEntity, { where, order: { nextRetryAt: 'ASC' }, take: limit });
-    // Crashed workers: release expired leases.
-    await this.dataSource.manager
+    // Crashed workers: release expired leases. send() may already have reached the integrator, so the
+    // next attempt asks for the status first instead of sending again.
+    const expired = this.dataSource.manager
       .createQueryBuilder()
       .update(EDocumentOutboxEntity)
-      .set({ status: 'FAILED', lockedUntil: null })
-      .where('status = :s AND lockedUntil < :now', { s: 'PROCESSING', now })
-      .execute();
+      .set({ status: 'FAILED', lockedUntil: null, statusCheckRequired: true })
+      .where('status = :s AND lockedUntil < :now', { s: 'PROCESSING', now });
+    if (companyId) expired.andWhere('companyId = :companyId', { companyId });
+    await expired.execute();
+    const qb = this.dataSource.manager
+      .createQueryBuilder(EDocumentOutboxEntity, 'o')
+      .where('o.status IN (:...st) AND o.nextRetryAt <= :now', { st: ['PENDING', 'FAILED'], now });
+    if (companyId) qb.andWhere('o.companyId = :companyId', { companyId });
+    if (opts.automatic) {
+      qb.andWhere('NOT EXISTS (SELECT 1 FROM `company_ebelge_settings` s WHERE s.`companyId` = o.`companyId` AND s.`autoSend` = 0)');
+    }
+    const due = await qb.orderBy('o.nextRetryAt', 'ASC').take(limit).getMany();
     let sent = 0;
     let failed = 0;
     for (const item of due) {
@@ -529,7 +541,7 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
         await this.applyProviderStatus(m, fresh, result!.status, 'PROVIDER', { at: result!.at, message: result!.message ?? null, providerRef: result!.providerRef });
         if (eDoc.documentType === 'EARCHIVE' && result!.status !== 'REJECTED') {
           const p = item.payload || {};
-          await m.insert(EDocumentDeliveryEntity, { id: randomUUID(), companyId: eDoc.companyId, eDocumentId: eDoc.id, ettn: eDoc.ettn, channel: String(p['channel'] || 'EMAIL'), recipient: (p['recipient'] as string) || null, deliveredAt: result!.at, providerRef: result!.providerRef || null, note: `Gönderim şekli: ${p['sendType'] || 'ELEKTRONIK'}`, createdBy: 'ebelge-worker' });
+          await m.insert(EDocumentDeliveryEntity, { id: randomUUID(), companyId: eDoc.companyId, eDocumentId: eDoc.id, ettn: eDoc.ettn, channel: String(p['channel'] || 'EMAIL'), recipient: (p['recipient'] as string) || null, deliveredAt: result!.at, providerRef: result!.providerRef || null, note: String(p['sendType'] || 'ELEKTRONIK'), createdBy: 'ebelge-worker' });
         }
       });
       await this.settings.markHealthy(item.companyId);

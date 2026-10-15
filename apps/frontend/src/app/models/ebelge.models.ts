@@ -3,6 +3,10 @@
 export interface ProviderInfo {
   name: string;
   label: string;
+  /** Simulator (mock): TEST environment only */
+  testOnly?: boolean;
+  /** false when this server refuses the test-only adapter (production) */
+  allowed?: boolean;
   capabilities: Record<string, boolean>;
 }
 
@@ -124,6 +128,8 @@ export interface EDocumentDetail extends EDocument {
   notices: EDocNotice[];
   outbox: EDocOutbox[];
   cancelWindow: { days: number; deliveredAt: string; lastDay: string; deadline: string; open: boolean; daysLeft: number } | null;
+  /** e-Fatura: suggested period for cancellation / objection notices (warning only) */
+  noticeWindow?: { days: number; deliveredAt: string; lastDay: string; deadline: string; open: boolean; daysLeft: number } | null;
   qr: Record<string, string> | null;
   legalArchive: string;
 }

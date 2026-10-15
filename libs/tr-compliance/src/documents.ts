@@ -11,7 +11,8 @@ import { roundQty } from './inventory';
 
 // ─── Kinds, numbering modes, series ───
 
-export const DOCUMENT_KINDS = ['INVOICE', 'DESPATCH', 'EXPENSE_VOUCHER', 'PRODUCER_RECEIPT', 'GOODS_RECEIPT', 'RETURN'] as const;
+/** RECEIPT_ADVICE: İrsaliye Yanıtı (UBL-TR ReceiptAdvice) numbered from an EDOCUMENT series (WP5). */
+export const DOCUMENT_KINDS = ['INVOICE', 'DESPATCH', 'EXPENSE_VOUCHER', 'PRODUCER_RECEIPT', 'GOODS_RECEIPT', 'RETURN', 'RECEIPT_ADVICE'] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 /** EDOCUMENT: 3 chars + year + 9 digits (509 V.4). PAPER: printed (matbu) series-sequence. INTERNAL: in-house records. */
@@ -102,7 +103,9 @@ export const DESPATCH_STATUSES = Object.keys(DESPATCH_TRANSITIONS);
 export const INVOICE_TRANSITIONS: Transitions = {
   DRAFT: ['ISSUED'],
   ISSUED: ['QUEUED', 'CANCELLED'],
-  // WP5: a queued e-document not yet handed to the integrator can still be cancelled (it never reaches GİB).
+  // WP5: QUEUED -> CANCELLED is only reachable through the e-Belge hook, which refuses it while the
+  // document is still in the outbox (EDOC_CANCEL_BEFORE_SEND: sent first, cancelled afterwards, so the
+  // series GİB sees has no gap); kept here so that refusal, not a generic status error, is reported.
   QUEUED: ['SENT', 'ISSUED', 'CANCELLED', 'REJECTED'],
   SENT: ['DELIVERED', 'ACCEPTED', 'REJECTED', 'CANCELLED'],
   DELIVERED: ['ACCEPTED', 'REJECTED', 'CANCELLED'],

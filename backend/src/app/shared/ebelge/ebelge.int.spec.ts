@@ -14,7 +14,7 @@ import { OrderItemEntity } from '../../entities/order-item.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { InvoiceEntity } from '../../entities/invoice.entity';
 import { DocumentSeriesEntity } from '../../entities/document-series.entity';
-import { EDocumentDeliveryEntity, EDocumentEntity, EDocumentNoticeEntity, EDocumentOutboxEntity, IncomingDocumentEntity, MockProviderDocumentEntity } from '../../entities/ebelge.entity';
+import { CompanyEBelgeSettingsEntity, EDocumentDeliveryEntity, EDocumentEntity, EDocumentNoticeEntity, EDocumentOutboxEntity, IncomingDocumentEntity, MockProviderDocumentEntity } from '../../entities/ebelge.entity';
 import { WarehouseStockService } from '../services/warehouse-stock.service';
 import { StockHelperService } from '../services/stock-helper.service';
 import { TenantContext } from '../tenant/tenant-context.service';
@@ -33,7 +33,7 @@ import { EDocumentService } from '../../modules/ebelge/edocument.service';
 import { InboxService } from '../../modules/ebelge/inbox.service';
 import { EDocumentArchiveService } from '../../modules/ebelge/archive.service';
 import { ensureEdocTriggers } from './ebelge-triggers';
-import { MockEDocumentProvider } from './provider';
+import { MockEDocumentProvider, providerUsageAllowed } from './provider';
 import { sampleDespatch, sampleInvoice } from './samples';
 import { parseUbl } from './ubl/parser';
 import { validateUbl } from './validation/ubl-validator';
@@ -105,7 +105,7 @@ function services() {
   const reg = new RegistryService(ds!, tenant, settings);
   const edocs = new EDocumentService(ds!, tenant, settings, reg, legal, audit, gateway, hooks, invoices);
   edocs.onModuleInit();
-  const inbox = new InboxService(ds!, tenant, settings, edocs, audit, gateway);
+  const inbox = new InboxService(ds!, tenant, settings, edocs, audit, gateway, numbers);
   const archive = new EDocumentArchiveService(ds!, tenant, settings, edocs, audit, gateway);
   return { despatch, invoices, settings, edocs, inbox, archive, mock: registry.get('MOCK') as MockEDocumentProvider };
 }
@@ -174,6 +174,9 @@ describe('WP5 e-Belge with the mock integrator (MySQL)', () => {
     expect(eDoc).toMatchObject({ documentType: 'INVOICE', direction: 'OUT', gibStatus: 'QUEUED', retentionUntil: `${Number(String(issued.issueDate).slice(0, 4)) + 10}-12-31` });
     expect(await validateUbl(eDoc.xml, 'Invoice')).toEqual([]);
 
+    // Still in the queue: cancelling would leave a gap in the series the integrator / GİB sees.
+    await expect(run(() => f.invoices.cancel(issued.id, 'Yanlış alıcı', undefined, { noticeChannel: 'KEP', noticeDate: '2026-10-15' }))).rejects.toMatchObject({ response: { code: 'EDOC_CANCEL_BEFORE_SEND' } });
+
     // Outbox: sent once; a second worker run or a direct re-send changes nothing (idempotency by ETTN).
     expect(await f.edocs.processOutbox(10, f.company.id)).toMatchObject({ processed: 1, sent: 1 });
     expect(await f.edocs.processOutbox(10, f.company.id)).toMatchObject({ processed: 0 });
@@ -193,7 +196,7 @@ describe('WP5 e-Belge with the mock integrator (MySQL)', () => {
     // e-Fatura cancellation: only with the external notice (TTK 18/3), reported to the integrator.
     await expect(run(() => f.invoices.cancel(issued.id, 'Yanlış alıcı'))).rejects.toMatchObject({ response: { code: 'EFATURA_CANCEL_NOTICE_REQUIRED' } });
     const cancelled = await run(() => f.invoices.cancel(issued.id, 'Yanlış alıcı', undefined, { noticeChannel: 'KEP', noticeDate: '2026-10-15', noticeRef: 'KEP-2026-0042' }));
-    expect(cancelled.status).toBe('CANCELLED');
+    expect(cancelled).toMatchObject({ status: 'CANCELLED', gibStatus: 'CANCELLED' });
     expect(await ds!.manager.findOneByOrFail(EDocumentNoticeEntity, { ettn: issued.ettn })).toMatchObject({ kind: 'CANCEL', channel: 'KEP', reportedToProvider: true });
   }, 180000);
 
@@ -218,7 +221,7 @@ describe('WP5 e-Belge with the mock integrator (MySQL)', () => {
     const html = await run(async () => f.archive.html((await ds!.manager.findOneByOrFail(EDocumentEntity, { ettn: a.ettn })).id));
     expect(html).toContain('e-Arşiv izni kapsamında elektronik ortamda iletilmiştir.');
     // Within the window: cancelled at the integrator.
-    expect((await run(() => f.invoices.cancel(a.id, 'Müşteri talebi'))).status).toBe('CANCELLED');
+    expect(await run(() => f.invoices.cancel(a.id, 'Müşteri talebi'))).toMatchObject({ status: 'CANCELLED', gibStatus: 'CANCELLED' });
 
     // Delivered 9 days ago: the window is closed.
     const b = await run(async () => f.invoices.issue((await f.invoices.createFromOrder((await f.order(f.plain, 'b')).id, {})).id, {}));
@@ -291,6 +294,9 @@ describe('WP5 e-Belge with the mock integrator (MySQL)', () => {
     const partial = await run(() => f.inbox.receiptAdvice(inDesp.id, { lines: [{ lineId: lineIds[0], accepted: 8, rejected: 2, reason: 'Ambalaj hasarlı' }, { lineId: lineIds[1], accepted: 5 }] }));
     expect(partial).toMatchObject({ status: 'PARTIALLY_ACCEPTED', responseCode: 'PARTIAL' });
     const ra = await ds!.manager.findOneByOrFail(EDocumentEntity, { ettn: partial.responseEttn as string });
+    // Numbered from the RECEIPT_ADVICE series of the company (default IRY, gap-free counter).
+    expect(ra.documentNo).toMatch(/^IRY\d{4}0{8}1$/);
+    expect(await ds!.manager.countBy(DocumentSeriesEntity, { companyId: f.company.id, kind: 'RECEIPT_ADVICE', mode: 'EDOCUMENT', seriesCode: 'IRY' })).toBe(1);
     expect(await validateUbl(ra.xml, 'ReceiptAdvice')).toEqual([]);
     expect(parseUbl(ra.xml).lines[0]).toMatchObject({ received: 8, rejected: 2 });
     await f.edocs.processOutbox(10, f.company.id);
@@ -312,5 +318,44 @@ describe('WP5 e-Belge with the mock integrator (MySQL)', () => {
     expect(await trig(ds!.query('DELETE FROM `edocument_events` WHERE `eDocumentId` = ?', [ra.id]))).toBe('EDOCUMENT_ARCHIVE_IMMUTABLE');
     expect((await run(() => f.archive.integrityCheck())).mismatches).toEqual([]);
     expect(await ds!.manager.countBy(IncomingDocumentEntity, { companyId: f.company.id })).toBe(2);
+  }, 240000);
+
+  it('outbox: tenant-scoped processing, autoSend off, expired lease asks for the status; mock refused for LIVE / production', async () => {
+    if (!available) return;
+    const a = await fixture('scope-a');
+    const b = await fixture('scope-b');
+    const issue = async (f: typeof a, n: string) => tenant.run(f.company.id, async () => f.invoices.issue((await f.invoices.createFromOrder((await f.order(f.registered, n)).id, {})).id, {}));
+    const ia = await issue(a, '1');
+    const ib = await issue(b, '1');
+    // Company B's run never touches company A's queue.
+    expect(await b.edocs.processOutbox(10, b.company.id)).toMatchObject({ processed: 1, sent: 1 });
+    expect((await ds!.manager.findOneByOrFail(InvoiceEntity, { id: ia.id })).status).toBe('QUEUED');
+    expect((await ds!.manager.findOneByOrFail(InvoiceEntity, { id: ib.id })).status).toBe('SENT');
+
+    // autoSend off: automatic runs skip the company, the manual run still sends.
+    await tenant.run(a.company.id, () => a.settings.update({ autoSend: false }));
+    await a.edocs.processOutbox(50, undefined, { automatic: true });
+    expect((await ds!.manager.findOneByOrFail(EDocumentOutboxEntity, { ettn: ia.ettn })).status).toBe('PENDING');
+    // Crashed worker after send(): the expired lease is retried with a status check first, not a second send.
+    const item = await ds!.manager.findOneByOrFail(EDocumentOutboxEntity, { ettn: ia.ettn });
+    await tenant.run(a.company.id, async () => {
+      const r = await a.settings.resolve();
+      const eDoc = await ds!.manager.findOneByOrFail(EDocumentEntity, { ettn: ia.ettn });
+      await r.provider.sendInvoice(r.ctx, { ettn: eDoc.ettn, docType: 'INVOICE', documentNo: eDoc.documentNo || '', profileId: eDoc.profileId || '', typeCode: eDoc.typeCode, xml: eDoc.xml, receiverTaxId: eDoc.counterpartyTaxId });
+    });
+    await ds!.manager.update(EDocumentOutboxEntity, { id: item.id }, { status: 'PROCESSING', lockedUntil: new Date(Date.now() - 60_000), nextRetryAt: new Date(Date.now() - 1000) });
+    expect(await a.edocs.processOutbox(10, a.company.id)).toMatchObject({ processed: 1, sent: 1 });
+    expect(await ds!.manager.findOneByOrFail(EDocumentOutboxEntity, { id: item.id })).toMatchObject({ status: 'DONE', statusCheckRequired: false });
+    expect(await ds!.manager.countBy(MockProviderDocumentEntity, { ettn: ia.ettn, box: 'SENT' })).toBe(1);
+
+    // The mock never reaches GİB: refused for LIVE and on a production server without EBELGE_ALLOW_MOCK.
+    await expect(tenant.run(a.company.id, () => a.settings.update({ environment: 'LIVE' }))).rejects.toMatchObject({ response: { code: 'EBELGE_MOCK_TEST_ONLY' } });
+    expect(providerUsageAllowed({ testOnly: true }, 'TEST', { NODE_ENV: 'production' })).toBe(false);
+    expect(providerUsageAllowed({ testOnly: true }, 'TEST', { NODE_ENV: 'production', EBELGE_ALLOW_MOCK: 'true' })).toBe(true);
+    expect(providerUsageAllowed({ testOnly: true }, 'LIVE', { NODE_ENV: 'development', EBELGE_ALLOW_MOCK: 'true' })).toBe(false);
+    expect(providerUsageAllowed({ testOnly: false }, 'LIVE', { NODE_ENV: 'production' })).toBe(true);
+    // A row saved as LIVE before the guard: nothing is resolved (so nothing is numbered or "sent").
+    await ds!.manager.update(CompanyEBelgeSettingsEntity, { companyId: a.company.id }, { environment: 'LIVE' });
+    await expect(tenant.run(a.company.id, () => a.settings.resolve())).rejects.toMatchObject({ response: { code: 'EBELGE_MOCK_TEST_ONLY' } });
   }, 240000);
 });

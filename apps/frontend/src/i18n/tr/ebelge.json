@@ -225,5 +225,18 @@
   "ebelge.socket.inbox": "{n} yeni gelen e-belge.",
   "ebelge.socket.outage": "e-Belge entegratörüne ulaşılamıyor: {message}",
   "ebelge.socket.integrity": "{n} e-belgede bütünlük ihlali; {date} tarihine kadar GİB'e bildirin.",
-  "ebelge.socket.matbudan": "{n} MATBUDAN irsaliyenin gönderim süresi doluyor."
+  "ebelge.socket.matbudan": "{n} MATBUDAN irsaliyenin gönderim süresi doluyor.",
+  "ebelge.provider.mockTestOnly": "Mock entegratör bir simülatördür: belgeler GİB sistemine iletilmez. Yalnızca TEST ortamında kullanılabilir; canlı kullanım için gerçek bir özel entegratör seçin.",
+  "ebelge.provider.autoSendHint": "Otomatik gönderim kapalı: düzenlenen belgeler kuyrukta bekler ve belge panelindeki \"Şimdi gönder\" ile gönderilir. Fatura düzenleme süresini (VUK 231/5) kaçırmamaya dikkat edin.",
+  "ebelge.panel.sendNow": "Şimdi gönder",
+  "ebelge.noticeWindow.title": "İptal / itiraz bildirimi",
+  "ebelge.noticeWindow.open": "Teslimden itibaren {days} gün içinde yapılmalıdır (son gün {date}).",
+  "ebelge.noticeWindow.closed": "{days} günlük bildirim süresi {date} tarihinde doldu; geç bildirim için mali müşavirinize danışın.",
+  "ebelge.eventCode.RECEIPT_ACCEPTED": "İrsaliye yanıtı",
+  "ebelge.eventCode.RECEIPT_ADVICE": "İrsaliye yanıtı",
+  "ebelge.eventCode.EARSIV_CANCEL": "e-Arşiv iptali",
+  "ebelge.eventCode.OBJECTION": "İtiraz",
+  "ebelge.eventCode.CANCELLED_BEFORE_SEND": "Gönderilmeden iptal",
+  "ebelge.event.RECEIPT_ACCEPTED": "{no}: tamamı kabul edildi.",
+  "ebelge.event.RECEIPT_ADVICE": "{no}: {received} kabul, {rejected} kabul edilmeyen / eksik."
 }

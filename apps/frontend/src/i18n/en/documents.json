@@ -431,5 +431,9 @@
   "despatches.externalDocNo": "e-Despatch / external despatch number",
   "returns.refundPending": "Starts when the goods are handed to the carrier / reach you",
   "returns.goodsHandedOverDate": "Goods handed to the carrier on",
-  "returns.goodsHandedOverHint": "If the consumer handed the goods to the carrier named in the pre-contract information, enter that day; the 14-day refund period starts then. If left empty, the day the goods reach you (completion) is used (Distance Contracts Regulation art. 12/1)."
+  "returns.goodsHandedOverHint": "If the consumer handed the goods to the carrier named in the pre-contract information, enter that day; the 14-day refund period starts then. If left empty, the day the goods reach you (completion) is used (Distance Contracts Regulation art. 12/1).",
+  "invoices.disputedDespatch": "The receiver answered e-despatch {no} with \"{status}\". Stock and the invoiceable quantity are not corrected automatically: invoice only the accepted quantity or record a return.",
+  "invoices.cancelAfterSend": "The document is in the sending queue. To keep the number series gap-free it has to be sent first; it can be cancelled afterwards.",
+  "despatches.receiverDisputed": "The receiver did not accept this despatch advice in full. Stock and the invoiceable quantity are not corrected automatically; record a return for goods that come back and invoice only the accepted quantity.",
+  "docSettings.kinds.RECEIPT_ADVICE": "Receipt advice"
 }

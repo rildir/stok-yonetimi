@@ -44,11 +44,12 @@ interface CredRow {
         @if (st.outageSince) { <div class="doc-alert danger">{{ 'ebelge.banner.outage' | t: { since: (st.outageSince | appDate: 'datetime'), message: st.lastProviderError || '-' } }}</div> }
         @if (st.credentialsError) { <div class="doc-alert danger">{{ 'ebelge.provider.credentialsError' | t }}</div> }
 
+        @if (isTestOnly(st)) { <div class="doc-alert" [class.info]="environment === 'TEST'" [class.danger]="environment !== 'TEST'">{{ 'ebelge.provider.mockTestOnly' | t }}</div> }
         <div class="ep-grid">
           <div class="doc-field"><label for="epProv">{{ 'ebelge.provider.integrator' | t }}</label>
-            <select id="epProv" class="select" [(ngModel)]="provider"><option value="">{{ 'ebelge.provider.none' | t }}</option>@for (p of st.providers; track p.name) { <option [value]="p.name">{{ p.label }}</option> }</select></div>
+            <select id="epProv" class="select" [(ngModel)]="provider"><option value="">{{ 'ebelge.provider.none' | t }}</option>@for (p of st.providers; track p.name) { <option [value]="p.name" [disabled]="p.allowed === false && p.name !== provider">{{ p.label }}</option> }</select></div>
           <div class="doc-field"><label for="epEnv">{{ 'ebelge.provider.environment' | t }}</label>
-            <select id="epEnv" class="select" [(ngModel)]="environment"><option value="TEST">{{ 'ebelge.provider.env.TEST' | t }}</option><option value="LIVE">{{ 'ebelge.provider.env.LIVE' | t }}</option></select></div>
+            <select id="epEnv" class="select" [(ngModel)]="environment"><option value="TEST">{{ 'ebelge.provider.env.TEST' | t }}</option><option value="LIVE" [disabled]="isTestOnly(st)">{{ 'ebelge.provider.env.LIVE' | t }}</option></select></div>
           <div class="doc-field"><label for="epSender">{{ 'ebelge.provider.senderAlias' | t }}</label><input id="epSender" class="input mono" maxlength="150" [(ngModel)]="senderAlias" placeholder="urn:mail:defaultgb@..." /></div>
           <div class="doc-field"><label for="epReceiver">{{ 'ebelge.provider.receiverAlias' | t }}</label><input id="epReceiver" class="input mono" maxlength="150" [(ngModel)]="receiverAlias" placeholder="urn:mail:defaultpk@..." /></div>
           <div class="doc-field"><label for="epSeal">{{ 'ebelge.provider.sealDate' | t }}</label><input id="epSeal" type="date" class="input" [(ngModel)]="sealDeclarationDate" /></div>
@@ -80,6 +81,7 @@ interface CredRow {
           <label class="doc-check"><input type="checkbox" [(ngModel)]="exportEnabled" /> {{ 'ebelge.provider.exportEnabled' | t }}</label>
           <label class="doc-check"><input type="checkbox" [(ngModel)]="sectoralItemIdsEnabled" /> {{ 'ebelge.provider.sectoral' | t }}</label>
         </div>
+        @if (!autoSend) { <p class="doc-hint">{{ 'ebelge.provider.autoSendHint' | t }}</p> }
 
         <div class="ep-fixed">
           <div><strong>{{ 'ebelge.provider.signing' | t }}</strong><div class="doc-hint">{{ 'ebelge.provider.signingInfo' | t }}</div></div>
@@ -123,6 +125,11 @@ export class EBelgeProviderSettingsComponent implements OnInit {
   earsivDefaultChannel = 'EMAIL';
   registryCacheHours = 24;
   autoSend = true;
+
+  /** The selected integrator is a simulator (mock): LIVE is not allowed. */
+  isTestOnly(st: EBelgeSettings): boolean {
+    return !!st.providers.find((p) => p.name === this.provider)?.testOnly;
+  }
   exportEnabled = false;
   sectoralItemIdsEnabled = false;
   logoDataUri: string | null = null;

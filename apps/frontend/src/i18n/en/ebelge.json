@@ -225,5 +225,18 @@
   "ebelge.socket.inbox": "{n} new incoming e-documents.",
   "ebelge.socket.outage": "The e-document integrator is unreachable: {message}",
   "ebelge.socket.integrity": "Integrity breach in {n} e-documents; notify GİB by {date}.",
-  "ebelge.socket.matbudan": "The deadline of {n} MATBUDAN despatch advices is near."
+  "ebelge.socket.matbudan": "The deadline of {n} MATBUDAN despatch advices is near.",
+  "ebelge.provider.mockTestOnly": "The mock integrator is a simulator: documents never reach the Revenue Administration (GİB). It can only be used in the TEST environment; choose a real integrator for live use.",
+  "ebelge.provider.autoSendHint": "Automatic sending is off: issued documents wait in the queue and are sent with \"Send now\" in the document panel. Mind the invoicing deadline (VUK 231/5).",
+  "ebelge.panel.sendNow": "Send now",
+  "ebelge.noticeWindow.title": "Cancellation / objection notice",
+  "ebelge.noticeWindow.open": "Due within {days} days of delivery (last day {date}).",
+  "ebelge.noticeWindow.closed": "The {days}-day notice period ended on {date}; ask your accountant about a late notice.",
+  "ebelge.eventCode.RECEIPT_ACCEPTED": "Receipt advice",
+  "ebelge.eventCode.RECEIPT_ADVICE": "Receipt advice",
+  "ebelge.eventCode.EARSIV_CANCEL": "e-Archive cancellation",
+  "ebelge.eventCode.OBJECTION": "Objection",
+  "ebelge.eventCode.CANCELLED_BEFORE_SEND": "Cancelled before sending",
+  "ebelge.event.RECEIPT_ACCEPTED": "{no}: fully accepted.",
+  "ebelge.event.RECEIPT_ADVICE": "{no}: {received} accepted, {rejected} rejected / missing."
 }

@@ -83,6 +83,8 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
           <div class="drawer-body">
             @if (inv.status === 'DRAFT') { <div class="doc-alert info">{{ 'invoices.draftInfo' | t }}</div> }
             @if (inv.status === 'CANCELLED') { <div class="doc-alert danger">{{ 'invoices.cancelledInfo' | t: { reason: inv.cancelReason } }}</div> }
+            @for (dd of inv.disputedDespatches || []; track dd.id) { <div class="doc-alert">{{ 'invoices.disputedDespatch' | t: { no: dd.documentNo, status: ('despatches.status.' + dd.status | t) } }}</div> }
+            @if (inv.status === 'QUEUED') { <div class="doc-alert info">{{ 'invoices.cancelAfterSend' | t }}</div> }
             <div class="doc-grid">
               <div class="doc-field"><label>{{ 'invoices.col.status' | t }}</label><span><span class="badge" [ngClass]="badge(inv.status)">{{ 'invoices.status.' + inv.status | t }}</span></span></div>
               <div class="doc-field"><label>{{ 'invoices.col.type' | t }}</label><span>{{ inv.typeCode }} · {{ inv.profileId }}</span></div>
@@ -139,9 +141,9 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
               @if (inv.status === 'DRAFT') {
                 <button class="btn btn-danger" (click)="remove(inv)" [disabled]="busy()">{{ 'invoices.deleteDraft' | t }}</button>
                 <button class="btn btn-primary" (click)="openIssue(inv)" [disabled]="busy()">{{ 'invoices.issue' | t }}</button>
-              } @else if (inv.status !== 'CANCELLED') {
+              } @else if (inv.status !== 'CANCELLED' && inv.status !== 'REJECTED') {
                 @if (inv.kind === 'SALES') { <a class="btn btn-secondary" routerLink="/returns" [queryParams]="{ invoiceId: inv.id }">{{ 'invoices.createReturn' | t }}</a> }
-                <button class="btn btn-danger" (click)="openCancel(inv)" [disabled]="busy()">{{ 'invoices.cancel' | t }}</button>
+                @if (inv.status !== 'QUEUED') { <button class="btn btn-danger" (click)="openCancel(inv)" [disabled]="busy()">{{ 'invoices.cancel' | t }}</button> }
               }
             }
           </div>

@@ -96,7 +96,14 @@ export class InvoiceService {
     const inv = await manager.findOne(InvoiceEntity, { where: { companyId: this.companyId, id }, relations: { lines: true } });
     if (!inv) throw new NotFoundException(err('DOCUMENT_NOT_FOUND'));
     inv.lines?.sort((a, b) => a.lineNo - b.lineNo);
-    return inv;
+    // Warning only: the receiver answered a referenced e-İrsaliye with a partial / full rejection
+    // (İrsaliye Yanıtı). Stock and invoiceable quantities are not corrected automatically; the user
+    // invoices the accepted quantity or records a return.
+    const refIds = (inv.despatchRefs || []).map((r) => r.id).filter((x): x is string => !!x);
+    const disputed = refIds.length
+      ? await manager.find(DespatchEntity, { where: { companyId: this.companyId, id: In(refIds), status: In(['PARTIALLY_ACCEPTED', 'REJECTED']) }, select: ['id', 'documentNo', 'status'] })
+      : [];
+    return Object.assign(inv, { disputedDespatches: disputed.map((d) => ({ id: d.id, documentNo: d.documentNo, status: d.status })) });
   }
 
   private async param<T>(key: string, country: string, fallback: T): Promise<T> {
