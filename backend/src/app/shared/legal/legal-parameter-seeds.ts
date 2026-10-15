@@ -226,6 +226,29 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     confidence: 'low',
     note: '2027 dini bayram günleri (Ramazan / Kurban Bayramı) Diyanet takvimi kesinleşince POST /admin/legal-parameters ile eklenmelidir; eklenmeden önce elle kur giren şirketler o günlerden sonraki belgeleri kesinleştiremez (FX_RATE_STALE).',
   },
+  // WP4: document regime
+  { country: TR, key: 'INVOICE_DEADLINE_DAYS', validFrom: '2018-01-01', validTo: null, value: 7, sourceRef: 'VUK md. 231/5 (malın teslimi veya hizmetin yapıldığı tarihten itibaren azami 7 gün)', confidence: 'high' },
+  { country: TR, key: 'INVOICE_DEADLINE_WARN_DAYS', validFrom: '2018-01-01', validTo: null, value: 5, sourceRef: 'İç kontrol: VUK 231/5 süresinin dolmasından önce uyarı (yasal süre değildir)', confidence: 'high', note: 'Uyarı eşiği; şirket politikasıyla değiştirilebilir.' },
+  { country: TR, key: 'DOCUMENT_SERIES_FORBIDDEN', validFrom: '2018-01-01', validTo: null, value: ['GIB'], sourceRef: 'e-Fatura / e-Arşiv Portal uygulaması: "GIB" seri öneki GİB portalında düzenlenen belgelere ayrılmıştır', confidence: 'low', note: 'Özel entegratör ve GİB kılavuzlarındaki yasaklı seri listesi teyit edilmeli; liste veri olarak güncellenebilir.' },
+  { country: TR, key: 'WITHDRAWAL_PERIOD_DAYS', validFrom: '2015-02-27', validTo: null, value: 14, sourceRef: '6502 s. TKHK md. 48/4; Mesafeli Sözleşmeler Yönetmeliği md. 9 (teslimden itibaren 14 gün)', confidence: 'high' },
+  { country: TR, key: 'WITHDRAWAL_REFUND_DAYS', validFrom: '2015-02-27', validTo: null, value: 14, sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 12 (cayma bildiriminden itibaren 14 gün içinde iade)', confidence: 'high' },
+  { country: TR, key: 'WITHDRAWAL_GOODS_RETURN_DAYS', validFrom: '2015-02-27', validTo: null, value: 10, sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 15/1 (tüketici malı bildirimden itibaren 10 gün içinde geri gönderir)', confidence: 'low', note: 'Uyum planı bu süreyi 14 gün olarak öngörüyor; 2022 değişikliği sonrası metin hukukçu tarafından teyit edilmeli.' },
+  { country: TR, key: 'EXPENSE_VOUCHER_DEADLINE_DAYS', validFrom: '2021-01-01', validTo: null, value: 7, sourceRef: 'VUK md. 234, 231/5 (7338 s.K.); 509 Sıra No.lu VUK GT IV.6', confidence: 'medium', note: 'Gider pusulasının teslimden itibaren 7 gün içinde düzenlenmesi.' },
+  {
+    country: TR,
+    key: 'EXPENSE_VOUCHER_WITHHOLDING_RATES',
+    validFrom: '2009-01-01',
+    validTo: null,
+    value: [
+      { kind: 'MUSTAHSIL_MAKBUZU', rate: 2, label: 'Zirai mahsul alımı (bitkisel ürünler)' },
+      { kind: 'MUSTAHSIL_MAKBUZU', rate: 1, label: 'Zirai mahsul alımı (hayvansal ürünler)' },
+      { kind: 'GIDER_PUSULASI', rate: 0, label: 'Stopaj yok' },
+    ],
+    sourceRef: 'GVK md. 94/11; 2009/14592 s. BKK (oranlar)',
+    confidence: 'low',
+    note: 'Stopaj oranları mali müşavir tarafından teyit edilmeli; gider pusulası türüne göre (hurda, el emeği, serbest meslek) farklı oranlar eklenebilir.',
+  },
+  { country: TR, key: 'MATBUDAN_DEADLINE_DAYS', validFrom: '2018-01-01', validTo: null, value: 1, sourceRef: 'e-İrsaliye Uygulaması Kılavuzu §11-12 (kâğıt irsaliye bilgileri en geç izleyen gün e-İrsaliye olarak düzenlenir)', confidence: 'medium' },
 ];
 
 
@@ -237,3 +260,16 @@ export const WP3_FIX_PARAMETER_KEYS = ['KDV_FX_MAX_STALE_DAYS'];
 
 /** Keys added by migration 1784274134000 (WP3 review fixes, round 2). */
 export const WP3_FIX2_PARAMETER_KEYS = ['TCMB_NO_BULLETIN_DAYS'];
+
+/** Keys added by migration 1784274135000 (WP4). */
+export const WP4_PARAMETER_KEYS = [
+  'INVOICE_DEADLINE_DAYS',
+  'INVOICE_DEADLINE_WARN_DAYS',
+  'DOCUMENT_SERIES_FORBIDDEN',
+  'WITHDRAWAL_PERIOD_DAYS',
+  'WITHDRAWAL_REFUND_DAYS',
+  'WITHDRAWAL_GOODS_RETURN_DAYS',
+  'EXPENSE_VOUCHER_DEADLINE_DAYS',
+  'EXPENSE_VOUCHER_WITHHOLDING_RATES',
+  'MATBUDAN_DEADLINE_DAYS',
+];

@@ -1,3 +1,4 @@
+import { UninvoicedCardComponent } from '../documents/uninvoiced-card.component';
 import { Component, inject, ViewChild, ElementRef, computed, effect, signal, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
 import { ExpiringLot } from '../../models/inventory.models';
 import { CommonModule } from '@angular/common';
@@ -14,7 +15,7 @@ import { ComplianceBannersComponent } from '../shared/compliance-banners.compone
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, ComplianceBannersComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, ComplianceBannersComponent, UninvoicedCardComponent],
   template: `
     <div class="page-header">
       <div>
@@ -73,6 +74,9 @@ import { ComplianceBannersComponent } from '../shared/compliance-banners.compone
           </div>
         </div>
       </div>
+
+      <!-- VUK 231/5: deliveries to invoice within 7 days -->
+      <app-uninvoiced-card></app-uninvoiced-card>
 
       <div class="grid-12">
         <!-- Weekly stock movement -->

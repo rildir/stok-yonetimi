@@ -39,6 +39,18 @@ export class OrderItemEntity {
   @Column({ type: 'simple-json', nullable: true })
   tracking?: TrackingEntry[] | null;
 
+  /** Base units on approved despatch advices */
+  @Column(qtyColumn({ default: 0 }))
+  despatchedQuantity: number;
+
+  /** Base units on (draft or issued) invoices */
+  @Column(qtyColumn({ default: 0 }))
+  invoicedQuantity: number;
+
+  /** Base units returned (completed returns) */
+  @Column(qtyColumn({ default: 0 }))
+  returnedQuantity: number;
+
   /** Legacy name; always equal to unitPrice. */
   @Column('decimal', { precision: 18, scale: 6, transformer: new ColumnNumericTransformer() })
   price: number;

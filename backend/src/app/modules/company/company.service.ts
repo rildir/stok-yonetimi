@@ -1,3 +1,5 @@
+import { DEFAULT_SERIES } from '../../shared/documents/default-series';
+import { DocumentSeriesEntity } from '../../entities/document-series.entity';
 import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -63,6 +65,9 @@ export class CompanyService {
     if (dto.isImporterOrOreProducer !== undefined) company.isImporterOrOreProducer = dto.isImporterOrOreProducer;
     if (dto.isDesignatedBuyer !== undefined) company.isDesignatedBuyer = dto.isDesignatedBuyer;
     if (dto.fxAutoFetch !== undefined) company.fxAutoFetch = dto.fxAutoFetch;
+    if (dto.stockDeductOn !== undefined) company.stockDeductOn = dto.stockDeductOn;
+    if (dto.eDocumentMode !== undefined) company.eDocumentMode = dto.eDocumentMode;
+    if (dto.producerReceiptEnabled !== undefined) company.producerReceiptEnabled = dto.producerReceiptEnabled;
     if (dto.enabledComplianceModules !== undefined) {
       const next = [...new Set(dto.enabledComplianceModules)];
       // A module can only be switched off when no active product uses it.
@@ -169,8 +174,13 @@ export class CompanyService {
           baseCurrency: dto.baseCurrency || COMPANY_DEFAULTS.baseCurrency,
           timezone: dto.timezone || COMPANY_DEFAULTS.timezone,
           fxAutoFetch: (dto.country || COMPANY_DEFAULTS.country).toUpperCase() === 'TR',
+          // TR: stock leaves on despatch approval (VUK 230/5, KDVK 10); elsewhere at order creation.
+          stockDeductOn: (dto.country || COMPANY_DEFAULTS.country).toUpperCase() === 'TR' ? 'despatch' : 'order',
         })
       );
+      for (const s of DEFAULT_SERIES) {
+        await manager.save(DocumentSeriesEntity, manager.create(DocumentSeriesEntity, { companyId: company.id, ...s, isDefault: true, isActive: true }));
+      }
 
       const admin = await manager.save(
         UserEntity,

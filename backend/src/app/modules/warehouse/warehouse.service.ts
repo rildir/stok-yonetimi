@@ -5,7 +5,7 @@ import { Repository, DataSource, EntityManager, MoreThan } from 'typeorm';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { UnitEntity } from '../../entities/unit.entity';
-import { dateKeyInZone, fitsDecimals, roundQty, warehouseTypeAllowsSale } from '../../shared/tr';
+import { dateKeyInZone, fitsDecimals, roundQty, transferNeedsDespatch, warehouseTypeAllowsSale } from '../../shared/tr';
 import { ProductWarehouseStockEntity } from '../../entities/product-warehouse-stock.entity';
 import { StockMovementType } from '../../entities/enums';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
@@ -218,6 +218,11 @@ export class WarehouseService {
       const to = await this.resolveWarehouse(manager, toWarehouse);
       if (from.id === to.id) {
         throw new BadRequestException(err('TRANSFER_SAME_WAREHOUSE'));
+      }
+      // VUK 230/5: goods moved to other premises travel with a despatch advice (POST /despatches, purpose TRANSFER).
+      const company = await this.finance.getCompany(manager);
+      if (transferNeedsDespatch(from, to, company.country || 'TR')) {
+        throw new BadRequestException(err('TRANSFER_DESPATCH_REQUIRED', { from: from.name, to: to.name }));
       }
 
       const total = product.quantity;

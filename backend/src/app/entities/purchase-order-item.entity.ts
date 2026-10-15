@@ -39,6 +39,14 @@ export class PurchaseOrderItemEntity {
   @Column({ type: 'simple-json', nullable: true })
   tracking?: TrackingEntry[] | null;
 
+  /** Base units accepted on completed goods receipts */
+  @Column(qtyColumn({ default: 0 }))
+  receivedQuantity: number;
+
+  /** Base units returned to the supplier (completed purchase returns) */
+  @Column(qtyColumn({ default: 0 }))
+  returnedQuantity: number;
+
   /** Legacy name; always equal to unitPrice. */
   @Column('decimal', { precision: 18, scale: 6, transformer: new ColumnNumericTransformer() })
   price: number;

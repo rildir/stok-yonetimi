@@ -1,5 +1,5 @@
 import { err } from '../../shared/i18n/app-error';
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager } from 'typeorm';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
@@ -18,6 +18,7 @@ import { isTracked, LotReceiptInput } from '../../shared/services/warehouse-stoc
 import { CompanyEntity } from '../../entities/company.entity';
 import { partyTaxId } from '../order/order.service';
 import { dateKeyInZone, parseZonedDateTime } from '../../shared/tr';
+import { DocumentHooks } from '../documents/document-support';
 
 /** Receipt document details (supplier's despatch advice / invoice) and the actual receipt time. */
 export interface PoReceiptMeta {
@@ -83,7 +84,42 @@ export class PurchaseOrderService {
     private readonly unitService: UnitService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
-  ) {}
+    @Optional() hooks?: DocumentHooks,
+  ) {
+    // The first completed goods receipt (DocumentsModule) freezes the purchase's tax data.
+    if (hooks) hooks.purchaseReceived = (manager, po, receivedAt, documentDate) => this.freezeAtReceipt(manager, po, receivedAt, documentDate);
+  }
+
+  /**
+   * Receipt = tax point of the purchase (KDVK 10: delivery, or an earlier invoice): the supplier
+   * document date when given (never after the receipt: 400 TAX_POINT_AFTER_RECEIPT), else an
+   * explicit tax point when it is not after the receipt, else the receipt day. The PO is re-priced
+   * at it (rate version, withholding threshold, TCMB rate; lines updated in place) and frozen.
+   */
+  async freezeAtReceipt(manager: EntityManager, po: PurchaseOrderEntity, receivedAt: Date, documentDate: string | null): Promise<void> {
+    if (po.taxFrozenAt) return;
+    const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
+    const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: po.supplierId } });
+    const receiptDay = dateKeyInZone(receivedAt, company.timezone);
+    if (documentDate && documentDate > receiptDay) throw new BadRequestException(err('TAX_POINT_AFTER_RECEIPT', { date: documentDate, received: receiptDay }));
+    const explicitTp = po.taxPointExplicit && po.taxPointDate ? String(po.taxPointDate).slice(0, 10) : null;
+    if (explicitTp && explicitTp > receiptDay) po.taxPointExplicit = false;
+    po.taxPointDate = documentDate || (explicitTp && explicitTp <= receiptDay ? explicitTp : receiptDay);
+    const rebuilt = await this.buildItems(manager, this.storedItems(po, company.pricesIncludeTax), po.currency, po.taxPointDate, supplier, this.storedTax(po), true);
+    po.items.forEach((item, i) => {
+      const { productId: _p, productName: _n, quantity: _q, unitId: _u, unitCode: _c, unitFactor: _f, unitQuantity: _uq, ...fields } = rebuilt.items[i];
+      Object.assign(item, fields);
+    });
+    rebuilt.pricing.doc.charges.forEach((c, i) => {
+      const row = (po.charges || [])[i];
+      if (row) Object.assign(row, { amount: c.amount, taxAmount: c.taxAmount, withheldTaxAmount: c.withheldTaxAmount, lineTotal: c.lineTotal, allocations: c.allocations });
+    });
+    const keep = { items: po.items, charges: po.charges };
+    this.applyTotals(po, rebuilt, this.storedTax(po));
+    Object.assign(po, keep);
+    po.taxFrozenAt = new Date();
+    await manager.save(PurchaseOrderEntity, po);
+  }
 
   private get companyId(): string {
     return this.tenant.companyId;
@@ -348,18 +384,13 @@ export class PurchaseOrderService {
     });
   }
 
-  async updatePurchaseOrderStatus(
-    id: string,
-    status: PurchaseOrderStatus | string,
-    performedBy = 'System',
-    warehouseId?: string | null,
-    receipts: PoReceiptInput[] = [],
-    meta: PoReceiptMeta = {},
-  ): Promise<PurchaseOrderEntity | null> {
-    const productsToEmit: ProductEntity[] = [];
-    let receivedOn: Date | null = null;
+  /**
+   * Status changes of a purchase order. Goods are received with goods receipts
+   * (POST /purchase-orders/:id/goods-receipts); here a partially received order can only be closed
+   * (RECEIVED), a draft sent or cancelled (not after a receipt: 409 PO_HAS_RECEIPTS).
+   */
+  async updatePurchaseOrderStatus(id: string, status: PurchaseOrderStatus | string): Promise<PurchaseOrderEntity | null> {
     const saved = await this.dataSource.transaction(async (manager) => {
-      await this.warehouseStock.begin(manager, this.companyId);
       const po = await manager.findOne(PurchaseOrderEntity, {
         where: { companyId: this.companyId, id },
         relations: { items: true, charges: true },
@@ -376,87 +407,20 @@ export class PurchaseOrderService {
       if (oldStatus === PurchaseOrderStatus.CANCELLED) {
         throw new BadRequestException(err('PO_CANCELLED_IMMUTABLE'));
       }
-
-      if (status === PurchaseOrderStatus.RECEIVED) {
-        const targetWarehouse = warehouseId || po.warehouseId || null;
-        const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
-        const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: po.supplierId } });
-        const receivedAt = parseZonedDateTime(meta.transactionDate, company.timezone) || new Date();
-        if (Number.isNaN(receivedAt.getTime())) throw new BadRequestException(err('TRANSACTION_DATE_INVALID'));
-        receivedOn = receivedAt;
-        const docNo = meta.documentNo || po.poNumber;
-        for (const r of receipts || []) {
-          if (!po.items.some((i) => i.id === r.itemId)) throw new BadRequestException(err('PO_RECEIPT_ITEM_NOT_FOUND', { id: r.itemId }));
+      if (status === PurchaseOrderStatus.RECEIVED || status === PurchaseOrderStatus.PARTIALLY_RECEIVED) {
+        if (!(status === PurchaseOrderStatus.RECEIVED && oldStatus === PurchaseOrderStatus.PARTIALLY_RECEIVED)) {
+          throw new BadRequestException(err('PO_RECEIVE_REQUIRES_GOODS_RECEIPT'));
         }
-        for (const item of po.items) {
-          if (!item.productId) continue;
-          const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId }, lock: { mode: 'pessimistic_write' } });
-          if (!prod) continue;
-          const oldQty = prod.quantity;
-          const receipt = (receipts || []).find((r) => r.itemId === item.id);
-          const allocations = await this.warehouseStock.receive(manager, prod, item.quantity, targetWarehouse, {
-            lots: receipt?.lots,
-            serials: receipt?.serials,
-          });
-          if (isTracked(prod)) item.tracking = this.warehouseStock.toTracking(allocations);
-          await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
-            type: StockMovementType.IN,
-            reasonCode: 'PURCHASE',
-            transactionDate: receivedAt,
-            documentType: meta.documentNo ? meta.documentType || 'DESPATCH' : 'PURCHASE_ORDER',
-            documentNo: docNo,
-            documentDate: meta.documentDate || dateKeyInZone(receivedAt, company.timezone),
-            counterpartyTaxId: partyTaxId(supplier?.identityNumber),
-            referenceId: po.poNumber,
-            referenceType: 'purchase_order',
-            note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
-            performedBy,
-          });
-          productsToEmit.push(prod);
-        }
-        if (targetWarehouse) po.warehouseId = targetWarehouse;
-        // Receipt = tax point of the purchase (KDVK 10: delivery, or an earlier invoice): the supplier
-        // document date when given (never after the receipt: 400 TAX_POINT_AFTER_RECEIPT), else an
-        // explicit tax point when it is not after the receipt, else the receipt day. The PO is
-        // re-priced at it (rate version, withholding threshold, TCMB rate; lines updated in place)
-        // and the tax data is frozen (a tax point after today is refused there).
-        const receiptDay = dateKeyInZone(receivedAt, company.timezone);
-        if (meta.documentDate && meta.documentDate > receiptDay) throw new BadRequestException(err('TAX_POINT_AFTER_RECEIPT', { date: meta.documentDate, received: receiptDay }));
-        const explicitTp = po.taxPointExplicit && po.taxPointDate ? String(po.taxPointDate).slice(0, 10) : null;
-        if (explicitTp && explicitTp > receiptDay) po.taxPointExplicit = false;
-        po.taxPointDate = meta.documentDate || (explicitTp && explicitTp <= receiptDay ? explicitTp : receiptDay);
-        const rebuilt = await this.buildItems(manager, this.storedItems(po, company.pricesIncludeTax), po.currency, po.taxPointDate, supplier, this.storedTax(po), true);
-        po.items.forEach((item, i) => {
-          const { productId: _p, productName: _n, quantity: _q, unitId: _u, unitCode: _c, unitFactor: _f, unitQuantity: _uq, ...fields } = rebuilt.items[i];
-          Object.assign(item, fields);
-        });
-        rebuilt.pricing.doc.charges.forEach((c, i) => {
-          const row = (po.charges || [])[i];
-          if (row) Object.assign(row, { amount: c.amount, taxAmount: c.taxAmount, withheldTaxAmount: c.withheldTaxAmount, lineTotal: c.lineTotal, allocations: c.allocations });
-        });
-        const keep = { items: po.items, charges: po.charges };
-        this.applyTotals(po, rebuilt, this.storedTax(po));
-        Object.assign(po, keep);
-        po.taxFrozenAt = new Date();
+      }
+      if (status === PurchaseOrderStatus.CANCELLED && (oldStatus === PurchaseOrderStatus.PARTIALLY_RECEIVED || po.items.some((i) => (i.receivedQuantity || 0) > 0))) {
+        throw new ConflictException(err('PO_HAS_RECEIPTS'));
       }
 
       po.status = status;
-      const out = await manager.save(PurchaseOrderEntity, po);
-      for (const item of po.items) {
-        if (item.tracking) await manager.update(PurchaseOrderItemEntity, { id: item.id }, { tracking: item.tracking });
-      }
-      if (receivedOn) {
-        // VUK 219: a receipt booked more than VUK219_RECORD_DAYS after the goods arrived gets a warning.
-        const limit = Number(await this.finance.param<number>('VUK219_RECORD_DAYS', undefined, manager).catch(() => 10)) || 10;
-        (out as PurchaseOrderEntity & { warnings?: unknown[] }).warnings = await this.warehouseStock.lateEntryWarnings(manager, this.companyId, [{ transactionDate: receivedOn }], limit);
-      }
-      return out;
+      return manager.save(PurchaseOrderEntity, po);
     });
 
     if (saved) {
-      for (const p of productsToEmit) {
-        this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: p });
-      }
       this.appGateway.emitToCompany(this.companyId, 'purchase_order_mutated', { type: 'update', purchaseOrder: saved });
     }
     return saved;

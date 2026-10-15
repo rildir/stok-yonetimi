@@ -77,6 +77,21 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @IsBoolean()
   isDesignatedBuyer?: boolean;
 
+  @ApiPropertyOptional({ description: "Stok düşüm noktası: 'despatch' (irsaliye onayında; TR varsayılanı) | 'order' (sipariş oluşturulunca)" })
+  @IsOptional()
+  @IsIn(['despatch', 'order'], { message: 'STOCK_DEDUCT_MODE_INVALID' })
+  stockDeductOn?: string;
+
+  @ApiPropertyOptional({ description: 'e-Belge modu: NONE (matbu / harici numara) | PROVIDER (özel entegratör, WP5)' })
+  @IsOptional()
+  @IsIn(['NONE', 'PROVIDER'], { message: 'EDOCUMENT_MODE_INVALID' })
+  eDocumentMode?: string;
+
+  @ApiPropertyOptional({ description: 'Müstahsil makbuzu modülü (VUK 235)' })
+  @IsOptional()
+  @IsBoolean()
+  producerReceiptEnabled?: boolean;
+
   @ApiPropertyOptional({ description: 'TCMB kurlarını her iş günü otomatik çek' })
   @IsOptional()
   @IsBoolean()

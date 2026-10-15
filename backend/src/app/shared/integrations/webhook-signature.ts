@@ -10,6 +10,11 @@ export const WEBHOOK_EVENTS = [
   'order.cancelled',
   'purchase_order.received',
   'transfer.completed',
+  'despatch.approved',
+  'invoice.issued',
+  'invoice.cancelled',
+  'return.completed',
+  'goods_receipt.completed',
 ] as const;
 
 export const SIGNATURE_HEADER = 'X-Webhook-Signature';

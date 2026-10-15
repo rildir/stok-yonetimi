@@ -142,6 +142,11 @@ export interface ExpiringLot {
 }
 
 export interface OrderItem extends LineUnitInfo, LineTaxFields {
+  id?: string;
+  /** WP4: base units on approved despatches / on invoices / returned */
+  despatchedQuantity?: number;
+  invoicedQuantity?: number;
+  returnedQuantity?: number;
   productId: string;
   productName: string;
   quantity: number;
@@ -181,6 +186,14 @@ export interface Order extends DocumentAmounts {
   salesChannel?: string | null;
   isDistanceSale?: boolean;
   channelOrderRef?: string | null;
+  /** WP4: 'order' (stock left at creation) | 'despatch' (reserved; leaves on despatch approval) */
+  stockMode?: string;
+  documentsLegacy?: boolean;
+  /** VUK 232: REQUIRED (merchant / above limit) | OPTIONAL (ÖKC receipt allowed) */
+  invoiceRequirement?: 'REQUIRED' | 'OPTIONAL';
+  invoiceLimit?: number | null;
+  okcReceiptNo?: string | null;
+  okcReceiptDate?: string | null;
   /** Response-only: tax engine / VUK 219 warnings */
   warnings?: { code: string; params?: Record<string, unknown> }[];
 }
@@ -231,6 +244,9 @@ export interface Supplier {
 
 export interface PurchaseOrderItem extends LineUnitInfo, LineTaxFields {
   id?: string;
+  /** WP4: base units accepted on goods receipts / returned to the supplier */
+  receivedQuantity?: number;
+  returnedQuantity?: number;
   productId: string;
   productName: string;
   quantity: number;

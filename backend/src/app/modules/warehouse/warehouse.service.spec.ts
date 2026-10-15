@@ -14,8 +14,10 @@ const COMPANY = 'tenant-A';
 function makeManager() {
   const product: any = { id: 'p1', companyId: COMPANY, name: 'Mouse', quantity: 10, minQuantity: 2, isDeleted: false };
   const warehouses: any[] = [
-    { id: 'w1', companyId: COMPANY, name: 'Merkez', isDeleted: false },
-    { id: 'w2', companyId: COMPANY, name: 'Şube', isDeleted: false },
+    // Same site group: same premises, no despatch advice needed (VUK 230/5)
+    { id: 'w1', companyId: COMPANY, name: 'Merkez', isDeleted: false, siteGroup: 'HQ' },
+    { id: 'w2', companyId: COMPANY, name: 'Şube', isDeleted: false, siteGroup: 'HQ' },
+    { id: 'w3', companyId: COMPANY, name: 'İzmir', isDeleted: false, siteGroup: null, address: { line1: 'Kemalpaşa OSB', districtId: 3518 } },
     { id: 'wx', companyId: 'tenant-B', name: 'Foreign', isDeleted: false },
   ];
   const rows: any[] = [
@@ -88,6 +90,12 @@ describe('WarehouseService.transferWarehouseStock', () => {
     await makeService(manager).transferWarehouseStock('p1', 'Şube', 'Merkez', 3);
     expect(rows.find((r) => r.warehouseId === 'w2').quantity).toBe(0);
     expect(rows.find((r) => r.warehouseId === 'w1').quantity).toBe(10);
+  });
+
+  it('requires a despatch advice between different premises (VUK 230/5)', async () => {
+    const { manager, rows } = makeManager();
+    await expect(makeService(manager).transferWarehouseStock('p1', 'w1', 'w3', 1)).rejects.toMatchObject({ response: { code: 'TRANSFER_DESPATCH_REQUIRED' } });
+    expect(rows.find((r) => r.warehouseId === 'w1').quantity).toBe(7);
   });
 
   it('rejects transfers above the available warehouse stock', async () => {

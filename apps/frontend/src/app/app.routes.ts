@@ -32,6 +32,11 @@ export const appRoutes: Route[] = [
       { path: 'reports', loadComponent: () => import('./components/reports/reports.component').then(m => m.ReportsComponent) },
       { path: 'stock-count', loadComponent: () => import('./components/stock-count/stock-count.component').then(m => m.StockCountComponent) },
       { path: 'warehouses', loadComponent: () => import('./components/warehouses/warehouses.component').then(m => m.WarehousesComponent) },
+      { path: 'invoices', loadComponent: () => import('./components/documents/invoices.component').then(m => m.InvoicesComponent) },
+      { path: 'despatches', loadComponent: () => import('./components/documents/despatches.component').then(m => m.DespatchesComponent) },
+      { path: 'returns', loadComponent: () => import('./components/documents/returns.component').then(m => m.ReturnsComponent) },
+      { path: 'goods-receipts', loadComponent: () => import('./components/documents/goods-receipts.component').then(m => m.GoodsReceiptsComponent) },
+      { path: 'expense-vouchers', loadComponent: () => import('./components/documents/expense-vouchers.component').then(m => m.ExpenseVouchersComponent) },
       { path: 'audit-log', canActivate: [adminGuard], loadComponent: () => import('./components/audit-log/audit-log.component').then(m => m.AuditLogComponent) },
       { path: 'integrations', canActivate: [adminGuard], loadComponent: () => import('./components/integrations/integrations.component').then(m => m.IntegrationsComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }

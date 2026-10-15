@@ -18,11 +18,14 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
 import { fitsDecimals, roundQty, sumQty } from '@stok/tr-compliance';
 import { toastMovementResult } from '../shared/movement-warnings';
+import { GoodsReceiptFormComponent } from '../documents/goods-receipt-form.component';
+import { DocumentsService } from '../../services/documents.service';
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent, GoodsReceiptFormComponent, RouterLink],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -140,6 +143,8 @@ import { toastMovementResult } from '../shared/movement-warnings';
                         <button class="icon-btn" [title]="'purchaseOrders.cancelOrder' | t" (click)="cancelPurchaseOrder(o)">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>
                         </button>
+                      } @else if (o.status === 'Partially Received') {
+                        <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)">{{ 'purchaseOrders.receiveMore' | t }}</button>
                       } @else if (o.status === 'Cancelled') {
                         <button class="delete-btn" [title]="'common.delete' | t" (click)="deletePurchaseOrder(o)">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -454,6 +459,14 @@ import { toastMovementResult } from '../shared/movement-warnings';
           </div>
           <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="closeDetailDrawer()">{{ 'common.close' | t }}</button>
+            <button class="btn btn-ghost" (click)="docs.print('purchase-orders/' + detailOrder().id + '/print')">{{ 'purchaseOrders.printForm' | t }}</button>
+            @if (detailOrder().status !== 'Draft' && detailOrder().status !== 'Sent') {
+              <a class="btn btn-ghost" routerLink="/goods-receipts">{{ 'purchaseOrders.goodsReceipts' | t }}</a>
+            }
+            @if (detailOrder().status === 'Partially Received') {
+              <button class="btn btn-secondary" (click)="closePartial(detailOrder())">{{ 'purchaseOrders.closeShort' | t }}</button>
+              <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">{{ 'purchaseOrders.receiveMore' | t }}</button>
+            }
             @if (detailOrder().status === 'Draft') {
               <button class="btn btn-outline-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
               <button class="btn btn-secondary" (click)="editPurchaseOrder(detailOrder())">{{ 'common.edit' | t }}</button>
@@ -469,81 +482,8 @@ import { toastMovementResult } from '../shared/movement-warnings';
       </div>
     }
 
-    @if (receiveTarget()) {
-      <div class="drawer-overlay po-modal-overlay" (click)="receiveTarget.set(null)">
-        <div class="po-modal" [class.po-modal-wide]="receiveLines().length" (click)="$event.stopPropagation()">
-          <div class="po-modal-head">
-            <h3 class="po-modal-title">{{ 'purchaseOrders.receive' | t }}</h3>
-            <p class="po-sub">{{ 'purchaseOrders.receiveMessage' | t: { no: formatPoNumber(receiveTarget().poNumber) } }}</p>
-          </div>
-          <div class="form-group">
-            <label>{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
-            <select class="select" [ngModel]="receiveWarehouseId()" (ngModelChange)="receiveWarehouseId.set($event)">
-              <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
-              @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
-            </select>
-          </div>
-          <div class="po-receipt-doc">
-            <div class="form-group">
-              <label for="poRecvAt">{{ 'purchaseOrders.receiveDialog.receivedAt' | t }}</label>
-              <input id="poRecvAt" type="datetime-local" class="input" [max]="nowLocal()" [ngModel]="receiveAt()" (ngModelChange)="receiveAt.set($event)" />
-            </div>
-            <div class="form-group">
-              <label for="poRecvDocNo">{{ 'purchaseOrders.receiveDialog.documentNo' | t }}</label>
-              <input id="poRecvDocNo" type="text" maxlength="50" class="input mono" [placeholder]="'purchaseOrders.receiveDialog.documentNoPh' | t" [ngModel]="receiveDocNo()" (ngModelChange)="receiveDocNo.set($event)" />
-            </div>
-            <div class="form-group">
-              <label for="poRecvDocDate">{{ 'purchaseOrders.receiveDialog.documentDate' | t }}</label>
-              <input id="poRecvDocDate" type="date" class="input" [ngModel]="receiveDocDate()" (ngModelChange)="receiveDocDate.set($event)" />
-            </div>
-          </div>
-          <div class="field-hint">{{ 'purchaseOrders.receiveDialog.dateHint' | t }}</div>
-          @if (receiveLines().length) {
-            <div class="field-hint">{{ 'purchaseOrders.receiveDialog.trackedInfo' | t }}</div>
-            <div class="po-rlines">
-              @for (rl of receiveLines(); track rl.itemId) {
-                <div class="po-rline">
-                  <div class="po-rline-head">
-                    <strong>{{ rl.productName }}</strong>
-                    <span class="badge" [class.badge-success]="receiveLineValid(rl)" [class.badge-warning]="!receiveLineValid(rl)">
-                      {{ 'purchaseOrders.receiveDialog.progress' | t: { entered: receiveLineCount(rl), total: rl.quantity } }}
-                    </span>
-                  </div>
-                  @if (rl.trackingType === 'lot') {
-                    @for (lot of rl.lots; track $index; let li = $index) {
-                      <div class="po-lot">
-                        <input class="input po-lot-no" [placeholder]="'purchaseOrders.receiveDialog.lotNumber' | t" [(ngModel)]="lot.lotNumber" (ngModelChange)="touchReceive()"/>
-                        <input type="date" class="input po-lot-date" [title]="'purchaseOrders.receiveDialog.expiryDate' | t" [(ngModel)]="lot.expiryDate" (ngModelChange)="touchReceive()"/>
-                        <input type="text" appQty [qtyDecimals]="rl.decimals" class="input po-lot-qty" [placeholder]="'purchaseOrders.receiveDialog.quantity' | t" [(ngModel)]="lot.quantity" (ngModelChange)="touchReceive()"/>
-                        <button type="button" class="delete-btn" (click)="removeReceiveLot(rl, li)" [disabled]="rl.lots.length <= 1" [title]="'common.delete' | t">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                        </button>
-                      </div>
-                    }
-                    <div class="po-rline-foot">
-                      <button type="button" class="btn btn-sm btn-secondary" (click)="addReceiveLot(rl)">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                        {{ 'purchaseOrders.receiveDialog.addLot' | t }}
-                      </button>
-                      @if (rl.hasExpiry) { <span class="field-hint">{{ 'purchaseOrders.receiveDialog.expiryRequired' | t }}</span> }
-                    </div>
-                  } @else {
-                    <textarea class="textarea mono" rows="4" [placeholder]="'purchaseOrders.receiveDialog.serialsPlaceholder' | t" [(ngModel)]="rl.serialsText" (ngModelChange)="touchReceive()"></textarea>
-                    <div class="po-rline-foot">
-                      <button type="button" class="btn btn-sm btn-secondary" (click)="openSerialScanner(rl.itemId)">{{ 'purchaseOrders.receiveDialog.scanSerial' | t }}</button>
-                      @if (hasDuplicateSerials(rl)) { <span class="error-msg">{{ 'purchaseOrders.receiveDialog.duplicateSerials' | t }}</span> }
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          }
-          <div class="po-modal-foot">
-            <button class="btn btn-secondary" (click)="receiveTarget.set(null)">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" [disabled]="isSaving() || !receiveValid()" (click)="confirmReceive()">{{ 'purchaseOrders.receive' | t }}</button>
-          </div>
-        </div>
-      </div>
+    @if (grTarget(); as po) {
+      <app-goods-receipt-form [po]="po" [warehouses]="warehouses()" [products]="state.products()" (done)="onGoodsReceived()" (closed)="grTarget.set(null)"></app-goods-receipt-form>
     }
 
     @if (scannerMode()) {
@@ -1284,7 +1224,33 @@ export class PurchaseOrdersComponent implements OnInit {
     });
   }
 
+  docs = inject(DocumentsService);
+  grTarget = signal<any>(null);
+
+  /** Mal kabul (goods receipt): received / rejected / difference quantities per line; only the accepted quantity enters stock. */
   receivePurchaseOrder(order: any) {
+    this.grTarget.set(order);
+  }
+
+  onGoodsReceived() {
+    this.grTarget.set(null);
+    this.closeDetailDrawer();
+    this.loadData();
+    this.state.loadData();
+  }
+
+  /** A partially received order is closed: the rest will not be delivered (no stock effect). */
+  closePartial(order: any) {
+    this.inventory.updatePurchaseOrderStatus(order.id, 'Received').subscribe({
+      next: () => {
+        this.closeDetailDrawer();
+        this.loadData();
+      },
+      error: (err) => this.ui.showToast(err.error?.message || this.i18n.t('purchaseOrders.actionFailed'), 'error'),
+    });
+  }
+
+  legacyReceivePurchaseOrder(order: any) {
     this.receiveWarehouseId.set(order.warehouseId || this.defaultWarehouseId());
     this.receiveAt.set(this.nowLocal());
     this.receiveDocNo.set('');

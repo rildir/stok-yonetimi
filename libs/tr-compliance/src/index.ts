@@ -4,3 +4,4 @@ export * from './time';
 export * from './obligation';
 export * from './inventory';
 export * from './category-rules';
+export * from './documents';

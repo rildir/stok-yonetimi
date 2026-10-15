@@ -1,7 +1,7 @@
 import { err } from '../../shared/i18n/app-error';
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, Not } from 'typeorm';
 import { OrderEntity } from '../../entities/order.entity';
 import { OrderItemEntity } from '../../entities/order-item.entity';
 import { OrderChargeEntity } from '../../entities/order-charge.entity';
@@ -18,7 +18,10 @@ import { UnitService, LineUnit } from '../../shared/services/unit.service';
 import { isTracked, StockAllocation } from '../../shared/services/warehouse-stock.service';
 import { TrackingEntry } from '../../entities/tracking';
 import { TaxEngineCharge, round2 } from '../../shared/finance/tax';
-import { addQty, dateKeyInZone, isValidTckn, isValidVkn, parseZonedDateTime, roundQty } from '../../shared/tr';
+import { addQty, dateKeyInZone, invoiceRequirement, isValidTckn, isValidVkn, parseZonedDateTime, roundQty } from '../../shared/tr';
+import { DocumentHooks, isFinalConsumerCustomer } from '../documents/document-support';
+import { DespatchEntity } from '../../entities/despatch.entity';
+import { InvoiceEntity } from '../../entities/invoice.entity';
 
 /** VKN / TCKN of a party when valid (snapshotted on stock movements). */
 export const partyTaxId = (v: string | null | undefined): string | null => (v && (isValidVkn(v) || isValidTckn(v)) ? v : null);
@@ -87,25 +90,109 @@ export class OrderService {
     private readonly unitService: UnitService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
-  ) {}
+    @Optional() hooks?: DocumentHooks,
+  ) {
+    // Despatch approval (DocumentsModule) freezes the order's tax data at the first shipment.
+    if (hooks) hooks.orderShipped = (manager, order, at) => this.freezeAtShipment(manager, order, at);
+  }
 
   private get companyId(): string {
     return this.tenant.companyId;
   }
 
   async getOrders(): Promise<OrderEntity[]> {
-    return this.orderRepo.find({
+    const orders = await this.orderRepo.find({
       where: { companyId: this.companyId },
       relations: { items: true, charges: true },
       order: { date: 'DESC' },
     });
+    return this.attachDocumentInfo(orders);
   }
 
   async getOrderById(id: string): Promise<OrderEntity | null> {
-    return this.orderRepo.findOne({
+    const order = await this.orderRepo.findOne({
       where: { companyId: this.companyId, id },
       relations: { items: true, charges: true },
     });
+    return order ? (await this.attachDocumentInfo([order]))[0] : null;
+  }
+
+  /**
+   * Read-only document fields: `invoiceRequirement` (VUK 232: always REQUIRED between merchants,
+   * above the yearly limit for final consumers; below it an ÖKC receipt may be recorded) and the
+   * limit applied.
+   */
+  private async attachDocumentInfo(orders: OrderEntity[]): Promise<OrderEntity[]> {
+    if (!orders?.length) return orders;
+    const company = await this.finance.getCompany().catch(() => null);
+    if (!company || (company.country || 'TR') !== 'TR' || !company.timezone) return orders;
+    const ids = [...new Set(orders.map((o) => o.customerId).filter(Boolean))] as string[];
+    const customers = ids.length ? await this.dataSource.manager.find(CustomerEntity, { where: { companyId: this.companyId, id: In(ids) } }) : [];
+    const limits = new Map<string, number | null>();
+    for (const o of orders) {
+      const day = dateKeyInZone(new Date(o.date), company.timezone);
+      const year = day.slice(0, 4);
+      if (!limits.has(year)) limits.set(year, Number(await this.finance.param<number>('VUK232_INVOICE_LIMIT', day).catch(() => null)) || null);
+      const limit = limits.get(year);
+      const customer = customers.find((c) => c.id === o.customerId) || null;
+      const total = Number(o.grandTotalTry) || Number(o.grandTotal) * (Number(o.exchangeRate) || 1);
+      Object.assign(o, {
+        invoiceRequirement: limit === null || limit === undefined ? 'REQUIRED' : invoiceRequirement({ isFinalConsumer: isFinalConsumerCustomer(customer) }, total, limit),
+        invoiceLimit: limit ?? null,
+      });
+    }
+    return orders;
+  }
+
+  /** ÖKC (cash register) receipt for a sale below the VUK 232 limit to a final consumer. */
+  async setOkcReceipt(id: string, dto: { okcReceiptNo?: string | null; okcReceiptDate?: string | null }): Promise<OrderEntity> {
+    const order = await this.getOrderById(id);
+    if (!order) throw new NotFoundException(err('ORDER_NOT_FOUND'));
+    const info = order as OrderEntity & { invoiceRequirement?: string; invoiceLimit?: number | null };
+    if (dto.okcReceiptNo && info.invoiceRequirement === 'REQUIRED') throw new BadRequestException(err('OKC_NOT_ALLOWED_INVOICE_REQUIRED', { limit: info.invoiceLimit ?? '-' }));
+    await this.orderRepo.update({ id: order.id, companyId: this.companyId }, { okcReceiptNo: dto.okcReceiptNo || null, okcReceiptDate: dto.okcReceiptDate || null });
+    const saved = (await this.getOrderById(id)) as OrderEntity;
+    this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'update', order: saved });
+    return saved;
+  }
+
+  /** Base quantities reserved by pending 'despatch'-mode orders (not yet despatched), per product. */
+  async reservedQuantities(manager: EntityManager, productIds: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (!productIds.length) return out;
+    const rows: { productId: string; qty: string }[] = await manager.query(
+      'SELECT oi.`productId` AS productId, SUM(oi.`quantity` - oi.`despatchedQuantity`) AS qty FROM `order_items` oi JOIN `orders` o ON o.`id` = oi.`orderId` ' +
+        "WHERE o.`companyId` = ? AND o.`status` = 'Pending' AND o.`stockMode` = 'despatch' AND o.`deletedAt` IS NULL AND oi.`productId` IN (?) GROUP BY oi.`productId`",
+      [this.companyId, productIds],
+    );
+    for (const r of rows || []) out.set(r.productId, Math.max(0, roundQty(Number(r.qty) || 0)));
+    return out;
+  }
+
+  /** First shipment (despatch approval / invoice replacing a despatch): shipment time = tax point, then freeze. */
+  async freezeAtShipment(manager: EntityManager, order: OrderEntity, at: Date): Promise<void> {
+    if (order.taxFrozenAt && order.shippedAt) return;
+    const company = await this.finance.getCompany(manager);
+    if (!order.shippedAt) order.shippedAt = at;
+    if (!order.taxFrozenAt) {
+      const shippedDay = dateKeyInZone(new Date(order.shippedAt), company.timezone);
+      const explicit = order.taxPointDate ? String(order.taxPointDate).slice(0, 10) : null;
+      order.taxPointDate = order.taxPointExplicit && explicit && explicit <= shippedDay ? explicit : shippedDay;
+      await this.repriceStored(manager, order, true);
+      order.taxFrozenAt = new Date();
+    }
+    await manager.save(OrderEntity, order);
+  }
+
+  /** 409 ORDER_HAS_ISSUED_DOCUMENTS when an approved despatch or an issued invoice exists; drafts are removed. */
+  private async assertNoIssuedDocuments(manager: EntityManager, order: OrderEntity): Promise<void> {
+    const despatches = await manager.find(DespatchEntity, { where: { companyId: this.companyId, orderId: order.id } });
+    const invoices = (await manager.find(InvoiceEntity, { where: { companyId: this.companyId, status: Not('CANCELLED') } })).filter((i) => (i.orderIds || []).includes(order.id));
+    if (despatches.some((d) => d.status !== 'DRAFT') || invoices.some((i) => i.status !== 'DRAFT')) {
+      throw new ConflictException(err('ORDER_HAS_ISSUED_DOCUMENTS'));
+    }
+    if (despatches.length) await manager.remove(DespatchEntity, despatches);
+    if (invoices.length) await manager.remove(InvoiceEntity, invoices);
   }
 
   private async loadCustomer(manager: EntityManager, customerId?: string | null): Promise<CustomerEntity | null> {
@@ -374,6 +461,9 @@ export class OrderService {
       if (!customerName) throw new BadRequestException(err('VALIDATION_CUSTOMER_NAME_REQUIRED'));
 
       const company = await this.finance.getCompany(manager);
+      // 'despatch' mode (TR default): the order only reserves stock; it leaves on despatch approval.
+      const despatchMode = company.stockDeductOn === 'despatch';
+      if (despatchMode && data.status === OrderStatus.COMPLETED) throw new BadRequestException(err('ORDER_DESPATCH_MODE_COMPLETE'));
       const currency = (data.currency || customer?.currency || company.baseCurrency).toUpperCase();
       const orderDate = data.date ? new Date(data.date) : new Date();
       // Stock leaves at the order date (legacy deduct-on-order mode), never in the future.
@@ -383,7 +473,17 @@ export class OrderService {
       // A completed order was delivered: without a shipment time it shipped at the order date.
       if (!shippedAt && data.status === OrderStatus.COMPLETED) shippedAt = txDate;
 
-      const lines = await this.prepareLines(manager, this.mergeItems(data.items, data.warehouseId), true, true);
+      const lines = await this.prepareLines(manager, this.mergeItems(data.items, data.warehouseId), true, !despatchMode);
+      if (despatchMode) {
+        // Available = sellable stock minus what other pending orders already reserved.
+        const reserved = await this.reservedQuantities(manager, [...new Set(lines.map((l) => l.product.id))]);
+        const wanted = new Map<string, number>();
+        for (const l of lines) wanted.set(l.product.id, addQty(wanted.get(l.product.id) || 0, l.baseQty));
+        for (const l of lines) {
+          const free = roundQty((Number(l.product.availableQuantity ?? l.product.quantity) || 0) - (reserved.get(l.product.id) || 0));
+          if ((wanted.get(l.product.id) || 0) > free) throw new BadRequestException(err('ORDER_INSUFFICIENT_STOCK', { name: l.product.name, available: Math.max(0, free) }));
+        }
+      }
       // Price (and validate the tax data) before any stock moves.
       const pricing = await this.price(
         manager,
@@ -399,7 +499,7 @@ export class OrderService {
       const tracking: (TrackingEntry[] | null)[] = [];
       for (const { item, product: prod, baseQty } of lines) {
         let allocations: StockAllocation[] = [];
-        if (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING) {
+        if (!despatchMode && (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING)) {
           const oldQty = prod.quantity;
           allocations = await this.warehouseStock.issue(
             manager,
@@ -442,6 +542,8 @@ export class OrderService {
         channelOrderRef: data.channelOrderRef || null,
         taxFrozenAt: data.status === OrderStatus.COMPLETED ? new Date() : null,
         taxPointExplicit: !!data.taxPointDate,
+        stockMode: despatchMode ? 'despatch' : 'order',
+        documentsLegacy: false,
       });
       this.applyPricing(manager, newOrder, lines, pricing, tracking, data);
 
@@ -513,6 +615,12 @@ export class OrderService {
         throw new BadRequestException(err('ORDER_COMPLETED_TO_PENDING'));
       }
 
+      if (status === OrderStatus.COMPLETED && order.stockMode === 'despatch') {
+        // Completed by its despatch advices only (stock leaves on approval).
+        throw new BadRequestException(err('ORDER_DESPATCH_MODE_COMPLETE'));
+      }
+      if (status === OrderStatus.CANCELLED) await this.assertNoIssuedDocuments(manager, order);
+
       if (status === OrderStatus.COMPLETED && !order.taxFrozenAt) {
         // Delivery = tax point (KDVK 10) unless an earlier explicit tax point (invoice) was set; the
         // order is re-priced at it (rate version, withholding threshold, TCMB rate), then frozen.
@@ -524,7 +632,7 @@ export class OrderService {
         order.taxFrozenAt = new Date();
       }
 
-      if (status === OrderStatus.CANCELLED && (oldStatus === OrderStatus.PENDING || oldStatus === OrderStatus.COMPLETED)) {
+      if (status === OrderStatus.CANCELLED && order.stockMode !== 'despatch' && (oldStatus === OrderStatus.PENDING || oldStatus === OrderStatus.COMPLETED)) {
         for (const item of order.items) {
           if (!item.productId) continue;
           const prod = await manager.findOne(ProductEntity, {
@@ -600,6 +708,7 @@ export class OrderService {
       if (order.status !== OrderStatus.CANCELLED) {
         throw new BadRequestException(err('ORDER_DELETE_ONLY_CANCELLED'));
       }
+      await this.dataSource.transaction((m) => this.assertNoIssuedDocuments(m, order));
       // Soft-remove the order without its eager items / charges: the cascade would soft-remove them
       // too, and they have no delete-date column (MissingDeleteDateColumnError). The audit subscriber still fires.
       const shallow = Object.assign(new OrderEntity(), order) as Partial<OrderEntity>;

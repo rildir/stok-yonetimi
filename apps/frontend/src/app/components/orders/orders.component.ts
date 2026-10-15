@@ -15,11 +15,12 @@ import { DocumentTaxFieldsComponent, LineTaxFieldsComponent, documentTaxGroup, d
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective, parseLocalizedQuantity, productDecimals } from '../shared/quantity-input.directive';
 import { roundQty, sumQty } from '@stok/tr-compliance';
+import { OrderDocumentsComponent } from '../documents/order-documents.component';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent],
+  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent, OrderDocumentsComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .z-top { z-index: 3000; }
@@ -235,16 +236,24 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
 
             <div class="oc-actions" (click)="$event.stopPropagation()">
               @if (o.status === 'Pending') {
+                @if (o.stockMode === 'despatch') {
+                  <button class="btn btn-primary btn-sm" (click)="openOrderDetail(o)">{{ 'orderDocs.despatch' | t }}</button>
+                } @else {
                 <button class="btn btn-primary btn-sm" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id">
                   @if (updatingOrderId() === o.id) { <span class="spinner-sm spinner-light"></span> } @else { {{ 'orders.action.markCompleted' | t }} }
                 </button>
+                }
                 <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">
                   {{ 'orders.action.cancel' | t }}
                 </button>
               } @else if (o.status === 'Completed') {
+                @if (o.stockMode === 'despatch') {
+                  <button class="btn btn-secondary btn-sm" (click)="openOrderDetail(o)">{{ 'orderDocs.documents' | t }}</button>
+                } @else {
                 <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">
                   {{ 'orders.action.refund' | t }}
                 </button>
+                }
               } @else {
                 <button class="btn btn-outline-danger btn-sm" (click)="promptDeleteOrder(o)" [disabled]="updatingOrderId() === o.id">
                   {{ 'common.delete' | t }}
@@ -637,7 +646,7 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                       </div>
                     }
                     <app-tax-summary [view]="detailView(order)" [flat]="true" [baseCurrency]="i18n.currency()"></app-tax-summary>
-                    @if (order.status === 'Pending' && !order.taxFrozenAt) {
+                    @if (order.status === 'Pending' && !order.taxFrozenAt && order.stockMode !== 'despatch') {
                       <div class="tp-edit">
                         <label for="tpDate" class="field-hint">{{ 'finance.taxPointDate' | t }}</label>
                         <input id="tpDate" type="date" class="form-input" [value]="order.taxPointDate || ''" #tpInput />
@@ -647,6 +656,9 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                   </div>
                 </div>
               }
+              @if (!isOrderDetailLoading()) {
+                <app-order-documents [order]="order" (changed)="refreshSelectedOrder(order.id)"></app-order-documents>
+              }
             </div>
 
             <div class="drawer-footer" [class.single-action]="order.status === 'Completed' || order.status === 'Cancelled'">
@@ -655,11 +667,13 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
               } @else {
                 @if (order.status === 'Pending') {
                   <button class="btn btn-secondary" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">{{ 'orders.action.cancel' | t }}</button>
+                  @if (order.stockMode !== 'despatch') {
                   <button class="btn btn-primary" (click)="updateOrderStatus(order.id, 'Completed')" [disabled]="updatingOrderId() === order.id">
                     @if (updatingOrderId() === order.id) { <span class="spinner-sm spinner-light"></span> } @else { {{ 'orders.action.complete' | t }} }
                   </button>
+                  }
                 }
-                @if (order.status === 'Completed') {
+                @if (order.status === 'Completed' && order.stockMode !== 'despatch') {
                   <button class="btn btn-secondary block" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">
                     @if (updatingOrderId() === order.id) { <span class="spinner-sm"></span> } @else { {{ 'orders.action.refund' | t }} }
                   </button>
@@ -889,6 +903,14 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     this.inventoryService.getWarehouses().subscribe({ next: (w) => this.warehouses.set(w || []), error: () => {} });
     this.route.queryParams.subscribe(params => {
       this.orderSearch.set(params['q'] || '');
+      if (params['id']) {
+        const open = (list: Order[]) => {
+          const o = list.find((x) => x.id === params['id']);
+          if (o) this.openOrderDetail(o);
+        };
+        if (this.state.orders().length) open(this.state.orders());
+        else this.inventoryService.getOrders().subscribe({ next: (list) => open(list), error: () => undefined });
+      }
       if (params['open'] === 'new') {
         this.openCreateOrder();
         this.router.navigate([], {
@@ -1554,6 +1576,18 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
         this.isOrderSaving.set(false);
         this.ui.showToast(err.error?.message || this.i18n.t('orders.toast.createError'), 'error');
       }
+    });
+  }
+
+  /** Reloads one order after a document action (despatch / invoice / ÖKC receipt). */
+  refreshSelectedOrder(id: string) {
+    this.inventoryService.getOrders().subscribe({
+      next: (list) => {
+        this.state.orders.set(list);
+        const o = list.find((x) => x.id === id);
+        if (o && this.selectedOrder()?.id === id) this.selectedOrder.set(o);
+      },
+      error: () => undefined,
     });
   }
 

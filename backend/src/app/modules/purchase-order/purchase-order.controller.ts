@@ -1,5 +1,5 @@
 import { ApiSecurity } from '@nestjs/swagger';
-import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { PurchaseOrderService } from './purchase-order.service';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { Roles } from '../../guards/roles.decorator';
@@ -42,18 +42,8 @@ export class PurchaseOrderController {
 
   @Roles('admin', 'manager')
   @Put(':id/status')
-  async updatePurchaseOrderStatus(
-    @Param('id') id: string,
-    @Body() dto: UpdatePurchaseOrderStatusDto,
-    @Req() req: any
-  ): Promise<PurchaseOrderEntity | null> {
-    const user = req.user?.username || 'System';
-    return this.poService.updatePurchaseOrderStatus(id, dto.status, user, dto.warehouseId, dto.receipts || [], {
-      transactionDate: dto.transactionDate,
-      documentType: dto.documentType,
-      documentNo: dto.documentNo,
-      documentDate: dto.documentDate,
-    });
+  async updatePurchaseOrderStatus(@Param('id') id: string, @Body() dto: UpdatePurchaseOrderStatusDto): Promise<PurchaseOrderEntity | null> {
+    return this.poService.updatePurchaseOrderStatus(id, dto.status);
   }
 
   @Roles('admin', 'manager')

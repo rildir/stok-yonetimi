@@ -121,6 +121,21 @@ export class CompanyEntity {
   @Column({ default: false })
   fxAutoFetch: boolean;
 
+  /**
+   * When a sale leaves stock: 'despatch' (on approval of the despatch advice; default for TR,
+   * VUK 230/5, KDVK 10) or 'order' (legacy: at order creation). The order keeps the mode it was created with.
+   */
+  @Column({ type: 'varchar', length: 10, default: 'order' })
+  stockDeductOn: string;
+
+  /** NONE: documents numbered from printed (matbu) series or registered from an external system; PROVIDER: e-Belge through an integrator (WP5) */
+  @Column({ type: 'varchar', length: 10, default: 'NONE' })
+  eDocumentMode: string;
+
+  /** Müstahsil makbuzu module (VUK 235) */
+  @Column({ default: false })
+  producerReceiptEnabled: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

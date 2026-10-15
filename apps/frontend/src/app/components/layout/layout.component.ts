@@ -185,6 +185,32 @@ import { ThemeService } from '../../services/theme.service';
             </a>
 
             @if (!isSidebarCollapsed() || isMobileNavOpen()) {
+              <div class="nav-group-label">{{ 'layout.group.documents' | t }}</div>
+            } @else {
+              <div class="nav-group-divider"></div>
+            }
+            <a routerLink="/invoices" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.invoices' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/><path d="M13 16H8"/></svg>
+              <span class="nav-text">{{ 'layout.nav.invoices' | t }}</span>
+            </a>
+            <a routerLink="/despatches" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.despatches' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+              <span class="nav-text">{{ 'layout.nav.despatches' | t }}</span>
+            </a>
+            <a routerLink="/goods-receipts" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.goodsReceipts' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><path d="M3.29 7 12 12l8.71-5"/><path d="M12 22V12"/><path d="m17 13 5 5"/><path d="m22 13-5 5"/></svg>
+              <span class="nav-text">{{ 'layout.nav.goodsReceipts' | t }}</span>
+            </a>
+            <a routerLink="/returns" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.returns' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+              <span class="nav-text">{{ 'layout.nav.returns' | t }}</span>
+            </a>
+            <a routerLink="/expense-vouchers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.expenseVouchers' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+              <span class="nav-text">{{ 'layout.nav.expenseVouchers' | t }}</span>
+            </a>
+
+            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
               <div class="nav-group-label">{{ 'layout.group.system' | t }}</div>
             } @else {
               <div class="nav-group-divider"></div>
@@ -946,6 +972,11 @@ export class LayoutComponent implements OnInit {
   getActivePageTitle(): string {
     const url = this.router.url;
     if (url.includes('/dashboard')) return this.i18n.t('layout.nav.dashboard');
+    if (url.includes('/invoices')) return this.i18n.t('layout.nav.invoices');
+    if (url.includes('/despatches')) return this.i18n.t('layout.nav.despatches');
+    if (url.includes('/goods-receipts')) return this.i18n.t('layout.nav.goodsReceipts');
+    if (url.includes('/returns')) return this.i18n.t('layout.nav.returns');
+    if (url.includes('/expense-vouchers')) return this.i18n.t('layout.nav.expenseVouchers');
     if (url.includes('/products')) return this.i18n.t('layout.nav.products');
     if (url.includes('/stock-movements')) return this.i18n.t('layout.nav.stockMovements');
     if (url.includes('/suppliers')) return this.i18n.t('layout.nav.suppliers');
@@ -964,6 +995,11 @@ export class LayoutComponent implements OnInit {
   getBreadcrumbs(): { category: string; page: string } {
     const url = this.router.url;
     if (url.includes('/dashboard')) return { category: this.i18n.t('layout.group.general'), page: this.i18n.t('layout.nav.dashboard') };
+    if (url.includes('/invoices')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.invoices') };
+    if (url.includes('/despatches')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.despatches') };
+    if (url.includes('/goods-receipts')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.goodsReceipts') };
+    if (url.includes('/returns')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.returns') };
+    if (url.includes('/expense-vouchers')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.expenseVouchers') };
     if (url.includes('/products')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.products') };
     if (url.includes('/stock-movements')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockMovements') };
     if (url.includes('/stock-count')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockCount') };

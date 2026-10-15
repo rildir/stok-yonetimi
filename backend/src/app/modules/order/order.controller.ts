@@ -3,6 +3,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/co
 import { OrderService } from './order.service';
 import { CreateOrderDto, QuoteOrderDto } from '../../dto/order.dto';
 import { TaxPointDto } from '../../dto/tax.dto';
+import { OkcReceiptDto } from '../../dto/documents.dto';
 import { OrderEntity } from '../../entities/order.entity';
 import { Roles } from '../../guards/roles.decorator';
 
@@ -33,6 +34,13 @@ export class OrderController {
   @Put(':id/tax-point')
   async setTaxPoint(@Param('id') id: string, @Body() dto: TaxPointDto): Promise<OrderEntity> {
     return this.orderService.setTaxPoint(id, dto);
+  }
+
+  /** ÖKC receipt of a sale below the VUK 232 limit (400 OKC_NOT_ALLOWED_INVOICE_REQUIRED otherwise) */
+  @Roles('admin', 'manager')
+  @Put(':id/okc-receipt')
+  async setOkcReceipt(@Param('id') id: string, @Body() dto: OkcReceiptDto): Promise<OrderEntity> {
+    return this.orderService.setOkcReceipt(id, dto);
   }
 
   @Roles('admin', 'manager')

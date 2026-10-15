@@ -159,6 +159,15 @@ export class SocketService {
     this.socket.on('compliance_warning', (data: { code: string; keys: string[]; year: number }) => {
       this.notify('compliance.socket.parameterMissing', { keys: (data.keys || []).join(', '), year: data.year }, 'warning');
     });
+
+    // Daily VUK 231/5 reminder: deliveries to invoice (day 5 warning, day 7 critical) and pending expense vouchers.
+    this.socket.on('document_deadlines', (data: { uninvoiced?: { warning: number; critical: number }; pendingExpenseVouchers?: number }) => {
+      this.notify('compliance.socket.documentDeadlines', {
+        critical: data.uninvoiced?.critical ?? 0,
+        warning: data.uninvoiced?.warning ?? 0,
+        vouchers: data.pendingExpenseVouchers ?? 0,
+      }, (data.uninvoiced?.critical ?? 0) > 0 ? 'error' : 'warning');
+    });
   }
 
   connect() {

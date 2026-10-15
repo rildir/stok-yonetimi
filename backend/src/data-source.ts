@@ -36,6 +36,12 @@ import { StockMovementAttachmentEntity } from './app/entities/stock-movement-att
 import { StockAdjustmentRequestEntity } from './app/entities/stock-adjustment-request.entity';
 import { TaxExemptionCodeEntity, WithholdingCodeEntity, OtvCodeEntity } from './app/entities/tax-code.entity';
 import { OrderChargeEntity } from './app/entities/order-charge.entity';
+import { DocumentSeriesEntity, DocumentSequenceEntity } from './app/entities/document-series.entity';
+import { DespatchEntity, DespatchLineEntity } from './app/entities/despatch.entity';
+import { InvoiceEntity, InvoiceLineEntity } from './app/entities/invoice.entity';
+import { ReturnEntity, ReturnItemEntity } from './app/entities/return.entity';
+import { GoodsReceiptEntity, GoodsReceiptItemEntity } from './app/entities/goods-receipt.entity';
+import { ExpenseVoucherEntity } from './app/entities/expense-voucher.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -86,6 +92,17 @@ export const AppDataSource = new DataSource({
     WithholdingCodeEntity,
     OtvCodeEntity,
     OrderChargeEntity,
+    DocumentSeriesEntity,
+    DocumentSequenceEntity,
+    DespatchEntity,
+    DespatchLineEntity,
+    InvoiceEntity,
+    InvoiceLineEntity,
+    ReturnEntity,
+    ReturnItemEntity,
+    GoodsReceiptEntity,
+    GoodsReceiptItemEntity,
+    ExpenseVoucherEntity,
   ],
   timezone: 'Z',
   dateStrings: ['DATE'],

@@ -22,7 +22,7 @@ import { WebhookService, PendingEvent } from './webhook.service';
  * the movement chain head (bookkeeping of the hash chain) and attachment blobs (linked to their
  * immutable movement; the content would bloat the diff).
  */
-const NOT_AUDITED = new Set(['audit_logs', 'webhook_deliveries', 'stock_movements', 'product_warehouse_stocks', 'migrations', 'stock_movement_chains', 'stock_movement_attachments']);
+const NOT_AUDITED = new Set(['audit_logs', 'webhook_deliveries', 'stock_movements', 'product_warehouse_stocks', 'migrations', 'stock_movement_chains', 'stock_movement_attachments', 'document_sequences']);
 
 /** Changes to only these fields are noise (e.g. API key last-used bookkeeping). */
 const NOISE_ONLY = new Set(['lastUsedAt', 'updatedAt']);
@@ -165,6 +165,15 @@ export class AuditSubscriber implements EntitySubscriberInterface {
       }
     } else if (table === 'purchase_orders') {
       if (action === 'update' && after?.status === 'Received' && before?.status !== 'Received') ev('purchase_order.received', after);
+    } else if (table === 'despatches') {
+      if (action === 'update' && after?.status === 'APPROVED' && before?.status === 'DRAFT') ev('despatch.approved', after);
+    } else if (table === 'invoices') {
+      if (action === 'update' && after?.status === 'ISSUED' && before?.status === 'DRAFT') ev('invoice.issued', after);
+      if (action === 'update' && after?.status === 'CANCELLED' && before?.status !== 'CANCELLED') ev('invoice.cancelled', after);
+    } else if (table === 'returns') {
+      if (action === 'update' && after?.status === 'COMPLETED' && before?.status === 'DRAFT') ev('return.completed', after);
+    } else if (table === 'goods_receipts') {
+      if (action === 'update' && after?.status === 'COMPLETED' && before?.status === 'DRAFT') ev('goods_receipt.completed', after);
     } else if (table === 'stock_movements') {
       if (action === 'create' && (after?.type === 'TRANSFER_IN' || after?.type === 'QUARANTINE_IN')) {
         out.push({ companyId, event: 'transfer.completed', entityType: table, entityId: after.id ?? null, data: after });

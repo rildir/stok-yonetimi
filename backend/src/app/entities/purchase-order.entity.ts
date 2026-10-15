@@ -16,7 +16,7 @@ export class PurchaseOrderEntity {
   @Column({ type: 'varchar', length: 36 })
   companyId: string;
 
-  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE' })
+  @ManyToOne(() => CompanyEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'companyId', foreignKeyConstraintName: 'FK_purchase_orders_company' })
   company?: CompanyEntity;
 

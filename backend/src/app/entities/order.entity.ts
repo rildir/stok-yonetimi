@@ -16,7 +16,7 @@ export class OrderEntity {
   @Column({ type: 'varchar', length: 36 })
   companyId: string;
 
-  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE' })
+  @ManyToOne(() => CompanyEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'companyId', foreignKeyConstraintName: 'FK_orders_company' })
   company?: CompanyEntity;
 
@@ -153,6 +153,21 @@ export class OrderEntity {
 
   @OneToMany(() => OrderItemEntity, (item) => item.order, { cascade: true, eager: true })
   items: OrderItemEntity[];
+
+  /** Stock mode the order was created with: 'order' (stock left at creation) | 'despatch' (reserved; leaves on despatch approval) */
+  @Column({ type: 'varchar', length: 10, default: 'order' })
+  stockMode: string;
+
+  /** Order created before the document regime (WP4): no despatch / invoice records expected */
+  @Column({ default: false })
+  documentsLegacy: boolean;
+
+  /** ÖKC (cash register) receipt no for sales below the VUK 232 limit */
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  okcReceiptNo?: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  okcReceiptDate?: string | null;
 
   @Column({ nullable: true })
   carrier?: string;

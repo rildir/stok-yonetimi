@@ -46,6 +46,12 @@ import { StockMovementAttachmentEntity } from './entities/stock-movement-attachm
 import { StockAdjustmentRequestEntity } from './entities/stock-adjustment-request.entity';
 import { TaxExemptionCodeEntity, WithholdingCodeEntity, OtvCodeEntity } from './entities/tax-code.entity';
 import { OrderChargeEntity } from './entities/order-charge.entity';
+import { DocumentSeriesEntity, DocumentSequenceEntity } from './entities/document-series.entity';
+import { DespatchEntity, DespatchLineEntity } from './entities/despatch.entity';
+import { InvoiceEntity, InvoiceLineEntity } from './entities/invoice.entity';
+import { ReturnEntity, ReturnItemEntity } from './entities/return.entity';
+import { GoodsReceiptEntity, GoodsReceiptItemEntity } from './entities/goods-receipt.entity';
+import { ExpenseVoucherEntity } from './entities/expense-voucher.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -71,6 +77,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { UnitModule } from './modules/unit/unit.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { RefdataModule } from './modules/refdata/refdata.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -120,6 +127,17 @@ import { RefdataModule } from './modules/refdata/refdata.module';
         WithholdingCodeEntity,
         OtvCodeEntity,
         OrderChargeEntity,
+        DocumentSeriesEntity,
+        DocumentSequenceEntity,
+        DespatchEntity,
+        DespatchLineEntity,
+        InvoiceEntity,
+        InvoiceLineEntity,
+        ReturnEntity,
+        ReturnItemEntity,
+        GoodsReceiptEntity,
+        GoodsReceiptItemEntity,
+        ExpenseVoucherEntity,
       ],
       // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
       timezone: 'Z',
@@ -168,6 +186,7 @@ import { RefdataModule } from './modules/refdata/refdata.module';
     UnitModule,
     IntegrationsModule,
     RefdataModule,
+    DocumentsModule,
     HealthModule,
   ],
   providers: [

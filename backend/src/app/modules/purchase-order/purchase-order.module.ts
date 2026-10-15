@@ -7,12 +7,14 @@ import { ProductEntity } from '../../entities/product.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { SharedModule } from '../../shared/shared.module';
 import { GatewayModule } from '../../shared/gateway.module';
+import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([PurchaseOrderEntity, ProductEntity, SupplierEntity]),
     SharedModule,
     GatewayModule,
+    DocumentsModule,
   ],
   controllers: [PurchaseOrderController],
   providers: [PurchaseOrderService],

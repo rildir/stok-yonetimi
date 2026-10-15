@@ -13,7 +13,8 @@ type WarehouseStockItem = { productId: string; productName: string; sku: string;
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
 import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGroup } from '../shared/address-fields.component';
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
-import { WAREHOUSE_OWNERSHIPS, WAREHOUSE_TYPES, warehouseTypeAllowsSale } from '@stok/tr-compliance';
+import { WAREHOUSE_OWNERSHIPS, WAREHOUSE_TYPES, warehouseTypeAllowsSale, transferNeedsDespatch, isValidDriverTckn, isValidTrPlate } from '@stok/tr-compliance';
+import { DocumentsService, nowLocalInput } from '../../services/documents.service';
 
 @Component({
   selector: 'app-warehouses',
@@ -21,6 +22,7 @@ import { WAREHOUSE_OWNERSHIPS, WAREHOUSE_TYPES, warehouseTypeAllowsSale } from '
   imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AddressFieldsComponent, QuantityInputDirective],
   styleUrls: ['../../drawer.css'],
   styles: [`
+    .tr-desp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); } .tr-desp-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); color: var(--color-text-muted); } @media (max-width: 640px) { .tr-desp-grid { grid-template-columns: 1fr; } }
     .wh-check { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); cursor: pointer; }
     .dim-text { color: var(--color-text-muted); font-size: var(--text-xs); font-weight: var(--weight-regular); }
     .stock-table { width: 100%; border-collapse: collapse; }
@@ -377,6 +379,16 @@ import { WAREHOUSE_OWNERSHIPS, WAREHOUSE_TYPES, warehouseTypeAllowsSale } from '
                   <textarea id="trNote" formControlName="note" class="form-input" [class.has-value]="!!transferForm.get('note')?.value"></textarea>
                   <label for="trNote" class="form-label">{{ 'warehouses.transfer.note' | t }}</label>
                 </div>
+                @if (needsDespatch()) {
+                  <div class="po-callout" style="margin-bottom: var(--space-3); font-size: var(--text-sm);">{{ 'warehouses.transfer.despatchRequired' | t }}</div>
+                  <div class="tr-desp-grid">
+                    <label class="tr-desp-field"><span>{{ 'despatches.actualDespatchAt' | t }}</span><input type="datetime-local" class="input" [(ngModel)]="despAt" [ngModelOptions]="{ standalone: true }" /></label>
+                    <label class="tr-desp-field"><span>{{ 'despatches.plate' | t }}</span><input class="input mono" maxlength="20" placeholder="34 ABC 123" [(ngModel)]="despPlate" [ngModelOptions]="{ standalone: true }" /></label>
+                    <label class="tr-desp-field"><span>{{ 'despatches.driverFirstName' | t }}</span><input class="input" [(ngModel)]="despFirst" [ngModelOptions]="{ standalone: true }" /></label>
+                    <label class="tr-desp-field"><span>{{ 'despatches.driverLastName' | t }}</span><input class="input" [(ngModel)]="despLast" [ngModelOptions]="{ standalone: true }" /></label>
+                    <label class="tr-desp-field"><span>{{ 'despatches.driverTckn' | t }}</span><input class="input mono" maxlength="11" inputmode="numeric" [(ngModel)]="despTckn" [ngModelOptions]="{ standalone: true }" /></label>
+                  </div>
+                }
               }
               @if (transferError()) { <div class="form-error">{{ transferError() }}</div> }
             </div>
@@ -755,9 +767,25 @@ export class WarehousesComponent implements OnInit {
     return c ? (c.invalid && (c.dirty || c.touched)) : false;
   }
 
+  docs = inject(DocumentsService);
+  despAt = nowLocalInput();
+  despPlate = '';
+  despFirst = '';
+  despLast = '';
+  despTckn = '';
+  private transferTarget = signal<string>('');
+
+  /** VUK 230/5: a transfer to other premises (different site group / address) travels with a despatch advice. */
+  needsDespatch(): boolean {
+    const src = this.transferSource();
+    const to = this.warehouses().find((w) => w.id === (this.transferForm?.get('toWarehouseId')?.value || this.transferTarget()));
+    return !!src && !!to && transferNeedsDespatch(src as any, to as any);
+  }
+
   submitTransfer() {
     const src = this.transferSource();
     if (!src) return;
+    if (this.needsDespatch()) return this.submitTransferDespatch();
     if (this.transferForm.invalid) {
       this.transferForm.markAllAsTouched();
       return;
@@ -791,5 +819,51 @@ export class WarehousesComponent implements OnInit {
         this.ui.showToast(msg, 'error');
       }
     });
+  }
+
+  /** Transfer with a despatch advice: draft + approval (stock moves to the in-transit warehouse; received at the target later). */
+  private submitTransferDespatch() {
+    const src = this.transferSource();
+    if (!src || this.transferForm.invalid) return this.transferForm.markAllAsTouched();
+    const { productId, toWarehouseId, quantity, note } = this.transferForm.value;
+    const qty = Number(quantity);
+    if (!(qty > 0) || qty > this.availableQty()) return this.transferError.set(this.i18n.t('warehouses.transfer.quantityInvalid', { max: this.availableQty() }));
+    if (this.despTckn && !isValidDriverTckn(this.despTckn.trim())) return this.transferError.set(this.i18n.t('despatches.driverTcknInvalid'));
+    if (this.despPlate && !isValidTrPlate(this.despPlate)) return this.transferError.set(this.i18n.t('despatches.plateInvalid'));
+    const tracking = this.selectedTracking();
+    const lotId = tracking === 'lot' && this.selectedLotId() ? this.selectedLotId() : null;
+    const serials = tracking === 'serial' ? [...this.selectedSerials()] : null;
+    this.isTransferring.set(true);
+    this.transferError.set(null);
+    this.docs
+      .createDespatch({
+        purpose: 'TRANSFER',
+        sourceWarehouseId: src.id,
+        targetWarehouseId: toWarehouseId,
+        actualDespatchAt: this.despAt || null,
+        drivers: this.despTckn ? [{ firstName: this.despFirst.trim(), lastName: this.despLast.trim(), tckn: this.despTckn.trim() }] : [],
+        plates: this.despPlate ? [{ plate: this.despPlate.trim(), type: 'TRUCK' }] : [],
+        note: note?.trim() || null,
+        lines: [{ productId, quantity: qty, lots: lotId ? [{ lotId, quantity: qty }] : null, serials }],
+      })
+      .subscribe({
+        next: (d) =>
+          this.docs.approveDespatch(d.id).subscribe({
+            next: (a) => {
+              this.isTransferring.set(false);
+              this.closeTransfer();
+              this.loadWarehouses();
+              this.ui.showToast(this.i18n.t('warehouses.transfer.despatchDone', { number: a.documentNo }), 'success');
+            },
+            error: (err) => {
+              this.isTransferring.set(false);
+              this.transferError.set(err.error?.message || this.i18n.t('warehouses.transfer.error'));
+            },
+          }),
+        error: (err) => {
+          this.isTransferring.set(false);
+          this.transferError.set(err.error?.message || this.i18n.t('warehouses.transfer.error'));
+        },
+      });
   }
 }
