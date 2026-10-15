@@ -22,7 +22,7 @@ import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { Lang, translate } from '../../shared/i18n/messages';
 import { isCodedErrorBody } from '../../shared/i18n/app-error';
 import { parseValidationMessage } from '../../shared/i18n/i18n-exception.filter';
-import { parseCsvObjects, toCsv } from '../../shared/integrations/csv';
+import { CsvLocale, parseCsvObjects, toCsv } from '../../shared/integrations/csv';
 
 export const PRODUCT_CSV_COLUMNS = ['sku', 'name', 'category', 'price', 'quantity', 'minQuantity', 'unit', 'barcode', 'barcodeType', 'supplierId'];
 /** Address columns shared by customer / supplier CSVs (district by name within the province). */
@@ -141,35 +141,37 @@ export class ImportExportService {
   }
 
   // ------------------------------------------------------------------ export
-  async exportProducts(): Promise<string> {
+  async exportProducts(locale: CsvLocale = 'en'): Promise<string> {
     const rows = await this.ds.getRepository(ProductEntity).find({ where: { companyId: this.companyId, isDeleted: false }, order: { sku: 'ASC' } });
     const cols = [...PRODUCT_CSV_COLUMNS, 'status', 'trackingType', 'id'];
-    return toCsv(cols, rows as any);
+    return toCsv(cols, rows as any, locale);
   }
 
-  async exportCustomers(): Promise<string> {
+  async exportCustomers(locale: CsvLocale = 'en'): Promise<string> {
     const rows = await this.ds.getRepository(CustomerEntity).find({ where: { companyId: this.companyId, isDeleted: false }, order: { name: 'ASC' } });
     return toCsv(
       [...CUSTOMER_CSV_COLUMNS, 'province', 'needsReview', 'id'],
       rows.map((c) => ({ ...c, ...flatAddress(c.address) })) as any,
+      locale,
     );
   }
 
-  async exportSuppliers(): Promise<string> {
+  async exportSuppliers(locale: CsvLocale = 'en'): Promise<string> {
     const rows = await this.ds.getRepository(SupplierEntity).find({ where: { companyId: this.companyId, isDeleted: false }, order: { name: 'ASC' } });
     return toCsv(
       [...SUPPLIER_CSV_COLUMNS, 'province', 'needsReview', 'id'],
       rows.map((s) => ({ ...s, ...flatAddress(s.address) })) as any,
+      locale,
     );
   }
 
-  async exportOrders(): Promise<string> {
+  async exportOrders(locale: CsvLocale = 'en'): Promise<string> {
     const rows = await this.ds.getRepository(OrderEntity).find({ where: { companyId: this.companyId }, relations: ['items'], order: { date: 'DESC' } });
     const cols = ['orderNumber', 'date', 'status', 'customerName', 'customerId', 'currency', 'exchangeRate', 'subtotal', 'taxTotal', 'grandTotal', 'itemCount', 'carrier', 'trackingNumber', 'id'];
-    return toCsv(cols, rows.map((o) => ({ ...o, itemCount: o.items?.length ?? 0 })) as any);
+    return toCsv(cols, rows.map((o) => ({ ...o, itemCount: o.items?.length ?? 0 })) as any, locale);
   }
 
-  async exportStock(): Promise<string> {
+  async exportStock(locale: CsvLocale = 'en'): Promise<string> {
     const rows = await this.ds.query(
       `SELECT p.sku, p.name, w.code AS warehouseCode, w.name AS warehouseName, s.quantity, p.minQuantity, p.unit, p.status
          FROM product_warehouse_stocks s
@@ -179,7 +181,7 @@ export class ImportExportService {
         ORDER BY p.sku, w.code`,
       [this.companyId],
     );
-    return toCsv(['sku', 'name', 'warehouseCode', 'warehouseName', 'quantity', 'minQuantity', 'unit', 'status'], rows);
+    return toCsv(['sku', 'name', 'warehouseCode', 'warehouseName', 'quantity', 'minQuantity', 'unit', 'status'], rows, locale);
   }
 
   // ------------------------------------------------------------------ import helpers

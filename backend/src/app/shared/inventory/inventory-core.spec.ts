@@ -186,7 +186,10 @@ describe('WarehouseStockService.recordMovements', () => {
     ]);
     expect(saved[0].prevHash).toBe('a'.repeat(64));
     expect(saved[1].prevHash).toBe(saved[0].hash);
-    expect(saved[0]).toMatchObject({ productSku: 'GD-FISTIK', unitCode: 'KGM', warehouseName: 'Merkez Depo', performedBy: 'ayse', performedByUserId: 'u-1', hashVersion: 2 });
+    expect(saved[0]).toMatchObject({ productSku: 'GD-FISTIK', unitCode: 'KGM', warehouseName: 'Merkez Depo', performedBy: 'ayse', performedByUserId: 'u-1', hashVersion: 3 });
+    // WP6: every row carries its cost stamp (covered by the v3 hash).
+    expect(saved[0]).toHaveProperty('unitCost');
+    expect(saved[0]).toHaveProperty('costSource');
     expect(saved[0].createdAt).toBeInstanceOf(Date);
     expect(saved[0].transactionDate.toISOString()).toBe('2026-10-01T10:15:30.000Z');
     expect(chainRow).toMatchObject({ lastSequenceNo: 9, lastHash: saved[1].hash });
@@ -288,9 +291,12 @@ describe('regulatory category rules', () => {
       ['GTIN_REQUIRED_FOR_CATEGORY', 'error'],
     ]);
   });
-  it('food lot / expiry rules are warnings until WP6 enforces them', () => {
+  it('food requires lot tracking and expiry (WP6: errors)', () => {
     const issues = checkCategoryRules({ regulatoryCategory: 'food', trackingType: 'none', hasExpiry: false }, ['food']);
-    expect(issues.every((i) => i.severity === 'warning')).toBe(true);
+    expect(issues.map((i) => [i.code, i.severity])).toEqual([
+      ['LOT_REQUIRED_FOR_CATEGORY', 'error'],
+      ['EXPIRY_REQUIRED_FOR_CATEGORY', 'error'],
+    ]);
     expect(checkCategoryRules({ regulatoryCategory: 'food', trackingType: 'lot', hasExpiry: true }, ['food'])).toEqual([]);
     expect(checkCategoryRules({ regulatoryCategory: 'none' }, [])).toEqual([]);
   });

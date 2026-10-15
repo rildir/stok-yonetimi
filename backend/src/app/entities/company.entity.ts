@@ -136,6 +136,56 @@ export class CompanyEntity {
   @Column({ default: false })
   producerReceiptEnabled: boolean;
 
+  // ─── WP6: costing, fiscal periods, inventory policies, food, GS1 ───
+
+  /** WAVG_MOVING | WAVG_PERIODIC_QUARTERLY | WAVG_PERIODIC_YEARLY | FIFO | SPECIFIC_LOT (no LIFO) */
+  @Column({ type: 'varchar', length: 30, default: 'WAVG_MOVING' })
+  costingMethod: string;
+
+  /** First day the current method applies (start of a fiscal year) */
+  @Column({ type: 'date', nullable: true })
+  costingMethodEffectiveFrom?: string | null;
+
+  /** Method that takes effect at pendingCostingMethodFrom (start of a later fiscal year) */
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  pendingCostingMethod?: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  pendingCostingMethodFrom?: string | null;
+
+  /** Exchange differences after receipt: EXPENSE (finance expense / income) | COST (added to cost) */
+  @Column({ type: 'varchar', length: 10, default: 'EXPENSE' })
+  postReceiptFxPolicy: string;
+
+  /** 1-12 (özel hesap dönemi) */
+  @Column({ type: 'tinyint', default: 1 })
+  fiscalYearStartMonth: number;
+
+  /** ANNUAL | TRIENNIAL_VUK190 | FIXED_VALUE_TTK66_3 */
+  @Column({ type: 'varchar', length: 30, default: 'ANNUAL' })
+  physicalCountPolicy: string;
+
+  @Column({ type: 'date', nullable: true })
+  lastPhysicalCountDate?: string | null;
+
+  /** VUK 278/A imha oranı (%) assigned by the Ministry, its validity and reference */
+  @Column('decimal', { precision: 7, scale: 4, nullable: true, transformer: new ColumnNumericTransformer() })
+  destructionRatePct?: number | null;
+
+  @Column({ type: 'date', nullable: true })
+  destructionRateValidUntil?: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  destructionRateRef?: string | null;
+
+  /** Sale of best-before (TETT) expired lots: BLOCK (default) | ALLOW (company policy, maker-checker + audit) */
+  @Column({ type: 'varchar', length: 10, default: 'BLOCK' })
+  bestBeforeSalePolicy: string;
+
+  /** GS1 Türkiye company prefix (GTIN generation) */
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  gs1CompanyPrefix?: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

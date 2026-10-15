@@ -141,36 +141,36 @@ export class ImportExportController {
   @Get('export/products.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="products.csv"')
-  products() {
-    return this.svc.exportProducts();
+  products(@Query('locale') locale?: string) {
+    return this.svc.exportProducts(locale === 'tr' ? 'tr' : 'en');
   }
 
   @Get('export/customers.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="customers.csv"')
-  customers() {
-    return this.svc.exportCustomers();
+  customers(@Query('locale') locale?: string) {
+    return this.svc.exportCustomers(locale === 'tr' ? 'tr' : 'en');
   }
 
   @Get('export/suppliers.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="suppliers.csv"')
-  suppliers() {
-    return this.svc.exportSuppliers();
+  suppliers(@Query('locale') locale?: string) {
+    return this.svc.exportSuppliers(locale === 'tr' ? 'tr' : 'en');
   }
 
   @Get('export/orders.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="orders.csv"')
-  orders() {
-    return this.svc.exportOrders();
+  orders(@Query('locale') locale?: string) {
+    return this.svc.exportOrders(locale === 'tr' ? 'tr' : 'en');
   }
 
   @Get('export/stock.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="stock.csv"')
-  stock() {
-    return this.svc.exportStock();
+  stock(@Query('locale') locale?: string) {
+    return this.svc.exportStock(locale === 'tr' ? 'tr' : 'en');
   }
 
   @Roles('admin', 'manager')

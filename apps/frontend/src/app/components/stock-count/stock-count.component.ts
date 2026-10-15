@@ -2,6 +2,8 @@ import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
+import { AccountingService } from '../../services/accounting.service';
+import { COUNT_TYPES } from '@stok/tr-compliance';
 import { UiStateService } from '../../services/ui-state.service';
 import { AppStateService } from '../../services/app-state.service';
 import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe } from '../../i18n';
@@ -20,6 +22,8 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
     .drawer-field { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); }
     .drawer-field label, .field-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
     .drawer-field span { font-size: var(--text-sm); color: var(--color-text); }
+    .tutanak-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 var(--space-3); }
+    .tutanak-hint { font-size: var(--text-xs); margin: 0 0 var(--space-3); }
     .notes-box { background: var(--color-surface-subtle); padding: var(--space-3); border-radius: var(--radius-md); border: 1px dashed var(--color-border-strong); font-size: var(--text-sm); color: var(--color-text-secondary); }
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
     .drawer-table { width: 100%; border-collapse: collapse; margin-top: var(--space-2); font-size: var(--text-sm); }
@@ -94,6 +98,16 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
             <button class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()">{{ 'stockCount.completeCount' | t }}</button>
           </div>
         </div>
+
+        <div class="tutanak-grid">
+          <div class="drawer-field"><label for="scType">{{ 'stockCount.countType' | t }}</label>
+            <select id="scType" class="select" [(ngModel)]="header.countType" [disabled]="isActionLoading()">@for (ct of countTypes; track ct) { <option [value]="ct">{{ 'stockCount.countType.' + ct | t }}</option> }</select></div>
+          <div class="drawer-field"><label for="scDate">{{ 'stockCount.countDate' | t }}</label><input id="scDate" type="date" class="input" [(ngModel)]="header.countDate" [disabled]="isActionLoading()" /></div>
+          <div class="drawer-field"><label for="scAsOf">{{ 'stockCount.asOfDate' | t }}</label><input id="scAsOf" type="date" class="input" [(ngModel)]="header.asOfDate" [disabled]="isActionLoading()" /></div>
+          <div class="drawer-field"><label for="scTeam">{{ 'stockCount.countedBy' | t }}</label><input id="scTeam" class="input" [(ngModel)]="header.countedByText" [placeholder]="'stockCount.countedByHint' | t" [disabled]="isActionLoading()" /></div>
+          <div class="drawer-field"><label for="scSup">{{ 'stockCount.supervisedBy' | t }}</label><input id="scSup" class="input" [(ngModel)]="header.supervisedBy" [disabled]="isActionLoading()" /></div>
+        </div>
+        <p class="text-muted tutanak-hint">{{ 'stockCount.tutanakHint' | t }}</p>
 
         <div class="drawer-field">
           <label for="countNotes">{{ 'stockCount.notesOptional' | t }}</label>
@@ -244,6 +258,7 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                   } @else {
                     <button class="btn btn-secondary btn-sm" (click)="viewDetails(c)">{{ 'stockCount.details' | t }}</button>
                   }
+                  <button class="btn btn-ghost btn-sm" (click)="printTutanak(c)">{{ 'stockCount.tutanak' | t }}</button>
                 </td>
               </tr>
             }
@@ -310,6 +325,18 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
               </div>
             </div>
 
+            @if (selectedCount(); as sc) {
+              <div class="tutanak-grid">
+                <div class="drawer-field"><label>{{ 'stockCount.countType' | t }}</label><span>{{ 'stockCount.countType.' + (sc.countType || 'PERIODIC') | t }}</span></div>
+                <div class="drawer-field"><label>{{ 'stockCount.countDate' | t }}</label><span>{{ sc.countDate ? (sc.countDate | appDate) : '-' }}</span></div>
+                <div class="drawer-field"><label>{{ 'stockCount.asOfDate' | t }}</label><span>{{ sc.asOfDate ? (sc.asOfDate | appDate) : '-' }}</span></div>
+                <div class="drawer-field"><label>{{ 'stockCount.countedBy' | t }}</label><span>{{ teamText(sc) }}</span></div>
+                <div class="drawer-field"><label>{{ 'stockCount.supervisedBy' | t }}</label><span>{{ sc.supervisedBy || '-' }}</span></div>
+                <div class="drawer-field"><label>{{ 'stockCount.approvedBy' | t }}</label><span>{{ sc.approvedBy || '-' }}</span></div>
+              </div>
+              <button class="btn btn-secondary btn-sm" (click)="printTutanak(sc)">{{ 'stockCount.tutanak' | t }}</button>
+            }
+
             <div class="drawer-field">
               <label>{{ 'stockCount.notes' | t }}</label>
               <div class="notes-box">{{ selectedCount()?.notes || ('stockCount.noNotes' | t) }}</div>
@@ -367,6 +394,11 @@ export class StockCountComponent implements OnInit {
   state = inject(AppStateService);
   i18n = inject(I18nService);
 
+  readonly countTypes = COUNT_TYPES;
+  private accounting = inject(AccountingService);
+  /** Tutanak header of the active count (WP6) */
+  header = { countType: 'PERIODIC', countDate: '', asOfDate: '', countedByText: '', supervisedBy: '' };
+
   counts = signal<StockCount[]>([]);
   activeCount = signal<StockCount | null>(null);
   activeItems = signal<StockCountItem[]>([]);
@@ -414,6 +446,7 @@ export class StockCountComponent implements OnInit {
           }));
           this.activeItems.set(clonedItems);
           this.activeNotes = inProgress.notes || '';
+          this.fillHeader(inProgress);
         } else {
           this.activeCount.set(null);
           this.activeItems.set([]);
@@ -530,7 +563,7 @@ export class StockCountComponent implements OnInit {
     if (!active || this.isActionLoading()) return;
     this.isActionLoading.set(true);
 
-    this.inventoryService.updateStockCount(active.id, this.activeItems(), this.activeNotes).subscribe({
+    this.inventoryService.updateStockCount(active.id, this.activeItems(), this.activeNotes, this.headerPayload()).subscribe({
       next: () => {
         this.ui.showToast(this.i18n.t('stockCount.toast.draftSaved'), 'success');
         this.isActionLoading.set(false);
@@ -553,7 +586,7 @@ export class StockCountComponent implements OnInit {
     this.isActionLoading.set(true);
 
     // Save draft first to ensure latest inputs are sent
-    this.inventoryService.updateStockCount(active.id, this.activeItems(), this.activeNotes).subscribe({
+    this.inventoryService.updateStockCount(active.id, this.activeItems(), this.activeNotes, this.headerPayload()).subscribe({
       next: () => {
         // Complete the count session
         this.inventoryService.completeStockCount(active.id).subscribe({
@@ -590,7 +623,37 @@ export class StockCountComponent implements OnInit {
     }));
     this.activeItems.set(clonedItems);
     this.activeNotes = c.notes || '';
+    this.fillHeader(c);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  private fillHeader(c: StockCount) {
+    this.header = {
+      countType: c.countType || 'PERIODIC',
+      countDate: c.countDate || '',
+      asOfDate: c.asOfDate || '',
+      countedByText: (c.countedBy || []).join(', '),
+      supervisedBy: c.supervisedBy || '',
+    };
+  }
+
+  /** Tutanak fields sent with save / complete. */
+  headerPayload(): Partial<StockCount> {
+    return {
+      countType: this.header.countType,
+      countDate: this.header.countDate || null,
+      asOfDate: this.header.asOfDate || null,
+      countedBy: this.header.countedByText.split(',').map((n) => n.trim()).filter(Boolean),
+      supervisedBy: this.header.supervisedBy.trim() || null,
+    };
+  }
+
+  teamText(c: StockCount): string {
+    return (c.countedBy || []).join(', ') || '-';
+  }
+
+  printTutanak(c: StockCount) {
+    this.accounting.openPrintable(`stock-counts/${c.id}/report`);
   }
 
   viewDetails(c: StockCount) {

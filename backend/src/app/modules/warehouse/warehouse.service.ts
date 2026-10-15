@@ -67,7 +67,12 @@ export class WarehouseService {
       .select('s.warehouseId', 'warehouseId')
       .addSelect('SUM(CASE WHEN s.quantity > 0 THEN 1 ELSE 0 END)', 'productCount')
       .addSelect('COALESCE(SUM(s.quantity), 0)', 'totalStock')
-      .addSelect('COALESCE(SUM(s.quantity * p.price), 0)', 'totalValue')
+      // WP6: the stock value is the value at cost (VUK 274): quantity x the product's average layer cost.
+      .addSelect(
+        'COALESCE(SUM(s.quantity * COALESCE((SELECT SUM(l.qtyRemaining * l.unitCost) / NULLIF(SUM(l.qtyRemaining), 0) FROM stock_cost_layers l WHERE l.companyId = s.companyId AND l.productId = s.productId AND l.qtyRemaining > 0), 0)), 0)',
+        'totalValue',
+      )
+      .addSelect('COALESCE(SUM(s.quantity * p.price), 0)', 'salesValue')
       .where('s.companyId = :companyId', { companyId: this.companyId })
       .groupBy('s.warehouseId')
       .getRawMany();
@@ -90,7 +95,8 @@ export class WarehouseService {
         isDefault: i === 0,
         productCount: Number(r?.productCount || 0),
         totalStock: Number(r?.totalStock || 0),
-        totalValue: Number(r?.totalValue || 0),
+        totalValue: Math.round(Number(r?.totalValue || 0) * 100) / 100,
+        salesValue: Number(r?.salesValue || 0),
       };
     });
   }

@@ -68,6 +68,12 @@ export class CompanyService {
     if (dto.stockDeductOn !== undefined) company.stockDeductOn = dto.stockDeductOn;
     if (dto.eDocumentMode !== undefined) company.eDocumentMode = dto.eDocumentMode;
     if (dto.producerReceiptEnabled !== undefined) company.producerReceiptEnabled = dto.producerReceiptEnabled;
+    // WP6 inventory policies.
+    if (dto.physicalCountPolicy !== undefined) company.physicalCountPolicy = dto.physicalCountPolicy;
+    if (dto.destructionRatePct !== undefined) company.destructionRatePct = dto.destructionRatePct === null ? null : Number(dto.destructionRatePct);
+    if (dto.destructionRateValidUntil !== undefined) company.destructionRateValidUntil = dto.destructionRateValidUntil || null;
+    if (dto.destructionRateRef !== undefined) company.destructionRateRef = dto.destructionRateRef ? String(dto.destructionRateRef).trim() : null;
+    if (dto.gs1CompanyPrefix !== undefined) company.gs1CompanyPrefix = dto.gs1CompanyPrefix ? String(dto.gs1CompanyPrefix).trim() : null;
     if (dto.enabledComplianceModules !== undefined) {
       const next = [...new Set(dto.enabledComplianceModules)];
       // A module can only be switched off when no active product uses it.
@@ -86,6 +92,11 @@ export class CompanyService {
       const cur = company.adjustmentApprovalThreshold === null || company.adjustmentApprovalThreshold === undefined ? null : Number(company.adjustmentApprovalThreshold);
       if (cur !== null && (next === null || next > cur)) loosen.adjustmentApprovalThreshold = next;
       else company.adjustmentApprovalThreshold = next;
+    }
+    // Selling best-before (TETT) expired lots is a company policy: switching it on is a loosening (second admin).
+    if (dto.bestBeforeSalePolicy !== undefined) {
+      if (dto.bestBeforeSalePolicy === 'ALLOW' && company.bestBeforeSalePolicy !== 'ALLOW') loosen.bestBeforeSalePolicy = 'ALLOW';
+      else company.bestBeforeSalePolicy = dto.bestBeforeSalePolicy;
     }
     if (dto.stockLockDate !== undefined) {
       const d = dto.stockLockDate || null;
@@ -121,7 +132,7 @@ export class CompanyService {
           payload: {
             kind: 'COMPANY_CONTROL',
             change: loosen,
-            current: { stockLockDate: company.stockLockDate ? String(company.stockLockDate).slice(0, 10) : null, adjustmentApprovalThreshold: company.adjustmentApprovalThreshold ?? null },
+            current: { stockLockDate: company.stockLockDate ? String(company.stockLockDate).slice(0, 10) : null, adjustmentApprovalThreshold: company.adjustmentApprovalThreshold ?? null, bestBeforeSalePolicy: company.bestBeforeSalePolicy },
             note: reason,
           },
           requestedBy: String(actor.username || 'System').slice(0, 100),

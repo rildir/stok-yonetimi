@@ -29,7 +29,7 @@ export interface GoodsReceiptLineInput {
   countedQuantity: number;
   rejectedQuantity?: number | null;
   rejectReason?: string | null;
-  lots?: { lotNumber: string; expiryDate?: string | null; quantity: number }[] | null;
+  lots?: { lotNumber: string; expiryDate?: string | null; quantity: number; productionDate?: string | null; supplierLotNumber?: string | null }[] | null;
   serials?: string[] | null;
 }
 
@@ -221,9 +221,11 @@ export class GoodsReceiptService {
       const product = await m.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId }, lock: { mode: 'pessimistic_write' } });
       if (!product) continue;
       const old = product.quantity;
-      const allocations = await this.warehouseStock.receive(m, product, item.acceptedQuantity, r.warehouseId, { lots: item.lots || undefined, serials: item.serials || undefined });
+      const allocations = await this.warehouseStock.receive(m, product, item.acceptedQuantity, r.warehouseId, { lots: item.lots ? item.lots.map((l) => ({ ...l, lotSource: 'PURCHASE' })) : undefined, serials: item.serials || undefined });
       const split = receiptSplit(item.despatchQuantity, item.countedQuantity, item.rejectedQuantity);
       const [regular, surplus] = splitAllocations(allocations, split.againstDocument);
+      const poItem0 = po.items.find((i) => i.id === item.purchaseOrderItemId);
+      const cost = purchaseUnitCost(po, poItem0, company.baseCurrency);
       const base = {
         type: StockMovementType.IN,
         transactionDate: txDate,
@@ -234,6 +236,10 @@ export class GoodsReceiptService {
         referenceId: po.poNumber,
         referenceType: 'purchase_order',
         performedBy: user,
+        // WP6 cost stamp (VUK 262: net price + ÖTV + non-deductible VAT + share of PO charges) and trace party.
+        ...cost,
+        documentId: r.id,
+        party: { type: 'SUPPLIER' as const, id: supplier?.id ?? r.supplierId ?? null, name: r.supplierSnapshot?.legalName || r.supplierSnapshot?.name || supplier?.name || po.supplierName, taxId: r.supplierSnapshot?.taxId ?? supplier?.identityNumber ?? null },
       };
       const rows = await this.warehouseStock.recordMovements(m, product, old, regular, { ...base, reasonCode: 'PURCHASE', note: `Mal kabul ${r.receiptNo} (${po.poNumber})` });
       if (surplus.length) {
@@ -338,4 +344,26 @@ export class GoodsReceiptService {
     const limit = Number(await this.finance.param<number>('VUK219_RECORD_DAYS', undefined, m).catch(() => 10)) || 10;
     return this.warehouseStock.lateEntryWarnings(m, this.companyId, [{ transactionDate: receivedAt }], limit);
   }
+}
+
+/**
+ * Unit cost (company base currency, per base unit) of goods received against a PO line (VUK 262):
+ * net line amount (after discounts) + ÖTV + VAT that cannot be deducted + the line's share of the
+ * order's charges (nakliye, ambalaj...), converted with the order's exchange rate.
+ */
+export function purchaseUnitCost(
+  po: Pick<PurchaseOrderEntity, 'currency' | 'exchangeRate' | 'exchangeRateDate' | 'exchangeRateSource' | 'subtotal' | 'charges'>,
+  item: Pick<PurchaseOrderItemEntity, 'netAmount' | 'otvAmount' | 'taxAmount' | 'deductibleVat' | 'quantity'> | undefined,
+  baseCurrency: string,
+): { unitCost?: number; costCurrency: string; fxRate: number | null; fxDate: string | null; fxSource: string | null } {
+  const rate = po.currency === baseCurrency ? 1 : Number(po.exchangeRate) || 1;
+  const fx = { costCurrency: po.currency || baseCurrency, fxRate: po.currency === baseCurrency ? null : rate, fxDate: po.exchangeRateDate ? String(po.exchangeRateDate).slice(0, 10) : null, fxSource: po.currency === baseCurrency ? null : po.exchangeRateSource || 'MANUAL' };
+  const qty = Number(item?.quantity) || 0;
+  if (!item || !(qty > 0)) return fx;
+  const net = Number(item.netAmount) || 0;
+  const nonDeductible = item.deductibleVat === null || item.deductibleVat === undefined ? 0 : Math.max(0, Number(item.taxAmount) - Number(item.deductibleVat));
+  const chargesTotal = (po.charges || []).reduce((s, c) => s + (Number((c as any).amount) || 0), 0);
+  const chargeShare = chargesTotal && Number(po.subtotal) ? (chargesTotal * net) / Number(po.subtotal) : 0;
+  const unit = ((net + (Number(item.otvAmount) || 0) + nonDeductible + chargeShare) / qty) * rate;
+  return { ...fx, unitCost: Math.round(unit * 1e6) / 1e6 };
 }

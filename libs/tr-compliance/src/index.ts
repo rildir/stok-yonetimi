@@ -6,3 +6,5 @@ export * from './inventory';
 export * from './category-rules';
 export * from './documents';
 export * from './ebelge';
+export * from './gs1';
+export * from './valuation';

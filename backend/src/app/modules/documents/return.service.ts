@@ -371,6 +371,8 @@ export class ReturnService {
           referenceType: 'return',
           note: `${sales ? 'Satış iadesi' : 'Alış iadesi'} ${r.returnNo}${r.invoiceNo ? ` (fatura ${r.invoiceNo})` : ''}`,
           performedBy: user,
+          documentId: r.id,
+          party: { type: sales ? 'CUSTOMER' : 'SUPPLIER', id: (sales ? r.customerId : r.supplierId) ?? null, name: r.partySnapshot?.legalName || r.partySnapshot?.name || null, taxId: r.partySnapshot?.taxId ?? null },
         });
         touched.push(product);
         await m.update(ReturnItemEntity, { id: it.id }, { tracking: this.warehouseStock.toTracking(allocations), reversesMovementId: original?.id ?? null });

@@ -8,11 +8,12 @@ import { ExpiringLot } from '../../models/inventory.models';
 import { Chart } from 'chart.js/auto';
 import { applyChartDefaults, withAlpha } from '../../utils/chart-theme';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
+import { LegalReportsComponent } from './legal-reports.component';
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, MoneyPipe, NumberFormatPipe],
+  imports: [CommonModule, FormsModule, TranslatePipe, MoneyPipe, NumberFormatPipe, LegalReportsComponent],
   template: `
     <div class="page-header">
       <div>
@@ -28,7 +29,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
       </div>
     </div>
 
-    <div class="rep">
+    <nav class="tabs" role="tablist" style="margin-bottom: var(--space-4);">
+      <button type="button" class="tab" role="tab" [class.active]="view() === 'analytics'" [attr.aria-selected]="view() === 'analytics'" (click)="view.set('analytics')">{{ 'reports.tab.analytics' | t }}</button>
+      <button type="button" class="tab" role="tab" [class.active]="view() === 'legal'" [attr.aria-selected]="view() === 'legal'" (click)="view.set('legal')">{{ 'reports.tab.legal' | t }}</button>
+    </nav>
+    @if (view() === 'legal') { <app-legal-reports></app-legal-reports> }
+    <div class="rep" [hidden]="view() === 'legal'">
       <!-- Filters -->
       <div class="filter-bar">
         <span class="filter-label">{{ 'reports.dateRange' | t }}</span>
@@ -309,6 +315,8 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Expiring lots report
   route = inject(ActivatedRoute);
+  /** analytics (charts) | legal (WP6 inventory / tax pre-reports) */
+  view = signal<'analytics' | 'legal'>(this.route.snapshot.queryParamMap.get('tab') === 'legal' ? 'legal' : 'analytics');
   expiringDays = 30;
   expiringLots = signal<ExpiringLot[]>([]);
   expiringLoading = signal(false);

@@ -22,7 +22,7 @@
   "dashboard.recentOrders.title": "Recent Orders",
   "dashboard.units": "{qty} units",
   "dashboard.stat.taxCollected": "Tax collected",
-  "dashboard.stat.inventoryValue": "Inventory value",
+  "dashboard.stat.inventoryValue": "Inventory value (at cost)",
   "dashboard.unconverted": "No exchange rate for: {currencies}",
   "dashboard.expiring.title": "Expiring Soon",
   "dashboard.expiring.viewAll": "View report",

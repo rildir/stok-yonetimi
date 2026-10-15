@@ -1,10 +1,9 @@
 /**
  * Regulatory product categories (R67) and their rule table.
  *
- * WP2 holds the data model and validation; enforcement that depends on later
- * packages (food lot / expiry obligations: Tebliğ 2026/11, WP6) is reported as
- * a warning here. İTS / ÜTS notifications are out of scope: only the data the
- * notifications would need (GTIN, serial / lot) is required.
+ * WP2 holds the data model and validation; WP6 enforces the food rules (lot and
+ * expiry mandatory: Tebliğ 2026/11, uyum 31.12.2026). İTS / ÜTS notifications are out
+ * of scope: only the data the notifications would need (GTIN, serial / lot) is required.
  */
 
 export const REGULATORY_CATEGORIES = ['none', 'food', 'medicine_its', 'medical_device_uts', 'cosmetic_uts'] as const;
@@ -21,7 +20,7 @@ export interface CategoryRule {
   /** Expiry (SKT/TETT) must be captured */
   requiresExpiry: boolean;
   requiresGtin: boolean;
-  /** 'error' = rejected now; 'warning' = enforced by a later package (WP6) */
+  /** 'error' = rejected; 'warning' = reported only */
   severity: 'error' | 'warning';
   legalBasis: string;
 }
@@ -33,8 +32,8 @@ export const CATEGORY_RULES: Record<RegulatoryCategory, CategoryRule> = {
     tracking: ['lot'],
     requiresExpiry: true,
     requiresGtin: false,
-    severity: 'warning',
-    legalBasis: '5996 s. Kanun; Gıda İzlenebilirlik Tebliği 2026/11 (uyum 31.12.2026) — zorunluluk WP6',
+    severity: 'error',
+    legalBasis: '5996 s. Kanun; Gıda İzlenebilirlik Tebliği 2026/11 (uyum 31.12.2026); Gıda Etiketleme Yön. (STT / TETT)',
   },
   medicine_its: {
     category: 'medicine_its',
@@ -70,7 +69,7 @@ export interface CategoryCheckInput {
 }
 
 export interface CategoryIssue {
-  code: 'REGULATORY_MODULE_DISABLED' | 'REGULATORY_CATEGORY_INVALID' | 'TRACKING_REQUIRED_FOR_CATEGORY' | 'EXPIRY_REQUIRED_FOR_CATEGORY' | 'GTIN_REQUIRED_FOR_CATEGORY';
+  code: 'REGULATORY_MODULE_DISABLED' | 'REGULATORY_CATEGORY_INVALID' | 'TRACKING_REQUIRED_FOR_CATEGORY' | 'LOT_REQUIRED_FOR_CATEGORY' | 'EXPIRY_REQUIRED_FOR_CATEGORY' | 'GTIN_REQUIRED_FOR_CATEGORY';
   severity: 'error' | 'warning';
   params?: Record<string, string>;
 }
@@ -85,7 +84,8 @@ export function checkCategoryRules(p: CategoryCheckInput, enabledModules: string
   if (!(enabledModules || []).includes(category)) issues.push({ code: 'REGULATORY_MODULE_DISABLED', severity: 'error', params: { category } });
   const tracking = p.trackingType || 'none';
   if (rule.tracking && !rule.tracking.includes(tracking as 'none')) {
-    issues.push({ code: 'TRACKING_REQUIRED_FOR_CATEGORY', severity: rule.severity, params: { category, tracking: rule.tracking.join('/') } });
+    const lotOnly = rule.tracking.length === 1 && rule.tracking[0] === 'lot';
+    issues.push({ code: lotOnly ? 'LOT_REQUIRED_FOR_CATEGORY' : 'TRACKING_REQUIRED_FOR_CATEGORY', severity: rule.severity, params: { category, tracking: rule.tracking.join('/') } });
   }
   if (rule.requiresExpiry && !p.hasExpiry) issues.push({ code: 'EXPIRY_REQUIRED_FOR_CATEGORY', severity: rule.severity, params: { category } });
   if (rule.requiresGtin && !p.gtin14) issues.push({ code: 'GTIN_REQUIRED_FOR_CATEGORY', severity: rule.severity, params: { category } });

@@ -327,12 +327,13 @@ export class InventoryService {
     return this.http.get<StockCount[]>(`${this.apiUrl}/stock-counts`);
   }
 
-  createStockCount(notes?: string): Observable<StockCount> {
-    return this.http.post<StockCount>(`${this.apiUrl}/stock-counts`, { notes });
+  createStockCount(notes?: string, header: Partial<StockCount> = {}): Observable<StockCount> {
+    return this.http.post<StockCount>(`${this.apiUrl}/stock-counts`, { notes, ...header });
   }
 
-  updateStockCount(id: string, items: any[], notes?: string): Observable<StockCount> {
-    return this.http.put<StockCount>(`${this.apiUrl}/stock-counts/${id}`, { items, notes });
+  /** `header`: WP6 tutanak fields (count type, count / inventory date, team, supervisor). */
+  updateStockCount(id: string, items: any[], notes?: string, header: Partial<StockCount> = {}): Observable<StockCount> {
+    return this.http.put<StockCount>(`${this.apiUrl}/stock-counts/${id}`, { items, notes, ...header });
   }
 
   /** 202 + `pendingApprovals` when lines above the approval threshold wait for a second administrator. */

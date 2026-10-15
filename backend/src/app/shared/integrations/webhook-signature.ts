@@ -18,6 +18,8 @@ export const WEBHOOK_EVENTS = [
   'invoice.status_changed',
   'despatch.status_changed',
   'edocument.received',
+  'lot.recalled',
+  'period.closed',
 ] as const;
 
 export const SIGNATURE_HEADER = 'X-Webhook-Signature';

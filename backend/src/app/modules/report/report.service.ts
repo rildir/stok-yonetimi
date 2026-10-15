@@ -89,31 +89,45 @@ export class ReportService {
     }));
   }
 
-  /** Category totals; stock value is converted to the company base currency. */
+  /**
+   * Category totals. The stock value is the value at cost (VUK 274: open cost layers, company base
+   * currency) - the only legal inventory value; `salesValue` (quantity x sales price, converted) is
+   * information only and is never shown as the stock value. `totalValue` = costValue (kept for
+   * older clients).
+   */
   async getCategoryDistribution() {
     const rawResults = await this.productRepo.createQueryBuilder('p')
-      .select('COALESCE(p.category, \'Diğer\')', 'category')
+      .select("COALESCE(p.category, 'Diğer')", 'category')
       .addSelect('p.currency', 'currency')
       .addSelect('COUNT(p.id)', 'productCount')
       .addSelect('COALESCE(SUM(p.quantity), 0)', 'totalStock')
-      .addSelect('COALESCE(SUM(p.quantity * p.price), 0)', 'totalValue')
+      .addSelect('COALESCE(SUM(p.quantity * p.price), 0)', 'salesValue')
       .where('p.companyId = :companyId', { companyId: this.companyId })
       .andWhere('p.isDeleted = false')
       .groupBy('p.category')
       .addGroupBy('p.currency')
       .getRawMany();
+    const costRows: { category: string; v: string }[] = await this.dataSource.query(
+      "SELECT COALESCE(p.`category`, 'Diğer') AS category, SUM(l.`qtyRemaining` * l.`unitCost`) AS v FROM `stock_cost_layers` l JOIN `products` p ON p.`id` = l.`productId` " +
+        "WHERE l.`companyId` = ? AND l.`qtyRemaining` > 0 AND p.`isDeleted` = 0 GROUP BY COALESCE(p.`category`, 'Diğer')",
+      [this.companyId],
+    );
 
     const company = await this.finance.getCompany();
     const rates = await this.finance.getRates();
-    const byCategory = new Map<string, { category: string; productCount: number; totalStock: number; totalValue: number; currency: string; unconverted: string[] }>();
+    const byCategory = new Map<string, { category: string; productCount: number; totalStock: number; costValue: number; salesValue: number; totalValue: number; currency: string; unconverted: string[] }>();
     for (const r of rawResults) {
-      const row = byCategory.get(r.category) || { category: r.category, productCount: 0, totalStock: 0, totalValue: 0, currency: company.baseCurrency, unconverted: [] as string[] };
+      const row = byCategory.get(r.category) || { category: r.category, productCount: 0, totalStock: 0, costValue: 0, salesValue: 0, totalValue: 0, currency: company.baseCurrency, unconverted: [] as string[] };
       row.productCount += Number(r.productCount || 0);
       row.totalStock += Number(r.totalStock || 0);
-      const converted = convertAmount(Number(r.totalValue || 0), r.currency || company.baseCurrency, company.baseCurrency, rates, null, company.baseCurrency);
+      const converted = convertAmount(Number(r.salesValue || 0), r.currency || company.baseCurrency, company.baseCurrency, rates, null, company.baseCurrency);
       if (converted === null) row.unconverted.push(r.currency);
-      else row.totalValue = Math.round((row.totalValue + converted) * 100) / 100;
+      else row.salesValue = Math.round((row.salesValue + converted) * 100) / 100;
       byCategory.set(r.category, row);
+    }
+    for (const row of byCategory.values()) {
+      row.costValue = Math.round(Number(costRows.find((c) => c.category === row.category)?.v || 0) * 100) / 100;
+      row.totalValue = row.costValue;
     }
     return [...byCategory.values()];
   }
@@ -148,7 +162,10 @@ export class ReportService {
       taxCollected: round(orders?.taxCollected),
       purchasesReceived: round(purchases?.received),
       purchasesOpen: round(purchases?.open),
-      inventoryValue: round(categories.reduce((s, c) => s + c.totalValue, 0)),
+      // Value at cost (legal); the sales-price value is reported separately as information.
+      inventoryValue: round(categories.reduce((s, c) => s + c.costValue, 0)),
+      inventoryCostValue: round(categories.reduce((s, c) => s + c.costValue, 0)),
+      inventorySalesValue: round(categories.reduce((s, c) => s + c.salesValue, 0)),
       unconvertedCurrencies: [...new Set(categories.flatMap((c) => c.unconverted))],
     };
   }

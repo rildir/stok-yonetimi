@@ -44,6 +44,23 @@ export interface Product {
   /** Category rule warnings returned on save (e.g. food without lot / expiry) */
   complianceWarnings?: string[];
   createdAt?: string;
+  // WP6
+  /** Read-only: average unit cost of the open cost layers (base currency) */
+  unitCost?: number | null;
+  expiryType?: 'use_by' | 'best_before' | null;
+  expiryPrecision?: 'day' | 'month' | 'year';
+  perishable?: boolean;
+  normalWastageRatePct?: number | null;
+  normalWastageSource?: string | null;
+  warrantyRequired?: boolean;
+  warrantyMonths?: number | null;
+  originCountry?: string | null;
+  gtipCode?: string | null;
+  netWeightKg?: number | null;
+  labelNetQuantity?: number | null;
+  labelNetUnit?: string | null;
+  /** Create only: unit cost of the opening stock */
+  openingUnitCost?: number | null;
 }
 
 export type BarcodeType = 'EAN13' | 'EAN8' | 'UPCA' | 'CODE128';
@@ -397,6 +414,16 @@ export interface CompanyInfo {
   controlChangeReason?: string;
   /** PUT response (HTTP 202): the loosened control waits for a second administrator */
   pendingApproval?: { code: string; message?: string; request: StockAdjustmentRequest };
+  // WP6
+  costingMethod?: string;
+  physicalCountPolicy?: string;
+  lastPhysicalCountDate?: string | null;
+  destructionRatePct?: number | null;
+  destructionRateValidUntil?: string | null;
+  destructionRateRef?: string | null;
+  bestBeforeSalePolicy?: 'BLOCK' | 'ALLOW' | string;
+  gs1CompanyPrefix?: string | null;
+  fiscalYearStartMonth?: number;
 }
 
 export interface GrossSales { year: number; amount: number; }
@@ -501,7 +528,11 @@ export interface DashboardSummary {
   taxCollected: number;
   purchasesReceived: number;
   purchasesOpen: number;
+  /** Value at cost (VUK 274) */
   inventoryValue: number;
+  inventoryCostValue?: number;
+  /** Information only: quantity x sales price */
+  inventorySalesValue?: number;
   unconvertedCurrencies: string[];
 }
 
@@ -643,6 +674,17 @@ export interface StockCount {
   performedBy: string;
   createdAt: string;
   completedAt?: string;
+  // WP6 tutanak
+  countType?: 'YEAR_END' | 'PERIODIC' | 'CYCLE' | 'SAMPLING' | string;
+  countDate?: string | null;
+  asOfDate?: string | null;
+  warehouseIds?: string[] | null;
+  countedBy?: string[] | null;
+  supervisedBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  documentNo?: string | null;
+  snapshotHash?: string | null;
 }
 
 // ─── Audit log ───

@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { WP6_ENTITIES } from './app/entities/inventory-accounting.entity';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -105,6 +106,7 @@ export const AppDataSource = new DataSource({
     GoodsReceiptItemEntity,
     ExpenseVoucherEntity,
     ...EBELGE_ENTITIES,
+    ...WP6_ENTITIES,
   ],
   timezone: 'Z',
   dateStrings: ['DATE'],

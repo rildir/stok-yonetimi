@@ -269,6 +269,61 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     confidence: 'low',
     note: 'IHRACAT faturasında AccountingCustomerParty bilgileri; VKN EXPORT_GTB_VKN parametresinde. Teyit edilmeli.',
   },
+  // ─── WP6: costing, inventory, impairment, food, price labels, journal export ───
+  { country: TR, key: 'IMPAIRMENT_MIN_DECLINE_PCT', validFrom: '2004-01-01', validTo: null, value: 10, sourceRef: 'VUK md. 274/2 (5024 s.K.): satış bedelinin maliyete göre %10 ve daha fazla düşük olması', confidence: 'high' },
+  { country: TR, key: 'EMSAL_MIN_MONTHLY_SALES_PCT', validFrom: '1961-01-01', validTo: null, value: 25, sourceRef: 'VUK md. 267/1 (ortalama fiyat esası: aylık satış miktarı değerlenecek miktarın en az %25 olmalı)', confidence: 'high' },
+  {
+    country: TR,
+    key: 'COUNT_ASOF_WINDOW_MONTHS',
+    validFrom: '2012-07-01',
+    validTo: null,
+    value: { before: 3, after: 2 },
+    sourceRef: 'VUK md. 185-186; TTK md. 64/3, 66 (envanter bilanço günü itibarıyla; sayım tarihi ile envanter tarihi arası ileri / geri hesaplama)',
+    confidence: 'medium',
+    note: 'Sayım tarihi envanter (bilanço) gününden en fazla 3 ay önce veya 2 ay sonra olabilir; aradaki hareketler ileri / geri hesaplanır. Pencere mali müşavirce teyit edilmeli.',
+  },
+  {
+    country: TR,
+    key: 'PHYSICAL_COUNT_MAX_YEARS',
+    validFrom: '2012-07-01',
+    validTo: null,
+    value: { ANNUAL: 1, TRIENNIAL_VUK190: 3, FIXED_VALUE_TTK66_3: 3 },
+    sourceRef: 'VUK md. 186 (yıllık envanter), md. 190 (büyük mağazalar / eczaneler: 3 yılda bir); TTK md. 66/3 (sabit değerle kayıt: en az 3 yılda bir sayım)',
+    confidence: 'medium',
+  },
+  {
+    country: TR,
+    key: 'DISCOUNT_REFERENCE_DAYS',
+    validFrom: '2025-10-11',
+    validTo: null,
+    value: 10,
+    sourceRef: 'Fiyat Etiketi Yönetmeliği md. 9/A (11.10.2025 değişikliği): indirimden önceki son 10 gündeki en düşük fiyat; çabuk bozulan ürünlerde bir önceki fiyat',
+    confidence: 'medium',
+    note: 'Gün sayısı yönetmelik metninden teyit edilmeli; veri olarak güncellenebilir.',
+  },
+  { country: TR, key: 'FOOD_TRACE_RETENTION_EXTRA_MONTHS', validFrom: '2026-01-01', validTo: null, value: 3, sourceRef: 'Gıda İzlenebilirlik Tebliği 2026/11 (kayıtlar raf ömrü + 3 ay saklanır)', confidence: 'medium' },
+  { country: TR, key: 'FOOD_TRACE_COMPLIANCE_DATE', validFrom: '2026-01-01', validTo: null, value: '2026-12-31', sourceRef: 'Gıda İzlenebilirlik Tebliği 2026/11 (uyum son tarihi)', confidence: 'medium' },
+  {
+    country: TR,
+    key: 'MOCK_RECALL_INTERVAL_MONTHS',
+    validFrom: '2026-01-01',
+    validTo: null,
+    value: 12,
+    sourceRef: 'Gıda İzlenebilirlik Tebliği 2026/11; Resmi Kontroller Yön. md. 39-40 (geri çağırma prosedürünün yılda en az bir kez denenmesi - iyi uygulama)',
+    confidence: 'low',
+    note: 'Yıllık tatbikat aralığı mevzuatta açıkça belirtilmemiş olabilir; şirket politikası olarak uygulanır.',
+  },
+  { country: TR, key: 'WARRANTY_MIN_MONTHS', validFrom: '2014-06-13', validTo: null, value: 24, sourceRef: '6502 s. TKHK md. 56; Garanti Belgesi Yönetmeliği md. 4 (asgari garanti süresi 2 yıl)', confidence: 'high' },
+  {
+    country: TR,
+    key: 'EDEFTER_DOCUMENT_TYPES',
+    validFrom: '2012-01-01',
+    validTo: null,
+    value: { INVOICE: 'invoice', EXPENSE_VOUCHER: 'other', DESPATCH: 'other', GOODS_RECEIPT: 'other', STOCK_COUNT: 'other', DESTRUCTION_REPORT: 'other', INTERNAL_VOUCHER: 'other', ORDER: 'other', PURCHASE_ORDER: 'other', TRANSFER: 'other', OTHER: 'other' },
+    sourceRef: 'e-Defter Uygulama Kılavuzu (gl-documentType: invoice, check, cash, receipt, voucher, other + documentTypeDescription); e-Defter GT No 5',
+    confidence: 'medium',
+    note: '"other" için belge türü açıklaması (documentTypeDescription) yevmiye aktarımında doldurulur.',
+  },
 ];
 
 
@@ -306,4 +361,18 @@ export const WP5_PARAMETER_KEYS = [
   'EDOC_RETENTION_YEARS',
   'EDOC_INTEGRITY_NOTICE_BUSINESS_DAYS',
   'EXPORT_GTB_PARTY',
+];
+
+/** Keys added by migration 1784274139000 (WP6 costing, inventory, food, price labels, journal export). */
+export const WP6_PARAMETER_KEYS = [
+  'IMPAIRMENT_MIN_DECLINE_PCT',
+  'EMSAL_MIN_MONTHLY_SALES_PCT',
+  'COUNT_ASOF_WINDOW_MONTHS',
+  'PHYSICAL_COUNT_MAX_YEARS',
+  'DISCOUNT_REFERENCE_DAYS',
+  'FOOD_TRACE_RETENTION_EXTRA_MONTHS',
+  'FOOD_TRACE_COMPLIANCE_DATE',
+  'MOCK_RECALL_INTERVAL_MONTHS',
+  'WARRANTY_MIN_MONTHS',
+  'EDEFTER_DOCUMENT_TYPES',
 ];

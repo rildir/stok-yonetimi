@@ -48,6 +48,27 @@ export class StockLotEntity {
   @Column(qtyColumn({ default: 0 }))
   quantity: number;
 
+  // ─── Food traceability (WP6; Tebliğ 2026/11) ───
+
+  /** YYYY-MM-DD */
+  @Column({ type: 'date', nullable: true })
+  productionDate?: string | null;
+
+  /** PURCHASE | PRODUCTION | OPENING | RETURN | TRANSFER | COUNT */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  lotSource?: string | null;
+
+  /** The supplier's own lot number (when the company relabels) */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  supplierLotNumber?: string | null;
+
+  /** active | blocked | recalled: blocked / recalled lots cannot be sold or moved except to quarantine / disposal */
+  @Column({ type: 'varchar', length: 10, default: 'active' })
+  status: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  statusReason?: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

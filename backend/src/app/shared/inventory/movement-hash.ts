@@ -10,11 +10,13 @@ import { createHash } from 'crypto';
  * quantities at 4 decimals, DATETIME at whole seconds (UTC), DATE as YYYY-MM-DD.
  *
  * Versions (`hashVersion` column): v1 = rows written by migration 1784274129000 and
- * WP2; v2 (current) additionally covers the recording time (createdAt, ms precision,
- * proves VUK 219 lateness), the approver of a maker-checker movement and the SHA-256
- * digest of the attached evidence files.
+ * WP2; v2 additionally covers the recording time (createdAt, ms precision, proves VUK 219
+ * lateness), the approver of a maker-checker movement and the SHA-256 digest of the attached
+ * evidence files; v3 (current, WP6) also covers the cost stamp (unit / total cost, document
+ * currency and exchange rate, cost source). Costs backfilled onto v1 / v2 rows by migration
+ * 1784274139000 are outside their hash (documented estimate).
  */
-export const CURRENT_HASH_VERSION = 2;
+export const CURRENT_HASH_VERSION = 3;
 export const GENESIS_HASH = '0'.repeat(64);
 
 /** Fields covered by a v1 hash, in canonical order. */
@@ -53,6 +55,9 @@ export const HASHED_FIELDS = [
 /** Fields covered by a v2 hash: v1 + recording time, approver and evidence digest. */
 export const HASHED_FIELDS_V2 = [...HASHED_FIELDS, 'hashVersion', 'createdAt', 'approvedBy', 'approvedByUserId', 'attachmentsSha256'] as const;
 
+/** Fields covered by a v3 hash: v2 + cost stamp (WP6). */
+export const HASHED_FIELDS_V3 = [...HASHED_FIELDS_V2, 'unitCost', 'totalCost', 'costCurrency', 'fxRate', 'fxDate', 'fxSource', 'costSource'] as const;
+
 /** Digest of a movement's evidence files: SHA-256 over their sorted SHA-256 values. */
 export function attachmentsDigest(sha256s: string[]): string | null {
   if (!sha256s.length) return null;
@@ -65,6 +70,8 @@ function toMs(d: unknown): string {
 }
 
 const QTY_FIELDS = new Set(['quantity', 'previousQuantity', 'newQuantity']);
+/** Stored scale of the cost columns (DECIMAL(18,6) / DECIMAL(18,2)). */
+const COST_SCALES: Record<string, number> = { unitCost: 6, fxRate: 6, totalCost: 2 };
 
 /** Truncates to whole seconds (DATETIME(0) precision) so the stored value hashes the same. */
 export function toSecond(d: Date | string | number): Date {
@@ -75,6 +82,8 @@ export function toSecond(d: Date | string | number): Date {
 function norm(field: string, v: unknown): string | number | string[] | null {
   if (v === undefined || v === null || v === '') return null;
   if (QTY_FIELDS.has(field)) return Number(v).toFixed(4);
+  if (COST_SCALES[field] !== undefined) return Number(v).toFixed(COST_SCALES[field]);
+  if (field === 'fxDate') return v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10);
   if (field === 'sequenceNo' || field === 'hashVersion') return Number(v);
   if (field === 'createdAt') return toMs(v);
   if (field === 'transactionDate') return toSecond(v as Date).toISOString();
@@ -93,7 +102,8 @@ function hashVersionOf(row: Record<string, unknown>): number {
 
 /** Deterministic JSON of the hashed fields (field list chosen by the row's hashVersion). */
 export function canonicalMovement(row: Record<string, unknown>): string {
-  const fields: readonly string[] = hashVersionOf(row) >= 2 ? HASHED_FIELDS_V2 : HASHED_FIELDS;
+  const version = hashVersionOf(row);
+  const fields: readonly string[] = version >= 3 ? HASHED_FIELDS_V3 : version >= 2 ? HASHED_FIELDS_V2 : HASHED_FIELDS;
   return JSON.stringify(fields.map((f) => [f, norm(f, row[f])]));
 }
 

@@ -57,6 +57,20 @@ export class SerialNumberEntity {
   @JoinColumn({ name: 'lotId', foreignKeyConstraintName: 'FK_serial_numbers_lot' })
   lot?: StockLotEntity | null;
 
+  // ─── Warranty trace (WP6; Garanti Belgesi Yön.) ───
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  soldOrderId?: string | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  soldCustomerId?: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  soldAt?: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  deliveredAt?: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -132,6 +132,41 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @IsString()
   @MaxLength(500)
   controlChangeReason?: string;
+
+  // ─── WP6 ───
+
+  @ApiPropertyOptional({ description: 'TETT geçmiş partilerin satışı: BLOCK | ALLOW (ALLOW ikinci yönetici onayı ister)', example: 'BLOCK' })
+  @IsOptional()
+  @IsIn(['BLOCK', 'ALLOW'], { message: 'VALIDATION_FIELD_IN' })
+  bestBeforeSalePolicy?: string;
+
+  @ApiPropertyOptional({ description: 'Fiziki sayım politikası: ANNUAL | TRIENNIAL_VUK190 | FIXED_VALUE_TTK66_3' })
+  @IsOptional()
+  @IsIn(['ANNUAL', 'TRIENNIAL_VUK190', 'FIXED_VALUE_TTK66_3'], { message: 'VALIDATION_FIELD_IN' })
+  physicalCountPolicy?: string;
+
+  @ApiPropertyOptional({ description: 'VUK 278/A imha oranı (%), Bakanlıkça tayin edilen; null = yok', example: 2.5 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Min(0, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Max(100, { message: 'VALIDATION_AMOUNT_INVALID' })
+  destructionRatePct?: number | null;
+
+  @ApiPropertyOptional({ description: 'İmha oranının geçerlilik sonu (YYYY-MM-DD)' })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'DOCUMENT_DATE_INVALID' })
+  destructionRateValidUntil?: string | null;
+
+  @ApiPropertyOptional({ description: 'İmha oranı yazısının tarih / sayısı' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  destructionRateRef?: string | null;
+
+  @ApiPropertyOptional({ description: 'GS1 Türkiye firma öneki (7-10 hane)', example: '8691234' })
+  @IsOptional()
+  @Matches(/^\d{6,11}$/, { message: 'GS1_PREFIX_INVALID' })
+  gs1CompanyPrefix?: string | null;
 }
 
 export class RegisterCompanyDto extends CompanySettingsDto {

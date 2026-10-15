@@ -58,6 +58,11 @@ export class CategoryService {
     }
 
     Object.assign(category, updates);
+    // WP6: a normal wastage rate needs its source (VUK 186 / 278 evidence).
+    if (category.normalWastageRatePct !== null && category.normalWastageRatePct !== undefined && !String(category.normalWastageSource || '').trim()) {
+      throw new BadRequestException(err('WASTAGE_SOURCE_REQUIRED'));
+    }
+    if (category.normalWastageRatePct === null) category.normalWastageSource = null;
     return await this.categoryRepo.save(category);
   }
 

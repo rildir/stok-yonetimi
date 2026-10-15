@@ -4,6 +4,7 @@ import { ProductEntity } from './product.entity';
 import { StockMovementType } from './enums';
 import { WarehouseEntity } from './warehouse.entity';
 import { qtyColumn } from '../utils/quantity-transformer';
+import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 
 /**
  * Stock ledger row. Append-only (TTK 65/3, VUK 217): UPDATE / DELETE are rejected by
@@ -143,7 +144,7 @@ export class StockMovementEntity {
   @Column({ type: 'char', length: 64 })
   hash: string;
 
-  /** Hash field set (1 = WP2 / migrated rows, 2 = + createdAt, approver, evidence digest) */
+  /** Hash field set (1 = WP2 / migrated rows, 2 = + createdAt, approver, evidence digest, 3 = + cost fields) */
   @Column({ type: 'tinyint', default: 1 })
   hashVersion: number;
 
@@ -157,6 +158,35 @@ export class StockMovementEntity {
   /** SHA-256 over the sorted SHA-256 values of the evidence files attached when the movement was booked */
   @Column({ type: 'char', length: 64, nullable: true })
   attachmentsSha256?: string | null;
+
+  // ─── Cost (WP6; VUK 274): stamped by WarehouseStockService, covered by the v3 hash ───
+
+  /** Unit cost in the company base currency per base unit (incoming: document cost; outgoing: costing method) */
+  @Column('decimal', { precision: 18, scale: 6, nullable: true, transformer: new ColumnNumericTransformer() })
+  unitCost?: number | null;
+
+  /** Signed cost in the base currency (in > 0, out < 0) */
+  @Column('decimal', { precision: 18, scale: 2, nullable: true, transformer: new ColumnNumericTransformer() })
+  totalCost?: number | null;
+
+  /** Currency of the source document (purchase price) */
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  costCurrency?: string | null;
+
+  /** 1 document currency = fxRate base currency */
+  @Column('decimal', { precision: 18, scale: 6, nullable: true, transformer: new ColumnNumericTransformer() })
+  fxRate?: number | null;
+
+  @Column({ type: 'date', nullable: true })
+  fxDate?: string | null;
+
+  /** TCMB | MANUAL | BASE | DOCUMENT */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  fxSource?: string | null;
+
+  /** DOCUMENT | LAYER | AVERAGE | RETURN | TRANSFER | FALLBACK | ESTIMATE | BACKFILL */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  costSource?: string | null;
 
   /** When the row was recorded (UTC, set by the application so it is covered by the v2 hash) */
   @Index()

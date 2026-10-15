@@ -1,7 +1,9 @@
 import { Component, inject, signal, computed, HostListener, effect, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup, AbstractControl } from '@angular/forms';
-import { checkCategoryRules, INVENTORY_CLASSES, isValidGtin, REGULATORY_CATEGORIES } from '@stok/tr-compliance';
+import { checkCategoryRules, INVENTORY_CLASSES, isValidGtin, REGULATORY_CATEGORIES, restrictedGs1Prefix } from '@stok/tr-compliance';
+import { AccountingService } from '../../services/accounting.service';
+import { EBelgeService } from '../../services/ebelge.service';
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
 import { ComplianceService } from '../../services/compliance.service';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -742,7 +744,90 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                     <div class="field-hint" [class.text-danger]="h.severity === 'error'" [class.text-warning]="h.severity === 'warning'">ⓘ {{ 'products.regulatory.issue.' + h.code | t: h.params }}</div>
                   }
                 }
+                @if (gtinRestricted()) { <div class="field-hint text-warning">ⓘ {{ 'products.gs1.restricted' | t }}</div> }
               </div>
+
+              <!-- WP6: expiry (STT / TETT), cost, wastage, warranty, shelf label, export data -->
+              @if (productForm.get('trackingType')?.value === 'lot' && (productForm.get('hasExpiry')?.value || productForm.get('regulatoryCategory')?.value === 'food')) {
+                <div class="form-row">
+                  <div class="form-field">
+                    <select id="productExpType" formControlName="expiryType" class="form-input form-select has-value">
+                      <option [ngValue]="null">{{ 'products.expiryType.none' | t }}</option>
+                      <option value="use_by">{{ 'products.expiryType.use_by' | t }}</option>
+                      <option value="best_before">{{ 'products.expiryType.best_before' | t }}</option>
+                    </select>
+                    <label for="productExpType" class="form-label">{{ 'products.expiryType.label' | t }}</label>
+                  </div>
+                  <div class="form-field">
+                    <select id="productExpPrec" formControlName="expiryPrecision" class="form-input form-select has-value">
+                      <option value="day">{{ 'products.expiryPrecision.day' | t }}</option><option value="month">{{ 'products.expiryPrecision.month' | t }}</option><option value="year">{{ 'products.expiryPrecision.year' | t }}</option>
+                    </select>
+                    <label for="productExpPrec" class="form-label">{{ 'products.expiryPrecision.label' | t }}</label>
+                  </div>
+                </div>
+                <div class="field-hint">ⓘ {{ 'products.expiryType.hint' | t }}</div>
+              }
+              <div class="form-section-title">{{ 'products.wp6.section' | t }}</div>
+              @if (editingProductId()) {
+                <div class="field-hint">{{ 'products.wp6.unitCost' | t }}: <strong>{{ editingCost() === null ? '-' : (editingCost() | money) }}</strong> · {{ 'products.wp6.costReadonly' | t }}</div>
+              } @else if (productForm.get('quantity')?.value > 0) {
+                <div class="form-field">
+                  <input id="productOpenCost" type="number" min="0" step="0.000001" formControlName="openingUnitCost" class="form-input" [class.has-value]="hasValue('openingUnitCost')" />
+                  <label for="productOpenCost" class="form-label">{{ 'products.wp6.openingUnitCost' | t }}</label>
+                </div>
+              }
+              <div class="form-row">
+                <div class="form-field">
+                  <input id="productWaste" type="number" min="0" max="100" step="0.01" formControlName="normalWastageRatePct" class="form-input" [class.has-value]="hasValue('normalWastageRatePct')" />
+                  <label for="productWaste" class="form-label">{{ 'products.wp6.wastageRate' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <input id="productWasteSrc" type="text" maxlength="255" formControlName="normalWastageSource" class="form-input" [class.has-value]="hasValue('normalWastageSource')" />
+                  <label for="productWasteSrc" class="form-label">{{ 'products.wp6.wastageSource' | t }}</label>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-check" style="display:flex; gap: var(--space-2); align-items:center; font-size: var(--text-sm);">
+                  <input type="checkbox" formControlName="warrantyRequired" style="accent-color: var(--color-primary);" /> {{ 'products.wp6.warrantyRequired' | t }}
+                </label>
+                <div class="form-field">
+                  <input id="productWarranty" type="number" min="0" step="1" formControlName="warrantyMonths" class="form-input" [class.has-value]="hasValue('warrantyMonths')" />
+                  <label for="productWarranty" class="form-label">{{ 'products.wp6.warrantyMonths' | t }}</label>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-check" style="display:flex; gap: var(--space-2); align-items:center; font-size: var(--text-sm);">
+                  <input type="checkbox" formControlName="perishable" style="accent-color: var(--color-primary);" /> {{ 'products.wp6.perishable' | t }}
+                </label>
+                <div class="form-field">
+                  <input id="productOrigin" type="text" maxlength="2" formControlName="originCountry" class="form-input mono" [class.has-value]="hasValue('originCountry')" />
+                  <label for="productOrigin" class="form-label">{{ 'products.wp6.originCountry' | t }}</label>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <input id="productLblQty" type="number" min="0" step="0.001" formControlName="labelNetQuantity" class="form-input" [class.has-value]="hasValue('labelNetQuantity')" />
+                  <label for="productLblQty" class="form-label">{{ 'products.wp6.labelNetQuantity' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <select id="productLblUnit" formControlName="labelNetUnit" class="form-input form-select has-value">
+                    <option [ngValue]="null">-</option>@for (u of labelUnits; track u) { <option [value]="u">{{ u }}</option> }
+                  </select>
+                  <label for="productLblUnit" class="form-label">{{ 'products.wp6.labelNetUnit' | t }}</label>
+                </div>
+              </div>
+              @if (exportEnabled()) {
+                <div class="form-row">
+                  <div class="form-field">
+                    <input id="productGtip" type="text" inputmode="numeric" maxlength="12" formControlName="gtipCode" class="form-input mono" [class.has-value]="hasValue('gtipCode')" />
+                    <label for="productGtip" class="form-label">{{ 'products.wp6.gtip' | t }}</label>
+                  </div>
+                  <div class="form-field">
+                    <input id="productNetW" type="number" min="0" step="0.001" formControlName="netWeightKg" class="form-input" [class.has-value]="hasValue('netWeightKg')" />
+                    <label for="productNetW" class="form-label">{{ 'products.wp6.netWeight' | t }}</label>
+                  </div>
+                </div>
+              }
 
               <div class="form-field">
                 <input id="productImageUrl" type="text" formControlName="imageUrl" class="form-input" [class.has-value]="hasValue('imageUrl')" [disabled]="isSaveLoading()" />
@@ -804,6 +889,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
             </div>
             
             <div class="drawer-footer">
+              @if (editingProductId()) { <button type="button" class="btn btn-ghost" (click)="printLabel()">{{ 'products.wp6.printLabel' | t }}</button> }
               <button type="button" class="btn btn-secondary" (click)="closeProductForm()" [disabled]="isSaveLoading()">{{ 'common.cancel' | t }}</button>
               <button type="submit" class="btn btn-primary" [disabled]="productForm.invalid || productForm.pristine || isSaveLoading()">
                 @if (isSaveLoading()) { <span class="spinner-sm spinner-light"></span> {{ 'products.form.saving' | t }} } @else { {{ 'common.save' | t }} }
@@ -1126,16 +1212,15 @@ export class ProductsComponent implements OnInit {
     return this.state.products().filter(p => p.createdAt && new Date(p.createdAt).getTime() >= since).length;
   });
 
-  /** Inventory value in company base currency (server converts via exchange rates). */
+  /** Inventory value at cost (VUK 274) in the company base currency; never the sales-price value. */
   readonly totalValue = computed(() => {
     const s = this.state.summary();
     if (s) return { amount: s.inventoryValue, currency: s.currency, unconverted: s.unconvertedCurrencies || [] };
     // Fallback before summary loads: only sum base-currency products
     const base = this.i18n.currency();
     const prods = this.state.products();
-    const amount = prods.filter(p => !p.currency || p.currency === base).reduce((acc, p) => acc + p.price * (p.quantity || 0), 0);
-    const unconverted = [...new Set(prods.map(p => p.currency).filter((c): c is string => !!c && c !== base))];
-    return { amount, currency: base, unconverted };
+    const amount = prods.reduce((acc, p) => acc + (p.unitCost || 0) * (p.quantity || 0), 0);
+    return { amount, currency: base, unconverted: [] as string[] };
   });
 
   isCategoryDropdownOpen = signal(false);
@@ -1822,8 +1907,36 @@ export class ProductsComponent implements OnInit {
     withholdingCode: [null as string | null],
     otvCode: [null as string | null],
     otvRate: [null as number | null],
-    warehouseId: [null as string | null]
+    warehouseId: [null as string | null],
+    // WP6
+    expiryType: [null as string | null],
+    expiryPrecision: ['day'],
+    perishable: [false],
+    normalWastageRatePct: [null as number | null],
+    normalWastageSource: [''],
+    warrantyRequired: [false],
+    warrantyMonths: [null as number | null],
+    originCountry: [''],
+    gtipCode: [''],
+    netWeightKg: [null as number | null],
+    labelNetQuantity: [null as number | null],
+    labelNetUnit: [null as string | null],
+    openingUnitCost: [null as number | null],
   });
+  readonly labelUnits = ['kg', 'l', 'm', 'm2', 'adet'];
+  exportEnabled = signal(false);
+  editingCost = signal<number | null>(null);
+  private accounting = inject(AccountingService);
+  private ebelge = inject(EBelgeService);
+  gtinRestricted = computed(() => {
+    const v = this.formState();
+    return !!(restrictedGs1Prefix(String(v?.['gtin14'] || '')) || restrictedGs1Prefix(String(v?.['barcode'] || '')));
+  });
+
+  printLabel() {
+    const id = this.editingProductId();
+    if (id) this.accounting.openPrintable('prices/labels', { ids: id });
+  }
 
   // WP3: default exemption / withholding / ÖTV codes
   private taxService = inject(TaxService);
@@ -1907,6 +2020,7 @@ export class ProductsComponent implements OnInit {
     this.productForm.get('trackingType')!.valueChanges.subscribe(() => this.applyTrackingLock());
     this.productForm.valueChanges.subscribe(() => this.formState.set(this.productForm.getRawValue()));
     this.compliance.getCompany().subscribe({ next: (c) => this.enabledModules.set(c.enabledComplianceModules || []), error: () => undefined });
+    this.ebelge.settings().subscribe({ next: (st: any) => this.exportEnabled.set(!!st?.exportEnabled), error: () => undefined });
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
@@ -1997,8 +2111,22 @@ export class ProductsComponent implements OnInit {
       hasExpiry: !!p.hasExpiry,
       regulatoryCategory: p.regulatoryCategory || 'none',
       inventoryClass: p.inventoryClass || 'TICARI_MAL_153',
-      gtin14: p.gtin14 || ''
+      gtin14: p.gtin14 || '',
+      expiryType: p.expiryType ?? null,
+      expiryPrecision: p.expiryPrecision || 'day',
+      perishable: !!p.perishable,
+      normalWastageRatePct: p.normalWastageRatePct ?? null,
+      normalWastageSource: p.normalWastageSource || '',
+      warrantyRequired: !!p.warrantyRequired,
+      warrantyMonths: p.warrantyMonths ?? null,
+      originCountry: p.originCountry || '',
+      gtipCode: p.gtipCode || '',
+      netWeightKg: p.netWeightKg ?? null,
+      labelNetQuantity: p.labelNetQuantity ?? null,
+      labelNetUnit: p.labelNetUnit ?? null,
+      openingUnitCost: null,
     });
+    this.editingCost.set(p.unitCost ?? null);
     // Stock corrections go through Stock movements (reason code + reversal), not the product form.
     this.productForm.get('quantity')!.disable({ emitEvent: false });
     this.productForm.markAsPristine();
@@ -2042,6 +2170,19 @@ export class ProductsComponent implements OnInit {
       .filter(u => u.unitId && Number(u.factor) > 0)
       .map(u => ({ unitId: u.unitId, factor: Number(u.factor), barcode: (u.barcode || '').trim() || null }));
     payload.gtin14 = String(rest.gtin14 || '').trim() || null;
+    // WP6 fields: empty inputs are sent as null
+    const num = (v: unknown) => (v === '' || v === null || v === undefined ? null : Number(v));
+    payload.normalWastageRatePct = num(rest.normalWastageRatePct);
+    payload.normalWastageSource = String(rest.normalWastageSource || '').trim() || null;
+    payload.warrantyMonths = num(rest.warrantyMonths);
+    payload.originCountry = String(rest.originCountry || '').trim().toUpperCase() || null;
+    payload.gtipCode = String(rest.gtipCode || '').trim() || null;
+    payload.netWeightKg = num(rest.netWeightKg);
+    payload.labelNetQuantity = num(rest.labelNetQuantity);
+    payload.labelNetUnit = rest.labelNetUnit || null;
+    payload.expiryType = rest.expiryType || null;
+    if (editingId || !num(rest.openingUnitCost)) delete payload.openingUnitCost;
+    else payload.openingUnitCost = num(rest.openingUnitCost);
     // Edits never change stock (corrections are reason-coded movements); tracked products start at 0.
     if (editingId) delete payload.quantity;
     else if (payload.trackingType !== 'none') payload.quantity = 0;

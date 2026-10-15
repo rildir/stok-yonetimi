@@ -15,6 +15,7 @@ import { isStrongPassword, maxDecimalsForUnece, UNECE_UNIT_CODES } from '@stok/t
 import { FiscalSettingsComponent } from './fiscal-settings.component';
 import { TaxSettingsComponent, TcmbPanelComponent } from './tax-settings.component';
 import { InventoryComplianceSettingsComponent } from './inventory-compliance-settings.component';
+import { InventoryAccountingSettingsComponent } from './inventory-accounting-settings.component';
 import { EBelgeSettingsComponent } from './ebelge-settings.component';
 import { DocumentSettingsComponent } from './document-settings.component';
 import { EBelgeProviderSettingsComponent } from './ebelge-provider-settings.component';
@@ -24,12 +25,12 @@ import { LegalParametersComponent } from './legal-parameters.component';
 /** Empty passes (optional field); otherwise the KVKK-guide password policy. */
 const strongPasswordValidator = (c: AbstractControl): ValidationErrors | null => (c.value && !isStrongPassword(c.value) ? { weakPassword: true } : null);
 
-type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'ebelgeProvider' | 'archive' | 'documents' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
+type SettingsTab = 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'ebelgeProvider' | 'archive' | 'documents' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent, EBelgeProviderSettingsComponent, EBelgeArchiveSettingsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, InventoryAccountingSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent, EBelgeProviderSettingsComponent, EBelgeArchiveSettingsComponent],
   template: `
     <header class="page-header">
       <div>
@@ -52,6 +53,7 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'archive'" [attr.aria-selected]="activeTab() === 'archive'" (click)="changeTab('archive')">{{ 'settings.tab.archive' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'documents'" [attr.aria-selected]="activeTab() === 'documents'" (click)="changeTab('documents')">{{ 'settings.tab.documents' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'compliance'" [attr.aria-selected]="activeTab() === 'compliance'" (click)="changeTab('compliance')">{{ 'settings.tab.compliance' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'inventoryAccounting'" [attr.aria-selected]="activeTab() === 'inventoryAccounting'" (click)="changeTab('inventoryAccounting')">{{ 'settings.tab.inventoryAccounting' | t }}</button>
         @if (ui.userProfile()?.isSuperAdmin) {
           <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'legalParams'" [attr.aria-selected]="activeTab() === 'legalParams'" (click)="changeTab('legalParams')">{{ 'settings.tab.legalParams' | t }}</button>
         }
@@ -117,6 +119,14 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
             <span class="settings-hub-text">
               <span class="settings-hub-title">{{ 'settings.tab.ebelge' | t }}</span>
               <span class="settings-hub-desc">{{ 'settings.card.ebelgeDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('inventoryAccounting')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M8 14h3M8 17h6"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.inventoryAccounting' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.inventoryAccountingDesc' | t }}</span>
             </span>
             <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
@@ -222,6 +232,7 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
         @if (activeTab() === 'ebelgeProvider' && isAdmin()) { <app-ebelge-provider-settings></app-ebelge-provider-settings> }
         @if (activeTab() === 'archive' && isAdmin()) { <app-ebelge-archive-settings></app-ebelge-archive-settings> }
         @if (activeTab() === 'compliance' && isAdmin()) { <app-inventory-compliance-settings></app-inventory-compliance-settings> }
+        @if (activeTab() === 'inventoryAccounting' && isAdmin()) { <app-inventory-accounting-settings></app-inventory-accounting-settings> }
         @if (activeTab() === 'legalParams' && ui.userProfile()?.isSuperAdmin) { <app-legal-parameters></app-legal-parameters> }
 
         <!-- TAX RATES TAB (Admin) -->
@@ -1434,7 +1445,7 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'ebelgeProvider', 'archive', 'documents', 'compliance', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
+      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'ebelgeProvider', 'archive', 'documents', 'compliance', 'inventoryAccounting', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
         this.activeTab.set(tab);
         if (tab === 'units') this.loadUnits();
       } else {

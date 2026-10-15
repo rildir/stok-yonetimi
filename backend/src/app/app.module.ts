@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { InventoryAccountingModule } from './modules/inventory-accounting/inventory-accounting.module';
+import { WP6_ENTITIES } from './entities/inventory-accounting.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -141,6 +143,7 @@ import { EBelgeModule } from './modules/ebelge/ebelge.module';
         GoodsReceiptItemEntity,
         ExpenseVoucherEntity,
         ...EBELGE_ENTITIES,
+        ...WP6_ENTITIES,
       ],
       // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
       timezone: 'Z',
@@ -191,6 +194,7 @@ import { EBelgeModule } from './modules/ebelge/ebelge.module';
     RefdataModule,
     DocumentsModule,
     EBelgeModule,
+    InventoryAccountingModule,
     HealthModule,
   ],
   providers: [

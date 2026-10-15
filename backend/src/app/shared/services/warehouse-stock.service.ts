@@ -17,6 +17,9 @@ import { CURRENT_HASH_VERSION, GENESIS_HASH, movementHash, toSecond } from '../i
 import { addQty, isDateKey, isReasonCode, reasonAllowsDirection, roundQty, sumQty, warehouseTypeAllowsSale, daysBetween, dateKeyInZone, DEFAULT_TIMEZONE } from '../tr';
 import { UnitEntity } from '../../entities/unit.entity';
 import { TenantContext } from '../tenant/tenant-context.service';
+import { DocumentLineTrackingEntity, StockCostLayerEntity } from '../../entities/inventory-accounting.entity';
+import { CostingMethod, CostLayer, averageCost, consumeLayers, roundCost, roundMoney } from '../inventory/costing';
+import { effectiveExpiryType, normalizeExpiryDate } from '../tr';
 
 export interface StockAllocation {
   warehouseId: string;
@@ -57,6 +60,35 @@ export interface MovementInfo {
   attachmentsSha256?: string | null;
   /** Transfers: every row keeps the (unchanged) product total as previous/new quantity */
   totalsUnchanged?: boolean;
+  // ─── WP6 ───
+  /** Incoming: unit cost of the document in the company base currency per base unit (purchase price incl. VUK 262 elements) */
+  unitCost?: number | null;
+  /** Currency / rate of the source document (purchase in foreign currency) */
+  costCurrency?: string | null;
+  fxRate?: number | null;
+  fxDate?: string | null;
+  fxSource?: string | null;
+  /** Counterparty for traceability (lot -> customers) and serial warranty trace */
+  party?: MovementParty | null;
+  /** Id of the source document (despatch, goods receipt, return...) for document_line_tracking */
+  documentId?: string | null;
+}
+
+export interface MovementParty {
+  type: 'CUSTOMER' | 'SUPPLIER';
+  id?: string | null;
+  name?: string | null;
+  taxId?: string | null;
+  /** Sales order the goods were sold on (serial warranty trace) */
+  orderId?: string | null;
+}
+
+/** Cost stamp of one movement row. */
+interface CostStamp {
+  unitCost: number;
+  totalCost: number;
+  costSource: string;
+  layer?: Partial<StockCostLayerEntity> | null;
 }
 
 /** Movement types that only move stock between warehouses (product total unchanged). */
@@ -73,6 +105,10 @@ export interface LotReceiptInput {
   lotNumber: string;
   expiryDate?: string | null;
   quantity: number;
+  /** WP6 food traceability */
+  productionDate?: string | null;
+  supplierLotNumber?: string | null;
+  lotSource?: string | null;
 }
 
 export interface ReceiveDetails {
@@ -323,6 +359,10 @@ export class WarehouseStockService {
     details: ReceiveDetails = {},
   ): Promise<StockAllocation[]> {
     if (qty <= 0) return [];
+    // Tebliğ 2026/11: food is received only with a lot number (and expiry).
+    if (product.regulatoryCategory === 'food' && product.trackingType !== TrackingType.LOT) {
+      throw new BadRequestException(err('LOT_REQUIRED_FOR_CATEGORY', { name: product.name, category: 'food' }));
+    }
     if (!isTracked(product)) return this.add(manager, product, qty, warehouseId);
     const target = await this.targetWarehouseId(manager, product.companyId, warehouseId);
     const allocations =
@@ -346,15 +386,20 @@ export class WarehouseStockService {
       const q = Number(l?.quantity);
       if (!lotNumber) throw new BadRequestException(err('LOT_NUMBER_REQUIRED', { name: product.name }));
       if (!validQty(q)) throw new BadRequestException(err('LOT_QUANTITY_INVALID', { lot: lotNumber }));
-      const expiry = normDate(l.expiryDate);
-      if (expiry && !DATE_RE.test(expiry)) throw new BadRequestException(err('LOT_EXPIRY_INVALID', { lot: lotNumber }));
-      if (product.hasExpiry && !expiry) throw new BadRequestException(err('LOT_EXPIRY_REQUIRED', { lot: lotNumber, name: product.name }));
+      const rawIn = l.expiryDate as unknown;
+      const raw = rawIn instanceof Date ? normDate(rawIn) : rawIn ? String(rawIn).trim() : null;
+      // Month / year precision ("... sonuna kadar"): the last day of that month / year.
+      const expiry = raw ? normalizeExpiryDate(raw, product.expiryPrecision || 'day') : null;
+      if (raw && (!expiry || !DATE_RE.test(expiry))) throw new BadRequestException(err('LOT_EXPIRY_INVALID', { lot: lotNumber }));
+      if ((product.hasExpiry || product.regulatoryCategory === 'food') && !expiry) throw new BadRequestException(err('LOT_EXPIRY_REQUIRED', { lot: lotNumber, name: product.name }));
+      const production = l.productionDate ? normDate(l.productionDate) : null;
+      if (production && !DATE_RE.test(production)) throw new BadRequestException(err('LOT_PRODUCTION_DATE_INVALID', { lot: lotNumber }));
       const prev = merged.get(lotNumber);
       if (prev) {
         if ((prev.expiryDate || null) !== (expiry || null)) throw new BadRequestException(err('LOT_EXPIRY_CONFLICT', { lot: lotNumber }));
         prev.quantity = addQty(prev.quantity, q);
       } else {
-        merged.set(lotNumber, { lotNumber, expiryDate: expiry, quantity: q });
+        merged.set(lotNumber, { lotNumber, expiryDate: expiry, quantity: q, productionDate: production, supplierLotNumber: l.supplierLotNumber ? String(l.supplierLotNumber).trim().slice(0, 64) : null, lotSource: l.lotSource || null });
       }
     }
     const total = sumQty([...merged.values()].map((l) => l.quantity));
@@ -363,7 +408,11 @@ export class WarehouseStockService {
     }
     const out: StockAllocation[] = [];
     for (const l of merged.values()) {
-      const lot = await this.upsertLot(manager, product, warehouseId, l.lotNumber, l.expiryDate || null);
+      const lot = await this.upsertLot(manager, product, warehouseId, l.lotNumber, l.expiryDate || null, {
+        productionDate: l.productionDate || null,
+        supplierLotNumber: l.supplierLotNumber || null,
+        lotSource: l.lotSource || null,
+      });
       lot.quantity = addQty(lot.quantity, l.quantity);
       await manager.save(StockLotEntity, lot);
       out.push({ warehouseId, delta: l.quantity, lotId: lot.id, lotNumber: lot.lotNumber, expiryDate: normDate(lot.expiryDate) });
@@ -378,6 +427,7 @@ export class WarehouseStockService {
     warehouseId: string,
     lotNumber: string,
     expiryDate: string | null,
+    attrs: Partial<Pick<StockLotEntity, 'productionDate' | 'supplierLotNumber' | 'lotSource' | 'status' | 'statusReason'>> = {},
   ): Promise<StockLotEntity> {
     const existing = await manager.findOne(StockLotEntity, {
       where: { companyId: product.companyId, productId: product.id, warehouseId, lotNumber },
@@ -387,8 +437,17 @@ export class WarehouseStockService {
       const cur = normDate(existing.expiryDate);
       if (expiryDate && cur && cur !== expiryDate) throw new BadRequestException(err('LOT_EXPIRY_CONFLICT', { lot: lotNumber }));
       if (expiryDate && !cur) existing.expiryDate = expiryDate;
+      if (attrs.productionDate && !existing.productionDate) existing.productionDate = attrs.productionDate;
+      if (attrs.supplierLotNumber && !existing.supplierLotNumber) existing.supplierLotNumber = attrs.supplierLotNumber;
+      // A recalled / blocked lot stays so wherever it moves.
+      if (attrs.status && attrs.status !== 'active' && existing.status === 'active') {
+        existing.status = attrs.status;
+        existing.statusReason = attrs.statusReason ?? existing.statusReason ?? null;
+      }
       return existing;
     }
+    // The same lot elsewhere (other warehouse) passes on its status and origin data.
+    const sibling = await manager.findOne(StockLotEntity, { where: { companyId: product.companyId, productId: product.id, lotNumber } });
     return manager.save(
       StockLotEntity,
       manager.create(StockLotEntity, {
@@ -398,6 +457,11 @@ export class WarehouseStockService {
         lotNumber,
         expiryDate,
         quantity: 0,
+        productionDate: attrs.productionDate ?? sibling?.productionDate ?? null,
+        supplierLotNumber: attrs.supplierLotNumber ?? sibling?.supplierLotNumber ?? null,
+        lotSource: attrs.lotSource ?? sibling?.lotSource ?? null,
+        status: attrs.status ?? (sibling && sibling.status !== 'active' ? sibling.status : 'active'),
+        statusReason: attrs.statusReason ?? (sibling && sibling.status !== 'active' ? sibling.statusReason ?? null : null),
       }),
     );
   }
@@ -464,14 +528,14 @@ export class WarehouseStockService {
     qty: number,
     warehouseId: string | null | undefined,
     details: IssueDetails = {},
-    opts: { serialStatus?: SerialStatus; allowExpired?: boolean; sale?: boolean } = {},
+    opts: { serialStatus?: SerialStatus; allowExpired?: boolean; sale?: boolean; allowBlocked?: boolean } = {},
   ): Promise<StockAllocation[]> {
     if (qty <= 0) return [];
     if (!isTracked(product)) return this.deduct(manager, product, qty, warehouseId, { sale: opts.sale });
     if (warehouseId) await this.requireIssueWarehouse(manager, product.companyId, warehouseId, !!opts.sale);
     const allocations =
       product.trackingType === TrackingType.LOT
-        ? await this.pickLots(manager, product, qty, warehouseId || null, details.lots, !!opts.allowExpired, !!opts.sale)
+        ? await this.pickLots(manager, product, qty, warehouseId || null, details.lots, !!opts.allowExpired, !!opts.sale, !!opts.allowBlocked)
         : await this.pickSerials(manager, product, qty, warehouseId || null, details.serials, opts.serialStatus || SerialStatus.SOLD, !!opts.sale);
     await this.apply(manager, product, allocations);
     return allocations;
@@ -485,8 +549,16 @@ export class WarehouseStockService {
     explicit: { lotId: string; quantity: number }[] | undefined,
     allowExpired: boolean,
     sale = false,
+    allowBlocked = false,
   ): Promise<StockAllocation[]> {
     const picks: { lot: StockLotEntity; quantity: number }[] = [];
+    const expiryType = effectiveExpiryType(product);
+    const company = await manager.findOne(CompanyEntity, { where: { id: product.companyId }, select: ['id', 'timezone', 'bestBeforeSalePolicy'] });
+    const today = todayKey(company?.timezone);
+    // Sales of expired lots: STT (use_by) never, whatever the role or flag; TETT (best_before) only
+    // when the company policy allows it (set through maker-checker, audited).
+    const saleBlockedExpiry = sale && (expiryType === 'use_by' || (expiryType === 'best_before' && company?.bestBeforeSalePolicy !== 'ALLOW'));
+    if (saleBlockedExpiry) allowExpired = false;
     if (explicit && explicit.length) {
       const lots = await manager.find(StockLotEntity, {
         where: { companyId: product.companyId, productId: product.id, id: In(explicit.map((e) => e.lotId)) },
@@ -498,6 +570,13 @@ export class WarehouseStockService {
         const q = Number(e.quantity);
         if (!lot) throw new BadRequestException(err('LOT_NOT_FOUND', { lot: e.lotId }));
         if (!validQty(q)) throw new BadRequestException(err('LOT_QUANTITY_INVALID', { lot: lot.lotNumber }));
+        if (!allowBlocked && (lot.status || 'active') !== 'active') {
+          throw new BadRequestException(err('LOT_BLOCKED', { lot: lot.lotNumber, status: lot.status }));
+        }
+        const exp = normDate(lot.expiryDate);
+        if (saleBlockedExpiry && exp && exp < today) {
+          throw new BadRequestException(err(expiryType === 'use_by' ? 'LOT_EXPIRED_USE_BY' : 'LOT_EXPIRED_BEST_BEFORE', { lot: lot.lotNumber, date: exp }));
+        }
         if (warehouseId && lot.warehouseId !== warehouseId) throw new BadRequestException(err('LOT_WRONG_WAREHOUSE', { lot: lot.lotNumber }));
         if (sale && !warehouseId) await this.requireIssueWarehouse(manager, product.companyId, lot.warehouseId, true);
         const total = addQty(used.get(lot.id) || 0, q);
@@ -513,19 +592,20 @@ export class WarehouseStockService {
       const activeIds = warehouseId
         ? [warehouseId]
         : (sale ? await this.sellableWarehouses(manager, product.companyId) : await this.activeWarehouses(manager, product.companyId)).map((w) => w.id);
-      const lots = await manager.find(StockLotEntity, {
-        where: { companyId: product.companyId, productId: product.id, warehouseId: In(activeIds), quantity: MoreThan(0) },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const company = await manager.findOne(CompanyEntity, { where: { id: product.companyId }, select: ['id', 'timezone'] });
-      const today = todayKey(company?.timezone);
+      const lots = (
+        await manager.find(StockLotEntity, {
+          where: { companyId: product.companyId, productId: product.id, warehouseId: In(activeIds), quantity: MoreThan(0) },
+          lock: { mode: 'pessimistic_write' },
+        })
+      ).filter((l) => allowBlocked || (l.status || 'active') === 'active');
+      const checksExpiry = !!product.hasExpiry || !!expiryType;
       const result = allocateLots(lots, qty, {
-        fefo: !!product.hasExpiry,
-        skipExpiredBefore: product.hasExpiry && !allowExpired ? today : null,
+        fefo: checksExpiry,
+        skipExpiredBefore: checksExpiry && !allowExpired ? today : null,
       });
       if (!result) {
         const usable = lots
-          .filter((l) => allowExpired || !product.hasExpiry || !l.expiryDate || normDate(l.expiryDate)! >= today)
+          .filter((l) => allowExpired || !checksExpiry || !l.expiryDate || normDate(l.expiryDate)! >= today)
           .reduce((s, l) => addQty(s, l.quantity), 0);
         throw new BadRequestException(err('LOT_INSUFFICIENT_AUTO', { name: product.name, available: usable, requested: qty }));
       }
@@ -646,10 +726,20 @@ export class WarehouseStockService {
     let out: StockAllocation[];
     let inn: StockAllocation[];
     if (product.trackingType === TrackingType.LOT) {
-      out = await this.pickLots(manager, product, qty, fromId, details.lotId ? [{ lotId: details.lotId, quantity: qty }] : undefined, true);
+      // Blocked / recalled lots may only move to a quarantine warehouse.
+      const target = await manager.findOne(WarehouseEntity, { where: { id: toId, companyId: product.companyId }, select: ['id', 'type'] });
+      const toQuarantine = target?.type === 'QUARANTINE';
+      out = await this.pickLots(manager, product, qty, fromId, details.lotId ? [{ lotId: details.lotId, quantity: qty }] : undefined, true, false, toQuarantine);
       inn = [];
       for (const o of out) {
-        const lot = await this.upsertLot(manager, product, toId, o.lotNumber as string, o.expiryDate || null);
+        const src = o.lotId ? await manager.findOne(StockLotEntity, { where: { id: o.lotId, companyId: product.companyId } }) : null;
+        const lot = await this.upsertLot(manager, product, toId, o.lotNumber as string, o.expiryDate || null, {
+          productionDate: src?.productionDate ?? null,
+          supplierLotNumber: src?.supplierLotNumber ?? null,
+          lotSource: src?.lotSource ?? null,
+          status: src?.status ?? 'active',
+          statusReason: src?.statusReason ?? null,
+        });
         lot.quantity = addQty(lot.quantity, -o.delta);
         await manager.save(StockLotEntity, lot);
         inn.push({ warehouseId: toId, delta: -o.delta, lotId: lot.id, lotNumber: lot.lotNumber, expiryDate: normDate(lot.expiryDate) });
@@ -729,6 +819,7 @@ export class WarehouseStockService {
 
     const chain = await this.begin(manager, product.companyId);
     await this.assertTransactionDateAllowed(manager, product, txDate, now, previousTotal, info.totalsUnchanged ? 0 : sumQty(active.map((a) => a.delta)));
+    const costCtx = await this.costContext(manager, product, txDate);
     const actor = this.tenant.actor;
     const baseUnit = product.baseUnitId ? await manager.findOne(UnitEntity, { where: { id: product.baseUnitId, companyId: product.companyId } }) : null;
     // Snapshot the UN/ECE code (what documents carry); the internal code only when the unit has none.
@@ -741,8 +832,10 @@ export class WarehouseStockService {
     for (let i = 0; i < active.length; i++) {
       const a = active[i];
       const next = info.totalsUnchanged ? running : addQty(running, a.delta);
+      const movementId = randomUUID();
+      const cost = await this.costOf(manager, product, a, info, costCtx, txDate, movementId);
       const row = manager.create(StockMovementEntity, {
-        id: randomUUID(),
+        id: movementId,
         companyId: product.companyId,
         sequenceNo: Number(chain.lastSequenceNo) + 1,
         productId: product.id,
@@ -776,12 +869,21 @@ export class WarehouseStockService {
         approvedByUserId: info.approvedByUserId ?? null,
         // Evidence files are linked to the first movement of the booking; its row carries their digest.
         attachmentsSha256: i === 0 ? info.attachmentsSha256 ?? null : null,
+        unitCost: cost.unitCost,
+        totalCost: cost.totalCost,
+        costCurrency: info.costCurrency || costCtx.baseCurrency,
+        fxRate: info.fxRate !== undefined && info.fxRate !== null ? roundCost(Number(info.fxRate)) : null,
+        fxDate: info.fxDate || null,
+        fxSource: info.fxSource || null,
+        costSource: cost.costSource,
         hashVersion: CURRENT_HASH_VERSION,
         createdAt,
       });
       row.prevHash = chain.lastHash;
       row.hash = movementHash(chain.lastHash, row as unknown as Record<string, unknown>);
       saved.push(await manager.save(StockMovementEntity, row));
+      if (cost.layer) await manager.save(StockCostLayerEntity, manager.create(StockCostLayerEntity, cost.layer));
+      await this.recordTracking(manager, product, a, info, row);
       chain.lastSequenceNo = row.sequenceNo;
       chain.lastHash = row.hash;
       running = next;
@@ -809,6 +911,15 @@ export class WarehouseStockService {
     const tz = company?.timezone || DEFAULT_TIMEZONE;
     const day = dateKeyInZone(txDate, tz);
     const lock = company?.stockLockDate ? normDate(company.stockLockDate) : null;
+    // Closed fiscal period (VUK 174; the DB trigger trg_stock_movements_period_closed is the backstop).
+    const periods: { fiscalYear?: number; quarter?: number }[] = await manager.query(
+      "SELECT `fiscalYear`, `quarter` FROM `fiscal_periods` WHERE `companyId` = ? AND `status` = 'CLOSED' AND `startAt` <= ? AND `endAt` > ? ORDER BY `quarter` DESC LIMIT 1",
+      [product.companyId, txDate, txDate],
+    );
+    const closed = periods?.[0]?.fiscalYear !== undefined ? { fiscalYear: Number(periods[0].fiscalYear), quarter: Number(periods[0].quarter) } : null;
+    if (closed) {
+      throw new BadRequestException(err('PERIOD_CLOSED', { period: closed.quarter ? `${closed.fiscalYear}/Q${closed.quarter}` : String(closed.fiscalYear), date: day }));
+    }
     if (lock && day <= lock) throw new BadRequestException(err('TRANSACTION_DATE_LOCKED', { date: lock }));
     const floor = `${Number(dateKeyInZone(new Date(now), tz).slice(0, 4)) - 1}-01-01`;
     if (day < floor) throw new BadRequestException(err('TRANSACTION_DATE_TOO_OLD', { min: floor }));
@@ -824,6 +935,156 @@ export class WarehouseStockService {
     const minBalance = roundQty(roundQty(previousTotal) - maxLater);
     if (roundQty(minBalance + netDelta) < 0) {
       throw new BadRequestException(err('BACKDATED_BALANCE_NEGATIVE', { date: day, available: Math.max(0, minBalance), requested: roundQty(-netDelta) }));
+    }
+  }
+
+  // ─── Costing (WP6) ───
+
+  /** Costing method in force on `txDate` (a pending change applies from its effective day) and the base currency. */
+  private async costContext(manager: EntityManager, product: ProductEntity, txDate: Date): Promise<{ method: CostingMethod; baseCurrency: string }> {
+    const c = await manager.findOne(CompanyEntity, {
+      where: { id: product.companyId },
+      select: ['id', 'timezone', 'baseCurrency', 'costingMethod', 'pendingCostingMethod', 'pendingCostingMethodFrom'],
+    });
+    let method = (c?.costingMethod || 'WAVG_MOVING') as CostingMethod;
+    const from = c?.pendingCostingMethodFrom ? normDate(c.pendingCostingMethodFrom) : null;
+    if (c?.pendingCostingMethod && from && dateKeyInZone(txDate, c.timezone || DEFAULT_TIMEZONE) >= from) method = c.pendingCostingMethod as CostingMethod;
+    return { method, baseCurrency: c?.baseCurrency || 'TRY' };
+  }
+
+  /** Open cost layers of a product (oldest first). */
+  async openLayers(manager: EntityManager, companyId: string, productId: string): Promise<StockCostLayerEntity[]> {
+    return manager.find(StockCostLayerEntity, {
+      where: { companyId, productId, qtyRemaining: MoreThan(0) },
+      order: { receivedAt: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  /** Current average unit cost of a product (layers on hand; else the last known movement cost; else null). */
+  async currentUnitCost(manager: EntityManager, companyId: string, productId: string): Promise<number | null> {
+    const avg = averageCost((await this.openLayers(manager, companyId, productId)) as unknown as CostLayer[]);
+    if (avg !== null) return avg;
+    const rows: { u?: string | null }[] = await manager.query(
+      'SELECT `unitCost` AS u FROM `stock_movements` WHERE `companyId` = ? AND `productId` = ? AND `unitCost` IS NOT NULL AND `unitCost` > 0 ORDER BY `sequenceNo` DESC LIMIT 1',
+      [companyId, productId],
+    );
+    const u = rows?.[0]?.u;
+    return u !== undefined && u !== null ? Number(u) : null;
+  }
+
+  /**
+   * Cost of one allocation (VUK 274): incoming goods at the document cost (or the original cost of
+   * a return / reversal, else the current average) creating a layer; outgoing goods consume layers
+   * by the company method; transfers keep the goods' cost (no layer change).
+   */
+  private async costOf(
+    manager: EntityManager,
+    product: ProductEntity,
+    a: StockAllocation,
+    info: MovementInfo,
+    ctx: { method: CostingMethod; baseCurrency: string },
+    txDate: Date,
+    movementId: string,
+  ): Promise<CostStamp> {
+    const delta = roundQty(a.delta);
+    const type = a.type || info.type;
+    const companyId = product.companyId;
+    if (TRANSFER_TYPES.includes(type) || info.totalsUnchanged) {
+      const unit = (await this.currentUnitCost(manager, companyId, product.id)) ?? 0;
+      return { unitCost: roundCost(unit), totalCost: roundMoney(delta * unit), costSource: 'TRANSFER' };
+    }
+    const original = info.reversesMovementId
+      ? await manager.findOne(StockMovementEntity, { where: { id: info.reversesMovementId, companyId }, select: ['id', 'unitCost', 'quantity'] })
+      : null;
+    if (delta > 0) {
+      let unit: number | null = null;
+      let source = 'DOCUMENT';
+      if (info.unitCost !== undefined && info.unitCost !== null && Number.isFinite(Number(info.unitCost))) unit = Number(info.unitCost);
+      else if (original?.unitCost !== undefined && original?.unitCost !== null) {
+        // RETURN / REVERSAL: the goods come back at the cost they left with.
+        unit = Math.abs(Number(original.unitCost));
+        source = 'RETURN';
+      } else {
+        unit = await this.currentUnitCost(manager, companyId, product.id);
+        source = unit === null ? 'MISSING' : 'AVERAGE';
+      }
+      const unitCost = roundCost(unit ?? 0);
+      return {
+        unitCost,
+        totalCost: roundMoney(delta * unitCost),
+        costSource: source,
+        layer: {
+          companyId,
+          productId: product.id,
+          warehouseId: a.warehouseId || null,
+          lotId: a.lotId ?? null,
+          lotNumber: a.lotNumber ?? null,
+          movementId,
+          receivedAt: txDate,
+          qtyIn: delta,
+          qtyRemaining: delta,
+          unitCost,
+          source: source === 'DOCUMENT' ? (info.reasonCode === 'OPENING' ? 'OPENING' : 'PURCHASE') : source === 'RETURN' ? 'RETURN' : 'AVERAGE',
+        },
+      };
+    }
+    const layers = await this.openLayers(manager, companyId, product.id);
+    const fallback = (await this.currentUnitCost(manager, companyId, product.id)) ?? 0;
+    // A purchase return / reversal of a receipt takes its own layer first (at that layer's cost).
+    const prefer = original && Number(original.quantity) > 0 ? original.id : null;
+    const r = consumeLayers(ctx.method, layers as unknown as CostLayer[], -delta, { lotNumber: a.lotNumber ?? null, preferMovementId: prefer, fallbackUnitCost: fallback });
+    for (let i = 0; i < layers.length; i++) {
+      const after = r.layers[i];
+      if (after.qtyRemaining !== layers[i].qtyRemaining || after.unitCost !== layers[i].unitCost) {
+        await manager.update(StockCostLayerEntity, { id: layers[i].id }, { qtyRemaining: roundQty(after.qtyRemaining), unitCost: roundCost(after.unitCost) });
+      }
+    }
+    return { unitCost: roundCost(r.unitCost), totalCost: roundMoney(-r.totalCost), costSource: r.shortfall > 0 ? 'FALLBACK' : 'LAYER' };
+  }
+
+  /**
+   * Normalised lot / serial trace (document_line_tracking) of a movement row, and the warranty
+   * trace of serials sold to a customer.
+   */
+  private async recordTracking(manager: EntityManager, product: ProductEntity, a: StockAllocation, info: MovementInfo, row: StockMovementEntity): Promise<void> {
+    const serials = a.serials || [];
+    if (!a.lotNumber && !serials.length) return;
+    const party = info.party || null;
+    const documentId = info.documentId ?? (['despatch', 'return', 'goods_receipt', 'stock_count'].includes(String(info.referenceType || '')) ? info.referenceId ?? null : null);
+    const base = {
+      companyId: product.companyId,
+      sourceType: 'movement',
+      sourceId: row.id,
+      documentType: info.documentType || null,
+      documentId,
+      documentNo: info.documentNo ? String(info.documentNo).slice(0, 50) : null,
+      documentDate: info.documentDate || null,
+      direction: a.delta > 0 ? 'IN' : 'OUT',
+      productId: product.id,
+      warehouseId: a.warehouseId || null,
+      lotId: a.lotId ?? null,
+      lotNumber: a.lotNumber || '',
+      expiryDate: a.expiryDate || null,
+      partyType: party?.type ?? null,
+      partyId: party?.id ?? null,
+      partyName: party?.name ? String(party.name).slice(0, 255) : null,
+      partyTaxId: party?.taxId ?? null,
+      movementId: row.id,
+      occurredAt: row.transactionDate,
+    };
+    if (serials.length) {
+      for (const serial of serials) {
+        await manager.save(DocumentLineTrackingEntity, manager.create(DocumentLineTrackingEntity, { ...base, serial: String(serial).slice(0, 100), quantity: 1 }));
+      }
+      if (a.delta < 0 && party?.type === 'CUSTOMER') {
+        await manager.update(
+          SerialNumberEntity,
+          { companyId: product.companyId, productId: product.id, serial: In(serials) },
+          { soldCustomerId: party.id ?? null, soldOrderId: party.orderId ?? null, soldAt: row.transactionDate, ...(info.documentType === 'DESPATCH' ? { deliveredAt: row.transactionDate } : {}) },
+        );
+      }
+    } else {
+      await manager.save(DocumentLineTrackingEntity, manager.create(DocumentLineTrackingEntity, { ...base, serial: '', quantity: Math.abs(roundQty(a.delta)) }));
     }
   }
 
@@ -879,7 +1140,7 @@ export class WarehouseStockService {
         ? await manager.findOne(StockLotEntity, { where: { id: original.lotId, companyId: product.companyId, productId: product.id } })
         : await manager.findOne(StockLotEntity, { where: { companyId: product.companyId, productId: product.id, warehouseId, lotNumber: original.lotNumber as string } });
       if (!lot) throw new BadRequestException(err('LOT_NOT_FOUND', { lot: original.lotNumber || original.lotId }));
-      const out = await this.pickLots(manager, product, -delta, warehouseId, [{ lotId: lot.id, quantity: -delta }], true);
+      const out = await this.pickLots(manager, product, -delta, warehouseId, [{ lotId: lot.id, quantity: -delta }], true, false, true);
       await this.apply(manager, product, out);
       return out;
     }

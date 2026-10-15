@@ -130,6 +130,15 @@ export class AuditSubscriber implements EntitySubscriberInterface {
     if (!id && table !== 'stock_movements') return out;
     const ev = (event: string, data: Row | null) => out.push({ companyId, event, entityType: table, entityId: id ?? null, data });
 
+    // WP6: a real recall (not a mock drill) and a closed fiscal period.
+    if (table === 'lot_recalls' && action === 'create' && after && !after['isMock']) {
+      ev('lot.recalled', { id: after['id'], recallNo: after['recallNo'], productId: after['productId'], productName: after['productName'], lotNumbers: after['lotNumbers'], reason: after['reason'], affectedCustomers: after['affectedCustomers'] });
+      return out;
+    }
+    if (table === 'fiscal_periods' && action === 'update' && after && after['status'] === 'CLOSED' && before?.['status'] !== 'CLOSED') {
+      ev('period.closed', { id: after['id'], periodType: after['periodType'], fiscalYear: after['fiscalYear'], quarter: after['quarter'], snapshotHash: after['snapshotHash'] });
+      return out;
+    }
     if (table === 'products') {
       if (action === 'create') return ev('product.created', after), out;
       if (action === 'delete') return ev('product.deleted', before), out;

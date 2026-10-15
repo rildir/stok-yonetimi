@@ -18,25 +18,26 @@ export class StockCountController {
   @Roles('admin', 'manager')
   @Post()
   async createStockCount(
-    @Body('notes') notes?: string,
+    @Body() body: { notes?: string; countType?: string; countDate?: string | null; asOfDate?: string | null; warehouseIds?: string[] | null; countedBy?: string[] | null; supervisedBy?: string | null },
     @Req() req?: any
   ) {
     // The actor always comes from the authenticated request (it is hashed into the ledger).
     const user = req?.user?.username || 'System';
-    return this.stockCountService.createStockCount(notes, user);
+    const { notes, ...header } = body || {};
+    return this.stockCountService.createStockCount(notes, user, header);
   }
 
   @Roles('admin', 'manager')
   @Put(':id')
   async updateStockCount(
     @Param('id') id: string,
-    @Body('items') items: any[],
-    @Body('notes') notes?: string
+    @Body() body: { items: any[]; notes?: string; countType?: string; countDate?: string | null; asOfDate?: string | null; countedBy?: string[] | null; supervisedBy?: string | null }
   ) {
+    const { items, notes, ...header } = body || ({} as any);
     if (!items || !Array.isArray(items)) {
       throw new BadRequestException(err('STOCK_COUNT_ITEMS_REQUIRED'));
     }
-    return this.stockCountService.updateStockCount(id, items, notes);
+    return this.stockCountService.updateStockCount(id, items, notes, header);
   }
 
   @Roles('admin', 'manager')

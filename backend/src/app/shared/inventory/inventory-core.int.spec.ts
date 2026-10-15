@@ -199,7 +199,7 @@ describe('WP2 inventory core (MySQL)', () => {
       return svc.recordMovements(m, p, 0, allocs, { type: 'ADJUSTMENT', reasonCode: 'COUNT_SURPLUS', performedBy: 'maker', performedByUserId: 'u-maker', approvedBy: 'checker', approvedByUserId: 'u-checker', attachmentsSha256: 'e'.repeat(64) });
     });
     const rows = await ds!.manager.find(StockMovementEntity, { where: { companyId: company.id }, order: { sequenceNo: 'ASC' } });
-    expect(rows[0]).toMatchObject({ hashVersion: 2, unitCode: 'KGM', approvedBy: 'checker', performedBy: 'maker' });
+    expect(rows[0]).toMatchObject({ hashVersion: 3, unitCode: 'KGM', approvedBy: 'checker', performedBy: 'maker' });
     expect(verifyChain(rows as any).ok).toBe(true);
     // createdAt is sealed: changing it (bypassing the trigger is impossible, so simulate on the copy) breaks the chain
     expect(verifyChain([{ ...rows[0], createdAt: new Date(rows[0].createdAt.getTime() - 86400000) }] as any).ok).toBe(false);

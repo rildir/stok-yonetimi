@@ -26,6 +26,8 @@ import { NotFoundException } from '@nestjs/common';
 import { UnitEntity } from '../../entities/unit.entity';
 import { CompanyEntity } from '../../entities/company.entity';
 import { checkCategoryRules } from '../../shared/compliance/category-rules';
+import { PriceService } from '../inventory-accounting/price.service';
+import { restrictedGs1Prefix } from '../../shared/tr';
 import { fitsDecimals, INVENTORY_CLASSES, roundQty, toGtin14 } from '../../shared/tr';
 
 /** Input accepted for create/update; `quantity` is applied through warehouse stock. */
@@ -35,6 +37,8 @@ export type ProductInput = Partial<Omit<ProductEntity, 'warehouses' | 'units'>> 
   /** Opening stock details for tracked products */
   lots?: LotReceiptInput[];
   serials?: string[];
+  /** WP6: unit cost of the opening stock (base currency per base unit) */
+  openingUnitCost?: number | null;
 };
 
 @Injectable()
@@ -67,6 +71,7 @@ export class ProductService {
     const products = await this.productRepo.find({ where: { companyId: this.companyId, isDeleted: false } });
     await this.unitService.attachUnits(this.dataSource.manager, this.companyId, products);
     await this.attachReserved(this.dataSource.manager, products);
+    await this.attachUnitCost(this.dataSource.manager, products);
     return this.warehouseStock.attachWarehouseMap(this.dataSource.manager, this.companyId, products);
   }
 
@@ -83,10 +88,24 @@ export class ProductService {
     return this.decorate(this.dataSource.manager, product);
   }
 
+  /** WP6: read-only unit cost (average of the open cost layers, base currency). */
+  private async attachUnitCost(manager: EntityManager, products: ProductEntity[]): Promise<void> {
+    if (!products.length) return;
+    const rows: { productId: string; q: string; v: string }[] = await manager.query(
+      'SELECT `productId`, SUM(`qtyRemaining`) AS q, SUM(`qtyRemaining` * `unitCost`) AS v FROM `stock_cost_layers` WHERE `companyId` = ? AND `qtyRemaining` > 0 GROUP BY `productId`',
+      [this.companyId],
+    );
+    for (const p of products) {
+      const r = rows.find((x) => x.productId === p.id);
+      p.unitCost = r && Number(r.q) > 0 ? Math.round((Number(r.v) / Number(r.q)) * 1e6) / 1e6 : null;
+    }
+  }
+
   /** Adds units + warehouse map for API responses. */
   private async decorate(manager: EntityManager, product: ProductEntity): Promise<ProductEntity> {
     await this.unitService.attachUnits(manager, this.companyId, [product]);
     await this.attachReserved(manager, [product]);
+    await this.attachUnitCost(manager, [product]);
     await this.warehouseStock.attachWarehouseMap(manager, this.companyId, [product]);
     return product;
   }
@@ -227,6 +246,32 @@ export class ProductService {
         target.gtin14 = null;
       }
     }
+    // WP6: expiry rules, wastage rate (with its source), warranty (6502 s. TKHK md. 56).
+    if (data.expiryType !== undefined) target.expiryType = data.expiryType || null;
+    if (data.expiryPrecision !== undefined) target.expiryPrecision = data.expiryPrecision || 'day';
+    if (data.normalWastageRatePct !== undefined || data.normalWastageSource !== undefined) {
+      const rate = data.normalWastageRatePct !== undefined ? data.normalWastageRatePct : target.normalWastageRatePct;
+      const source = data.normalWastageSource !== undefined ? (data.normalWastageSource || '').trim() || null : target.normalWastageSource ?? null;
+      if (rate !== null && rate !== undefined && !source) throw new BadRequestException(err('WASTAGE_SOURCE_REQUIRED'));
+      target.normalWastageRatePct = rate === undefined ? null : rate;
+      target.normalWastageSource = rate === null || rate === undefined ? null : source;
+    }
+    if (target.warrantyRequired) {
+      const min = Number(await this.finance.param<number>('WARRANTY_MIN_MONTHS', undefined, manager).catch(() => 24)) || 24;
+      if (!(Number(target.warrantyMonths) >= min)) throw new BadRequestException(err('WARRANTY_MIN_MONTHS', { min }));
+    }
+  }
+
+  /** GS1 warnings returned with the product (restricted-circulation prefix on a traded item). */
+  private gs1Warnings(p: ProductEntity): string[] {
+    const out: string[] = [];
+    for (const code of [p.gtin14, p.barcode]) {
+      if (code && restrictedGs1Prefix(code)) {
+        out.push('GTIN_RESTRICTED_PREFIX');
+        break;
+      }
+    }
+    return out;
   }
 
   /**
@@ -335,7 +380,7 @@ export class ProductService {
   /** Inserts a product with zero stock, then books the initial quantity into a warehouse. */
   private async insertProduct(manager: EntityManager, data: ProductInput, performedBy: string, note: string): Promise<ProductEntity> {
     await this.validateRefs(manager, data);
-    const { warehouseId, quantity, units, lots, serials, baseUnit: _bu, ...rest } = data as any;
+    const { warehouseId, quantity, units, lots, serials, baseUnit: _bu, openingUnitCost, unitCost: _uc, ...rest } = data as any;
     const company = await this.finance.getCompany(manager);
     const draft = manager.create(ProductEntity, {
       ...rest,
@@ -352,17 +397,20 @@ export class ProductService {
     const warnings = await this.checkCategory(manager, draft);
     await this.assertPrecision(manager, draft, [Number(quantity) || 0, draft.minQuantity]);
     const product = await manager.save(ProductEntity, draft);
-    (product as any).complianceWarnings = warnings;
+    (product as any).complianceWarnings = [...warnings, ...this.gs1Warnings(product)];
+    await PriceService.record(manager, product, performedBy);
     await this.saveUnits(manager, product, units);
     const initial = Number(quantity) || 0;
     if (initial > 0) {
-      const allocations = await this.warehouseStock.receive(manager, product, initial, warehouseId, { lots, serials });
+      const allocations = await this.warehouseStock.receive(manager, product, initial, warehouseId, { lots: lots ? lots.map((l: LotReceiptInput) => ({ ...l, lotSource: 'OPENING' })) : lots, serials });
       await this.warehouseStock.recordMovements(manager, product, 0, allocations, {
         type: StockMovementType.IN,
         reasonCode: 'OPENING',
         referenceType: 'manual',
         note,
         performedBy,
+        // WP6: opening stock at the given cost (else the movement is marked MISSING; fix via opening cost import).
+        unitCost: openingUnitCost !== undefined && openingUnitCost !== null ? Number(openingUnitCost) : null,
       });
     }
     return product;
@@ -418,7 +466,8 @@ export class ProductService {
   /** Applies field updates; a quantity change goes through warehouse stock + ADJUSTMENT movement(s). */
   private async applyUpdate(manager: EntityManager, current: ProductEntity, updates: ProductInput) {
     await this.validateRefs(manager, updates);
-    const { warehouseId: _w, quantity, id: _id, companyId: _c, status: _s, units, lots: _l, serials: _sr, trackingType, availableQuantity: _a, ...fields } = updates as any;
+    const { warehouseId: _w, quantity, id: _id, companyId: _c, status: _s, units, lots: _l, serials: _sr, trackingType, availableQuantity: _a, openingUnitCost: _o, unitCost: _uc, ...fields } = updates as any;
+    const priceBefore = { price: Number(current.price), currency: current.currency };
     // Stock is never changed by a product update: it would bypass the reason evidence, document
     // dates, VUK 219 warning and maker-checker threshold of POST /stock-movements/adjust (R65).
     if (quantity !== undefined && quantity !== null && quantity !== '' && roundQty(Number(quantity)) !== roundQty(current.quantity)) {
@@ -451,8 +500,12 @@ export class ProductService {
     await this.saveUnits(manager, current, units);
     current.status = this.stockHelper.calculateStatus(current.availableQuantity, current.minQuantity);
     const saved = await manager.save(ProductEntity, current);
+    // R70: price history (discount reference price, shelf label change date).
+    if (Number(saved.price) !== priceBefore.price || saved.currency !== priceBefore.currency) {
+      await PriceService.record(manager, saved, this.tenant.actor.username || null);
+    }
 
-    (saved as any).complianceWarnings = warnings;
+    (saved as any).complianceWarnings = [...warnings, ...this.gs1Warnings(saved)];
 
     return saved;
   }

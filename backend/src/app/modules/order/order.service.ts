@@ -514,6 +514,7 @@ export class OrderService {
             referenceType: 'order',
             note: `Sipariş oluşturuldu: ${orderNumber}`,
             performedBy,
+            party: { type: 'CUSTOMER', id: customer?.id ?? null, name: customer?.name ?? data.customerName ?? null, taxId: partyTaxId(customer?.identityNumber) },
           });
           productsToEmit.push(prod);
         }

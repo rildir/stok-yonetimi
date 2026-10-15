@@ -188,7 +188,8 @@ describe('ProductService tenant isolation', () => {
     // A client-supplied companyId must be overridden by the tenant context.
     await svc.createProduct({ name: 'N', sku: 'S', category: 'c', price: 1, quantity: 3, minQuantity: 1, companyId: 'tenant-B' } as any);
 
-    expect(saved.length).toBe(2);
+    // product, its price history row (WP6) and the opening movement
+    expect(saved.length).toBe(3);
     expect(saved.every((o) => o.companyId === 'tenant-A')).toBe(true);
     expect(manager.exists).toHaveBeenCalledWith(ProductEntity, { where: { companyId: 'tenant-A', sku: 'S' } });
   });

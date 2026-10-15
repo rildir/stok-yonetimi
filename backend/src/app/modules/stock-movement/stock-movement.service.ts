@@ -21,6 +21,7 @@ import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { applyDayRange, companyTimezone } from '../../shared/time/company-day-range';
 import { GENESIS_HASH, ChainVerifier, ChainVerification, attachmentsDigest } from '../../shared/inventory/movement-hash';
+import { applyPeriodReopen } from '../../shared/inventory/period-ops';
 import {
   DISPOSAL_REASONS,
   effectiveReasonEvidence,
@@ -66,6 +67,8 @@ export interface AdjustmentInput {
  */
 export interface CountLine {
   delta?: number;
+  /** Warehouse-scoped count (WP6): the warehouse the untracked difference is booked in */
+  warehouseId?: string | null;
   lots?: { lotId: string; delta: number }[];
   lostSerials?: string[];
 }
@@ -74,6 +77,8 @@ export interface CountLine {
 export interface ControlChange {
   stockLockDate?: string | null;
   adjustmentApprovalThreshold?: number | null;
+  /** WP6: allow selling best-before (TETT) expired lots */
+  bestBeforeSalePolicy?: string;
 }
 
 export interface MovementQuery {
@@ -448,7 +453,12 @@ export class StockMovementService {
       }
     } else if (roundQty(Number(line.delta) || 0)) {
       const before = product.quantity;
-      const allocs = await this.warehouseStock.setTotal(manager, product, Math.max(0, roundQty(product.quantity + Number(line.delta))));
+      const d = roundQty(Number(line.delta));
+      const allocs = line.warehouseId
+        ? d > 0
+          ? await this.warehouseStock.add(manager, product, d, line.warehouseId)
+          : await this.warehouseStock.deduct(manager, product, -d, line.warehouseId)
+        : await this.warehouseStock.setTotal(manager, product, Math.max(0, roundQty(product.quantity + d)));
       out.push(...(await this.warehouseStock.recordMovements(manager, product, before, allocs, info)));
     }
     return out;
@@ -501,11 +511,18 @@ export class StockMovementService {
         return { req: await manager.save(StockAdjustmentRequestEntity, req), movements: [] as StockMovementEntity[], warnings: [] as unknown[] };
       }
       const payload = req.payload as Record<string, unknown>;
+      if (payload['kind'] === 'PERIOD_REOPEN') {
+        // WP6: reopening a closed fiscal period (reason given by the requester).
+        await applyPeriodReopen(manager, this.companyId, String(payload['periodId']), String(payload['note'] || ''));
+        req.status = 'APPROVED';
+        return { req: await manager.save(StockAdjustmentRequestEntity, req), movements: [] as StockMovementEntity[], warnings: [] as unknown[] };
+      }
       if (payload['kind'] === 'COMPANY_CONTROL') {
         // Loosened stock control (lock date moved back / threshold raised): applied as requested.
         const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
         const change = (payload['change'] || {}) as ControlChange;
         if (change.stockLockDate !== undefined) company.stockLockDate = change.stockLockDate || null;
+        if (change.bestBeforeSalePolicy !== undefined) company.bestBeforeSalePolicy = change.bestBeforeSalePolicy;
         if (change.adjustmentApprovalThreshold !== undefined) {
           company.adjustmentApprovalThreshold = change.adjustmentApprovalThreshold === null ? null : Number(change.adjustmentApprovalThreshold);
         }

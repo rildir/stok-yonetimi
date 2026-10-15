@@ -62,5 +62,18 @@
   "stockCount.col.sku": "SKU",
   "stockCount.toast.completedPending": "Sayım tamamlandı. Değeri onay eşiğini aşan {count} satırın farkı ikinci bir yöneticinin onayına gönderildi; diğer farklar stoklara uygulandı.",
   "stockCount.sentForApproval": "İkinci onayda",
-  "stockCount.sentForApprovalHint": "Bu farkın değeri onay eşiğini aştığı için stoğa uygulanmadı; Stok Hareketleri > Onay bekleyen talepler bölümünde ikinci bir yönetici onaylayınca kaydedilir."
+  "stockCount.sentForApprovalHint": "Bu farkın değeri onay eşiğini aştığı için stoğa uygulanmadı; Stok Hareketleri > Onay bekleyen talepler bölümünde ikinci bir yönetici onaylayınca kaydedilir.",
+  "stockCount.tutanak": "Sayım tutanağı",
+  "stockCount.countType": "Sayım türü",
+  "stockCount.countType.YEAR_END": "Yıl sonu",
+  "stockCount.countType.PERIODIC": "Dönemsel",
+  "stockCount.countType.CYCLE": "Devirli (cycle)",
+  "stockCount.countType.SAMPLING": "Örnekleme",
+  "stockCount.countDate": "Sayım tarihi",
+  "stockCount.asOfDate": "Envanter tarihi",
+  "stockCount.countedBy": "Sayım ekibi",
+  "stockCount.countedByHint": "Ad Soyad, virgülle",
+  "stockCount.supervisedBy": "Gözetmen",
+  "stockCount.approvedBy": "Onaylayan",
+  "stockCount.tutanakHint": "Sayımı tamamlayan kullanıcı tutanağı onaylar; sayım ekibinde yer alamaz. Sayım tarihi envanter tarihinden en fazla 3 ay önce veya 2 ay sonra olabilir; aradaki hareketler tutanakta ileri / geri hesaplanır."
 }

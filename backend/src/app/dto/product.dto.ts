@@ -43,6 +43,17 @@ export class LotReceiptDto {
   @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
   @IsPositive({ message: 'VALIDATION_QUANTITY_POSITIVE' })
   quantity: number;
+
+  @ApiPropertyOptional({ description: 'Üretim tarihi (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  productionDate?: string | null;
+
+  @ApiPropertyOptional({ description: 'Tedarikçinin parti numarası' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  supplierLotNumber?: string | null;
 }
 
 const TRACKING_TYPES = ['none', 'lot', 'serial'];
@@ -97,6 +108,82 @@ class ProductTrackingFieldsDto {
   @IsString()
   @MaxLength(14)
   gtin14?: string | null;
+
+  // ─── WP6 ───
+
+  @ApiPropertyOptional({ enum: ['use_by', 'best_before'], description: 'STT (use_by) / TETT (best_before)' })
+  @IsOptional()
+  @IsIn(['use_by', 'best_before', null, ''], { message: 'EXPIRY_TYPE_INVALID' })
+  expiryType?: string | null;
+
+  @ApiPropertyOptional({ enum: ['day', 'month', 'year'] })
+  @IsOptional()
+  @IsIn(['day', 'month', 'year'], { message: 'EXPIRY_TYPE_INVALID' })
+  expiryPrecision?: string;
+
+  @ApiPropertyOptional({ description: 'Çabuk bozulan ürün (indirim referansı: bir önceki fiyat)' })
+  @IsOptional()
+  @IsBoolean()
+  perishable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Normal fire oranı (%)' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Min(0, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Max(100, { message: 'VALIDATION_AMOUNT_INVALID' })
+  normalWastageRatePct?: number | null;
+
+  @ApiPropertyOptional({ description: 'Normal fire oranının kaynağı' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  normalWastageSource?: string | null;
+
+  @ApiPropertyOptional({ description: 'Garanti belgesi kapsamında (B2C, listedeki ürün)' })
+  @IsOptional()
+  @IsBoolean()
+  warrantyRequired?: boolean;
+
+  @ApiPropertyOptional({ description: 'Garanti süresi (ay)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(600)
+  warrantyMonths?: number | null;
+
+  @ApiPropertyOptional({ description: 'Menşe ülke (ISO 3166-1 alpha-2)', example: 'TR' })
+  @IsOptional()
+  @Transform(upper)
+  @Matches(/^[A-Z]{2}$/, { message: 'VALIDATION_COUNTRY_CODE' })
+  originCountry?: string | null;
+
+  @ApiPropertyOptional({ description: 'GTİP (12 hane)' })
+  @IsOptional()
+  @Matches(/^\d{12}$/, { message: 'GTIP_INVALID' })
+  gtipCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'Net ağırlık (kg)' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Min(0, { message: 'VALIDATION_AMOUNT_INVALID' })
+  netWeightKg?: number | null;
+
+  @ApiPropertyOptional({ description: 'Raf etiketi birim fiyatı için net içerik (ör. 0,5)' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Min(0, { message: 'VALIDATION_AMOUNT_INVALID' })
+  labelNetQuantity?: number | null;
+
+  @ApiPropertyOptional({ enum: ['kg', 'l', 'm', 'm2', 'adet'] })
+  @IsOptional()
+  @IsIn(['kg', 'l', 'm', 'm2', 'adet', null, ''], { message: 'VALIDATION_FIELD_IN' })
+  labelNetUnit?: string | null;
+
+  @ApiPropertyOptional({ description: 'Açılış stoğunun birim maliyeti (ana para birimi, temel birim başına)' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 6 }, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Min(0, { message: 'VALIDATION_AMOUNT_INVALID' })
+  openingUnitCost?: number | null;
 
 }
 

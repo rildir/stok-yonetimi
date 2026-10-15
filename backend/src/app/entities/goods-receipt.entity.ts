@@ -184,7 +184,7 @@ export class GoodsReceiptItemEntity {
   unitPrice: number;
 
   @Column({ type: 'json', nullable: true })
-  lots?: { lotNumber: string; expiryDate?: string | null; quantity: number }[] | null;
+  lots?: { lotNumber: string; expiryDate?: string | null; quantity: number; productionDate?: string | null; supplierLotNumber?: string | null }[] | null;
 
   @Column({ type: 'json', nullable: true })
   serials?: string[] | null;

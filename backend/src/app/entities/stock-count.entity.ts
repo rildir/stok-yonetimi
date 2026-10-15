@@ -16,6 +16,11 @@ export interface StockCountItem {
   serials?: { serial: string; warehouseId: string; warehouseName?: string; present: boolean }[];
   /** Set on completion when the line's value exceeded the approval threshold: the pending maker-checker request */
   approvalRequestId?: string;
+  /** Unit cost (base currency) at completion and the counted / difference value at cost */
+  unitCost?: number;
+  countedValue?: number;
+  differenceValue?: number;
+  inventoryClass?: string;
 }
 
 @Entity('stock_counts')
@@ -52,6 +57,48 @@ export class StockCountEntity {
 
   @Column({ nullable: true })
   notes: string;
+
+  // ─── WP6: sayım tutanağı (VUK 185-190; TTK 64/3, 66) ───
+
+  /** YEAR_END | PERIODIC | CYCLE | SAMPLING */
+  @Column({ type: 'varchar', length: 15, default: 'PERIODIC' })
+  countType: string;
+
+  /** Day the goods were counted (YYYY-MM-DD) */
+  @Column({ type: 'date', nullable: true })
+  countDate?: string | null;
+
+  /** Inventory date the count is rolled to (bilanço günü); countDate within -3/+2 months of it */
+  @Column({ type: 'date', nullable: true })
+  asOfDate?: string | null;
+
+  /** Warehouses counted (null = all) */
+  @Column({ type: 'simple-json', nullable: true })
+  warehouseIds?: string[] | null;
+
+  /** Sayım ekibi */
+  @Column({ type: 'simple-json', nullable: true })
+  countedBy?: string[] | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  supervisedBy?: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  approvedBy?: string | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  approvedByUserId?: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  approvedAt?: Date | null;
+
+  /** Tutanak number */
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  documentNo?: string | null;
+
+  /** SHA-256 of the counted lines at completion */
+  @Column({ type: 'char', length: 64, nullable: true })
+  snapshotHash?: string | null;
 
   @Index()
   @CreateDateColumn()

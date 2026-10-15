@@ -496,7 +496,13 @@ export class DespatchService {
       if (d.purpose === 'SALE') {
         const customer = order?.customerId ? await manager.findOne(CustomerEntity, { where: { companyId: this.companyId, id: order.customerId } }) : null;
         for (const line of d.lines) {
-          line.tracking = await this.issueSaleLine(manager, line, d.sourceWarehouseId, { ...docInfo, counterpartyTaxId: partyId(customer?.identityNumber), note: `İrsaliye ${num.documentNo} (${d.orderNumber})` }, touched);
+          line.tracking = await this.issueSaleLine(manager, line, d.sourceWarehouseId, {
+            ...docInfo,
+            counterpartyTaxId: partyId(customer?.identityNumber),
+            note: `İrsaliye ${num.documentNo} (${d.orderNumber})`,
+            documentId: d.id,
+            party: { type: 'CUSTOMER', id: customer?.id ?? d.customerId ?? null, name: d.buyerSnapshot?.legalName || d.buyerSnapshot?.name || customer?.name || order?.customerName || null, taxId: d.buyerSnapshot?.taxId ?? partyId(customer?.identityNumber), orderId: order?.id ?? null },
+          }, touched);
         }
       } else if (d.purpose === 'TRANSFER' || DIRECT_TRANSFER.includes(d.purpose)) {
         const target = d.purpose === 'TRANSFER' ? await this.ensureSpecialWarehouse(manager, 'IN_TRANSIT') : await this.warehouseStock.requireWarehouse(manager, this.companyId, d.targetWarehouseId as string);
@@ -651,6 +657,7 @@ export class DespatchService {
         tracking = await this.issueLine(manager, { productId: item.productId, productName: item.productName, quantity: q, warehouseId: null, lots: null, serials: null } as DespatchLineEntity, null, {
           type: StockMovementType.ORDER, reasonCode: 'SALE', sale: true, documentType: 'INVOICE', documentNo: doc.documentNo, documentDate: doc.date, transactionDate: txDate,
           counterpartyTaxId: partyId(customer?.identityNumber), referenceId: order.orderNumber, referenceType: 'invoice', note: `İrsaliye yerine geçen fatura ${doc.documentNo}`, performedBy: user,
+          party: { type: 'CUSTOMER', id: customer?.id ?? null, name: customer?.name ?? order.customerName ?? null, taxId: partyId(customer?.identityNumber), orderId: order.id },
         }, touched);
       }
       item.despatchedQuantity = addQty(item.despatchedQuantity || 0, q);

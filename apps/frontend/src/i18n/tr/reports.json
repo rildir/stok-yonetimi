@@ -45,7 +45,7 @@
   "reports.csv.category": "Kategori",
   "reports.csv.productCount": "Ürün Sayısı",
   "reports.csv.totalStock": "Toplam Stok",
-  "reports.csv.totalValue": "Toplam Değer ({currency})",
+  "reports.csv.totalValue": "Maliyet Değeri ({currency})",
   "reports.csv.supplierSection": "TEDARİKÇİ BAZLI SATIN ALMA",
   "reports.csv.supplierName": "Tedarikçi Adı",
   "reports.csv.orderCount": "Sipariş Sayısı",
@@ -65,5 +65,11 @@
   "reports.expiring.empty": "Bu aralıkta SKT'si yaklaşan parti yok",
   "reports.expiring.loadError": "SKT raporu yüklenemedi",
   "reports.expiring.filePrefix": "SKT_Raporu",
-  "reports.expiring.col.sku": "SKU"
+  "reports.expiring.col.sku": "SKU",
+  "reports.inventoryList": "Envanter listesi",
+  "reports.costValue": "Maliyet değeri",
+  "reports.salesValue": "Satış değeri (bilgi)",
+  "reports.recall": "Geri çağırma",
+  "reports.tab.analytics": "Analiz",
+  "reports.tab.legal": "Yasal raporlar"
 }

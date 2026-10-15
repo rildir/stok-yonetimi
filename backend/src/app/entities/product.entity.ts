@@ -104,6 +104,56 @@ export class ProductEntity {
   @Column({ type: 'varchar', length: 30, default: 'TICARI_MAL_153' })
   inventoryClass: string;
 
+  // ─── WP6: food expiry, wastage, warranty, export data, shelf label ───
+
+  /** use_by (STT: never sold after the date) | best_before (TETT: company policy) | null */
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  expiryType?: string | null;
+
+  /** day | month | year: month / year precision means the last day of that month / year */
+  @Column({ type: 'varchar', length: 5, default: 'day' })
+  expiryPrecision: string;
+
+  /** Çabuk bozulan: the discount reference is the previous price */
+  @Column({ default: false })
+  perishable: boolean;
+
+  /** Normal fire oranı (%) and its source (sector practice, takdir komisyonu, technical report) */
+  @Column('decimal', { precision: 7, scale: 4, nullable: true, transformer: new ColumnNumericTransformer() })
+  normalWastageRatePct?: number | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  normalWastageSource?: string | null;
+
+  /** Product is on the Garanti Belgesi Yönetmeliği list (B2C): warrantyMonths >= legal minimum */
+  @Column({ default: false })
+  warrantyRequired: boolean;
+
+  @Column({ type: 'int', nullable: true })
+  warrantyMonths?: number | null;
+
+  /** ISO 3166-1 alpha-2; 'TR' prints the domestic production logo on shelf labels */
+  @Column({ type: 'varchar', length: 2, nullable: true })
+  originCountry?: string | null;
+
+  /** GTİP (12 digits) for export documents */
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  gtipCode?: string | null;
+
+  @Column('decimal', { precision: 18, scale: 4, nullable: true, transformer: new ColumnNumericTransformer() })
+  netWeightKg?: number | null;
+
+  /** Net content per sales unit for the shelf-label unit price (e.g. 0.5 kg, 1 l) */
+  @Column('decimal', { precision: 18, scale: 4, nullable: true, transformer: new ColumnNumericTransformer() })
+  labelNetQuantity?: number | null;
+
+  /** kg | l | m | m2 | adet */
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  labelNetUnit?: string | null;
+
+  /** Response-only: current unit cost (base currency) */
+  unitCost?: number | null;
+
   /** GS1 GTIN in 14-digit form (İTS / ÜTS / e-Belge item identification) */
   @Column({ type: 'varchar', length: 14, nullable: true })
   gtin14?: string | null;

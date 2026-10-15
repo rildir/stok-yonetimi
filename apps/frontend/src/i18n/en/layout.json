@@ -70,5 +70,6 @@
   "layout.theme.toDark": "Switch to dark theme",
   "layout.openMenu": "Open menu",
   "layout.closeMenu": "Close menu",
-  "layout.breadcrumb": "Breadcrumb"
+  "layout.breadcrumb": "Breadcrumb",
+  "layout.nav.disposals": "Disposals"
 }

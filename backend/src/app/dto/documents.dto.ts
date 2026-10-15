@@ -55,6 +55,16 @@ export class LotReceiptDto {
   @IsNumber(QTY, { message: 'QUANTITY_INVALID' })
   @Min(0.0001, { message: 'QUANTITY_INVALID' })
   quantity: number;
+
+  /** WP6 food traceability: production date and the supplier's own lot number */
+  @IsOptional()
+  @IsDateKey()
+  productionDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  supplierLotNumber?: string | null;
 }
 
 export class DriverDto {

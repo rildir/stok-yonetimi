@@ -45,7 +45,7 @@
   "reports.csv.category": "Category",
   "reports.csv.productCount": "Product Count",
   "reports.csv.totalStock": "Total Stock",
-  "reports.csv.totalValue": "Total Value ({currency})",
+  "reports.csv.totalValue": "Value at Cost ({currency})",
   "reports.csv.supplierSection": "PURCHASES BY SUPPLIER",
   "reports.csv.supplierName": "Supplier Name",
   "reports.csv.orderCount": "Order Count",
@@ -65,5 +65,11 @@
   "reports.expiring.empty": "No lots expiring in this period",
   "reports.expiring.loadError": "Failed to load expiring lots",
   "reports.expiring.filePrefix": "Expiring_Lots",
-  "reports.expiring.col.sku": "SKU"
+  "reports.expiring.col.sku": "SKU",
+  "reports.inventoryList": "Inventory list",
+  "reports.costValue": "Value at cost",
+  "reports.salesValue": "Sales value (info)",
+  "reports.recall": "Recall",
+  "reports.tab.analytics": "Analytics",
+  "reports.tab.legal": "Legal reports"
 }
