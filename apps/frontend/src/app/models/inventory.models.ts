@@ -336,6 +336,11 @@ export interface Customer {
   addresses?: CustomerAddress[];
   needsReview?: boolean;
   reviewReason?: string | null;
+  /** GİB registry (WP5): e-Fatura / e-İrsaliye registered user */
+  eInvoiceRegistered?: boolean | null;
+  eInvoiceCheckedAt?: string | null;
+  eDespatchRegistered?: boolean | null;
+  preferredProfile?: string | null;
   /** Preferred ISO 4217 currency for orders */
   currency?: string | null;
   notes?: string | null;

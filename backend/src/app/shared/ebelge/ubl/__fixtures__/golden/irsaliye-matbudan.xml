@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DespatchAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<ext:UBLExtensions>
+		<ext:UBLExtension>
+			<ext:ExtensionContent>
+				<n4:auto-generated_for_wildcard xmlns:n4="http://www.altova.com/samplexml/other-namespace"/>
+			</ext:ExtensionContent>
+		</ext:UBLExtension>
+	</ext:UBLExtensions>
+	<cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+	<cbc:CustomizationID>TR1.2.1</cbc:CustomizationID>
+	<cbc:ProfileID>TEMELIRSALIYE</cbc:ProfileID>
+	<cbc:ID>DMI2026000000010</cbc:ID>
+	<cbc:CopyIndicator>false</cbc:CopyIndicator>
+	<cbc:UUID>2C3D4E5F-6A7B-4C8D-9E0F-1A2B3C4D5E6F</cbc:UUID>
+	<cbc:IssueDate>2026-10-14</cbc:IssueDate>
+	<cbc:IssueTime>10:42:00</cbc:IssueTime>
+	<cbc:DespatchAdviceTypeCode>MATBUDAN</cbc:DespatchAdviceTypeCode>
+	<cbc:Note>Entegratör kesintisi sırasında düzenlenen matbu irsaliyenin e-İrsaliye kaydıdır.</cbc:Note>
+	<cbc:LineCountNumeric>2</cbc:LineCountNumeric>
+	<cac:AdditionalDocumentReference>
+		<cbc:ID>A-000412</cbc:ID>
+		<cbc:IssueDate>2026-10-13</cbc:IssueDate>
+		<cbc:DocumentType>MATBU</cbc:DocumentType>
+		<cbc:DocumentDescription>Matbu sevk irsaliyesi</cbc:DocumentDescription>
+	</cac:AdditionalDocumentReference>
+	<cac:Signature>
+		<cbc:ID schemeID="VKN_TCKN">4820193752</cbc:ID>
+		<cac:SignatoryParty>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PostalAddress>
+				<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+				<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+				<cbc:CityName>İstanbul</cbc:CityName>
+				<cbc:PostalZone>34750</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+		</cac:SignatoryParty>
+		<cac:DigitalSignatureAttachment>
+			<cac:ExternalReference>
+				<cbc:URI>#Signature_DMI2026000000010</cbc:URI>
+			</cac:ExternalReference>
+		</cac:DigitalSignatureAttachment>
+	</cac:Signature>
+	<cac:DespatchSupplierParty>
+		<cac:Party>
+			<cbc:WebsiteURI>https://www.demoteknoloji.com.tr</cbc:WebsiteURI>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="MERSISNO">0482019375200015</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="TICARETSICILNO">987654-5</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyName>
+				<cbc:Name>Demo Teknoloji Ürünleri Ticaret A.Ş.</cbc:Name>
+			</cac:PartyName>
+			<cac:PostalAddress>
+				<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+				<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+				<cbc:CityName>İstanbul</cbc:CityName>
+				<cbc:PostalZone>34750</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+			<cac:PartyTaxScheme>
+				<cac:TaxScheme>
+					<cbc:Name>Kozyatağı</cbc:Name>
+				</cac:TaxScheme>
+			</cac:PartyTaxScheme>
+			<cac:Contact>
+				<cbc:Telephone>+90 216 555 01 23</cbc:Telephone>
+				<cbc:ElectronicMail>efatura@demoteknoloji.com.tr</cbc:ElectronicMail>
+			</cac:Contact>
+		</cac:Party>
+		<cac:DespatchContact>
+			<cbc:Name>Demo Teknoloji Ürünleri Ticaret A.Ş.</cbc:Name>
+		</cac:DespatchContact>
+	</cac:DespatchSupplierParty>
+	<cac:DeliveryCustomerParty>
+		<cac:Party>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">7318462058</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyName>
+				<cbc:Name>Başkent Yapı İnşaat Taahhüt Ltd. Şti.</cbc:Name>
+			</cac:PartyName>
+			<cac:PostalAddress>
+				<cbc:StreetName>Atatürk Bulvarı</cbc:StreetName>
+				<cbc:BuildingNumber>211</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Çankaya</cbc:CitySubdivisionName>
+				<cbc:CityName>Ankara</cbc:CityName>
+				<cbc:PostalZone>06680</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+			<cac:PartyTaxScheme>
+				<cac:TaxScheme>
+					<cbc:Name>Kavaklıdere</cbc:Name>
+				</cac:TaxScheme>
+			</cac:PartyTaxScheme>
+			<cac:Contact>
+				<cbc:ElectronicMail>muhasebe@baskentyapi.com.tr</cbc:ElectronicMail>
+			</cac:Contact>
+		</cac:Party>
+	</cac:DeliveryCustomerParty>
+	<cac:Shipment>
+		<cbc:ID>1</cbc:ID>
+		<cac:ShipmentStage>
+			<cac:TransportMeans>
+				<cac:RoadTransport>
+					<cbc:LicensePlateID schemeID="PLAKA">34ABC123</cbc:LicensePlateID>
+				</cac:RoadTransport>
+			</cac:TransportMeans>
+			<cac:DriverPerson>
+				<cbc:FirstName>Mehmet</cbc:FirstName>
+				<cbc:FamilyName>Yılmaz</cbc:FamilyName>
+				<cbc:Title>Şoför</cbc:Title>
+				<cbc:NationalityID>45612037884</cbc:NationalityID>
+			</cac:DriverPerson>
+		</cac:ShipmentStage>
+		<cac:Delivery>
+			<cac:DeliveryAddress>
+				<cbc:StreetName>Atatürk Bulvarı</cbc:StreetName>
+				<cbc:BuildingNumber>211</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Çankaya</cbc:CitySubdivisionName>
+				<cbc:CityName>Ankara</cbc:CityName>
+				<cbc:PostalZone>06680</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:DeliveryAddress>
+			<cac:Despatch>
+				<cbc:ActualDespatchDate>2026-10-13</cbc:ActualDespatchDate>
+				<cbc:ActualDespatchTime>16:40:00</cbc:ActualDespatchTime>
+				<cac:DespatchAddress>
+					<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+					<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+					<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+					<cbc:CityName>İstanbul</cbc:CityName>
+					<cbc:PostalZone>34750</cbc:PostalZone>
+					<cac:Country>
+						<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+						<cbc:Name>Türkiye</cbc:Name>
+					</cac:Country>
+				</cac:DespatchAddress>
+			</cac:Despatch>
+		</cac:Delivery>
+	</cac:Shipment>
+	<cac:DespatchLine>
+		<cbc:ID>1</cbc:ID>
+		<cbc:DeliveredQuantity unitCode="C62">12</cbc:DeliveredQuantity>
+		<cac:OrderLineReference>
+			<cbc:LineID>1</cbc:LineID>
+		</cac:OrderLineReference>
+		<cac:Item>
+			<cbc:Name>Dizüstü Bilgisayar 15,6"</cbc:Name>
+			<cac:SellersItemIdentification>
+				<cbc:ID>NB-1560</cbc:ID>
+			</cac:SellersItemIdentification>
+			<cac:ItemInstance>
+				<cbc:SerialID>NB1560-24A0091</cbc:SerialID>
+			</cac:ItemInstance>
+		</cac:Item>
+	</cac:DespatchLine>
+	<cac:DespatchLine>
+		<cbc:ID>2</cbc:ID>
+		<cbc:DeliveredQuantity unitCode="KGM">40</cbc:DeliveredQuantity>
+		<cac:OrderLineReference>
+			<cbc:LineID>2</cbc:LineID>
+		</cac:OrderLineReference>
+		<cac:Item>
+			<cbc:Name>Antep Fıstığı (Kavrulmuş) 1 kg</cbc:Name>
+			<cac:SellersItemIdentification>
+				<cbc:ID>FST-1000</cbc:ID>
+			</cac:SellersItemIdentification>
+			<cac:ItemInstance>
+				<cac:LotIdentification>
+					<cbc:LotNumberID>L2026-0917</cbc:LotNumberID>
+					<cbc:ExpiryDate>2027-09-17</cbc:ExpiryDate>
+				</cac:LotIdentification>
+			</cac:ItemInstance>
+		</cac:Item>
+	</cac:DespatchLine>
+</DespatchAdvice>

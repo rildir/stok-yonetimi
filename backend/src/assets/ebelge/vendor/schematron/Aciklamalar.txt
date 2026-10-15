@@ -1,0 +1,11 @@
+28/04/2017 Tarihli güncelleme için açıklama:
+
+'EARSIVFATURA' ProfileID tipindeki faturaların şematron kontrolünde hata almaması için şematron parameterik hale getirilmiştir. 
+Kullanılan parametrenin ismi 'type'dır. Bu parametrenin değerleri ve anlamları şu şekildedir.
+
+type='' veya type='efatura' -> Bu değerlerde şematron efaturamerkez uygulamasındaki gibi çalışır.
+type='earchive'		    -> Bu değer ProfileID tipinin sadece 'EARSIVFATURA' olmasını kontrol eder.
+
+
+E-arşiv faturası üreten uygulamaların bu parametreyi şematron kontrolu sırasında belirlemesi gerekmektedir.
+Diğer uygulamaların herhangi bir işlem yapmasına gerek yoktur.

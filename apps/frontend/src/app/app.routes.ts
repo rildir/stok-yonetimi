@@ -17,6 +17,11 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./components/login/account-setup.component').then(m => m.AccountSetupComponent)
   },
   {
+    path: 'e-irsaliye/:id',
+    canActivate: [authGuard],
+    loadComponent: () => import('./components/ebelge/despatch-view.component').then(m => m.DespatchViewComponent)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () => import('./components/layout/layout.component').then(m => m.LayoutComponent),
@@ -36,6 +41,7 @@ export const appRoutes: Route[] = [
       { path: 'despatches', loadComponent: () => import('./components/documents/despatches.component').then(m => m.DespatchesComponent) },
       { path: 'returns', loadComponent: () => import('./components/documents/returns.component').then(m => m.ReturnsComponent) },
       { path: 'goods-receipts', loadComponent: () => import('./components/documents/goods-receipts.component').then(m => m.GoodsReceiptsComponent) },
+      { path: 'inbox', loadComponent: () => import('./components/ebelge/inbox.component').then(m => m.EBelgeInboxComponent) },
       { path: 'expense-vouchers', loadComponent: () => import('./components/documents/expense-vouchers.component').then(m => m.ExpenseVouchersComponent) },
       { path: 'audit-log', canActivate: [adminGuard], loadComponent: () => import('./components/audit-log/audit-log.component').then(m => m.AuditLogComponent) },
       { path: 'integrations', canActivate: [adminGuard], loadComponent: () => import('./components/integrations/integrations.component').then(m => m.IntegrationsComponent) },

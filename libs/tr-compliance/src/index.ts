@@ -5,3 +5,4 @@ export * from './obligation';
 export * from './inventory';
 export * from './category-rules';
 export * from './documents';
+export * from './ebelge';

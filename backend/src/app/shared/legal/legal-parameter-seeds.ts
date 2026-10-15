@@ -252,6 +252,23 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     note: 'Stopaj oranları mali müşavir tarafından teyit edilmeli; gider pusulası türüne göre (hurda, el emeği, serbest meslek) farklı oranlar eklenebilir.',
   },
   { country: TR, key: 'MATBUDAN_DEADLINE_DAYS', validFrom: '2018-01-01', validTo: null, value: 1, sourceRef: 'e-İrsaliye Uygulaması Kılavuzu §11-12 (kâğıt irsaliye bilgileri en geç izleyen gün e-İrsaliye olarak düzenlenir)', confidence: 'medium' },
+  // WP5: e-Belge
+  { country: TR, key: 'EARSIV_CANCEL_DAYS', validFrom: '2018-01-01', validTo: null, value: 8, sourceRef: '509 Sıra No.lu VUK GT V.10; e-Arşiv Uygulamaları İptal, İhtar, İtiraz Bildirim Kılavuzu v1.1 (alıcıya iletimden itibaren 8 gün)', confidence: 'medium', note: 'Süre, alıcıya iletim (edocument_deliveries) gününden başlar ve 8. günün sonunda biter; sayım yöntemi mali müşavirce teyit edilmeli.' },
+  { country: TR, key: 'EIRSALIYE_RESPONSE_DAYS', validFrom: '2018-01-01', validTo: null, value: 7, sourceRef: '509 Sıra No.lu VUK GT IV.3.4; e-İrsaliye Uygulaması Kılavuzu §12 (irsaliye yanıtı fiili sevk tarihinden itibaren 7 gün)', confidence: 'high', note: 'Süresinde yanıt verilmeyen e-İrsaliye tamamen kabul edilmiş sayılır.' },
+  { country: TR, key: 'TICARI_RESPONSE_DAYS', validFrom: '2012-07-01', validTo: null, value: 8, sourceRef: 'TTK md. 21/2 (faturanın alınmasından itibaren 8 gün içinde itiraz); e-Fatura TICARIFATURA senaryosu', confidence: 'high' },
+  { country: TR, key: 'EFATURA_CANCEL_OBJECTION_DAYS', validFrom: '2018-01-01', validTo: null, value: 8, sourceRef: 'TTK md. 21/2, 18/3; e-Fatura iptal / itiraz bildirimleri (GİB e-Fatura Portalı iptal-itiraz talebi)', confidence: 'low', note: 'e-Fatura iptal / itiraz kılavuzundaki süreler teyit edilmeli (plan Ek listesi); yalnızca uyarı olarak kullanılır.' },
+  { country: TR, key: 'EDOC_RETENTION_YEARS', validFrom: '2012-07-01', validTo: null, value: 10, sourceRef: 'TTK md. 82 (10 yıl); VUK md. 253 (5 yıl): uzun olan uygulanır; 509 Sıra No.lu VUK GT VI', confidence: 'high', note: 'retentionUntil = 31.12.(düzenleme yılı + 10).' },
+  { country: TR, key: 'EDOC_INTEGRITY_NOTICE_BUSINESS_DAYS', validFrom: '2018-01-01', validTo: null, value: 3, sourceRef: '509 Sıra No.lu VUK GT VI (e-belgelerin bozulması / kaybolması halinde Başkanlığa bildirim)', confidence: 'medium', note: 'Bütünlük ihlali tespitinden itibaren iş günü sayısı; bildirim resmî kanaldan yapılır, uygulama yalnızca süreyi izler.' },
+  {
+    country: TR,
+    key: 'EXPORT_GTB_PARTY',
+    validFrom: '2018-01-01',
+    validTo: null,
+    value: { name: 'Gümrük ve Ticaret Bakanlığı Gümrükler Genel Müdürlüğü - Bilgi İşlem Dairesi Başkanlığı', district: 'Ulus', city: 'Ankara', taxOffice: 'Ulus' },
+    sourceRef: '509 Sıra No.lu VUK GT IV.1.7.1; UBL-TR IHRACAT senaryosu (alıcı: GTB)',
+    confidence: 'low',
+    note: 'IHRACAT faturasında AccountingCustomerParty bilgileri; VKN EXPORT_GTB_VKN parametresinde. Teyit edilmeli.',
+  },
 ];
 
 
@@ -279,3 +296,14 @@ export const WP4_PARAMETER_KEYS = [
 
 /** Keys (re)written by migration 1784274136000 (WP4 review fixes: withdrawal periods per RG 31932). */
 export const WP4_FIX_PARAMETER_KEYS = ['WITHDRAWAL_REFUND_DAYS', 'WITHDRAWAL_REFUND_BASIS', 'WITHDRAWAL_GOODS_RETURN_DAYS'];
+
+/** Keys added by migration 1784274137000 (WP5 e-Belge). */
+export const WP5_PARAMETER_KEYS = [
+  'EARSIV_CANCEL_DAYS',
+  'EIRSALIYE_RESPONSE_DAYS',
+  'TICARI_RESPONSE_DAYS',
+  'EFATURA_CANCEL_OBJECTION_DAYS',
+  'EDOC_RETENTION_YEARS',
+  'EDOC_INTEGRITY_NOTICE_BUSINESS_DAYS',
+  'EXPORT_GTB_PARTY',
+];

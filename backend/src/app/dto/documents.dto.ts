@@ -28,6 +28,7 @@ import {
   REJECT_REASONS,
   RETURN_CONDITIONS,
   RETURN_TYPES,
+  NOTICE_CHANNELS,
 } from '../shared/tr';
 
 const QTY = { maxDecimalPlaces: 4 };
@@ -321,14 +322,21 @@ export class UpdateInvoiceDto {
   @IsOptional() @IsBoolean() replacesDespatch?: boolean;
 }
 
-export class CancelDocumentDto {
+/** e-Fatura cancellation / objection notice (TTK 18/3; WP5). */
+export class EDocNoticeFields {
+  @IsOptional() @IsIn([...NOTICE_CHANNELS], { message: 'NOTICE_CHANNEL_INVALID' }) noticeChannel?: string | null;
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'DOCUMENT_DATE_INVALID' }) noticeDate?: string | null;
+  @IsOptional() @IsString() @MaxLength(100) noticeRef?: string | null;
+}
+
+export class CancelDocumentDto extends EDocNoticeFields {
   @IsString()
   @IsNotEmpty({ message: 'CANCEL_REASON_REQUIRED' })
   @MaxLength(500)
   reason: string;
 }
 
-export class ObjectionDto {
+export class ObjectionDto extends EDocNoticeFields {
   @IsBoolean()
   objection: boolean;
 

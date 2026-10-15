@@ -38,7 +38,8 @@ import { validationExceptionFactory } from './app/shared/i18n/i18n-exception.fil
 async function bootstrap() {
   // Fail fast on insecure production configuration (e.g. missing JWT_SECRET).
   assertSecurityConfig();
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: integrator status callbacks are verified with an HMAC over the exact request body (WP5).
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   // Stock adjustment attachments are sent as base64 JSON (max 5 MB file).
   app.useBodyParser('json', { limit: '8mb' });
   const globalPrefix = 'api';

@@ -6,13 +6,14 @@ import { TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, I18nService } 
 import { DocumentsService, apiError } from '../../services/documents.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { Invoice, statusBadge } from '../../models/documents.models';
-import { PAPER_REASONS } from '@stok/tr-compliance';
+import { NOTICE_CHANNELS, PAPER_REASONS } from '@stok/tr-compliance';
+import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
 
 /** Faturalar: drafts from orders / despatches, issue (numbering, freeze, 7-day rule), cancel, print. */
 @Component({
   selector: 'app-invoices',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, EdocPanelComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   template: `
     <header class="page-header">
@@ -130,6 +131,7 @@ import { PAPER_REASONS } from '@stok/tr-compliance';
                 }
               </div>
             </div>
+            @if (inv.numberMode === 'EDOCUMENT') { <app-edoc-panel sourceType="invoice" [sourceId]="inv.id" [expected]="true"></app-edoc-panel> }
           </div>
           <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="print(inv)">{{ 'documents.print' | t }}</button>
@@ -200,11 +202,22 @@ import { PAPER_REASONS } from '@stok/tr-compliance';
           <div class="modal-header"><h3>{{ 'invoices.cancelTitle' | t }}</h3></div>
           <div style="padding: var(--space-5)">
             <p class="doc-hint">{{ 'invoices.cancelInfo' | t }}</p>
+            @if (needsNotice(inv)) {
+              <div class="doc-alert info">{{ 'ebelge.cancel.noticeInfo' | t }}</div>
+              <div class="doc-grid">
+                <div class="doc-field"><label for="ivNch">{{ 'ebelge.cancel.channel' | t }}</label>
+                  <select id="ivNch" class="select" [(ngModel)]="noticeChannel">@for (c of noticeChannels; track c) { <option [value]="c">{{ 'ebelge.noticeChannel.' + c | t }}</option> }</select></div>
+                <div class="doc-field"><label for="ivNdate">{{ 'ebelge.cancel.date' | t }}</label><input id="ivNdate" type="date" class="input" [(ngModel)]="noticeDate" /></div>
+              </div>
+              <div class="doc-field"><label for="ivNref">{{ 'ebelge.cancel.reference' | t }}</label><input id="ivNref" class="input" maxlength="100" [(ngModel)]="noticeRef" /></div>
+            } @else if (inv.profileId === 'EARSIVFATURA' && inv.numberMode === 'EDOCUMENT') {
+              <div class="doc-alert info">{{ 'ebelge.cancel.earsivInfo' | t }}</div>
+            }
             <div class="doc-field"><label for="ivCancel">{{ 'documents.cancelReason' | t }}</label><textarea id="ivCancel" class="textarea" rows="3" [(ngModel)]="cancelReason"></textarea></div>
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" (click)="cancelFor.set(null)">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-danger" (click)="cancel(inv)" [disabled]="busy() || !cancelReason.trim()">{{ 'invoices.cancel' | t }}</button>
+            <button class="btn btn-danger" (click)="cancel(inv)" [disabled]="busy() || !cancelReason.trim() || (needsNotice(inv) && (!noticeChannel || !noticeDate))">{{ 'invoices.cancel' | t }}</button>
           </div>
         </div>
       </div>
@@ -239,6 +252,15 @@ export class InvoicesComponent implements OnInit {
   paperReason = '';
   cancelFor = signal<Invoice | null>(null);
   cancelReason = '';
+  noticeChannels = NOTICE_CHANNELS as readonly string[];
+  noticeChannel = 'KEP';
+  noticeDate = '';
+  noticeRef = '';
+
+  /** e-Fatura already handed to the integrator: cancellation only with the external notice (TTK 18/3). */
+  needsNotice(inv: Invoice): boolean {
+    return inv.numberMode === 'EDOCUMENT' && (inv.profileId === 'TEMELFATURA' || inv.profileId === 'TICARIFATURA') && inv.status !== 'QUEUED' && inv.status !== 'ISSUED';
+  }
 
   visible = computed(() => {
     const f = this.filter();
@@ -329,12 +351,16 @@ export class InvoicesComponent implements OnInit {
 
   openCancel(inv: Invoice) {
     this.cancelReason = '';
+    this.noticeChannel = 'KEP';
+    this.noticeDate = new Date().toISOString().slice(0, 10);
+    this.noticeRef = '';
     this.cancelFor.set(inv);
   }
 
   cancel(inv: Invoice) {
     this.busy.set(true);
-    this.docs.cancelInvoice(inv.id, this.cancelReason.trim()).subscribe({
+    const notice = this.needsNotice(inv) ? { noticeChannel: this.noticeChannel, noticeDate: this.noticeDate, noticeRef: this.noticeRef.trim() || null } : {};
+    this.docs.cancelInvoice(inv.id, this.cancelReason.trim(), notice).subscribe({
       next: (out) => {
         this.busy.set(false);
         this.cancelFor.set(null);

@@ -52,6 +52,7 @@ import { InvoiceEntity, InvoiceLineEntity } from './entities/invoice.entity';
 import { ReturnEntity, ReturnItemEntity } from './entities/return.entity';
 import { GoodsReceiptEntity, GoodsReceiptItemEntity } from './entities/goods-receipt.entity';
 import { ExpenseVoucherEntity } from './entities/expense-voucher.entity';
+import { EBELGE_ENTITIES } from './entities/ebelge.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -78,6 +79,7 @@ import { UnitModule } from './modules/unit/unit.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { RefdataModule } from './modules/refdata/refdata.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { EBelgeModule } from './modules/ebelge/ebelge.module';
 
 @Module({
   imports: [
@@ -138,6 +140,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
         GoodsReceiptEntity,
         GoodsReceiptItemEntity,
         ExpenseVoucherEntity,
+        ...EBELGE_ENTITIES,
       ],
       // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
       timezone: 'Z',
@@ -187,6 +190,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
     IntegrationsModule,
     RefdataModule,
     DocumentsModule,
+    EBelgeModule,
     HealthModule,
   ],
   providers: [

@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<ext:UBLExtensions>
+		<ext:UBLExtension>
+			<ext:ExtensionContent>
+				<n4:auto-generated_for_wildcard xmlns:n4="http://www.altova.com/samplexml/other-namespace"/>
+			</ext:ExtensionContent>
+		</ext:UBLExtension>
+	</ext:UBLExtensions>
+	<cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+	<cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+	<cbc:ProfileID>EARSIVFATURA</cbc:ProfileID>
+	<cbc:ID>DEA2026000000032</cbc:ID>
+	<cbc:CopyIndicator>false</cbc:CopyIndicator>
+	<cbc:UUID>5B6C7D8E-9F0A-4B1C-8D2E-3F4A5B6C7D8E</cbc:UUID>
+	<cbc:IssueDate>2026-10-14</cbc:IssueDate>
+	<cbc:IssueTime>10:42:00</cbc:IssueTime>
+	<cbc:InvoiceTypeCode>SATIS</cbc:InvoiceTypeCode>
+	<cbc:Note>Gönderim şekli: ELEKTRONIK</cbc:Note>
+	<cbc:Note>İnternet satışı: https://www.demoteknoloji.com.tr; ödeme şekli KREDIKARTI/BANKAKARTI; ödeme tarihi 2026-10-14; taşıyıcı Anadolu Lojistik Kargo (1294765301); gönderim tarihi 2026-10-14.</cbc:Note>
+	<cbc:DocumentCurrencyCode>TRY</cbc:DocumentCurrencyCode>
+	<cbc:LineCountNumeric>1</cbc:LineCountNumeric>
+	<cac:Signature>
+		<cbc:ID schemeID="VKN_TCKN">4820193752</cbc:ID>
+		<cac:SignatoryParty>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PostalAddress>
+				<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+				<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+				<cbc:CityName>İstanbul</cbc:CityName>
+				<cbc:PostalZone>34750</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+		</cac:SignatoryParty>
+		<cac:DigitalSignatureAttachment>
+			<cac:ExternalReference>
+				<cbc:URI>#Signature_DEA2026000000032</cbc:URI>
+			</cac:ExternalReference>
+		</cac:DigitalSignatureAttachment>
+	</cac:Signature>
+	<cac:AccountingSupplierParty>
+		<cac:Party>
+			<cbc:WebsiteURI>https://www.demoteknoloji.com.tr</cbc:WebsiteURI>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="MERSISNO">0482019375200015</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="TICARETSICILNO">987654-5</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyName>
+				<cbc:Name>Demo Teknoloji Ürünleri Ticaret A.Ş.</cbc:Name>
+			</cac:PartyName>
+			<cac:PostalAddress>
+				<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+				<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+				<cbc:CityName>İstanbul</cbc:CityName>
+				<cbc:PostalZone>34750</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+			<cac:PartyTaxScheme>
+				<cac:TaxScheme>
+					<cbc:Name>Kozyatağı</cbc:Name>
+				</cac:TaxScheme>
+			</cac:PartyTaxScheme>
+			<cac:Contact>
+				<cbc:Telephone>+90 216 555 01 23</cbc:Telephone>
+				<cbc:ElectronicMail>efatura@demoteknoloji.com.tr</cbc:ElectronicMail>
+			</cac:Contact>
+		</cac:Party>
+	</cac:AccountingSupplierParty>
+	<cac:AccountingCustomerParty>
+		<cac:Party>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="TCKN">28741509354</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PostalAddress>
+				<cbc:StreetName>Bahçelievler Mahallesi 7. Cadde</cbc:StreetName>
+				<cbc:BuildingNumber>19/3</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Çankaya</cbc:CitySubdivisionName>
+				<cbc:CityName>Ankara</cbc:CityName>
+				<cbc:PostalZone>06490</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+			<cac:Contact>
+				<cbc:ElectronicMail>ayse.demir@example.com.tr</cbc:ElectronicMail>
+			</cac:Contact>
+			<cac:Person>
+				<cbc:FirstName>Ayşe</cbc:FirstName>
+				<cbc:FamilyName>Demir</cbc:FamilyName>
+			</cac:Person>
+		</cac:Party>
+	</cac:AccountingCustomerParty>
+	<cac:Delivery>
+		<cbc:ActualDeliveryDate>2026-10-14</cbc:ActualDeliveryDate>
+		<cac:CarrierParty>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">1294765301</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyName>
+				<cbc:Name>Anadolu Lojistik Kargo A.Ş.</cbc:Name>
+			</cac:PartyName>
+			<cac:PostalAddress>
+				<cbc:StreetName>Bahçelievler Mahallesi 7. Cadde</cbc:StreetName>
+				<cbc:BuildingNumber>19/3</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Çankaya</cbc:CitySubdivisionName>
+				<cbc:CityName>Ankara</cbc:CityName>
+				<cbc:PostalZone>06490</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+		</cac:CarrierParty>
+	</cac:Delivery>
+	<cac:PaymentMeans>
+		<cbc:PaymentMeansCode>48</cbc:PaymentMeansCode>
+		<cbc:PaymentDueDate>2026-10-14</cbc:PaymentDueDate>
+		<cbc:InstructionNote>KREDIKARTI/BANKAKARTI</cbc:InstructionNote>
+	</cac:PaymentMeans>
+	<cac:TaxTotal>
+		<cbc:TaxAmount currencyID="TRY">249.83</cbc:TaxAmount>
+		<cac:TaxSubtotal>
+			<cbc:TaxableAmount currencyID="TRY">1249.17</cbc:TaxableAmount>
+			<cbc:TaxAmount currencyID="TRY">249.83</cbc:TaxAmount>
+			<cbc:CalculationSequenceNumeric>1</cbc:CalculationSequenceNumeric>
+			<cbc:Percent>20</cbc:Percent>
+			<cac:TaxCategory>
+				<cac:TaxScheme>
+					<cbc:Name>KDV</cbc:Name>
+					<cbc:TaxTypeCode>0015</cbc:TaxTypeCode>
+				</cac:TaxScheme>
+			</cac:TaxCategory>
+		</cac:TaxSubtotal>
+	</cac:TaxTotal>
+	<cac:LegalMonetaryTotal>
+		<cbc:LineExtensionAmount currencyID="TRY">1249.17</cbc:LineExtensionAmount>
+		<cbc:TaxExclusiveAmount currencyID="TRY">1249.17</cbc:TaxExclusiveAmount>
+		<cbc:TaxInclusiveAmount currencyID="TRY">1499.00</cbc:TaxInclusiveAmount>
+		<cbc:AllowanceTotalAmount currencyID="TRY">0.00</cbc:AllowanceTotalAmount>
+		<cbc:ChargeTotalAmount currencyID="TRY">0.00</cbc:ChargeTotalAmount>
+		<cbc:PayableAmount currencyID="TRY">1499.00</cbc:PayableAmount>
+	</cac:LegalMonetaryTotal>
+	<cac:InvoiceLine>
+		<cbc:ID>1</cbc:ID>
+		<cbc:InvoicedQuantity unitCode="C62">1</cbc:InvoicedQuantity>
+		<cbc:LineExtensionAmount currencyID="TRY">1249.17</cbc:LineExtensionAmount>
+		<cac:TaxTotal>
+			<cbc:TaxAmount currencyID="TRY">249.83</cbc:TaxAmount>
+			<cac:TaxSubtotal>
+				<cbc:TaxableAmount currencyID="TRY">1249.17</cbc:TaxableAmount>
+				<cbc:TaxAmount currencyID="TRY">249.83</cbc:TaxAmount>
+				<cbc:Percent>20</cbc:Percent>
+				<cac:TaxCategory>
+					<cac:TaxScheme>
+						<cbc:Name>KDV</cbc:Name>
+						<cbc:TaxTypeCode>0015</cbc:TaxTypeCode>
+					</cac:TaxScheme>
+				</cac:TaxCategory>
+			</cac:TaxSubtotal>
+		</cac:TaxTotal>
+		<cac:Item>
+			<cbc:Name>Bluetooth Kulaklık</cbc:Name>
+			<cac:SellersItemIdentification>
+				<cbc:ID>BT-90</cbc:ID>
+			</cac:SellersItemIdentification>
+		</cac:Item>
+		<cac:Price>
+			<cbc:PriceAmount currencyID="TRY">1249.17</cbc:PriceAmount>
+		</cac:Price>
+	</cac:InvoiceLine>
+</Invoice>

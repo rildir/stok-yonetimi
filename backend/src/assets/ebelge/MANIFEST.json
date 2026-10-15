@@ -1,0 +1,42 @@
+{
+  "ublTrPackage": "1.2.1",
+  "schematronVersion": "20260701",
+  "codeListGuide": "UBL-TR Kod Listeleri V 1.43",
+  "sources": {
+    "vendor/ubltr-1.2.1": "https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR1.2.1_Paketi.zip",
+    "vendor/schematron": "https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/e-FaturaPaketi.zip (schematron/)",
+    "vendor/gib-amblem.jpg": "UBL-TR 1.2.1 paketi, xml/general.xslt"
+  },
+  "files": {
+    "vendor/UPDATE-CHECKLIST.md": "1ab56d25dd8e3a1535b02f287c3d44d386dfbe4101563f9194d68a53ea187ed4",
+    "vendor/gib-amblem.jpg": "8f20027af1f49713bc3b2372352b8375010157d448155c5b40425324677972b1",
+    "vendor/schematron/Aciklamalar.txt": "6eed2bd26243e8fa77a582e9772d19100424a0569433e88e52f836e9aabc8e12",
+    "vendor/schematron/History.txt": "47eb2eb2595ae76106485735ed08848a896f552c3e73b7e59ccd92d45f8f0c36",
+    "vendor/schematron/UBL-TR_Codelist.xml": "b6809ae4d38401b6d3f35e63e52d9ab3a0e014d746e3883514895e919e23b8b2",
+    "vendor/schematron/UBL-TR_Common_Schematron.xml": "90501b6ad503479d445c16dcbac33146ec458d06ad6e2204afdc517fddce609f",
+    "vendor/schematron/UBL-TR_Main_Schematron.xml": "324d6b8e96d4a83c102a335feee1907625bf5125199b0a8b2e62aff4521d23dc",
+    "vendor/schematron/ubltr-schematron.sef.json": "40247d2351dd06cf7f90827bdb5034f910cf6a776284a971c32b7c8510833322",
+    "vendor/ubltr-1.2.1/Degisim-Tablosu.txt": "2f37160fd26582fed1c1c22829c4c2da918bdbac4dc7f2e24039c8cf462b2608",
+    "vendor/ubltr-1.2.1/xsdrt/common/CCTS_CCT_SchemaModule-2.1.xsd": "dd546e4809df86b6445589f69f0d6c9df162840ae386574ddfc1da7638103e15",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-CommonAggregateComponents-2.1.xsd": "186085d67e0daf5bbe78427259ee3df15b3043bd6676b50b0652d264e10bed91",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-CommonBasicComponents-2.1.xsd": "9e7eb96aaba1bf2092c52d3ccb8c881a710cc48111c568e3eae29746dd6b1cab",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-CommonExtensionComponents-2.1.xsd": "1829b0a0dd61589edf59f400cd299e59edd42a6b33360026956f52aed4f83a74",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-CommonSignatureComponents-2.1.xsd": "4fa9e2370100040fe14c43e135ef77e2eb66b21cb8dbfc2ffb8d82ae991fe92e",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-CoreComponentParameters-2.1.xsd": "8be3379dbdcbcc7802fafdd16bac72c48fff1c0bb364213a31a17911dd06100b",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-ExtensionContentDataType-2.1.xsd": "fcee77a11870208e6377ea6311b9f2a050bca24bdad8606ea02d71e9f9e72f8d",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-QualifiedDataTypes-2.1.xsd": "7dcb156e610239c97ae70940cf4653b88e48c3595bf5f56a2204a32e2893e6cf",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-SignatureAggregateComponents-2.1.xsd": "9234c2ca48dbfa9a22a786112bb075c5922a305170920eaab1e3c04fa0b7344b",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-SignatureBasicComponents-2.1.xsd": "0fbe2d7afff0c1e11164b8ec83e13f18801021c3c87e390a9d76f9cf862f6a64",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-UnqualifiedDataTypes-2.1.xsd": "09052d406b4293e2a5f9c2bfee6df10ad4d8d5f0b36e24a6349d7f7936d89eb6",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-XAdESv132-2.1.xsd": "a4f726bcf8cc3f7d9ffa4dab99e005535a8e8b60dced1e5d94578d2e05afa96e",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-XAdESv141-2.1.xsd": "3f9d50cd07e6ee9b81adfe198e43bed5ee945995511c13a41b4f07667d619625",
+    "vendor/ubltr-1.2.1/xsdrt/common/UBL-xmldsig-core-schema-2.1.xsd": "101909c9f06456d61ddcc4fb982f1d40dc357b439f393b1a2eb46e42acd60809",
+    "vendor/ubltr-1.2.1/xsdrt/maindoc/UBL-ApplicationResponse-2.1.xsd": "f6e1087c2d9a3d3e47feab5cbf16f4340a4a60f8f7452bcf2ae53148977d049f",
+    "vendor/ubltr-1.2.1/xsdrt/maindoc/UBL-CreditNote-2.1.xsd": "1e117b6c1ab713604b29b0d685442a81a0c78a82575445ee8c43e6050cda7454",
+    "vendor/ubltr-1.2.1/xsdrt/maindoc/UBL-DespatchAdvice-2.1.xsd": "5ed0dd52359da01ae8bd3d63b3134ad510a333b534f9df057aafdbb8c0f194bb",
+    "vendor/ubltr-1.2.1/xsdrt/maindoc/UBL-Invoice-2.1.xsd": "b68a25ae3d99435f4e4a39809939183dc8b5d687aeebf2d023f4d4c2a436749e",
+    "vendor/ubltr-1.2.1/xsdrt/maindoc/UBL-ReceiptAdvice-2.1.xsd": "9f4637fa5d439ba550807ad5a9afd59f98d215c580583d2fc72eda9a815bb1ca",
+    "xslt/edocument.sef.json": "63e77a240a3e1db990480c79be0cb5b143965406222d62e9b05eaa516a18f690",
+    "xslt/edocument.xslt": "73a6ef9e70983dafb35a951e6e6cd8c5ad9d6f97784e604c71a8becd384ab544"
+  }
+}

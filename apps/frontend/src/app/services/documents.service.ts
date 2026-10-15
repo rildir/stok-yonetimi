@@ -75,8 +75,8 @@ export class DocumentsService {
   issueInvoice(id: string, body: Record<string, unknown>): Observable<Invoice> {
     return this.http.post<Invoice>(`${this.api}/invoices/${id}/issue`, body);
   }
-  cancelInvoice(id: string, reason: string): Observable<Invoice> {
-    return this.http.post<Invoice>(`${this.api}/invoices/${id}/cancel`, { reason });
+  cancelInvoice(id: string, reason: string, notice: { noticeChannel?: string | null; noticeDate?: string | null; noticeRef?: string | null } = {}): Observable<Invoice> {
+    return this.http.post<Invoice>(`${this.api}/invoices/${id}/cancel`, { reason, ...notice });
   }
 
   // returns

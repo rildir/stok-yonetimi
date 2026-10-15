@@ -167,9 +167,15 @@ export class AuditSubscriber implements EntitySubscriberInterface {
       if (action === 'update' && after?.status === 'Received' && before?.status !== 'Received') ev('purchase_order.received', after);
     } else if (table === 'despatches') {
       if (action === 'update' && after?.status === 'APPROVED' && before?.status === 'DRAFT') ev('despatch.approved', after);
+      // WP5: provider / GİB / receiver status (HANDED_TO_PROVIDER, GIB_ACCEPTED, PARTIALLY_ACCEPTED, REJECTED)
+      if (action === 'update' && before && after && before.status !== 'DRAFT' && before.status !== after.status) ev('despatch.status_changed', { ...after, previousStatus: before.status });
     } else if (table === 'invoices') {
       if (action === 'update' && after?.status === 'ISSUED' && before?.status === 'DRAFT') ev('invoice.issued', after);
       if (action === 'update' && after?.status === 'CANCELLED' && before?.status !== 'CANCELLED') ev('invoice.cancelled', after);
+      // WP5: QUEUED / SENT / DELIVERED / ACCEPTED / REJECTED
+      if (action === 'update' && before && after && before.status !== 'DRAFT' && before.status !== after.status && after.status !== 'CANCELLED') ev('invoice.status_changed', { ...after, previousStatus: before.status });
+    } else if (table === 'incoming_documents') {
+      if (action === 'create') ev('edocument.received', after);
     } else if (table === 'returns') {
       if (action === 'update' && after?.status === 'COMPLETED' && before?.status === 'DRAFT') ev('return.completed', after);
     } else if (table === 'goods_receipts') {

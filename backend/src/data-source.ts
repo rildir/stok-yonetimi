@@ -42,6 +42,7 @@ import { InvoiceEntity, InvoiceLineEntity } from './app/entities/invoice.entity'
 import { ReturnEntity, ReturnItemEntity } from './app/entities/return.entity';
 import { GoodsReceiptEntity, GoodsReceiptItemEntity } from './app/entities/goods-receipt.entity';
 import { ExpenseVoucherEntity } from './app/entities/expense-voucher.entity';
+import { EBELGE_ENTITIES } from './app/entities/ebelge.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -103,6 +104,7 @@ export const AppDataSource = new DataSource({
     GoodsReceiptEntity,
     GoodsReceiptItemEntity,
     ExpenseVoucherEntity,
+    ...EBELGE_ENTITIES,
   ],
   timezone: 'Z',
   dateStrings: ['DATE'],

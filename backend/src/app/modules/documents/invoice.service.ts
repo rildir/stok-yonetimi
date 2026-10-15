@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { DataSource, EntityManager, In, Not } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { err } from '../../shared/i18n/app-error';
@@ -23,7 +23,7 @@ import { LegalParameterService } from '../../shared/services/legal-parameter.ser
 import { AuditService } from '../integrations/audit.service';
 import { DocumentNumberService } from './document-number.service';
 import { DespatchService } from './despatch.service';
-import { assertFiscalComplete, companySnapshot, customerSnapshot, nowParts, requireReason, supplierSnapshot } from './document-support';
+import { assertFiscalComplete, companySnapshot, customerSnapshot, DocumentHooks, InvoiceCancelInput, nowParts, requireReason, supplierSnapshot } from './document-support';
 
 export interface InvoiceDraftInput {
   /** Partial invoicing: order item + base quantity (default: everything not yet invoiced) */
@@ -76,6 +76,7 @@ export class InvoiceService {
     private readonly legalParams: LegalParameterService,
     private readonly audit: AuditService,
     private readonly gateway: AppGateway,
+    @Optional() private readonly hooks?: DocumentHooks,
   ) {}
 
   private get companyId(): string {
@@ -320,6 +321,12 @@ export class InvoiceService {
     }
   }
 
+  /** e-Belge: an invoice rejected by GİB or by the receiver (RED) is void; its quantities can be invoiced again. */
+  async releaseQuantitiesTx(m: EntityManager, inv: InvoiceEntity): Promise<void> {
+    const full = inv.lines ? inv : await this.get(inv.id, m);
+    await this.release(m, full);
+  }
+
   /** Releases the quantities of a draft / cancelled invoice. */
   private async release(m: EntityManager, inv: InvoiceEntity): Promise<void> {
     const despatchIds = new Set<string>();
@@ -409,6 +416,10 @@ export class InvoiceService {
         if (late) inv.lateIssueConfirmed = true;
       }
       inv.issuedBeforeDelivery = !inv.deliveryDate || issueDate < String(inv.deliveryDate);
+      // e-Belge (WP5): the scenario (TEMEL / TICARI / EARSIV / IHRACAT) follows the receiver's GİB
+      // registration, checked right before numbering; the profile is frozen with the invoice.
+      const eDoc = company.eDocumentMode === 'PROVIDER' && !paper && this.hooks?.eDocument;
+      if (eDoc) await eDoc.beforeInvoiceIssue(m, inv, company);
       const num = await this.numbers.assign(m, company, 'INVOICE', issueDate, {
         externalDocNo: external ? input.externalDocNo : null,
         seriesCode: input.seriesCode || inv.seriesCode,
@@ -445,6 +456,8 @@ export class InvoiceService {
       });
       const { lines: _l, ...header } = inv;
       await m.save(InvoiceEntity, Object.assign(new InvoiceEntity(), header));
+      // UBL-TR build, XSD + schematron validation, archive and outbox; a validation error rolls the issue back.
+      if (eDoc && num.numberMode === 'EDOCUMENT') await eDoc.afterInvoiceIssued(m, await this.get(inv.id, m), company);
       return this.get(inv.id, m);
     });
     if (late) {
@@ -470,7 +483,7 @@ export class InvoiceService {
   }
 
   /** Cancels an issued invoice (reason required); the quantities become invoiceable again. */
-  async cancel(id: string, reason: string, user?: string): Promise<InvoiceEntity> {
+  async cancel(id: string, reason: string, user?: string, notice: Omit<InvoiceCancelInput, 'reason'> = {}): Promise<InvoiceEntity> {
     const why = requireReason(reason);
     const saved = await this.dataSource.transaction(async (m) => {
       const inv = await m.findOne(InvoiceEntity, { where: { companyId: this.companyId, id }, relations: { lines: true }, lock: { mode: 'pessimistic_write' } });
@@ -479,6 +492,8 @@ export class InvoiceService {
       if (!canTransition(INVOICE_TRANSITIONS, inv.status, 'CANCELLED')) throw new ConflictException(err('DOCUMENT_STATUS_INVALID', { status: inv.status }));
       const returns = await m.count(ReturnEntity, { where: { companyId: this.companyId, invoiceId: inv.id } });
       if (returns) throw new ConflictException(err('INVOICE_HAS_RETURNS'));
+      // e-Belge: e-Arşiv only within the cancellation window (provider call), e-Fatura only with a notice.
+      if (inv.numberMode === 'EDOCUMENT' && this.hooks?.eDocument) await this.hooks.eDocument.beforeInvoiceCancel(m, inv, { reason: why, ...notice });
       await this.release(m, inv);
       const { lines: _l, ...header } = inv;
       await m.save(InvoiceEntity, Object.assign(new InvoiceEntity(), header, { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy: user || this.tenant.actor.username || null, cancelReason: why }));
@@ -488,9 +503,12 @@ export class InvoiceService {
     return saved;
   }
 
-  async setObjection(id: string, objection: boolean, note?: string | null): Promise<InvoiceEntity> {
+  async setObjection(id: string, objection: boolean, note?: string | null, notice: Omit<InvoiceCancelInput, 'reason'> = {}): Promise<InvoiceEntity> {
     const inv = await this.get(id);
     if (!ISSUED_STATES.includes(inv.status)) throw new ConflictException(err('DOCUMENT_STATUS_INVALID', { status: inv.status }));
+    await this.dataSource.transaction(async (m) => {
+      if (inv.numberMode === 'EDOCUMENT' && this.hooks?.eDocument) await this.hooks.eDocument.objectionChanged(m, inv, !!objection, { reason: note || '', ...notice });
+    });
     await this.dataSource.manager.update(InvoiceEntity, { id: inv.id }, { objection: !!objection, objectionNote: note ? String(note).slice(0, 500) : null });
     const saved = await this.get(id);
     this.emit('update', saved);

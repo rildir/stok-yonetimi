@@ -466,6 +466,9 @@ export class DespatchService {
     }
     const txDate = new Date(Math.min(at.getTime(), now.getTime()));
     const issue = nowParts(company.timezone, now);
+    // e-Belge (WP5): provider configured, receiver's e-İrsaliye registration -> delivery channel.
+    const eDoc = company.eDocumentMode === 'PROVIDER' && this.hooks.eDocument;
+    if (eDoc) await eDoc.beforeDespatchApprove(manager, d, company);
     const paperReason = input.paperReason && (PAPER_REASONS as readonly string[]).includes(input.paperReason) ? input.paperReason : null;
     const source = d.sourceWarehouseId ? await manager.findOne(WarehouseEntity, { where: { companyId: this.companyId, id: d.sourceWarehouseId } }) : null;
     const num = await this.numbers.assign(manager, company, 'DESPATCH', issue.date, {
@@ -543,7 +546,7 @@ export class DespatchService {
       actualDespatchAt: at,
       approvedAt: now,
       approvedBy: user || this.tenant.actor.username || null,
-      deliveryChannel: company.eDocumentMode === 'PROVIDER' ? 'GIB' : 'PRINT',
+      deliveryChannel: company.eDocumentMode === 'PROVIDER' ? d.deliveryChannel || 'GIB' : 'PRINT',
       sellerSnapshot: companySnapshot(company),
       ...(num.numberMode === 'PAPER' && paperReason && d.typeCode !== 'MATBUDAN' ? { paperReason } : {}),
     });
@@ -560,7 +563,10 @@ export class DespatchService {
       if (done && fresh.status === OrderStatus.PENDING) await manager.update(OrderEntity, { id: fresh.id }, { status: OrderStatus.COMPLETED });
     }
     d.lines = lines;
-    return this.get(d.id, manager);
+    const approved = await this.get(d.id, manager);
+    // UBL-TR build, validation, archive and outbox (a validation error rolls the approval back).
+    if (eDoc && approved.numberMode === 'EDOCUMENT') await eDoc.afterDespatchApproved(manager, approved, company);
+    return approved;
   }
 
   /** Sale line: stock leaves the source warehouse (lots / serials as picked, else FEFO / FIFO). */

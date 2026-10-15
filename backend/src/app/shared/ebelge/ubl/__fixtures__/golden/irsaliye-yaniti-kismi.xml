@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReceiptAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ReceiptAdvice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<ext:UBLExtensions>
+		<ext:UBLExtension>
+			<ext:ExtensionContent>
+				<n4:auto-generated_for_wildcard xmlns:n4="http://www.altova.com/samplexml/other-namespace"/>
+			</ext:ExtensionContent>
+		</ext:UBLExtension>
+	</ext:UBLExtensions>
+	<cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+	<cbc:CustomizationID>TR1.2.1</cbc:CustomizationID>
+	<cbc:ProfileID>TEMELIRSALIYE</cbc:ProfileID>
+	<cbc:ID>DMY2026000000003</cbc:ID>
+	<cbc:CopyIndicator>false</cbc:CopyIndicator>
+	<cbc:UUID>4A5B6C7D-8E9F-4A0B-B1C2-D3E4F5A6B7C8</cbc:UUID>
+	<cbc:IssueDate>2026-10-14</cbc:IssueDate>
+	<cbc:IssueTime>10:42:00</cbc:IssueTime>
+	<cbc:ReceiptAdviceTypeCode>SEVK</cbc:ReceiptAdviceTypeCode>
+	<cbc:Note>2 koli hasarlı teslim alındı.</cbc:Note>
+	<cbc:LineCountNumeric>2</cbc:LineCountNumeric>
+	<cac:OrderReference>
+		<cbc:ID>SA-2026-0088</cbc:ID>
+		<cbc:IssueDate>2026-10-05</cbc:IssueDate>
+	</cac:OrderReference>
+	<cac:DespatchDocumentReference>
+		<cbc:ID>E1D2C3B4-A596-4877-8695-A4B3C2D1E0F9</cbc:ID>
+		<cbc:IssueDate>2026-10-12</cbc:IssueDate>
+	</cac:DespatchDocumentReference>
+	<cac:AdditionalDocumentReference>
+		<cbc:ID>GKY2026000000877</cbc:ID>
+		<cbc:IssueDate>2026-10-12</cbc:IssueDate>
+		<cbc:DocumentTypeCode>DespatchAdviceID</cbc:DocumentTypeCode>
+		<cbc:DocumentType>DespatchAdvice ID</cbc:DocumentType>
+	</cac:AdditionalDocumentReference>
+	<cac:Signature>
+		<cbc:ID schemeID="VKN_TCKN">4820193752</cbc:ID>
+		<cac:SignatoryParty>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PostalAddress>
+				<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+				<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+				<cbc:CityName>İstanbul</cbc:CityName>
+				<cbc:PostalZone>34750</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+		</cac:SignatoryParty>
+		<cac:DigitalSignatureAttachment>
+			<cac:ExternalReference>
+				<cbc:URI>#Signature_DMY2026000000003</cbc:URI>
+			</cac:ExternalReference>
+		</cac:DigitalSignatureAttachment>
+	</cac:Signature>
+	<cac:DeliveryCustomerParty>
+		<cac:Party>
+			<cbc:WebsiteURI>https://www.demoteknoloji.com.tr</cbc:WebsiteURI>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="MERSISNO">0482019375200015</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="TICARETSICILNO">987654-5</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyName>
+				<cbc:Name>Demo Teknoloji Ürünleri Ticaret A.Ş.</cbc:Name>
+			</cac:PartyName>
+			<cac:PostalAddress>
+				<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+				<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+				<cbc:CityName>İstanbul</cbc:CityName>
+				<cbc:PostalZone>34750</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+			<cac:PartyTaxScheme>
+				<cac:TaxScheme>
+					<cbc:Name>Kozyatağı</cbc:Name>
+				</cac:TaxScheme>
+			</cac:PartyTaxScheme>
+			<cac:Contact>
+				<cbc:Telephone>+90 216 555 01 23</cbc:Telephone>
+				<cbc:ElectronicMail>efatura@demoteknoloji.com.tr</cbc:ElectronicMail>
+			</cac:Contact>
+		</cac:Party>
+	</cac:DeliveryCustomerParty>
+	<cac:DespatchSupplierParty>
+		<cac:Party>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">6152039482</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PartyName>
+				<cbc:Name>Gaziantep Kuruyemiş Gıda San. ve Tic. A.Ş.</cbc:Name>
+			</cac:PartyName>
+			<cac:PostalAddress>
+				<cbc:StreetName>İncilipınar Mahallesi Prof. Muammer Aksoy Bulvarı</cbc:StreetName>
+				<cbc:BuildingNumber>45</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Şehitkamil</cbc:CitySubdivisionName>
+				<cbc:CityName>Gaziantep</cbc:CityName>
+				<cbc:PostalZone>27060</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+			<cac:PartyTaxScheme>
+				<cac:TaxScheme>
+					<cbc:Name>Şehitkamil</cbc:Name>
+				</cac:TaxScheme>
+			</cac:PartyTaxScheme>
+		</cac:Party>
+	</cac:DespatchSupplierParty>
+	<cac:Shipment>
+		<cbc:ID/>
+		<cac:Delivery>
+			<cac:Despatch>
+				<cbc:ActualDespatchDate>2026-10-12</cbc:ActualDespatchDate>
+			</cac:Despatch>
+		</cac:Delivery>
+	</cac:Shipment>
+	<cac:ReceiptLine>
+		<cbc:ID>1</cbc:ID>
+		<cbc:ReceivedQuantity unitCode="KGM">96</cbc:ReceivedQuantity>
+		<cbc:RejectedQuantity unitCode="KGM">4</cbc:RejectedQuantity>
+		<cbc:RejectReason>Ambalaj hasarlı</cbc:RejectReason>
+		<cac:DespatchLineReference>
+			<cbc:LineID>1</cbc:LineID>
+		</cac:DespatchLineReference>
+		<cac:Item>
+			<cbc:Name>Antep Fıstığı (Kavrulmuş) 1 kg</cbc:Name>
+			<cac:SellersItemIdentification>
+				<cbc:ID>GK-FST1</cbc:ID>
+			</cac:SellersItemIdentification>
+		</cac:Item>
+	</cac:ReceiptLine>
+	<cac:ReceiptLine>
+		<cbc:ID>2</cbc:ID>
+		<cbc:ReceivedQuantity unitCode="KGM">50</cbc:ReceivedQuantity>
+		<cac:DespatchLineReference>
+			<cbc:LineID>2</cbc:LineID>
+		</cac:DespatchLineReference>
+		<cac:Item>
+			<cbc:Name>Çiğ Badem İçi 1 kg</cbc:Name>
+			<cac:SellersItemIdentification>
+				<cbc:ID>GK-BDM1</cbc:ID>
+			</cac:SellersItemIdentification>
+		</cac:Item>
+	</cac:ReceiptLine>
+</ReceiptAdvice>

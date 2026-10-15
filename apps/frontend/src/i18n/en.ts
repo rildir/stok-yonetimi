@@ -20,6 +20,7 @@ import en_auditLog from './en/auditLog.json';
 import en_integrations from './en/integrations.json';
 import en_compliance from './en/compliance.json';
 import en_documents from './en/documents.json';
+import en_ebelge from './en/ebelge.json';
 import type { Dict } from './index';
 
-export const EN_DICTIONARY: Dict = { ...en_common, ...en_layout, ...en_dashboard, ...en_products, ...en_orders, ...en_suppliers, ...en_purchaseOrders, ...en_warehouses, ...en_stockMovements, ...en_stockCount, ...en_reports, ...en_settings, ...en_login, ...en_shared, ...en_customers, ...en_finance, ...en_units, ...en_auditLog, ...en_integrations, ...en_compliance, ...en_documents, };
+export const EN_DICTIONARY: Dict = { ...en_common, ...en_layout, ...en_dashboard, ...en_products, ...en_orders, ...en_suppliers, ...en_purchaseOrders, ...en_warehouses, ...en_stockMovements, ...en_stockCount, ...en_reports, ...en_settings, ...en_login, ...en_shared, ...en_customers, ...en_finance, ...en_units, ...en_auditLog, ...en_integrations, ...en_compliance, ...en_documents, ...en_ebelge, };

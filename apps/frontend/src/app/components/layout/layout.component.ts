@@ -16,11 +16,12 @@ import { SearchService, GlobalSearchResult } from '../../services/search.service
 import { Title } from '@angular/platform-browser';
 import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '../../i18n';
 import { ThemeService } from '../../services/theme.service';
+import { EBelgeBannerComponent } from '../ebelge/ebelge-banner.component';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe],
+  imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe, EBelgeBannerComponent],
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()" [class.mobile-nav-open]="isMobileNavOpen()">
       <div class="sidebar-backdrop" (click)="isMobileNavOpen.set(false)"></div>
@@ -209,6 +210,10 @@ import { ThemeService } from '../../services/theme.service';
               <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
               <span class="nav-text">{{ 'layout.nav.expenseVouchers' | t }}</span>
             </a>
+            <a routerLink="/inbox" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.inbox' | t">
+              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+              <span class="nav-text">{{ 'layout.nav.inbox' | t }}</span>
+            </a>
 
             @if (!isSidebarCollapsed() || isMobileNavOpen()) {
               <div class="nav-group-label">{{ 'layout.group.system' | t }}</div>
@@ -361,6 +366,7 @@ import { ThemeService } from '../../services/theme.service';
               <span><strong>{{ 'layout.demo.title' | t }}</strong> {{ 'layout.demo.message' | t }}</span>
             </div>
           }
+          <app-ebelge-banner></app-ebelge-banner>
           <router-outlet></router-outlet>
         </main>
       </div>
@@ -977,6 +983,7 @@ export class LayoutComponent implements OnInit {
     if (url.includes('/goods-receipts')) return this.i18n.t('layout.nav.goodsReceipts');
     if (url.includes('/returns')) return this.i18n.t('layout.nav.returns');
     if (url.includes('/expense-vouchers')) return this.i18n.t('layout.nav.expenseVouchers');
+    if (url.includes('/inbox')) return this.i18n.t('layout.nav.inbox');
     if (url.includes('/products')) return this.i18n.t('layout.nav.products');
     if (url.includes('/stock-movements')) return this.i18n.t('layout.nav.stockMovements');
     if (url.includes('/suppliers')) return this.i18n.t('layout.nav.suppliers');
@@ -1000,6 +1007,7 @@ export class LayoutComponent implements OnInit {
     if (url.includes('/goods-receipts')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.goodsReceipts') };
     if (url.includes('/returns')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.returns') };
     if (url.includes('/expense-vouchers')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.expenseVouchers') };
+    if (url.includes('/inbox')) return { category: this.i18n.t('layout.group.documents'), page: this.i18n.t('layout.nav.inbox') };
     if (url.includes('/products')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.products') };
     if (url.includes('/stock-movements')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockMovements') };
     if (url.includes('/stock-count')) return { category: this.i18n.t('layout.group.stock'), page: this.i18n.t('layout.nav.stockCount') };

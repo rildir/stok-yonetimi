@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { io, Socket } from 'socket.io-client';
+import { Subject } from 'rxjs';
 import { AppStateService } from './app-state.service';
 import { UiStateService } from './ui-state.service';
 import { NotificationService } from './notification.service';
@@ -13,6 +14,8 @@ export class SocketService {
   private notifications = inject(NotificationService);
   private i18n = inject(I18nService);
   private socket!: Socket;
+  /** WP5 e-Belge events (status changes, inbox, provider outage) for live panels. */
+  readonly ebelge$ = new Subject<{ event: string; data: any }>();
 
   private notify(key: string, params: Record<string, string | number>, type: 'info' | 'success' | 'warning' | 'error') {
     this.notifications.addNotification(this.i18n.t(key, params), type, key, params);
@@ -158,6 +161,21 @@ export class SocketService {
     // Yearly legal parameter (e.g. VUK 232 limit) missing for the new year: admins are told to update it.
     this.socket.on('compliance_warning', (data: { code: string; keys: string[]; year: number }) => {
       this.notify('compliance.socket.parameterMissing', { keys: (data.keys || []).join(', '), year: data.year }, 'warning');
+    });
+
+    // WP5 e-Belge: status timeline / inbox / outage / integrity / MATBUDAN deadline.
+    for (const ev of ['edocument_status', 'ebelge_status', 'inbox_updated', 'invoice_mutated', 'despatch_mutated']) {
+      this.socket.on(ev, (data: any) => this.ebelge$.next({ event: ev, data }));
+    }
+    this.socket.on('inbox_updated', (data: { stored: number }) => this.notify('ebelge.socket.inbox', { n: data?.stored ?? 0 }, 'info'));
+    this.socket.on('ebelge_status', (data: { outage: boolean; message?: string }) => {
+      if (data?.outage) this.notify('ebelge.socket.outage', { message: data.message || '-' }, 'error');
+    });
+    this.socket.on('edocument_integrity_alert', (data: { mismatches: number; noticeDeadline: string }) => {
+      this.notify('ebelge.socket.integrity', { n: data.mismatches, date: data.noticeDeadline }, 'error');
+    });
+    this.socket.on('ebelge_matbudan_deadline', (data: { documents: unknown[] }) => {
+      this.notify('ebelge.socket.matbudan', { n: (data.documents || []).length }, 'warning');
     });
 
     // Daily VUK 231/5 reminder: deliveries to invoice (day 5 warning, day 7 critical) and pending expense vouchers.

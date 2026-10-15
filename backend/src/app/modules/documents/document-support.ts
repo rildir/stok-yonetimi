@@ -8,6 +8,8 @@ import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { OrderEntity } from '../../entities/order.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { PartySnapshot } from '../../entities/document-common';
+import type { InvoiceEntity } from '../../entities/invoice.entity';
+import type { DespatchEntity } from '../../entities/despatch.entity';
 import { formatAddress } from '../../entities/address.embedded';
 import { fiscalStatus } from '../company/fiscal';
 import { dateKeyInZone, timeKeyInZone } from '../../shared/tr';
@@ -116,4 +118,28 @@ export function requireReason(reason: unknown): string {
 export class DocumentHooks {
   orderShipped?: (manager: EntityManager, order: OrderEntity, shippedAt: Date) => Promise<void>;
   purchaseReceived?: (manager: EntityManager, po: PurchaseOrderEntity, receivedAt: Date, documentDate: string | null) => Promise<void>;
+  /** e-Belge integration (WP5), registered by EBelgeModule. */
+  eDocument?: EDocumentHooks;
+}
+
+/** Cancellation input of an issued invoice (e-Fatura: the external notice; e-Arşiv: the 8-day window). */
+export interface InvoiceCancelInput {
+  reason: string;
+  noticeChannel?: string | null;
+  noticeDate?: string | null;
+  noticeRef?: string | null;
+}
+
+/**
+ * Callbacks of the e-Belge module, all inside the document transaction: routing (scenario from the GİB
+ * registry) before numbering, UBL-TR build + validation + archive + outbox after the document is
+ * frozen (a validation error rolls the whole issue back), cancellation rules of e-Arşiv / e-Fatura.
+ */
+export interface EDocumentHooks {
+  beforeInvoiceIssue(manager: EntityManager, invoice: InvoiceEntity, company: CompanyEntity): Promise<void>;
+  afterInvoiceIssued(manager: EntityManager, invoice: InvoiceEntity, company: CompanyEntity): Promise<InvoiceEntity | void>;
+  beforeInvoiceCancel(manager: EntityManager, invoice: InvoiceEntity, input: InvoiceCancelInput): Promise<void>;
+  objectionChanged(manager: EntityManager, invoice: InvoiceEntity, objection: boolean, input: InvoiceCancelInput): Promise<void>;
+  beforeDespatchApprove(manager: EntityManager, despatch: DespatchEntity, company: CompanyEntity): Promise<void>;
+  afterDespatchApproved(manager: EntityManager, despatch: DespatchEntity, company: CompanyEntity): Promise<void>;
 }

@@ -10,12 +10,13 @@ import { Despatch, statusBadge } from '../../models/documents.models';
 import { PAPER_REASONS } from '@stok/tr-compliance';
 import { Product, Warehouse } from '../../models/inventory.models';
 import { DespatchFormComponent } from './despatch-form.component';
+import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
 
 /** İrsaliyeler: list, detail, approval (numbering + stock), transfer receipt, toplu fatura. No cancellation. */
 @Component({
   selector: 'app-despatches',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, DespatchFormComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, DespatchFormComponent, EdocPanelComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   template: `
     <header class="page-header">
@@ -130,9 +131,11 @@ import { DespatchFormComponent } from './despatch-form.component';
               </table>
             </div>
             @if (d.note) { <div class="doc-section doc-note">{{ d.note }}</div> }
+            @if (d.numberMode === 'EDOCUMENT') { <app-edoc-panel sourceType="despatch" [sourceId]="d.id" [expected]="true"></app-edoc-panel> }
           </div>
           <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="print(d)">{{ 'documents.print' | t }}</button>
+            @if (d.numberMode === 'EDOCUMENT') { <a class="btn btn-secondary" [routerLink]="['/e-irsaliye', d.id]">{{ 'ebelge.vehicle.open' | t }}</a> }
             @if (!ui.isReadonly()) {
               @if (d.status === 'DRAFT') {
                 <button class="btn btn-danger" (click)="remove(d)" [disabled]="busy()">{{ 'despatches.deleteDraft' | t }}</button>

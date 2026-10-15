@@ -17,17 +17,19 @@ import { TaxSettingsComponent, TcmbPanelComponent } from './tax-settings.compone
 import { InventoryComplianceSettingsComponent } from './inventory-compliance-settings.component';
 import { EBelgeSettingsComponent } from './ebelge-settings.component';
 import { DocumentSettingsComponent } from './document-settings.component';
+import { EBelgeProviderSettingsComponent } from './ebelge-provider-settings.component';
+import { EBelgeArchiveSettingsComponent } from './ebelge-archive-settings.component';
 import { LegalParametersComponent } from './legal-parameters.component';
 
 /** Empty passes (optional field); otherwise the KVKK-guide password policy. */
 const strongPasswordValidator = (c: AbstractControl): ValidationErrors | null => (c.value && !isStrongPassword(c.value) ? { weakPassword: true } : null);
 
-type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'documents' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
+type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'ebelgeProvider' | 'archive' | 'documents' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent, EBelgeProviderSettingsComponent, EBelgeArchiveSettingsComponent],
   template: `
     <header class="page-header">
       <div>
@@ -46,6 +48,8 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'company'" [attr.aria-selected]="activeTab() === 'company'" (click)="changeTab('company')">{{ 'settings.tab.company' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'fiscal'" [attr.aria-selected]="activeTab() === 'fiscal'" (click)="changeTab('fiscal')">{{ 'settings.tab.fiscal' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'ebelge'" [attr.aria-selected]="activeTab() === 'ebelge'" (click)="changeTab('ebelge')">{{ 'settings.tab.ebelge' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'ebelgeProvider'" [attr.aria-selected]="activeTab() === 'ebelgeProvider'" (click)="changeTab('ebelgeProvider')">{{ 'settings.tab.ebelgeProvider' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'archive'" [attr.aria-selected]="activeTab() === 'archive'" (click)="changeTab('archive')">{{ 'settings.tab.archive' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'documents'" [attr.aria-selected]="activeTab() === 'documents'" (click)="changeTab('documents')">{{ 'settings.tab.documents' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'compliance'" [attr.aria-selected]="activeTab() === 'compliance'" (click)="changeTab('compliance')">{{ 'settings.tab.compliance' | t }}</button>
         @if (ui.userProfile()?.isSuperAdmin) {
@@ -215,6 +219,8 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
         @if (activeTab() === 'fiscal' && isAdmin()) { <app-fiscal-settings></app-fiscal-settings> }
         @if (activeTab() === 'ebelge' && isAdmin()) { <app-ebelge-settings></app-ebelge-settings> }
         @if (activeTab() === 'documents' && isAdmin()) { <app-document-settings></app-document-settings> }
+        @if (activeTab() === 'ebelgeProvider' && isAdmin()) { <app-ebelge-provider-settings></app-ebelge-provider-settings> }
+        @if (activeTab() === 'archive' && isAdmin()) { <app-ebelge-archive-settings></app-ebelge-archive-settings> }
         @if (activeTab() === 'compliance' && isAdmin()) { <app-inventory-compliance-settings></app-inventory-compliance-settings> }
         @if (activeTab() === 'legalParams' && ui.userProfile()?.isSuperAdmin) { <app-legal-parameters></app-legal-parameters> }
 
@@ -1428,7 +1434,7 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'documents', 'compliance', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
+      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'ebelgeProvider', 'archive', 'documents', 'compliance', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
         this.activeTab.set(tab);
         if (tab === 'units') this.loadUnits();
       } else {

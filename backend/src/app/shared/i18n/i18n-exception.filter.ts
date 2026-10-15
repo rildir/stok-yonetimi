@@ -203,6 +203,13 @@ export function buildErrorBody(exception: unknown, status: number, lang: Lang): 
     return { statusCode: status, code, message: errors.join(' '), errors, fields, error: 'Bad Request' };
   }
   if (isCodedErrorBody(res)) {
+    // Localized details (e.g. UBL-TR schematron findings): each detail carries its own TR / EN text.
+    const details = (res as any).details as { tr: string; en: string }[] | undefined;
+    if (Array.isArray(details) && details.length) {
+      const errors = details.map((d) => (lang === 'en' ? d.en : d.tr) || d.tr);
+      const params = { ...(res.params || {}), count: errors.length, first: errors[0] };
+      return { statusCode: status, code: res.code, message: translate(res.code, lang, params), errors, ...(error ? { error } : {}) };
+    }
     return { statusCode: status, code: res.code, message: translate(res.code, lang, res.params), ...(error ? { error } : {}) };
   }
   // Plain Nest exceptions: message may be a string, array or missing — pass through (translating known codes).

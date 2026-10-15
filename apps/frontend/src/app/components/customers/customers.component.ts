@@ -11,6 +11,8 @@ import { IdentityFieldsComponent, taxIdValidator } from '../shared/identity-fiel
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
+import { EBelgeService } from '../../services/ebelge.service';
+import { apiError as apiErrorMessage } from '../../services/documents.service';
 
 @Component({
   selector: 'app-customers',
@@ -18,6 +20,9 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
   imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe, AddressFieldsComponent, IdentityFieldsComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
+    .cust-registry { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3); margin-bottom: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
+    .cust-registry-label { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-text-muted); }
+    .cust-registry .btn { margin-left: auto; }
     .cust-sub { font-size: var(--text-2xs); color: var(--color-text-muted); margin-top: 2px; }
     .link { color: var(--color-primary-text); text-decoration: none; }
     .link:hover { text-decoration: underline; }
@@ -105,6 +110,8 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
                     <strong>{{ c.name }}</strong>
                     @if (c.needsReview) { <span class="badge badge-warning review-badge" [title]="('customers.review.' + (c.reviewReason || 'GENERIC')) | t">{{ 'customers.filter.needsReview' | t }}</span> }
                     @if (c.identityNumber) { <div class="cust-sub">{{ c.identityType || 'VKN' }} <span class="mono">{{ c.identityNumber }}</span>@if (c.taxOfficeName) { · {{ c.taxOfficeName }} }</div> }
+                    @if (c.eInvoiceRegistered) { <span class="badge badge-success" [title]="'ebelge.registry.checkedAt' | t: { date: (c.eInvoiceCheckedAt | appDate: 'datetime') }">{{ 'ebelge.registry.eFatura' | t }}</span> }
+                    @if (c.eDespatchRegistered) { <span class="badge badge-neutral">{{ 'ebelge.registry.eIrsaliye' | t }}</span> }
                   </td>
                   <td [attr.data-label]="'customers.col.type' | t">
                     <span class="badge" [class.badge-primary]="c.type === 'company'" [class.badge-neutral]="c.type !== 'company'">
@@ -154,6 +161,17 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
 
           <form [formGroup]="form" (ngSubmit)="save()" class="drawer-form">
             <div class="drawer-body">
+              @if (editId() && editingCustomer(); as ec) {
+                <div class="cust-registry">
+                  <span class="cust-registry-label">{{ 'ebelge.registry.title' | t }}</span>
+                  @if (ec.eInvoiceRegistered === true) { <span class="badge badge-success">{{ 'ebelge.registry.eFatura' | t }}</span> }
+                  @else if (ec.eInvoiceRegistered === false) { <span class="badge badge-neutral">{{ 'ebelge.registry.eArsiv' | t }}</span> }
+                  @else { <span class="badge badge-neutral">{{ 'ebelge.registry.unknown' | t }}</span> }
+                  @if (ec.eDespatchRegistered) { <span class="badge badge-neutral">{{ 'ebelge.registry.eIrsaliye' | t }}</span> }
+                  @if (ec.eInvoiceCheckedAt) { <span class="cust-sub">{{ 'ebelge.registry.checkedAt' | t: { date: (ec.eInvoiceCheckedAt | appDate: 'datetime') } }}</span> }
+                  @if (canEdit()) { <button type="button" class="btn btn-secondary btn-sm" (click)="checkRegistry(ec)" [disabled]="registryBusy()">{{ 'ebelge.registry.check' | t }}</button> }
+                </div>
+              }
               <div class="form-field">
                 <input id="custName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" />
                 <label for="custName" class="form-label">{{ 'customers.form.name' | t }}</label>
@@ -290,6 +308,26 @@ export class CustomersComponent implements OnInit {
   isDrawerOpen = signal(false);
   isSaving = signal(false);
   editId = signal<string | null>(null);
+  registryBusy = signal(false);
+  private ebelge = inject(EBelgeService);
+  editingCustomer = computed(() => this.customers().find((c) => c.id === this.editId()) || null);
+
+  /** GİB e-Fatura / e-İrsaliye registry ("e-Fatura mükellefi mi?") through the integrator. */
+  checkRegistry(c: Customer) {
+    this.registryBusy.set(true);
+    this.ebelge.checkCustomer(c.id).subscribe({
+      next: (r) => {
+        this.registryBusy.set(false);
+        if (r.reason === 'NO_TAX_ID') return this.ui.showToast(this.i18n.t('ebelge.registry.noTaxId'), 'info');
+        this.customers.update((list) => list.map((x) => (x.id === c.id ? { ...x, eInvoiceRegistered: r.eInvoice?.registered ?? null, eDespatchRegistered: r.eDespatch?.registered ?? null, eInvoiceCheckedAt: r.eInvoice?.checkedAt ?? null } : x)));
+        this.ui.showToast(this.i18n.t(r.eInvoice?.registered ? 'ebelge.registry.isRegistered' : 'ebelge.registry.notRegistered'), 'success');
+      },
+      error: (e) => {
+        this.registryBusy.set(false);
+        this.ui.showToast(apiErrorMessage(e, this.i18n.t('ebelge.registry.failed')), 'error');
+      },
+    });
+  }
   searchQuery = signal('');
   reviewOnly = signal(false);
   addresses = signal<CustomerAddress[]>([]);

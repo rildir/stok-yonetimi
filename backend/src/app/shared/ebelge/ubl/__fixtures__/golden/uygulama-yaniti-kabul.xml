@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApplicationResponse xmlns="urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<ext:UBLExtensions>
+		<ext:UBLExtension>
+			<ext:ExtensionContent>
+				<n4:auto-generated_for_wildcard xmlns:n4="http://www.altova.com/samplexml/other-namespace"/>
+			</ext:ExtensionContent>
+		</ext:UBLExtension>
+	</ext:UBLExtensions>
+	<cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+	<cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+	<cbc:ProfileID>TICARIFATURA</cbc:ProfileID>
+	<cbc:ID>8f9e0d1c-2b3a-4c5d-8e6f-7a8b9c0d1e2f</cbc:ID>
+	<cbc:UUID>8F9E0D1C-2B3A-4C5D-8E6F-7A8B9C0D1E2F</cbc:UUID>
+	<cbc:IssueDate>2026-10-14</cbc:IssueDate>
+	<cbc:IssueTime>10:42:00</cbc:IssueTime>
+	<cac:Signature>
+		<cbc:ID schemeID="VKN_TCKN">4820193752</cbc:ID>
+		<cac:SignatoryParty>
+			<cac:PartyIdentification>
+				<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+			</cac:PartyIdentification>
+			<cac:PostalAddress>
+				<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+				<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+				<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+				<cbc:CityName>İstanbul</cbc:CityName>
+				<cbc:PostalZone>34750</cbc:PostalZone>
+				<cac:Country>
+					<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+					<cbc:Name>Türkiye</cbc:Name>
+				</cac:Country>
+			</cac:PostalAddress>
+		</cac:SignatoryParty>
+		<cac:DigitalSignatureAttachment>
+			<cac:ExternalReference>
+				<cbc:URI>#Signature_8f9e0d1c-2b3a-4c5d-8e6f-7a8b9c0d1e2f</cbc:URI>
+			</cac:ExternalReference>
+		</cac:DigitalSignatureAttachment>
+	</cac:Signature>
+	<cac:SenderParty>
+		<cac:PartyIdentification>
+			<cbc:ID schemeID="VKN">4820193752</cbc:ID>
+		</cac:PartyIdentification>
+		<cac:PartyIdentification>
+			<cbc:ID schemeID="MERSISNO">0482019375200015</cbc:ID>
+		</cac:PartyIdentification>
+		<cac:PartyIdentification>
+			<cbc:ID schemeID="TICARETSICILNO">987654-5</cbc:ID>
+		</cac:PartyIdentification>
+		<cac:PartyName>
+			<cbc:Name>Demo Teknoloji Ürünleri Ticaret A.Ş.</cbc:Name>
+		</cac:PartyName>
+		<cac:PostalAddress>
+			<cbc:StreetName>Kayışdağı Caddesi Değirmen Sokak</cbc:StreetName>
+			<cbc:BuildingNumber>12/4</cbc:BuildingNumber>
+			<cbc:CitySubdivisionName>Ataşehir</cbc:CitySubdivisionName>
+			<cbc:CityName>İstanbul</cbc:CityName>
+			<cbc:PostalZone>34750</cbc:PostalZone>
+			<cac:Country>
+				<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+				<cbc:Name>Türkiye</cbc:Name>
+			</cac:Country>
+		</cac:PostalAddress>
+	</cac:SenderParty>
+	<cac:ReceiverParty>
+		<cac:PartyIdentification>
+			<cbc:ID schemeID="VKN">6152039482</cbc:ID>
+		</cac:PartyIdentification>
+		<cac:PartyName>
+			<cbc:Name>Gaziantep Kuruyemiş Gıda San. ve Tic. A.Ş.</cbc:Name>
+		</cac:PartyName>
+		<cac:PostalAddress>
+			<cbc:StreetName>İncilipınar Mahallesi Prof. Muammer Aksoy Bulvarı</cbc:StreetName>
+			<cbc:BuildingNumber>45</cbc:BuildingNumber>
+			<cbc:CitySubdivisionName>Şehitkamil</cbc:CitySubdivisionName>
+			<cbc:CityName>Gaziantep</cbc:CityName>
+			<cbc:PostalZone>27060</cbc:PostalZone>
+			<cac:Country>
+				<cbc:IdentificationCode>TR</cbc:IdentificationCode>
+				<cbc:Name>Türkiye</cbc:Name>
+			</cac:Country>
+		</cac:PostalAddress>
+	</cac:ReceiverParty>
+	<cac:DocumentResponse>
+		<cac:Response>
+			<cbc:ReferenceID>8F9E0D1C-2B3A-4C5D-8E6F-7A8B9C0D1E2F</cbc:ReferenceID>
+			<cbc:ResponseCode>KABUL</cbc:ResponseCode>
+			<cbc:Description>Fatura kabul edildi.</cbc:Description>
+		</cac:Response>
+		<cac:DocumentReference>
+			<cbc:ID>B7C8D9E0-F1A2-4B3C-9D4E-5F6A7B8C9D0E</cbc:ID>
+			<cbc:IssueDate>2026-10-12</cbc:IssueDate>
+			<cbc:DocumentTypeCode>FATURA</cbc:DocumentTypeCode>
+			<cbc:DocumentType>FATURA</cbc:DocumentType>
+		</cac:DocumentReference>
+	</cac:DocumentResponse>
+</ApplicationResponse>

@@ -87,7 +87,8 @@ export const DESPATCH_TRANSITIONS: Transitions = {
   DRAFT: ['APPROVED'],
   APPROVED: ['HANDED_TO_PROVIDER'],
   HANDED_TO_PROVIDER: ['GIB_ACCEPTED', 'REJECTED', 'PARTIALLY_ACCEPTED'],
-  GIB_ACCEPTED: [],
+  // WP5: the receiver's receipt advice (İrsaliye Yanıtı) arrives after GİB accepted the despatch.
+  GIB_ACCEPTED: ['PARTIALLY_ACCEPTED', 'REJECTED'],
   REJECTED: [],
   PARTIALLY_ACCEPTED: [],
 };
@@ -101,7 +102,8 @@ export const DESPATCH_STATUSES = Object.keys(DESPATCH_TRANSITIONS);
 export const INVOICE_TRANSITIONS: Transitions = {
   DRAFT: ['ISSUED'],
   ISSUED: ['QUEUED', 'CANCELLED'],
-  QUEUED: ['SENT', 'ISSUED'],
+  // WP5: a queued e-document not yet handed to the integrator can still be cancelled (it never reaches GİB).
+  QUEUED: ['SENT', 'ISSUED', 'CANCELLED', 'REJECTED'],
   SENT: ['DELIVERED', 'ACCEPTED', 'REJECTED', 'CANCELLED'],
   DELIVERED: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
   ACCEPTED: ['CANCELLED'],

@@ -153,13 +153,13 @@ export class InvoiceController {
   @Roles('admin', 'manager')
   @Post(':id/cancel')
   cancel(@Param('id') id: string, @Body() dto: CancelDocumentDto, @Req() req: any) {
-    return this.svc.cancel(id, dto.reason, who(req));
+    return this.svc.cancel(id, dto.reason, who(req), { noticeChannel: dto.noticeChannel, noticeDate: dto.noticeDate, noticeRef: dto.noticeRef });
   }
 
   @Roles('admin', 'manager')
   @Put(':id/objection')
   objection(@Param('id') id: string, @Body() dto: ObjectionDto) {
-    return this.svc.setObjection(id, dto.objection, dto.note);
+    return this.svc.setObjection(id, dto.objection, dto.note, { noticeChannel: dto.noticeChannel, noticeDate: dto.noticeDate, noticeRef: dto.noticeRef });
   }
 }
 
