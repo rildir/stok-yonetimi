@@ -51,7 +51,7 @@ function makeService(manager: any) {
   const tenant: any = { companyId: COMPANY };
   const gateway: any = { emitToCompany: jest.fn() };
   const dataSource: any = { transaction: (cb: any) => cb(manager) };
-  return new WarehouseService(tenant, {} as any, {} as any, stock, gateway, dataSource);
+  return new WarehouseService(tenant, {} as any, {} as any, stock, gateway, dataSource, {} as any, {} as any);
 }
 
 describe('WarehouseService.transferWarehouseStock', () => {

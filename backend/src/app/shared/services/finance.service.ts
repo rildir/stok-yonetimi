@@ -8,6 +8,8 @@ import { ProductEntity } from '../../entities/product.entity';
 import { TenantContext } from '../tenant/tenant-context.service';
 import { RateRow, convertAmount, findRate } from '../finance/currency';
 import { LineAmounts, DocumentTotals, calculateLine, calculateTotals } from '../finance/tax';
+import { LegalParameterService } from './legal-parameter.service';
+import { todayKey } from '../tr';
 
 /**
  * Tenant-aware currency conversion and tax rate resolution.
@@ -18,7 +20,23 @@ export class FinanceService {
   constructor(
     private readonly tenant: TenantContext,
     private readonly dataSource: DataSource,
+    private readonly legalParams: LegalParameterService,
   ) {}
+
+  /**
+   * Legal parameter (VUK 232 limit, penalties, due days...) valid on `date`
+   * (default: today in the company's time zone) for the company's country.
+   * Throws 422 LEGAL_PARAMETER_MISSING when the value for that date is not defined.
+   */
+  async param<T = unknown>(key: string, date?: string, manager?: EntityManager): Promise<T> {
+    const company = await this.getCompany(manager);
+    return this.legalParams.param<T>(key, date || todayKey(company.timezone), company.country || 'TR');
+  }
+
+  /** Today (YYYY-MM-DD) in the company's time zone. */
+  async today(manager?: EntityManager): Promise<string> {
+    return todayKey((await this.getCompany(manager)).timezone);
+  }
 
   private m(manager?: EntityManager): EntityManager {
     return manager || this.dataSource.manager;

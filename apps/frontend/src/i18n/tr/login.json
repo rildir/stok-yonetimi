@@ -59,5 +59,21 @@
   "login.toast.registerFailed": "Kayıt işlemi başarısız oldu.",
   "login.toast.resetFailed": "Şifre sıfırlama talebi gönderilemedi.",
   "login.toast.loggedIn": "Başarıyla giriş yapıldı.",
-  "login.toast.invalidCredentials": "Kullanıcı adı veya şifre hatalı."
+  "login.toast.invalidCredentials": "Kullanıcı adı veya şifre hatalı.",
+  "login.locked": "Hesabınız çok sayıda hatalı deneme nedeniyle geçici olarak kilitlendi. {detail}",
+  "login.toast.weakPassword": "Giriş yapıldı. Şifreniz güncel parola politikasını karşılamıyor; Ayarlar > Profil bölümünden değiştirin.",
+  "login.invite.invalidTitle": "Davet geçersiz",
+  "login.invite.invalid": "Davet bağlantısı geçersiz veya süresi dolmuş. Yöneticinizden yeni bağlantı isteyin.",
+  "login.invite.toLogin": "Giriş sayfasına dön",
+  "login.invite.title": "Hesabınızı etkinleştirin",
+  "login.invite.subtitle": "{company} şirketinde {name} ({username}) için şifre belirleyin.",
+  "login.invite.done": "Hesabınız etkinleştirildi.",
+  "login.changePassword.title": "Şifrenizi değiştirin",
+  "login.changePassword.subtitle": "Yönetici tarafından verilen geçici şifreyi kullanmaya devam edemezsiniz. Yeni bir şifre belirleyin.",
+  "login.changePassword.current": "Mevcut (geçici) şifre",
+  "login.changePassword.new": "Yeni şifre",
+  "login.changePassword.confirm": "Yeni şifre (tekrar)",
+  "login.changePassword.submit": "Şifreyi kaydet",
+  "login.policy.length": "En az {n} karakter",
+  "login.policy.classes": "Büyük harf, küçük harf, rakam, sembolden en az {n} tür"
 }

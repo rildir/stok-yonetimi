@@ -1,3 +1,5 @@
+import { SupplierModule } from '../supplier/supplier.module';
+import { SharedModule } from '../../shared/shared.module';
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditLogEntity } from '../../entities/audit-log.entity';
@@ -22,6 +24,8 @@ import { ApiKeyController, AuditController, ImportExportController, WebhookContr
     TypeOrmModule.forFeature([AuditLogEntity, ApiKeyEntity, WebhookEndpointEntity, WebhookDeliveryEntity, OrderEntity, PurchaseOrderEntity]),
     ProductModule,
     CustomerModule,
+    SupplierModule,
+    SharedModule,
   ],
   controllers: [AuditController, ApiKeyController, WebhookController, ImportExportController],
   providers: [AuditService, AuditSubscriber, ApiKeyService, WebhookService, ImportExportService],

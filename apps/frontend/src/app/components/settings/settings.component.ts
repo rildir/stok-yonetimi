@@ -10,11 +10,21 @@ import { UiStateService } from '../../services/ui-state.service';
 import { SocketService } from '../../services/socket.service';
 import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe } from '../../i18n';
 import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
+import { AbstractControl, ValidationErrors } from '@angular/forms';
+import { isStrongPassword } from '@stok/tr-compliance';
+import { FiscalSettingsComponent } from './fiscal-settings.component';
+import { EBelgeSettingsComponent } from './ebelge-settings.component';
+import { LegalParametersComponent } from './legal-parameters.component';
+
+/** Empty passes (optional field); otherwise the KVKK-guide password policy. */
+const strongPasswordValidator = (c: AbstractControl): ValidationErrors | null => (c.value && !isStrongPassword(c.value) ? { weakPassword: true } : null);
+
+type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent],
   template: `
     <header class="page-header">
       <div>
@@ -31,6 +41,11 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
       @if (ui.userProfile()?.role === 'admin') {
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'users'" [attr.aria-selected]="activeTab() === 'users'" (click)="changeTab('users')">{{ 'settings.tab.users' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'company'" [attr.aria-selected]="activeTab() === 'company'" (click)="changeTab('company')">{{ 'settings.tab.company' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'fiscal'" [attr.aria-selected]="activeTab() === 'fiscal'" (click)="changeTab('fiscal')">{{ 'settings.tab.fiscal' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'ebelge'" [attr.aria-selected]="activeTab() === 'ebelge'" (click)="changeTab('ebelge')">{{ 'settings.tab.ebelge' | t }}</button>
+        @if (ui.userProfile()?.isSuperAdmin) {
+          <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'legalParams'" [attr.aria-selected]="activeTab() === 'legalParams'" (click)="changeTab('legalParams')">{{ 'settings.tab.legalParams' | t }}</button>
+        }
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'taxRates'" [attr.aria-selected]="activeTab() === 'taxRates'" (click)="changeTab('taxRates')">{{ 'settings.tab.taxRates' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'exchangeRates'" [attr.aria-selected]="activeTab() === 'exchangeRates'" (click)="changeTab('exchangeRates')">{{ 'settings.tab.exchangeRates' | t }}</button>
       }
@@ -80,6 +95,32 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
             </span>
             <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('fiscal')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h8M8 17h5"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.fiscal' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.fiscalDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('ebelge')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.ebelge' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.ebelgeDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          @if (ui.userProfile()?.isSuperAdmin) {
+          <button type="button" class="settings-hub-card" (click)="changeTab('legalParams')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.legalParams' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.legalParamsDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          }
           <button type="button" class="settings-hub-card" (click)="changeTab('taxRates')">
             <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg></span>
             <span class="settings-hub-text">
@@ -156,6 +197,11 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
             </form>
           </div>
         }
+
+        <!-- FISCAL / E-BELGE / LEGAL PARAMETERS (WP1) -->
+        @if (activeTab() === 'fiscal' && isAdmin()) { <app-fiscal-settings></app-fiscal-settings> }
+        @if (activeTab() === 'ebelge' && isAdmin()) { <app-ebelge-settings></app-ebelge-settings> }
+        @if (activeTab() === 'legalParams' && ui.userProfile()?.isSuperAdmin) { <app-legal-parameters></app-legal-parameters> }
 
         <!-- TAX RATES TAB (Admin) -->
         @if (activeTab() === 'taxRates' && isAdmin()) {
@@ -628,6 +674,13 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
               </div>
             </div>
 
+            @if (inviteLink(); as link) {
+              <div class="alert-banner alert-banner--info settings-invite" role="status">
+                <span class="settings-invite-text">{{ 'settings.users.inviteCreated' | t: { name: link.name } }} <code class="mono">{{ link.url }}</code></span>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="copyInvite(link.url)">{{ 'settings.users.copyLink' | t }}</button>
+                <button type="button" class="btn btn-ghost btn-sm" (click)="inviteLink.set(null)" [attr.aria-label]="'common.close' | t">×</button>
+              </div>
+            }
             <div class="table-card">
               @if (isLoadingUsers()) {
                 <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
@@ -647,6 +700,7 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                         <th>{{ 'settings.users.role' | t }}</th>
                         <th>{{ 'settings.users.department' | t }}</th>
                         <th>{{ 'settings.users.email' | t }}</th>
+                        <th>{{ 'settings.users.status' | t }}</th>
                         <th class="th-actions">{{ 'common.actions' | t }}</th>
                       </tr>
                     </thead>
@@ -673,7 +727,21 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                           </td>
                           <td [attr.data-label]="'settings.users.department' | t">{{ user.department || '-' }}</td>
                           <td [attr.data-label]="'settings.users.email' | t">{{ user.email }}</td>
+                          <td [attr.data-label]="'settings.users.status' | t">
+                            @if (user.locked) { <span class="badge badge-danger">{{ 'settings.users.statusLocked' | t }}</span> }
+                            @else if (user.invitePending) { <span class="badge badge-info">{{ 'settings.users.statusInvited' | t }}</span> }
+                            @else if (user.mustChangePassword) { <span class="badge badge-warning">{{ 'settings.users.statusMustChange' | t }}</span> }
+                            @else { <span class="badge badge-success">{{ 'settings.users.statusActive' | t }}</span> }
+                          </td>
                           <td class="td-actions">
+                            @if (user.locked) {
+                              <button class="edit-btn" [title]="'settings.users.unlock' | t" (click)="unlockUser(user)">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                              </button>
+                            }
+                            <button class="edit-btn" [title]="'settings.users.reinvite' | t" (click)="reinviteUser(user)">
+                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            </button>
                             <button class="edit-btn" [title]="'common.edit' | t" (click)="openUserDrawer(user)">
                               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
@@ -784,6 +852,7 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
                 <input id="userPassword" type="password" formControlName="password" class="form-input" [class.has-value]="hasUserValue('password')" [disabled]="isSavingUser()" />
                 <label for="userPassword" class="form-label">{{ (editUserId() ? 'settings.users.passwordEdit' : 'settings.users.passwordNew') | t }}</label>
                 @if (isUserFieldInvalid('password')) { <div class="form-error">{{ 'settings.users.passwordErr' | t }}</div> }
+                <span class="field-hint" style="order: 3">{{ (editUserId() ? 'settings.users.passwordEditHint' : 'settings.users.passwordNewHint') | t }}</span>
               </div>
 
               <div class="form-field">
@@ -839,6 +908,8 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
   `,
   styleUrls: ['../../drawer.css'],
   styles: [`
+    .settings-invite { margin-bottom: var(--space-4); flex-wrap: wrap; }
+    .settings-invite-text { flex: 1; min-width: 0; word-break: break-all; }
     :host { display: block; }
     .settings-tabs { margin-bottom: var(--space-6); }
     .settings-layout, .settings-content { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; min-width: 0; }
@@ -920,7 +991,7 @@ export class SettingsComponent implements OnInit {
   
   @ViewChild(ToastComponent) toast!: ToastComponent;
 
-  activeTab = signal<'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard'>('dashboard');
+  activeTab = signal<SettingsTab>('dashboard');
 
   private host = inject(ElementRef<HTMLElement>);
   /** On narrow screens the tab bar scrolls horizontally: keep the active tab visible (e.g. opened via ?tab= link). */
@@ -1238,7 +1309,7 @@ export class SettingsComponent implements OnInit {
 
   passwordForm: FormGroup = this.fb.group({
     currentPassword: ['', Validators.required],
-    newPassword: ['', [Validators.required, Validators.minLength(6)]],
+    newPassword: ['', [Validators.required, strongPasswordValidator]],
     confirmPassword: ['', Validators.required]
   }, { validators: this.passwordMatchValidator });
 
@@ -1269,7 +1340,7 @@ export class SettingsComponent implements OnInit {
     fullName: ['', [Validators.required, Validators.minLength(3)]],
     email: ['', [Validators.required, Validators.email]],
     username: ['', Validators.required],
-    password: [''],
+    password: ['', [strongPasswordValidator]],
     department: [''],
     role: ['viewer', Validators.required]
   });
@@ -1279,7 +1350,7 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (tab === 'profile' || tab === 'categories' || tab === 'users' || tab === 'company' || tab === 'taxRates' || tab === 'exchangeRates' || tab === 'units') {
+      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
         this.activeTab.set(tab);
         if (tab === 'units') this.loadUnits();
       } else {
@@ -1288,7 +1359,7 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  changeTab(tab: 'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard') {
+  changeTab(tab: SettingsTab) {
     if (tab === 'dashboard') {
       this.router.navigate(['/settings']);
     } else {
@@ -1708,9 +1779,11 @@ export class SettingsComponent implements OnInit {
       ? this.http.put(`${environment.apiUrl}/user/users/${userId}`, data)
       : this.http.post(`${environment.apiUrl}/user/users`, data);
 
+    if (!data.password) delete data.password;
     obs.subscribe({
-      next: () => {
+      next: (res: any) => {
         this.isSavingUser.set(false);
+        if (res?.invite?.url) this.inviteLink.set({ name: res.fullName || res.username, url: res.invite.url });
         this.closeUserDrawer();
         this.loadUsers();
         this.toast.show('✓ ' + this.i18n.t(userId ? 'settings.toast.userUpdated' : 'settings.toast.userCreated'), 'success');
@@ -1721,6 +1794,35 @@ export class SettingsComponent implements OnInit {
         this.toast.show(this.i18n.t('settings.error', { msg: errMsg }), 'error');
       }
     });
+  }
+
+  inviteLink = signal<{ name: string; url: string } | null>(null);
+
+  reinviteUser(user: any) {
+    this.http.post<{ url: string }>(`${environment.apiUrl}/user/users/${user.id}/invite`, {}).subscribe({
+      next: (res) => {
+        this.inviteLink.set({ name: user.fullName || user.username, url: res.url });
+        this.loadUsers();
+      },
+      error: (err) => this.toast.show(this.i18n.t('settings.error', { msg: err?.error?.message || this.i18n.t('settings.toast.userSaveFailed') }), 'error'),
+    });
+  }
+
+  unlockUser(user: any) {
+    this.http.post(`${environment.apiUrl}/user/users/${user.id}/unlock`, {}).subscribe({
+      next: () => {
+        this.loadUsers();
+        this.toast.show('✓ ' + this.i18n.t('settings.users.unlocked'), 'success');
+      },
+      error: (err) => this.toast.show(this.i18n.t('settings.error', { msg: err?.error?.message || this.i18n.t('settings.toast.userSaveFailed') }), 'error'),
+    });
+  }
+
+  copyInvite(url: string) {
+    navigator.clipboard?.writeText(url).then(
+      () => this.toast.show('✓ ' + this.i18n.t('settings.users.linkCopied'), 'success'),
+      () => undefined,
+    );
   }
 
   promptDeleteUser(user: any) {

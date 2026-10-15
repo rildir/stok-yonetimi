@@ -39,6 +39,30 @@ export class UserEntity {
   @Column({ default: 0 })
   tokenVersion: number;
 
+  /** Platform operator (manages global legal parameters); independent of the tenant role */
+  @Column({ default: false })
+  isSuperAdmin: boolean;
+
+  /** Admin-issued temporary password: every call except the password change is refused */
+  @Column({ default: false })
+  mustChangePassword: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  failedLoginCount: number;
+
+  @Column({ type: 'datetime', nullable: true })
+  lockedUntil?: Date | null;
+
+  /** SHA-256 of the one-time invitation token (invited users have no usable password yet) */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  inviteTokenHash?: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  inviteExpiresAt?: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  passwordChangedAt?: Date | null;
+
   /** Optional per-user language override; falls back to company.defaultLanguage */
   @Column({ type: 'varchar', length: 5, nullable: true })
   language: string | null;

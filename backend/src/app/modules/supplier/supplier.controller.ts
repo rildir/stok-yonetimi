@@ -1,5 +1,5 @@
 import { ApiSecurity } from '@nestjs/swagger';
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 import { CreateSupplierDto, UpdateSupplierDto } from '../../dto/supplier.dto';
 import { SupplierEntity } from '../../entities/supplier.entity';
@@ -11,8 +11,9 @@ export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
   @Get()
-  async getSuppliers(): Promise<SupplierEntity[]> {
-    return this.supplierService.getSuppliers();
+  async getSuppliers(@Query('needsReview') needsReview?: string): Promise<SupplierEntity[]> {
+    const list = await this.supplierService.getSuppliers();
+    return needsReview === 'true' ? list.filter((s) => s.needsReview) : list;
   }
 
   @Get(':id')

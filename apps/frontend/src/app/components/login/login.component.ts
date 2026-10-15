@@ -103,7 +103,8 @@ import { I18nService, TranslatePipe } from '../../i18n';
         <div class="login-card">
           <h2 class="login-card-title">{{ 'login.title' | t }}</h2>
           
-          <form class="login-form" (submit)="doLogin(usernameInput.value, passwordInput.value); $event.preventDefault()">
+          @if (lockedMessage()) { <div class="readonly-banner" role="alert">{{ lockedMessage() }}</div> }
+          <form class="login-form" (submit)="lockedMessage.set(null); doLogin(usernameInput.value, passwordInput.value); $event.preventDefault()">
             <div class="form-field">
               <input 
                 type="text" 
@@ -228,6 +229,7 @@ export class LoginComponent {
   isResetSubmitted = signal(false);
   mode = signal<'login' | 'register'>('login');
   isRegisterLoading = signal(false);
+  lockedMessage = signal<string | null>(null);
 
   // Labels translated in the template via login.country.<code> / login.tz.<tz>
   readonly countries = [
@@ -297,17 +299,25 @@ export class LoginComponent {
     if (this.isLoginLoading()) return;
     this.isLoginLoading.set(true);
 
-    this.http.post<{ token: string; profile?: any; locale?: any }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
+    this.http.post<{ token: string; profile?: any; locale?: any; mustChangePassword?: boolean; passwordPolicyOk?: boolean }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({
       next: (res) => {
         this.isLoginLoading.set(false);
         localStorage.setItem('smart_inventory_token', res.token);
+        if (res.mustChangePassword) {
+          this.router.navigate(['/change-password']);
+          return;
+        }
         this.socketService.connect();
         this.applyLocaleFromResponse(res);
-        this.ui.showToast(this.i18n.t('login.toast.loggedIn'), 'success');
+        this.ui.showToast(this.i18n.t(res.passwordPolicyOk === false ? 'login.toast.weakPassword' : 'login.toast.loggedIn'), res.passwordPolicyOk === false ? 'info' : 'success');
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.isLoginLoading.set(false);
+        if (err.error?.code === 'ACCOUNT_LOCKED') {
+          this.lockedMessage.set(this.i18n.t('login.locked', { detail: err.error?.message || '' }));
+          return;
+        }
         this.ui.showToast(err.error?.message || this.i18n.t('login.toast.invalidCredentials'), 'error');
       }
     });

@@ -8,6 +8,15 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./components/login/login.component').then(m => m.LoginComponent)
   },
   {
+    path: 'invite/:token',
+    loadComponent: () => import('./components/login/account-setup.component').then(m => m.AccountSetupComponent)
+  },
+  {
+    path: 'change-password',
+    canActivate: [authGuard],
+    loadComponent: () => import('./components/login/account-setup.component').then(m => m.AccountSetupComponent)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () => import('./components/layout/layout.component').then(m => m.LayoutComponent),

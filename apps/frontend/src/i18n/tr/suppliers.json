@@ -32,5 +32,16 @@
   "suppliers.deleteTitle": "Tedarikçiyi sil",
   "suppliers.deleteMessage": "{name} kalıcı olarak silinecek, bu işlem geri alınamaz.",
   "suppliers.deleted": "Tedarikçi başarıyla silindi.",
-  "suppliers.actionFailed": "İşlem gerçekleştirilemedi."
+  "suppliers.actionFailed": "İşlem gerçekleştirilemedi.",
+  "suppliers.type.company": "Şirket",
+  "suppliers.type.individual": "Şahıs",
+  "suppliers.type.farmer": "Çiftçi (müstahsil)",
+  "suppliers.form.type": "Tedarikçi türü",
+  "suppliers.form.isForeign": "Yurt dışı tedarikçi",
+  "suppliers.form.isTaxpayer": "Fatura düzenleyen mükellef",
+  "suppliers.form.isRealTaxationFarmer": "Gerçek usulde vergilendirilen çiftçi",
+  "suppliers.section.contact": "İletişim ve performans",
+  "suppliers.review.missingTaxId": "Eski kayıt: vergi kimliği eksik",
+  "suppliers.created": "Tedarikçi eklendi.",
+  "suppliers.updated": "Tedarikçi güncellendi."
 }

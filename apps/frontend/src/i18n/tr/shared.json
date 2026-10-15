@@ -51,5 +51,17 @@
   "shared.socket.supplierDeleted": "Tedarikçi sistemden silindi.",
   "shared.socket.supplierDeletedToast": "🗑️ Tedarikçi Silindi",
   "shared.socket.passwordReset": "🔑 Şifre Sıfırlama Talebi: {fullName} ({username}) şifre sıfırlama talebinde bulundu.",
-  "shared.socket.passwordResetToast": "🔑 Şifre Sıfırlama Talebi: {username}"
+  "shared.socket.passwordResetToast": "🔑 Şifre Sıfırlama Talebi: {username}",
+  "shared.address.country": "Ülke",
+  "shared.address.province": "İl",
+  "shared.address.selectProvince": "İl seçin",
+  "shared.address.city": "Şehir / eyalet",
+  "shared.address.district": "İlçe",
+  "shared.address.selectDistrict": "İlçe seçin",
+  "shared.address.region": "Bölge",
+  "shared.address.postalCode": "Posta kodu",
+  "shared.address.postalCodeInvalid": "Posta kodu 5 haneli olmalı ve il plaka koduyla başlamalıdır.",
+  "shared.address.line1": "Adres (mahalle, cadde/sokak, no)",
+  "shared.address.line1Ph": "ör. Barbaros Mah. Begonya Sok. No:7",
+  "shared.address.line2": "Adres satırı 2 (bina, kat, daire)"
 }

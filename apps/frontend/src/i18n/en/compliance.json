@@ -1,0 +1,10 @@
+{
+  "compliance.fix": "Fix",
+  "compliance.alert.FISCAL_INFO_MISSING": "Fiscal information is missing ({fields}). Invoices and despatch advices cannot be issued.",
+  "compliance.alert.EBELGE_OVERDUE": "{kind} became mandatory on {date}, but no start of use has been recorded.",
+  "compliance.alert.EBELGE_UPCOMING": "{kind} transition is approaching: {date} ({days} days).",
+  "compliance.alert.BOOKKEEPING_TYPE_MISSING": "No bookkeeping basis selected; e-document dates may be incomplete.",
+  "compliance.alert.GROSS_SALES_MISSING": "Gross sales for {year} have not been entered.",
+  "compliance.alert.LEGAL_PARAMETER_MISSING": "Legal parameter {key} is not defined for {year}.",
+  "compliance.socket.parameterMissing": "Legal parameters missing for {year}: {keys}"
+}

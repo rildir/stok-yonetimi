@@ -30,10 +30,13 @@ loadEnv();
 import helmet from 'helmet';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app/app.module';
+import { assertSecurityConfig } from './app/shared/security/security-config';
 import { TenantContext } from './app/shared/tenant/tenant-context.service';
 import { validationExceptionFactory } from './app/shared/i18n/i18n-exception.filter';
 
 async function bootstrap() {
+  // Fail fast on insecure production configuration (e.g. missing JWT_SECRET).
+  assertSecurityConfig();
   const app = await NestFactory.create(AppModule);
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);

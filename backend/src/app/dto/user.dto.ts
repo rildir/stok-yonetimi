@@ -1,5 +1,5 @@
-import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsOptional, IsEmail, MinLength, IsIn, IsTimeZone, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsIn, IsTimeZone, ValidateIf } from 'class-validator';
+import { IsStrongPassword } from '../shared/identity/validators';
 import { SUPPORTED_LANGUAGES } from '../entities/company.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -21,11 +21,13 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'VALIDATION_USERNAME_REQUIRED' })
   username: string;
 
-  @ApiProperty({ description: 'Şifre (Min 6 karakter)', example: 'pass1234' })
+  @ApiPropertyOptional({
+    description: 'Geçici şifre (min 10 karakter, 3 karakter sınıfı). Boş bırakılırsa davet bağlantısı üretilir; verilirse kullanıcı ilk girişte değiştirmek zorundadır.',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'VALIDATION_PASSWORD_REQUIRED' })
-  @MinLength(6, { message: vmsg('VALIDATION_PASSWORD_MIN', 'min') })
-  password: string;
+  @IsStrongPassword()
+  password?: string;
 
   @ApiProperty({ description: 'Kullanıcı rolü (admin, manager, viewer)', example: 'manager' })
   @IsString()
@@ -69,10 +71,10 @@ export class UpdateUserDto {
   @IsOptional()
   role?: string;
 
-  @ApiPropertyOptional({ description: 'Yeni Şifre' })
+  @ApiPropertyOptional({ description: 'Yeni geçici şifre (kullanıcı ilk girişte değiştirir)' })
   @IsString()
   @IsOptional()
-  @MinLength(6, { message: vmsg('VALIDATION_PASSWORD_MIN', 'min') })
+  @IsStrongPassword()
   password?: string;
 }
 
@@ -117,7 +119,7 @@ export class UpdatePasswordDto {
   @ApiProperty({ description: 'Yeni şifre' })
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_NEW_PASSWORD_REQUIRED' })
-  @MinLength(6, { message: vmsg('VALIDATION_NEW_PASSWORD_MIN', 'min') })
+  @IsStrongPassword()
   newPassword: string;
 }
 
@@ -126,4 +128,17 @@ export class ResetPasswordRequestDto {
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_USERNAME_REQUIRED' })
   username: string;
+}
+
+export class AcceptInviteDto {
+  @ApiProperty({ description: 'Davet anahtarı' })
+  @IsString()
+  @IsNotEmpty({ message: 'INVITE_INVALID' })
+  token: string;
+
+  @ApiProperty({ description: 'Yeni şifre (min 10 karakter, 3 karakter sınıfı)' })
+  @IsString()
+  @IsNotEmpty({ message: 'VALIDATION_PASSWORD_REQUIRED' })
+  @IsStrongPassword()
+  password: string;
 }

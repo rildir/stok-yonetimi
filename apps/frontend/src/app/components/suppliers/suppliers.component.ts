@@ -7,11 +7,13 @@ import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs/operators';
 import { I18nService, TranslatePipe } from '../../i18n';
+import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGroup } from '../shared/address-fields.component';
+import { IdentityFieldsComponent, taxIdValidator } from '../shared/identity-fields.component';
 
 @Component({
   selector: 'app-suppliers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AddressFieldsComponent, IdentityFieldsComponent],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -71,7 +73,12 @@ import { I18nService, TranslatePipe } from '../../i18n';
             <tbody>
               @for (s of filteredSuppliers(); track s.id) {
                 <tr>
-                  <td [attr.data-label]="'suppliers.col.name' | t"><span class="sup-name">{{ s.name }}</span></td>
+                  <td [attr.data-label]="'suppliers.col.name' | t">
+                    <span class="sup-name">{{ s.name }}</span>
+                    @if (s.needsReview) { <span class="badge badge-warning sup-badge" [title]="'suppliers.review.missingTaxId' | t">{{ 'customers.filter.needsReview' | t }}</span> }
+                    @if (s.identityNumber) { <div class="sup-sub">{{ s.identityType || 'VKN' }} <span class="mono">{{ s.identityNumber }}</span>@if (s.taxOfficeName) { · {{ s.taxOfficeName }} }</div> }
+                    @if (s.address?.province) { <div class="sup-sub">{{ s.address.district ? s.address.district + ' / ' : '' }}{{ s.address.province }}</div> }
+                  </td>
                   <td [attr.data-label]="'suppliers.col.contact' | t">{{ s.contactPerson || '-' }}</td>
                   <td [attr.data-label]="'suppliers.col.rating' | t">
                     <span class="sup-stars" [title]="'suppliers.form.stars' | t: { n: s.rating || 5 }">
@@ -121,6 +128,32 @@ import { I18nService, TranslatePipe } from '../../i18n';
                 @if (isFieldInvalid('name')) { <div class="form-error">{{ 'suppliers.form.nameRequired' | t }}</div> }
               </div>
 
+              <div class="form-row">
+                <div class="form-field">
+                  <select id="supplierType" formControlName="type" class="form-input has-value">
+                    @for (t of supplierTypes; track t) { <option [value]="t">{{ 'suppliers.type.' + t | t }}</option> }
+                  </select>
+                  <label for="supplierType" class="form-label">{{ 'suppliers.form.type' | t }}</label>
+                </div>
+                <div class="form-field sup-checks">
+                  <label><input type="checkbox" formControlName="isForeign" /> {{ 'suppliers.form.isForeign' | t }}</label>
+                </div>
+              </div>
+
+              <div class="form-section-title">{{ 'customers.section.identity' | t }}</div>
+              <app-identity-fields [form]="supplierForm" idPrefix="sup" [types]="identityTypes" [provinceCode]="addressGroup.value.provinceCode"></app-identity-fields>
+              <div class="sup-check-row">
+                <label><input type="checkbox" formControlName="isTaxpayer" /> {{ 'suppliers.form.isTaxpayer' | t }}</label>
+                <label><input type="checkbox" formControlName="isVatTaxpayer" /> {{ 'customers.form.isVatTaxpayer' | t }}</label>
+                @if (supplierForm.value.type === 'farmer') {
+                  <label><input type="checkbox" formControlName="isRealTaxationFarmer" /> {{ 'suppliers.form.isRealTaxationFarmer' | t }}</label>
+                }
+              </div>
+
+              <div class="form-section-title">{{ 'customers.section.address' | t }}</div>
+              <app-address-fields [group]="addressGroup" idPrefix="sup"></app-address-fields>
+
+              <div class="form-section-title">{{ 'suppliers.section.contact' | t }}</div>
               <div class="form-field">
                 <input id="supplierContact" type="text" formControlName="contactPerson" class="form-input" [class.has-value]="hasValue('contactPerson')" [disabled]="isSaving()" />
                 <label for="supplierContact" class="form-label">{{ 'suppliers.form.contact' | t }}</label>
@@ -164,11 +197,6 @@ import { I18nService, TranslatePipe } from '../../i18n';
               </div>
 
               <div class="form-field">
-                <textarea id="supplierAddress" formControlName="address" class="form-input" [class.has-value]="hasValue('address')" [disabled]="isSaving()"></textarea>
-                <label for="supplierAddress" class="form-label">{{ 'suppliers.form.address' | t }}</label>
-              </div>
-
-              <div class="form-field">
                 <textarea id="supplierNotes" formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')" [disabled]="isSaving()"></textarea>
                 <label for="supplierNotes" class="form-label">{{ 'suppliers.form.notes' | t }}</label>
               </div>
@@ -190,6 +218,11 @@ import { I18nService, TranslatePipe } from '../../i18n';
   styles: [`
     .sup-skel { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
     .sup-name { font-weight: var(--weight-semibold); color: var(--color-text); }
+    .sup-sub { font-size: var(--text-2xs); color: var(--color-text-muted); margin-top: 2px; }
+    .sup-badge { margin-left: var(--space-2); }
+    .sup-checks { justify-content: flex-end; font-size: var(--text-sm); }
+    .sup-checks label, .sup-check-row label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+    .sup-check-row { display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm); }
     .sup-link { color: var(--color-primary-text); text-decoration: none; }
     .sup-link:hover { text-decoration: underline; }
     .sup-stars { display: inline-flex; gap: 2px; color: var(--color-border-strong); }
@@ -223,6 +256,8 @@ export class SuppliersComponent implements OnInit {
   editId = signal<string | null>(null);
  
   searchQuery = signal('');
+  readonly supplierTypes = ['company', 'individual', 'farmer'];
+  readonly identityTypes = ['VKN', 'TCKN', 'YKN', 'FOREIGN'];
 
   filteredSuppliers = computed(() => {
     const list = this.suppliers();
@@ -231,20 +266,31 @@ export class SuppliersComponent implements OnInit {
     return list.filter(s => 
       (s.name && s.name.toLowerCase().includes(query)) ||
       (s.contactPerson && s.contactPerson.toLowerCase().includes(query)) ||
-      (s.email && s.email.toLowerCase().includes(query))
+      (s.email && s.email.toLowerCase().includes(query)) ||
+      (s.identityNumber && s.identityNumber.includes(query))
     );
   });
 
+  addressGroup: FormGroup = createAddressGroup(this.fb);
   supplierForm: FormGroup = this.fb.group({
     name: ['', Validators.required],
+    type: ['company'],
+    isForeign: [false],
+    identityType: ['VKN'],
+    identityNumber: [''],
+    taxOfficeCode: [''],
+    taxOfficeName: [''],
+    isTaxpayer: [true],
+    isVatTaxpayer: [true],
+    isRealTaxationFarmer: [false],
     contactPerson: [''],
     email: ['', [Validators.email]],
     phone: [''],
-    address: [''],
+    address: this.addressGroup,
     notes: [''],
     rating: [null, [Validators.required, Validators.min(1), Validators.max(5)]],
     leadTimeDays: [3, [Validators.required, Validators.min(0)]]
-  });
+  }, { validators: taxIdValidator((f) => (f.value?.isForeign ? null : f.value?.type === 'individual' ? 'individual' : 'company')) });
 
   hasValue(fieldName: string): boolean {
     const val = this.supplierForm.get(fieldName)?.value;
@@ -284,21 +330,19 @@ export class SuppliersComponent implements OnInit {
   }
 
   openDrawer(supplier?: any) {
+    const country = this.ui.userProfile()?.company?.country || 'TR';
+    const blank = {
+      name: '', type: 'company', isForeign: false, identityType: 'VKN', identityNumber: '', taxOfficeCode: '', taxOfficeName: '',
+      isTaxpayer: true, isVatTaxpayer: true, isRealTaxationFarmer: false, contactPerson: '', email: '', phone: '', notes: '', rating: null, leadTimeDays: 3,
+    };
     if (supplier) {
       this.editId.set(supplier.id);
-      this.supplierForm.patchValue(supplier);
+      const v: any = { ...blank };
+      Object.keys(blank).forEach((k) => { if (supplier[k] !== null && supplier[k] !== undefined) v[k] = supplier[k]; });
+      this.supplierForm.reset({ ...v, address: addressToForm(supplier.address, country) });
     } else {
       this.editId.set(null);
-      this.supplierForm.reset({
-        name: '',
-        contactPerson: '',
-        email: '',
-        phone: '',
-        address: '',
-        notes: '',
-        rating: null,
-        leadTimeDays: 3
-      });
+      this.supplierForm.reset({ ...blank, address: addressToForm(null, country) });
     }
     this.isDrawerOpen.set(true);
   }
@@ -336,7 +380,15 @@ export class SuppliersComponent implements OnInit {
     }
 
     this.isSaving.set(true);
-    const data = this.supplierForm.value;
+    const raw = this.supplierForm.value;
+    const data: any = {};
+    Object.keys(raw).forEach((k) => {
+      if (k === 'address') return;
+      const v = typeof raw[k] === 'string' ? raw[k].trim() : raw[k];
+      data[k] = v === '' ? null : v;
+    });
+    data.address = addressFromForm(raw.address);
+    if (!['VKN', 'TCKN'].includes(String(data.identityType))) { data.taxOfficeCode = null; data.taxOfficeName = null; }
     
     // Normalize phone number on save
     if (data.phone) {
@@ -351,9 +403,11 @@ export class SuppliersComponent implements OnInit {
         this.isSaving.set(false);
         this.closeDrawer();
         this.loadSuppliers();
+        this.ui.showToast(this.i18n.t(id ? 'suppliers.updated' : 'suppliers.created'), 'success');
       },
-      error: () => {
+      error: (err) => {
         this.isSaving.set(false);
+        this.ui.showToast(err.error?.message || this.i18n.t('suppliers.actionFailed'), 'error');
       }
     });
   }

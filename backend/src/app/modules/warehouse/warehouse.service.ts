@@ -10,6 +10,10 @@ import { StockMovementType } from '../../entities/enums';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
+import { RefdataService } from '../../shared/services/refdata.service';
+import { FinanceService } from '../../shared/services/finance.service';
+import { CreateWarehouseDto, UpdateWarehouseDto } from '../../dto/warehouse.dto';
+import { formatAddress } from '../../entities/address.embedded';
 
 @Injectable()
 export class WarehouseService {
@@ -22,7 +26,23 @@ export class WarehouseService {
     private readonly warehouseStock: WarehouseStockService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
+    private readonly refdata: RefdataService,
+    private readonly finance: FinanceService,
   ) {}
+
+  /** Copies DTO fields onto the entity; the address is validated against the TR reference data. */
+  private async apply(wh: WarehouseEntity, dto: CreateWarehouseDto | UpdateWarehouseDto, isCreate: boolean): Promise<void> {
+    if (dto.name !== undefined) wh.name = dto.name;
+    if (dto.code !== undefined) wh.code = dto.code;
+    if (dto.isBranch !== undefined) wh.isBranch = !!dto.isBranch;
+    if (dto.branchCode !== undefined) wh.branchCode = dto.branchCode || null;
+    if (dto.siteGroup !== undefined) wh.siteGroup = dto.siteGroup ? dto.siteGroup.trim() || null : null;
+    if (dto.defaultSeries !== undefined) wh.defaultSeries = dto.defaultSeries || null;
+    if (dto.address !== undefined || isCreate) {
+      const country = (await this.finance.getCompany()).country || 'TR';
+      wh.address = await this.refdata.normalizeAddress(dto.address || {}, country);
+    }
+  }
 
   private get companyId(): string {
     return this.tenant.companyId;
@@ -52,6 +72,11 @@ export class WarehouseService {
         name: wh.name,
         code: wh.code,
         address: wh.address,
+        addressText: formatAddress(wh.address),
+        isBranch: wh.isBranch,
+        branchCode: wh.branchCode ?? null,
+        siteGroup: wh.siteGroup ?? null,
+        defaultSeries: wh.defaultSeries ?? null,
         isDefault: i === 0,
         productCount: Number(r?.productCount || 0),
         totalStock: Number(r?.totalStock || 0),
@@ -73,7 +98,7 @@ export class WarehouseService {
       .map((r) => ({ productId: r.productId, productName: r.product.name, sku: r.product.sku, quantity: r.quantity }));
   }
 
-  async createWarehouse(data: Partial<WarehouseEntity>): Promise<WarehouseEntity> {
+  async createWarehouse(data: CreateWarehouseDto): Promise<WarehouseEntity> {
     if (data.name) {
       const existing = await this.warehouseRepo.findOne({ where: { companyId: this.companyId, name: data.name, isDeleted: false } });
       if (existing) {
@@ -86,13 +111,14 @@ export class WarehouseService {
         throw new BadRequestException(err('WAREHOUSE_CODE_TAKEN', { code: data.code }));
       }
     }
-    const newWarehouse = this.warehouseRepo.create({ ...data, companyId: this.companyId });
+    const newWarehouse = this.warehouseRepo.create({ companyId: this.companyId, isBranch: false });
+    await this.apply(newWarehouse, data, true);
     const saved = await this.warehouseRepo.save(newWarehouse);
     this.appGateway.emitToCompany(this.companyId, 'warehouse_mutated', { type: 'create', warehouse: saved });
     return saved;
   }
 
-  async updateWarehouse(id: string, updates: Partial<WarehouseEntity>): Promise<WarehouseEntity | null> {
+  async updateWarehouse(id: string, updates: UpdateWarehouseDto): Promise<WarehouseEntity | null> {
     const warehouse = await this.warehouseRepo.findOne({ where: { id, companyId: this.companyId, isDeleted: false } });
     if (!warehouse) return null;
 
@@ -110,7 +136,7 @@ export class WarehouseService {
     }
 
     // Stock is keyed by warehouseId, so a rename needs no stock rewrite.
-    Object.assign(warehouse, updates);
+    await this.apply(warehouse, updates, false);
     await this.warehouseRepo.save(warehouse);
 
     this.appGateway.emitToCompany(this.companyId, 'warehouse_mutated', { type: 'update', warehouse });

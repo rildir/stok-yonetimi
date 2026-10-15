@@ -67,5 +67,13 @@
   "warehouses.transfer.serials": "Serial numbers",
   "warehouses.transfer.noSerials": "No in-stock serial numbers in this warehouse",
   "warehouses.transfer.serialsHint": "Quantity equals the number of selected serials",
-  "warehouses.transfer.serialsMismatch": "Selected serial count must equal the quantity"
+  "warehouses.transfer.serialsMismatch": "Selected serial count must equal the quantity",
+  "warehouses.branch": "Branch",
+  "warehouses.section.legal": "Branch and document series",
+  "warehouses.form.isBranch": "This location is a registered branch of the company",
+  "warehouses.form.branchCode": "Branch code",
+  "warehouses.form.defaultSeries": "Default document series (3 characters)",
+  "warehouses.form.seriesInvalid": "The series must be 3 characters (A-Z, 0-9).",
+  "warehouses.form.siteGroup": "Same-site group",
+  "warehouses.form.siteGroupHint": "Give warehouses on the same premises the same group name; transfers between them need no despatch advice."
 }

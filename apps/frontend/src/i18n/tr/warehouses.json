@@ -67,5 +67,13 @@
   "warehouses.transfer.serials": "Seri numaraları",
   "warehouses.transfer.noSerials": "Bu depoda stokta seri numarası yok",
   "warehouses.transfer.serialsHint": "Miktar seçilen seri sayısına eşitlenir",
-  "warehouses.transfer.serialsMismatch": "Seçilen seri sayısı miktara eşit olmalı"
+  "warehouses.transfer.serialsMismatch": "Seçilen seri sayısı miktara eşit olmalı",
+  "warehouses.branch": "Şube",
+  "warehouses.section.legal": "Şube ve belge serisi",
+  "warehouses.form.isBranch": "Bu lokasyon şirketin tescilli şubesidir",
+  "warehouses.form.branchCode": "Şube kodu",
+  "warehouses.form.defaultSeries": "Varsayılan belge serisi (3 karakter)",
+  "warehouses.form.seriesInvalid": "Seri 3 karakter olmalıdır (A-Z, 0-9).",
+  "warehouses.form.siteGroup": "Aynı tesis grubu",
+  "warehouses.form.siteGroupHint": "Aynı adreste bulunan depolara aynı grup adını verin; aralarındaki transferler için sevk irsaliyesi gerekmez."
 }

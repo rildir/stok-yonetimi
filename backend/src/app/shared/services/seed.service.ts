@@ -23,6 +23,13 @@ import { TrackingType } from '../../entities/tracking';
 import { STANDARD_UNITS, legacyUnitCode } from '../inventory/units';
 import { makeEan13 } from '../inventory/barcode';
 import { todayKey } from '../inventory/lot-allocation';
+import { randomBytes } from 'crypto';
+import { DistrictEntity, ProvinceEntity, TaxOfficeEntity } from '../../entities/refdata.entity';
+import { LegalParameterEntity } from '../../entities/legal-parameter.entity';
+import { TR_DISTRICTS, TR_PROVINCES, TR_TAX_OFFICES } from '../refdata/tr-refdata';
+import { LEGAL_PARAMETER_SEEDS } from '../legal/legal-parameter-seeds';
+import { seedDemoFiscalData } from './demo-fiscal.seed';
+import { isStrongPassword } from '../tr';
 
 @Injectable()
 export class SeedService implements OnModuleInit {
@@ -45,9 +52,46 @@ export class SeedService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    await this.ensureReferenceData();
     await this.seedMockDataIfEmpty();
     await this.ensureUnits();
     await this.seedTrackingDemo(DEFAULT_COMPANY.id);
+    await seedDemoFiscalData(this.dataSource.manager, DEFAULT_COMPANY.id, this.logger);
+  }
+
+  /**
+   * Global reference tables + legal parameters for databases built by schema
+   * sync (migration 1784274127000 seeds them otherwise). Idempotent.
+   */
+  private async ensureReferenceData() {
+    const m = this.dataSource.manager;
+    if (!(await m.count(ProvinceEntity))) {
+      this.logger.log('Seeding provinces / districts / tax offices...');
+      await m.insert(ProvinceEntity, TR_PROVINCES.map(([code, name]) => ({ code, name })));
+      for (let i = 0; i < TR_DISTRICTS.length; i += 300) {
+        await m.insert(DistrictEntity, TR_DISTRICTS.slice(i, i + 300).map(([id, provinceCode, name]) => ({ id, provinceCode, name })));
+      }
+      for (let i = 0; i < TR_TAX_OFFICES.length; i += 300) {
+        await m.insert(TaxOfficeEntity, TR_TAX_OFFICES.slice(i, i + 300).map(([code, provinceCode, name, district]) => ({ code, provinceCode, name, district: district || null })));
+      }
+    }
+    if (!(await m.count(LegalParameterEntity))) {
+      this.logger.log('Seeding legal parameters...');
+      for (const p of LEGAL_PARAMETER_SEEDS) {
+        await m.save(LegalParameterEntity, m.create(LegalParameterEntity, { ...p, note: p.note ?? null, createdBy: 'seed' }));
+      }
+    }
+  }
+
+  /** Initial admin password: ADMIN_PASSWORD (must satisfy the policy) or a random one-time password. */
+  private initialAdminPassword(): { password: string; mustChange: boolean } {
+    const env = process.env.ADMIN_PASSWORD;
+    if (env && isStrongPassword(env)) return { password: env, mustChange: false };
+    const generated = `${randomBytes(9).toString('base64url')}#7a`;
+    this.logger.warn(
+      `ADMIN_PASSWORD ${env ? 'does not meet the password policy' : 'is not set'}; generated one-time admin password: ${generated} (must be changed at first sign-in)`,
+    );
+    return { password: generated, mustChange: true };
   }
 
   /**
@@ -93,7 +137,7 @@ export class SeedService implements OnModuleInit {
     const unit = (code: string) => units.find((u) => u.code === code) as UnitEntity;
     const company = await m.findOneByOrFail(CompanyEntity, { id: companyId });
     const day = (offset: number) => {
-      const d = new Date(`${todayKey()}T00:00:00Z`);
+      const d = new Date(`${todayKey(company.timezone)}T00:00:00Z`);
       d.setUTCDate(d.getUTCDate() + offset);
       return d.toISOString().slice(0, 10);
     };
@@ -194,10 +238,13 @@ export class SeedService implements OnModuleInit {
     if (userCount === 0) {
       this.logger.log('Users table is empty. Seeding initial users...');
       const isProduction = process.env.NODE_ENV === 'production';
-      const initialUsers = [
+      const adminPw = this.initialAdminPassword();
+      const initialUsers: Partial<UserEntity>[] = [
         {
           username: process.env.ADMIN_USERNAME || 'admin',
-          password: this.stockHelper.hashPassword(process.env.ADMIN_PASSWORD || 'admin'),
+          password: this.stockHelper.hashPassword(adminPw.password),
+          mustChangePassword: adminPw.mustChange,
+          isSuperAdmin: true,
           role: UserRole.ADMIN,
           fullName: 'Ahmet Ildır',
           email: 'admin@sirket.com',
@@ -280,8 +327,8 @@ export class SeedService implements OnModuleInit {
     if (warehouseCount === 0) {
       this.logger.log('Warehouses table is empty. Seeding initial warehouses...');
       const initialWarehouses = [
-        { name: 'Merkez Depo', code: 'WH-001', address: 'İstanbul Merkez' },
-        { name: 'Ataşehir Şube', code: 'WH-002', address: 'Ataşehir, İstanbul' },
+        { name: 'Merkez Depo', code: 'WH-001', address: { line1: 'Merkez', provinceCode: '34', province: 'İstanbul', country: 'TR' } },
+        { name: 'Ataşehir Şube', code: 'WH-002', address: { line1: 'Barbaros Mah.', districtId: 3403, district: 'Ataşehir', provinceCode: '34', province: 'İstanbul', country: 'TR' } },
       ];
       for (const wh of initialWarehouses) {
         await this.warehouseRepo.save(this.warehouseRepo.create({ ...wh, companyId }));

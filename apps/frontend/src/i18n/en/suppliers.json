@@ -32,5 +32,16 @@
   "suppliers.deleteTitle": "Delete supplier",
   "suppliers.deleteMessage": "{name} will be permanently deleted. This action cannot be undone.",
   "suppliers.deleted": "Supplier deleted successfully.",
-  "suppliers.actionFailed": "The operation could not be completed."
+  "suppliers.actionFailed": "The operation could not be completed.",
+  "suppliers.type.company": "Company",
+  "suppliers.type.individual": "Individual",
+  "suppliers.type.farmer": "Farmer",
+  "suppliers.form.type": "Supplier type",
+  "suppliers.form.isForeign": "Foreign supplier",
+  "suppliers.form.isTaxpayer": "Registered taxpayer (issues invoices)",
+  "suppliers.form.isRealTaxationFarmer": "Farmer taxed on the real basis",
+  "suppliers.section.contact": "Contact and performance",
+  "suppliers.review.missingTaxId": "Legacy record: tax ID missing",
+  "suppliers.created": "Supplier created.",
+  "suppliers.updated": "Supplier updated."
 }

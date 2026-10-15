@@ -1,4 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsArray, IsBoolean, MaxLength, Matches, ValidateIf, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { AddressDto, addressFromLegacy } from './address.dto';
 
 export class CreateWarehouseDto {
   @IsString()
@@ -9,9 +12,31 @@ export class CreateWarehouseDto {
   @IsNotEmpty({ message: 'VALIDATION_WAREHOUSE_CODE_REQUIRED' })
   code: string;
 
-  @IsString()
+  @ApiPropertyOptional({ type: AddressDto })
+  @Transform(addressFromLegacy)
   @IsOptional()
-  address?: string;
+  @ValidateNested()
+  @Type(() => AddressDto)
+  address?: AddressDto | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isBranch?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  branchCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  siteGroup?: string | null;
+
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() || null : value))
+  @ValidateIf((_: unknown, v: unknown) => v !== undefined && v !== null && v !== '')
+  @Matches(/^[A-Z0-9]{3}$/, { message: 'INVALID_DOCUMENT_SERIES' })
+  defaultSeries?: string | null;
 }
 
 export class UpdateWarehouseDto {
@@ -23,9 +48,31 @@ export class UpdateWarehouseDto {
   @IsOptional()
   code?: string;
 
-  @IsString()
+  @ApiPropertyOptional({ type: AddressDto })
+  @Transform(addressFromLegacy)
   @IsOptional()
-  address?: string;
+  @ValidateNested()
+  @Type(() => AddressDto)
+  address?: AddressDto | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isBranch?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  branchCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  siteGroup?: string | null;
+
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() || null : value))
+  @ValidateIf((_: unknown, v: unknown) => v !== undefined && v !== null && v !== '')
+  @Matches(/^[A-Z0-9]{3}$/, { message: 'INVALID_DOCUMENT_SERIES' })
+  defaultSeries?: string | null;
 }
 
 export class TransferStockDto {

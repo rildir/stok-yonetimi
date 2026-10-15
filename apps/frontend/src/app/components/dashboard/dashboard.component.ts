@@ -9,11 +9,12 @@ import { InventoryService } from '../../inventory.service';
 import { Chart } from 'chart.js/auto';
 import { applyChartDefaults, withAlpha } from '../../utils/chart-theme';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
+import { ComplianceBannersComponent } from '../shared/compliance-banners.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, ComplianceBannersComponent],
   template: `
     <div class="page-header">
       <div>
@@ -21,6 +22,8 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
         <p>{{ 'dashboard.subtitle' | t }}</p>
       </div>
     </div>
+
+    <app-compliance-banners class="dash-compliance"></app-compliance-banners>
 
     <div class="dash">
       <div class="kpi-grid">
@@ -249,6 +252,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } 
     </div>
   `,
   styles: [`
+    .dash-compliance { margin-bottom: var(--space-4); }
     .dash { display: flex; flex-direction: column; gap: var(--space-4); padding-bottom: var(--space-10); }
     .kpi-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .kpi-meta.danger { color: var(--color-danger-text); }

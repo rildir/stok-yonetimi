@@ -156,13 +156,46 @@ export interface Order extends DocumentAmounts {
   trackingNumber?: string;
 }
 
+/** Structured address (UBL-TR PostalAddress); TR: provinceCode + districtId from /refdata. */
+export interface Address {
+  line1?: string | null;
+  line2?: string | null;
+  districtId?: number | null;
+  district?: string | null;
+  provinceCode?: string | null;
+  province?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  uavtCode?: string | null;
+}
+
+export type IdentityType = 'VKN' | 'TCKN' | 'YKN' | 'FOREIGN' | 'ANONYMOUS';
+
+export interface Province { code: string; name: string; }
+export interface District { id: number; provinceCode: string; name: string; }
+export interface TaxOffice { code: string; name: string; provinceCode: string; district?: string | null; }
+
+export type SupplierType = 'company' | 'individual' | 'farmer';
+
 export interface Supplier {
   id: string;
   name: string;
+  type?: SupplierType | string;
+  identityType?: IdentityType | string | null;
+  identityNumber?: string | null;
+  taxOfficeCode?: string | null;
+  taxOfficeName?: string | null;
+  address?: Address | null;
+  isTaxpayer?: boolean;
+  isRealTaxationFarmer?: boolean;
+  isForeign?: boolean;
+  isVatTaxpayer?: boolean;
+  needsReview?: boolean;
   contactPerson?: string;
   email?: string;
   phone?: string;
-  address?: string;
+  notes?: string;
+  rating?: number;
   leadTimeDays?: number;
 }
 
@@ -206,7 +239,13 @@ export interface Warehouse {
   code: string;
   location?: string;
   capacity?: number;
-  address?: string;
+  address?: Address | null;
+  /** One-line address (server formatted) */
+  addressText?: string;
+  isBranch?: boolean;
+  branchCode?: string | null;
+  siteGroup?: string | null;
+  defaultSeries?: string | null;
   /** Oldest active warehouse; receives stock when no warehouse is chosen */
   isDefault?: boolean;
   productCount?: number;
@@ -222,18 +261,126 @@ export interface Customer {
   type: CustomerType | string;
   email?: string | null;
   phone?: string | null;
-  taxNumber?: string | null;
-  /** ISO 3166-1 alpha-2 */
-  country?: string | null;
-  address?: string | null;
-  city?: string | null;
-  postalCode?: string | null;
+  identityType?: IdentityType | string | null;
+  identityNumber?: string | null;
+  taxOfficeCode?: string | null;
+  taxOfficeName?: string | null;
+  isVatTaxpayer?: boolean;
+  isDesignatedBuyer?: boolean;
+  passportNo?: string | null;
+  nationality?: string | null;
+  foreignTaxId?: string | null;
+  address?: Address | null;
+  addresses?: CustomerAddress[];
+  needsReview?: boolean;
+  reviewReason?: string | null;
   /** Preferred ISO 4217 currency for orders */
   currency?: string | null;
   notes?: string | null;
   orderCount?: number;
   lastOrderDate?: string | null;
   createdAt?: string;
+}
+
+export interface CustomerAddress {
+  id?: string;
+  kind: 'BILLING' | 'DELIVERY' | string;
+  label?: string | null;
+  isDefault?: boolean;
+  contactName?: string | null;
+  phone?: string | null;
+  address: Address;
+}
+
+export type BookkeepingType = 'BILANCO' | 'ISLETME' | 'BASIT';
+
+export interface FiscalStatus { complete: boolean; missing: string[]; recommended: string[]; }
+
+/** GET /company */
+export interface CompanyInfo {
+  id: string;
+  name: string;
+  country: string;
+  defaultLanguage: string;
+  baseCurrency: string;
+  timezone: string;
+  pricesIncludeTax: boolean;
+  expiryAlertDays: number;
+  legalName?: string | null;
+  taxIdType?: 'VKN' | 'TCKN' | string | null;
+  taxId?: string | null;
+  taxOfficeCode?: string | null;
+  taxOfficeName?: string | null;
+  mersisNo?: string | null;
+  tradeRegistryNo?: string | null;
+  tradeRegistryOffice?: string | null;
+  kepAddress?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: Address | null;
+  bookkeepingType?: BookkeepingType | string | null;
+  fiscalStatus?: FiscalStatus;
+}
+
+export interface GrossSales { year: number; amount: number; }
+export interface SectorFlag { code: string; since: string; }
+export interface CorporateEvent { type: string; date: string; counterpartyMandatory?: boolean; note?: string | null; }
+
+export interface EBelgeProfile {
+  annualGrossSales?: GrossSales[] | null;
+  sectorFlagsEFatura?: SectorFlag[] | null;
+  sectorFlagsEIrsaliye?: SectorFlag[] | null;
+  eFaturaSince?: string | null;
+  eArsivSince?: string | null;
+  eIrsaliyeSince?: string | null;
+  mandatoryVsVoluntary?: string | null;
+  gibWrittenNoticeDate?: string | null;
+  corporateEvents?: CorporateEvent[] | null;
+}
+
+export interface ObligationResult {
+  kind: 'eFatura' | 'eArsiv' | 'eIrsaliye';
+  status: 'not_required' | 'upcoming' | 'mandatory' | 'overdue' | 'active' | 'voluntary';
+  mandatoryFrom: string | null;
+  reason: string | null;
+  daysLeft: number | null;
+  toleranceUntil: string | null;
+  activeSince: string | null;
+}
+
+export interface ObligationReport {
+  today: string;
+  bookkeepingType: string | null;
+  eFatura: ObligationResult;
+  eArsiv: ObligationResult;
+  eIrsaliye: ObligationResult;
+  paperInvoice: { allowed: boolean; until: string | null; limit: number | null };
+  warnings: string[];
+}
+
+export interface ComplianceAlert { code: string; severity: 'error' | 'warning' | 'info'; params?: Record<string, string | number | null>; }
+
+export interface ComplianceReport {
+  today: string;
+  country: string;
+  fiscal: FiscalStatus;
+  obligations: ObligationReport | null;
+  missingParameters: string[];
+  alerts: ComplianceAlert[];
+}
+
+export interface LegalParameter {
+  id: string;
+  country: string;
+  key: string;
+  validFrom: string;
+  validTo?: string | null;
+  value: unknown;
+  sourceRef: string;
+  confidence: string;
+  note?: string | null;
+  createdBy?: string | null;
 }
 
 export interface TaxRate {
@@ -415,8 +562,8 @@ export interface WebhookDelivery {
 }
 
 // ─── Import / export ───
-export type ExportResource = 'products' | 'customers' | 'orders' | 'stock';
-export type ImportResource = 'products' | 'customers';
+export type ExportResource = 'products' | 'customers' | 'suppliers' | 'orders' | 'stock';
+export type ImportResource = 'products' | 'customers' | 'suppliers';
 
 export interface ImportRowError {
   row: number;

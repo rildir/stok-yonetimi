@@ -652,7 +652,7 @@ export class LayoutComponent implements OnInit {
           name: w.name,
           type: 'warehouse',
           typeLabel: this.i18n.t('layout.search.type.warehouse'),
-          subtitle: this.i18n.t('layout.search.warehouseSubtitle', { code: w.code, address: w.address || '-' }),
+          subtitle: this.i18n.t('layout.search.warehouseSubtitle', { code: w.code, address: [w.address?.district, w.address?.province].filter(Boolean).join(' / ') || '-' }),
           icon: '🏢',
           route: '/warehouses'
         });

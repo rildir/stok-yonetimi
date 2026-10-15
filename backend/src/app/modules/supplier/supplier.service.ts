@@ -7,6 +7,12 @@ import { ProductEntity } from '../../entities/product.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
+import { RefdataService } from '../../shared/services/refdata.service';
+import { FinanceService } from '../../shared/services/finance.service';
+import { resolvePartyIdentity, touchesIdentity } from '../../shared/identity/party-identity';
+import { CreateSupplierDto, SupplierFieldsDto, UpdateSupplierDto } from '../../dto/supplier.dto';
+
+const SIMPLE_FIELDS = ['name', 'type', 'contactPerson', 'email', 'phone', 'notes', 'rating', 'leadTimeDays', 'isTaxpayer', 'isRealTaxationFarmer', 'isForeign', 'isVatTaxpayer'] as const;
 
 @Injectable()
 export class SupplierService {
@@ -20,7 +26,41 @@ export class SupplierService {
     private readonly poRepo: Repository<PurchaseOrderEntity>,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
+    private readonly refdata: RefdataService,
+    private readonly finance: FinanceService,
   ) {}
+
+  /**
+   * Identity rules: companies and farmers (müstahsil) need a VKN or TCKN unless foreign;
+   * foreign suppliers use FOREIGN (free-form id); individuals may omit it. ANONYMOUS is not allowed.
+   */
+  private async apply(sup: SupplierEntity, dto: SupplierFieldsDto, isCreate: boolean): Promise<void> {
+    for (const k of SIMPLE_FIELDS) {
+      const v = (dto as Record<string, unknown>)[k];
+      if (v !== undefined) (sup as unknown as Record<string, unknown>)[k] = v === '' ? null : v;
+    }
+    if (!sup.type) sup.type = 'company';
+    if (isCreate || touchesIdentity(dto) || !sup.needsReview) {
+      if ((dto.identityType ?? sup.identityType) === 'ANONYMOUS') throw new BadRequestException(err('INVALID_IDENTITY_TYPE'));
+      const partyType = sup.isForeign ? null : sup.type === 'individual' ? 'individual' : 'company';
+      const id = resolvePartyIdentity({ identityType: sup.identityType ?? null, identityNumber: sup.identityNumber ?? null }, dto, partyType);
+      sup.identityType = id.identityType;
+      sup.identityNumber = id.identityNumber;
+      sup.needsReview = false;
+    }
+    if (dto.taxOfficeCode !== undefined || dto.taxOfficeName !== undefined) {
+      const office = await this.refdata.resolveTaxOffice(
+        dto.taxOfficeCode !== undefined ? dto.taxOfficeCode : sup.taxOfficeCode,
+        dto.taxOfficeName !== undefined ? dto.taxOfficeName : sup.taxOfficeName,
+      );
+      sup.taxOfficeCode = office.code;
+      sup.taxOfficeName = office.name;
+    }
+    if (dto.address !== undefined || isCreate) {
+      const country = (await this.finance.getCompany()).country || 'TR';
+      sup.address = await this.refdata.normalizeAddress(dto.address || {}, sup.isForeign ? null : country);
+    }
+  }
 
   private get companyId(): string {
     return this.tenant.companyId;
@@ -34,7 +74,7 @@ export class SupplierService {
     return this.supplierRepo.findOne({ where: { id, companyId: this.companyId, isDeleted: false } });
   }
 
-  async createSupplier(data: Partial<SupplierEntity>): Promise<SupplierEntity> {
+  async createSupplier(data: CreateSupplierDto): Promise<SupplierEntity> {
     if (data.name) {
       const existing = await this.supplierRepo.findOne({ where: { companyId: this.companyId, name: data.name, isDeleted: false } });
       if (existing) {
@@ -47,13 +87,15 @@ export class SupplierService {
         throw new BadRequestException(err('SUPPLIER_EMAIL_TAKEN', { email: data.email }));
       }
     }
-    const newSupplier = this.supplierRepo.create({ ...data, companyId: this.companyId });
+    const newSupplier = this.supplierRepo.create({ companyId: this.companyId, type: 'company', isTaxpayer: true, isVatTaxpayer: true, isForeign: false, isRealTaxationFarmer: false, needsReview: false });
+    await this.apply(newSupplier, data, true);
+    newSupplier.companyId = this.companyId;
     const saved = await this.supplierRepo.save(newSupplier);
     this.appGateway.emitToCompany(this.companyId, 'supplier_mutated', { type: 'create', supplier: saved });
     return saved;
   }
 
-  async updateSupplier(id: string, updates: Partial<SupplierEntity>): Promise<SupplierEntity | null> {
+  async updateSupplier(id: string, updates: UpdateSupplierDto): Promise<SupplierEntity | null> {
     const supplier = await this.getSupplierById(id);
     if (!supplier) return null;
 
@@ -70,7 +112,8 @@ export class SupplierService {
       }
     }
     
-    Object.assign(supplier, updates);
+    await this.apply(supplier, updates, false);
+    supplier.companyId = this.companyId;
     const saved = await this.supplierRepo.save(supplier);
     this.appGateway.emitToCompany(this.companyId, 'supplier_mutated', { type: 'update', supplier: saved });
     return saved;

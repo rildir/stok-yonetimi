@@ -23,7 +23,7 @@ export interface Supplier {
   contactPerson?: string;
   email?: string;
   phone?: string;
-  address?: string;
+  address?: { district?: string | null; province?: string | null } | null;
   rating: number;
 }
 
@@ -31,7 +31,7 @@ export interface Warehouse {
   id: string;
   name: string;
   code: string;
-  address?: string;
+  address?: { district?: string | null; province?: string | null } | null;
 }
 
 export interface GlobalSearchResult {

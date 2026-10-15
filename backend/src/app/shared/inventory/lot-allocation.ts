@@ -70,8 +70,8 @@ export function daysUntil(expiry: string | Date, today: string): number {
   return Math.round((b - a) / 86400000);
 }
 
-/** Today as YYYY-MM-DD (server local date). */
-export function todayKey(now = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
-}
+/**
+ * Today as YYYY-MM-DD in the given IANA time zone (company time zone; default
+ * Europe/Istanbul). Uses Intl, so it does not depend on the server's TZ.
+ */
+export { todayKey } from '../tr';

@@ -20,7 +20,6 @@ import { StockLotEntity } from '../../entities/stock-lot.entity';
 import { SerialNumberEntity, SerialStatus } from '../../entities/serial-number.entity';
 import { TrackingType } from '../../entities/tracking';
 import { BarcodeType, validateBarcode } from '../../shared/inventory/barcode';
-import { todayKey } from '../../shared/inventory/lot-allocation';
 import { isTracked, LotReceiptInput } from '../../shared/services/warehouse-stock.service';
 import { NotFoundException } from '@nestjs/common';
 
@@ -147,7 +146,7 @@ export class ProductService {
       where: { companyId: this.companyId, productId, quantity: MoreThan(0), ...(warehouseId ? { warehouseId } : {}) },
       relations: { warehouse: true },
     });
-    const today = todayKey();
+    const today = await this.finance.today();
     return lots
       .filter((l) => l.warehouse && !l.warehouse.isDeleted)
       .sort((a, b) => String(a.expiryDate || '9999').localeCompare(String(b.expiryDate || '9999')) || +a.createdAt - +b.createdAt)
@@ -247,7 +246,7 @@ export class ProductService {
         throw new BadRequestException(err('PRODUCT_TRACKING_CHANGE_STOCK', { name: product.name }));
       }
       const rows = await manager.find(ProductWarehouseStockEntity, { where: { companyId: this.companyId, productId: product.id, quantity: MoreThan(0) } });
-      const lotNumber = `OPEN-${todayKey().replace(/-/g, '')}`;
+      const lotNumber = `OPEN-${(await this.finance.today(manager)).replace(/-/g, '')}`;
       for (const r of rows) {
         await manager.save(
           StockLotEntity,

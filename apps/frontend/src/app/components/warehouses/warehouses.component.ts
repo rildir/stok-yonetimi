@@ -11,13 +11,15 @@ import { AppStateService } from '../../services/app-state.service';
 
 type WarehouseStockItem = { productId: string; productName: string; sku: string; quantity: number };
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
+import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGroup } from '../shared/address-fields.component';
 
 @Component({
   selector: 'app-warehouses',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AddressFieldsComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
+    .wh-check { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); cursor: pointer; }
     .dim-text { color: var(--color-text-muted); font-size: var(--text-xs); font-weight: var(--weight-regular); }
     .stock-table { width: 100%; border-collapse: collapse; }
     .stock-table th { padding: var(--space-2); border-bottom: 1px solid var(--color-border); text-align: left; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
@@ -121,7 +123,10 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                     @if (w.isDefault) { <span class="badge badge-primary" style="margin-left: var(--space-2);" [title]="'warehouses.defaultHint' | t">{{ 'warehouses.default' | t }}</span> }
                   </td>
                   <td class="mono" [attr.data-label]="'warehouses.col.code' | t">{{ w.code }}</td>
-                  <td class="text-muted" [attr.data-label]="'warehouses.col.address' | t">{{ w.address || '-' }}</td>
+                  <td class="text-muted" [attr.data-label]="'warehouses.col.address' | t">
+                    {{ w.addressText || '-' }}
+                    @if (w.isBranch) { <span class="badge badge-info" style="margin-left: var(--space-2);">{{ 'warehouses.branch' | t }}@if (w.branchCode) { · {{ w.branchCode }} }</span> }
+                  </td>
                   <td class="num" [attr.data-label]="'warehouses.col.productCount' | t">
                     @if (w.productCount === 0) {
                       <span class="dim-text">{{ 'warehouses.noProductsAssigned' | t }}</span>
@@ -185,9 +190,26 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i
                 @if (isFieldInvalid('code')) { <div class="form-error">{{ 'warehouses.form.codeRequired' | t }}</div> }
               </div>
 
+              <div class="form-section-title">{{ 'warehouses.col.address' | t }}</div>
+              <app-address-fields [group]="addressGroup" idPrefix="wh"></app-address-fields>
+
+              <div class="form-section-title">{{ 'warehouses.section.legal' | t }}</div>
+              <label class="wh-check"><input type="checkbox" formControlName="isBranch" /> {{ 'warehouses.form.isBranch' | t }}</label>
+              <div class="form-row">
+                <div class="form-field">
+                  <input id="whBranchCode" type="text" formControlName="branchCode" class="form-input mono" maxlength="20" />
+                  <label for="whBranchCode" class="form-label">{{ 'warehouses.form.branchCode' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <input id="whSeries" type="text" formControlName="defaultSeries" class="form-input mono" maxlength="3" (input)="upperSeries($event)" />
+                  <label for="whSeries" class="form-label">{{ 'warehouses.form.defaultSeries' | t }}</label>
+                  @if (isFieldInvalid('defaultSeries')) { <div class="form-error">{{ 'warehouses.form.seriesInvalid' | t }}</div> }
+                </div>
+              </div>
               <div class="form-field">
-                <textarea id="warehouseAddress" formControlName="address" class="form-input" [class.has-value]="hasValue('address')" [disabled]="isSaving()"></textarea>
-                <label for="warehouseAddress" class="form-label">{{ 'warehouses.col.address' | t }}</label>
+                <input id="whSiteGroup" type="text" formControlName="siteGroup" class="form-input" maxlength="50" />
+                <label for="whSiteGroup" class="form-label">{{ 'warehouses.form.siteGroup' | t }}</label>
+                <span class="field-hint" style="order: 3">{{ 'warehouses.form.siteGroupHint' | t }}</span>
               </div>
             </div>
             
@@ -432,11 +454,23 @@ export class WarehousesComponent implements OnInit {
     );
   });
 
+  addressGroup: FormGroup = createAddressGroup(this.fb);
   warehouseForm: FormGroup = this.fb.group({
     name: ['', Validators.required],
     code: ['', Validators.required],
-    address: ['']
+    address: this.addressGroup,
+    isBranch: [false],
+    branchCode: [''],
+    siteGroup: [''],
+    defaultSeries: ['', [Validators.pattern(/^[A-Z0-9]{3}$/)]],
   });
+
+  upperSeries(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const v = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    input.value = v;
+    this.warehouseForm.get('defaultSeries')?.setValue(v);
+  }
 
   hasValue(fieldName: string): boolean {
     const val = this.warehouseForm.get(fieldName)?.value;
@@ -479,20 +513,21 @@ export class WarehousesComponent implements OnInit {
   }
 
   openDrawer(warehouse?: any) {
+    const country = this.ui.userProfile()?.company?.country || 'TR';
     if (warehouse) {
       this.editId.set(warehouse.id);
-      this.warehouseForm.patchValue({
+      this.warehouseForm.reset({
         name: warehouse.name,
         code: warehouse.code,
-        address: warehouse.address || ''
+        address: addressToForm(warehouse.address, country),
+        isBranch: !!warehouse.isBranch,
+        branchCode: warehouse.branchCode || '',
+        siteGroup: warehouse.siteGroup || '',
+        defaultSeries: warehouse.defaultSeries || '',
       });
     } else {
       this.editId.set(null);
-      this.warehouseForm.reset({
-        name: '',
-        code: '',
-        address: ''
-      });
+      this.warehouseForm.reset({ name: '', code: '', address: addressToForm(null, country), isBranch: false, branchCode: '', siteGroup: '', defaultSeries: '' });
     }
     this.isDrawerOpen.set(true);
   }
@@ -510,7 +545,16 @@ export class WarehousesComponent implements OnInit {
     }
 
     this.isSaving.set(true);
-    const data = this.warehouseForm.value;
+    const raw = this.warehouseForm.value;
+    const data: any = {
+      name: raw.name,
+      code: raw.code,
+      address: addressFromForm(raw.address),
+      isBranch: !!raw.isBranch,
+      branchCode: raw.branchCode?.trim() || null,
+      siteGroup: raw.siteGroup?.trim() || null,
+      defaultSeries: raw.defaultSeries || null,
+    };
     const id = this.editId();
 
     const req = id ? this.inventory.updateWarehouse(id, data) : this.inventory.createWarehouse(data);

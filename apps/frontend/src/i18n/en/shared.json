@@ -51,5 +51,17 @@
   "shared.socket.supplierDeleted": "Supplier deleted from the system.",
   "shared.socket.supplierDeletedToast": "🗑️ Supplier Deleted",
   "shared.socket.passwordReset": "🔑 Password Reset Request: {fullName} ({username}) requested a password reset.",
-  "shared.socket.passwordResetToast": "🔑 Password Reset Request: {username}"
+  "shared.socket.passwordResetToast": "🔑 Password Reset Request: {username}",
+  "shared.address.country": "Country",
+  "shared.address.province": "Province",
+  "shared.address.selectProvince": "Select province",
+  "shared.address.city": "City / state",
+  "shared.address.district": "District",
+  "shared.address.selectDistrict": "Select district",
+  "shared.address.region": "Region",
+  "shared.address.postalCode": "Postal code",
+  "shared.address.postalCodeInvalid": "The postal code must have 5 digits and start with the province plate code.",
+  "shared.address.line1": "Address (neighbourhood, street, number)",
+  "shared.address.line1Ph": "e.g. Barbaros Mah. Begonya Sok. No:7",
+  "shared.address.line2": "Address line 2 (building, floor, unit)"
 }

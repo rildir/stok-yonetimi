@@ -1,4 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { AddressColumns } from './address.embedded';
+
+export type CompanyTaxIdType = 'VKN' | 'TCKN';
+export type BookkeepingType = 'BILANCO' | 'ISLETME' | 'BASIT';
 
 export type SupportedLanguage = 'tr' | 'en';
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['tr', 'en'];
@@ -40,6 +44,54 @@ export class CompanyEntity {
   /** Lots expiring within this many days are flagged (dashboard / report). */
   @Column('int', { default: 30 })
   expiryAlertDays: number;
+
+  // --- Fiscal identity (VUK 227/230, 509 IV.1.3, TTK 39) ---
+
+  /** Ticaret unvani / ad soyad as registered with the tax office */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  legalName?: string | null;
+
+  /** VKN for legal entities, TCKN for sole proprietors */
+  @Column({ type: 'varchar', length: 4, nullable: true })
+  taxIdType?: CompanyTaxIdType | string | null;
+
+  @Column({ type: 'varchar', length: 11, nullable: true })
+  taxId?: string | null;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  taxOfficeCode?: string | null;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  taxOfficeName?: string | null;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  mersisNo?: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  tradeRegistryNo?: string | null;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  tradeRegistryOffice?: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  kepAddress?: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  website?: string | null;
+
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  phone?: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email?: string | null;
+
+  /** Registered head-office address */
+  @Column(() => AddressColumns, { prefix: false })
+  address: AddressColumns;
+
+  /** Defter tutma usulu */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  bookkeepingType?: BookkeepingType | string | null;
 
   @CreateDateColumn()
   createdAt: Date;

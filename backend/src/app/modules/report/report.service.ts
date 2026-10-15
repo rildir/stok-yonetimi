@@ -255,7 +255,7 @@ export class ReportService {
   async getExpiringLots(days?: number) {
     const company = await this.finance.getCompany();
     const window = Number.isFinite(days) && (days as number) >= 0 ? (days as number) : company.expiryAlertDays || 30;
-    const today = todayKey();
+    const today = todayKey(company.timezone);
     const until = new Date(`${today}T00:00:00Z`);
     until.setUTCDate(until.getUTCDate() + window);
     const rows = await this.dataSource

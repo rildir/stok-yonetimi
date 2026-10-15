@@ -27,6 +27,10 @@ import { AuditLogEntity } from './app/entities/audit-log.entity';
 import { ApiKeyEntity } from './app/entities/api-key.entity';
 import { WebhookEndpointEntity } from './app/entities/webhook-endpoint.entity';
 import { WebhookDeliveryEntity } from './app/entities/webhook-delivery.entity';
+import { ProvinceEntity, DistrictEntity, TaxOfficeEntity } from './app/entities/refdata.entity';
+import { LegalParameterEntity } from './app/entities/legal-parameter.entity';
+import { CompanyEBelgeProfileEntity } from './app/entities/company-ebelge-profile.entity';
+import { CustomerAddressEntity } from './app/entities/customer-address.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -64,7 +68,15 @@ export const AppDataSource = new DataSource({
     ApiKeyEntity,
     WebhookEndpointEntity,
     WebhookDeliveryEntity,
+    ProvinceEntity,
+    DistrictEntity,
+    TaxOfficeEntity,
+    LegalParameterEntity,
+    CompanyEBelgeProfileEntity,
+    CustomerAddressEntity,
   ],
+  timezone: 'Z',
+  dateStrings: ['DATE'],
   migrations: [path.join(__dirname, 'app/migrations/*{.ts,.js}')],
   synchronize: false,
   logging: true,

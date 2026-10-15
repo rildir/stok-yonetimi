@@ -1,0 +1,8 @@
+{
+  "name": "tr-compliance",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/tr-compliance/src",
+  "projectType": "library",
+  "tags": ["scope:shared"],
+  "targets": {}
+}

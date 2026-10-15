@@ -1,0 +1,10 @@
+{
+  "compliance.fix": "Düzenle",
+  "compliance.alert.FISCAL_INFO_MISSING": "Mali bilgiler eksik ({fields}). Fatura ve irsaliye düzenlenemez.",
+  "compliance.alert.EBELGE_OVERDUE": "{kind} zorunluluğu {date} tarihinde başladı, ancak kullanım başlangıcı girilmedi.",
+  "compliance.alert.EBELGE_UPCOMING": "{kind} geçiş tarihi yaklaşıyor: {date} ({days} gün).",
+  "compliance.alert.BOOKKEEPING_TYPE_MISSING": "Defter tutma usulü seçilmedi; e-Belge tarihleri eksik hesaplanabilir.",
+  "compliance.alert.GROSS_SALES_MISSING": "{year} yılı brüt satış hasılatı girilmedi.",
+  "compliance.alert.LEGAL_PARAMETER_MISSING": "{year} yılı için {key} yasal parametresi tanımlı değil.",
+  "compliance.socket.parameterMissing": "{year} yılı için yasal parametreler eksik: {keys}"
+}

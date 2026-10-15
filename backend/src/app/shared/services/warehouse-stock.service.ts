@@ -10,6 +10,7 @@ import { SerialNumberEntity, SerialStatus } from '../../entities/serial-number.e
 import { TrackingEntry, TrackingType } from '../../entities/tracking';
 import { StockHelperService } from './stock-helper.service';
 import { allocateLots, todayKey } from '../inventory/lot-allocation';
+import { CompanyEntity } from '../../entities/company.entity';
 
 export interface StockAllocation {
   warehouseId: string;
@@ -397,13 +398,15 @@ export class WarehouseStockService {
         where: { companyId: product.companyId, productId: product.id, warehouseId: In(activeIds), quantity: MoreThan(0) },
         lock: { mode: 'pessimistic_write' },
       });
+      const company = await manager.findOne(CompanyEntity, { where: { id: product.companyId }, select: ['id', 'timezone'] });
+      const today = todayKey(company?.timezone);
       const result = allocateLots(lots, qty, {
         fefo: !!product.hasExpiry,
-        skipExpiredBefore: product.hasExpiry && !allowExpired ? todayKey() : null,
+        skipExpiredBefore: product.hasExpiry && !allowExpired ? today : null,
       });
       if (!result) {
         const usable = lots
-          .filter((l) => allowExpired || !product.hasExpiry || !l.expiryDate || normDate(l.expiryDate)! >= todayKey())
+          .filter((l) => allowExpired || !product.hasExpiry || !l.expiryDate || normDate(l.expiryDate)! >= today)
           .reduce((s, l) => s + l.quantity, 0);
         throw new BadRequestException(err('LOT_INSUFFICIENT_AUTO', { name: product.name, available: usable, requested: qty }));
       }

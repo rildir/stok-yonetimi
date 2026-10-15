@@ -6,6 +6,7 @@ import { ApiKeyThrottlerGuard, throttleLimit } from './guards/api-key-throttler.
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { I18nExceptionFilter } from './shared/i18n/i18n-exception.filter';
 import { HealthModule } from './modules/health/health.module';
+import { resolveJwtSecret } from './shared/security/security-config';
 
 // Entities
 import { ProductEntity } from './entities/product.entity';
@@ -32,6 +33,10 @@ import { AuditLogEntity } from './entities/audit-log.entity';
 import { ApiKeyEntity } from './entities/api-key.entity';
 import { WebhookEndpointEntity } from './entities/webhook-endpoint.entity';
 import { WebhookDeliveryEntity } from './entities/webhook-delivery.entity';
+import { ProvinceEntity, DistrictEntity, TaxOfficeEntity } from './entities/refdata.entity';
+import { LegalParameterEntity } from './entities/legal-parameter.entity';
+import { CompanyEBelgeProfileEntity } from './entities/company-ebelge-profile.entity';
+import { CustomerAddressEntity } from './entities/customer-address.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -56,6 +61,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { UnitModule } from './modules/unit/unit.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { RefdataModule } from './modules/refdata/refdata.module';
 
 @Module({
   imports: [
@@ -91,14 +97,24 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
         ApiKeyEntity,
         WebhookEndpointEntity,
         WebhookDeliveryEntity,
+        ProvinceEntity,
+        DistrictEntity,
+        TaxOfficeEntity,
+        LegalParameterEntity,
+        CompanyEBelgeProfileEntity,
+        CustomerAddressEntity,
       ],
+      // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
+      timezone: 'Z',
+      dateStrings: ['DATE'],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
       migrationsRun: false,
     }),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET || 'secret_smart_inventory_2026',
+      // Production refuses to start without a proper JWT_SECRET (see security-config.ts).
+      secret: resolveJwtSecret(),
       signOptions: { expiresIn: '24h' },
     }),
     ThrottlerModule.forRoot([{
@@ -124,6 +140,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     FinanceModule,
     UnitModule,
     IntegrationsModule,
+    RefdataModule,
     HealthModule,
   ],
   providers: [

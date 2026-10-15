@@ -15,10 +15,21 @@ import {
   IsInt,
   Min,
   Max,
+  ValidateIf,
+  IsUrl,
+  ValidateNested,
+  IsArray,
+  ArrayMaxSize,
+  IsNumber,
+  IsDefined,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { AddressDto } from './address.dto';
+import { IsKepAddress, IsMersis, IsTaxIdFor } from '../shared/identity/validators';
+import { BOOKKEEPING_TYPES, CORPORATE_EVENT_TYPES, EFATURA_SECTOR_FLAGS, EIRSALIYE_SECTOR_FLAGS } from '../shared/tr';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SUPPORTED_LANGUAGES } from '../entities/company.entity';
+import { IsStrongPassword } from '../shared/identity/validators';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 const lower = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
@@ -85,9 +96,9 @@ export class RegisterCompanyDto extends CompanySettingsDto {
   @Matches(/^[a-zA-Z0-9._-]+$/, { message: 'VALIDATION_USERNAME_PATTERN' })
   username: string;
 
-  @ApiProperty({ description: 'Şifre (Min 6 karakter)' })
+  @ApiProperty({ description: 'Şifre (min 10 karakter; büyük/küçük harf, rakam, sembolden en az 3 tür)' })
   @IsString()
-  @MinLength(6, { message: vmsg('VALIDATION_PASSWORD_MIN', 'min') })
+  @IsStrongPassword()
   password: string;
 
   @ApiProperty({ description: 'Yönetici ad soyad', example: 'Jane Doe' })
@@ -99,4 +110,231 @@ export class RegisterCompanyDto extends CompanySettingsDto {
   @IsOptional()
   @IsEmail({}, { message: 'VALIDATION_EMAIL' })
   email?: string;
+}
+
+// ─── WP1: fiscal identity ───
+
+const trimS = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+const digitsS = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.replace(/\s+/g, '') : value);
+const presentV = (_: unknown, v: unknown) => v !== undefined && v !== null && v !== '';
+
+/** PATCH /company/fiscal - every field optional (partial update); formats validated here, identity in the service. */
+export class UpdateFiscalDto {
+  @ApiPropertyOptional({ description: 'Ticaret unvanı', example: 'Demo Ticaret ve Sanayi A.Ş.' })
+  @Transform(trimS)
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  legalName?: string | null;
+
+  @ApiPropertyOptional({ enum: ['VKN', 'TCKN'] })
+  @Transform(upper)
+  @ValidateIf(presentV)
+  @IsIn(['VKN', 'TCKN'], { message: 'INVALID_IDENTITY_TYPE' })
+  taxIdType?: string | null;
+
+  @ApiPropertyOptional({ example: '4890598016' })
+  @Transform(digitsS)
+  @IsOptional()
+  @IsString()
+  @MaxLength(11)
+  @IsTaxIdFor({ typeProperty: 'taxIdType', partyProperty: '__none' })
+  taxId?: string | null;
+
+  @ApiPropertyOptional({ example: '34272' })
+  @Transform(trimS)
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  taxOfficeCode?: string | null;
+
+  @Transform(trimS)
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  taxOfficeName?: string | null;
+
+  @ApiPropertyOptional({ example: '0489059801600015' })
+  @Transform(digitsS)
+  @IsOptional()
+  @IsMersis()
+  mersisNo?: string | null;
+
+  @Transform(trimS)
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  tradeRegistryNo?: string | null;
+
+  @Transform(trimS)
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  tradeRegistryOffice?: string | null;
+
+  @ApiPropertyOptional({ example: 'demoticaret@hs01.kep.tr' })
+  @Transform(trimS)
+  @IsOptional()
+  @IsKepAddress()
+  kepAddress?: string | null;
+
+  @Transform(trimS)
+  @ValidateIf(presentV)
+  @IsUrl({ require_protocol: false }, { message: 'INVALID_WEBSITE' })
+  @MaxLength(255)
+  website?: string | null;
+
+  @Transform(trimS)
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string | null;
+
+  @Transform(trimS)
+  @ValidateIf(presentV)
+  @IsEmail({}, { message: 'VALIDATION_EMAIL' })
+  email?: string | null;
+
+  @ApiPropertyOptional({ type: AddressDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AddressDto)
+  address?: AddressDto | null;
+
+  @ApiPropertyOptional({ enum: BOOKKEEPING_TYPES })
+  @Transform(upper)
+  @ValidateIf(presentV)
+  @IsIn(BOOKKEEPING_TYPES, { message: 'INVALID_BOOKKEEPING_TYPE' })
+  bookkeepingType?: string | null;
+}
+
+// ─── WP1: e-Belge profile ───
+
+export class GrossSalesDto {
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year: number;
+
+  @IsNumber({}, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0)
+  amount: number;
+}
+
+export class SectorFlagDto {
+  @IsString()
+  @IsIn([...EFATURA_SECTOR_FLAGS, ...EIRSALIYE_SECTOR_FLAGS], { message: 'VALIDATION_FAILED' })
+  code: string;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  since: string;
+}
+
+export class CorporateEventDto {
+  @IsIn(CORPORATE_EVENT_TYPES, { message: 'VALIDATION_FAILED' })
+  type: string;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  date: string;
+
+  @IsOptional()
+  @IsBoolean()
+  counterpartyMandatory?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  note?: string | null;
+}
+
+const dateOrNull = (_: unknown, v: unknown) => v !== undefined && v !== null && v !== '';
+
+export class EBelgeProfileDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => GrossSalesDto)
+  annualGrossSales?: GrossSalesDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SectorFlagDto)
+  sectorFlagsEFatura?: SectorFlagDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SectorFlagDto)
+  sectorFlagsEIrsaliye?: SectorFlagDto[];
+
+  @ValidateIf(dateOrNull)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  eFaturaSince?: string | null;
+
+  @ValidateIf(dateOrNull)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  eArsivSince?: string | null;
+
+  @ValidateIf(dateOrNull)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  eIrsaliyeSince?: string | null;
+
+  @ValidateIf(dateOrNull)
+  @IsIn(['MANDATORY', 'VOLUNTARY'], { message: 'VALIDATION_FAILED' })
+  mandatoryVsVoluntary?: string | null;
+
+  @ValidateIf(dateOrNull)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  gibWrittenNoticeDate?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CorporateEventDto)
+  corporateEvents?: CorporateEventDto[];
+}
+
+// ─── WP1: legal parameters (super admin) ───
+
+export class CreateLegalParameterDto {
+  @ApiPropertyOptional({ example: 'TR' })
+  @IsOptional()
+  @Transform(upper)
+  @IsISO31661Alpha2({ message: 'VALIDATION_COUNTRY_CODE' })
+  country?: string;
+
+  @ApiProperty({ example: 'VUK232_INVOICE_LIMIT' })
+  @IsString({ message: 'LEGAL_PARAMETER_INVALID|reason=key' })
+  @Matches(/^[A-Za-z0-9_]{2,64}$/, { message: 'LEGAL_PARAMETER_INVALID|reason=key' })
+  key: string;
+
+  @ApiProperty({ example: '2027-01-01' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  validFrom: string;
+
+  @ApiPropertyOptional({ example: '2027-12-31' })
+  @ValidateIf(dateOrNull)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  validTo?: string | null;
+
+  @ApiProperty({ description: 'Number, string or JSON value', example: 15000 })
+  @IsDefined({ message: 'LEGAL_PARAMETER_INVALID|reason=value' })
+  value: unknown;
+
+  @ApiProperty({ example: 'VUK md. 232/2; 5xx Sıra No.lu VUK GT' })
+  @IsString({ message: 'LEGAL_PARAMETER_INVALID|reason=sourceRef' })
+  @IsNotEmpty({ message: 'LEGAL_PARAMETER_INVALID|reason=sourceRef' })
+  @MaxLength(255, { message: 'LEGAL_PARAMETER_INVALID|reason=sourceRef' })
+  sourceRef: string;
+
+  @IsOptional()
+  @IsIn(['high', 'medium', 'low'], { message: 'VALIDATION_FAILED' })
+  confidence?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string | null;
 }

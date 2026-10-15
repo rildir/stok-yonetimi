@@ -22,7 +22,8 @@ type ScopeChoice = '' | ApiKeyAccess;
 
 const CSV_TEMPLATES: Record<ImportResource, string> = {
   products: 'sku,name,category,price,quantity,minQuantity,unit,barcode,barcodeType,supplierId',
-  customers: 'name,type,email,phone,taxNumber,country,address,city,postalCode,currency,notes',
+  customers: 'name,type,identityType,identityNumber,taxOfficeCode,taxOfficeName,isVatTaxpayer,isDesignatedBuyer,email,phone,addressLine1,addressLine2,provinceCode,district,postalCode,country,currency,notes',
+  suppliers: 'name,type,identityType,identityNumber,taxOfficeCode,taxOfficeName,isTaxpayer,isVatTaxpayer,isForeign,isRealTaxationFarmer,contactPerson,email,phone,addressLine1,addressLine2,provinceCode,district,postalCode,country,rating,leadTimeDays,notes',
 };
 
 @Component({
@@ -326,6 +327,7 @@ const CSV_TEMPLATES: Record<ImportResource, string> = {
           <select class="select" [ngModel]="importResource()" (ngModelChange)="importResource.set($event); resetImport()">
             <option value="products">{{ 'integrations.resource.products' | t }}</option>
             <option value="customers">{{ 'integrations.resource.customers' | t }}</option>
+            <option value="suppliers">{{ 'integrations.resource.suppliers' | t }}</option>
           </select>
           <button class="btn btn-ghost btn-sm" (click)="downloadTemplate()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -548,7 +550,7 @@ export class IntegrationsComponent implements OnInit {
   viewDelivery = signal<WebhookDelivery | null>(null);
 
   // Import / export
-  readonly exportResources: ExportResource[] = ['products', 'customers', 'orders', 'stock'];
+  readonly exportResources: ExportResource[] = ['products', 'customers', 'suppliers', 'orders', 'stock'];
   exporting = signal<ExportResource | null>(null);
   importResource = signal<ImportResource>('products');
   csvText = signal('');
@@ -562,7 +564,7 @@ export class IntegrationsComponent implements OnInit {
     this.route.queryParams.subscribe(params => {
       const t = params['tab'] as Tab;
       const res = params['resource'];
-      if (res === 'products' || res === 'customers') this.importResource.set(res);
+      if (res === 'products' || res === 'customers' || res === 'suppliers') this.importResource.set(res);
       this.activate(t === 'webhooks' || t === 'data' ? t : 'apiKeys');
     });
   }

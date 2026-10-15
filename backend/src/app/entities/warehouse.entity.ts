@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { CompanyEntity } from './company.entity';
+import { AddressColumns } from './address.embedded';
 
 @Entity('warehouses')
 @Index('UQ_warehouses_company_name', ['companyId', 'name'], { unique: true })
@@ -21,8 +22,23 @@ export class WarehouseEntity {
   @Column()
   code: string;
 
-  @Column({ nullable: true })
-  address?: string;
+  @Column(() => AddressColumns, { prefix: false })
+  address: AddressColumns;
+
+  /** Registered branch (sube) of the company; transfers between premises need a despatch advice (VUK 230/5) */
+  @Column({ default: false })
+  isBranch: boolean;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  branchCode?: string | null;
+
+  /** Warehouses with the same site group share premises (no despatch advice between them; used by WP4) */
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  siteGroup?: string | null;
+
+  /** Default 3-character document series for this location (used by WP4 numbering) */
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  defaultSeries?: string | null;
 
   @Column({ default: false })
   isDeleted: boolean;

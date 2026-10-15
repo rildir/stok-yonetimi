@@ -154,6 +154,11 @@ export class SocketService {
       this.notify('shared.socket.passwordReset', { fullName: data.fullName, username: data.username }, 'warning');
       this.toast('shared.socket.passwordResetToast', { username: data.username }, 'info');
     });
+
+    // Yearly legal parameter (e.g. VUK 232 limit) missing for the new year: admins are told to update it.
+    this.socket.on('compliance_warning', (data: { code: string; keys: string[]; year: number }) => {
+      this.notify('compliance.socket.parameterMissing', { keys: (data.keys || []).join(', '), year: data.year }, 'warning');
+    });
   }
 
   connect() {

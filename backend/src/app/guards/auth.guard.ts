@@ -7,6 +7,7 @@ import { IS_PUBLIC_KEY } from './public.decorator';
 import { TenantContext } from '../shared/tenant/tenant-context.service';
 import { ApiKeyService } from '../modules/integrations/api-key.service';
 import { hasScope, resourceForPath } from '../shared/integrations/api-key';
+import { ALLOW_PENDING_PASSWORD_KEY } from './security.decorators';
 
 /** Raw API key from `X-API-Key` or `Authorization: Bearer sk_...`. */
 export function extractApiKey(request: any): string | undefined {
@@ -46,11 +47,11 @@ export class AuthGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException(err('AUTH_LOGIN_REQUIRED'));
     }
+    let pendingPasswordChange = false;
     try {
-      const payload = await this.jwtService.verifyAsync(token, {
-        secret: process.env.JWT_SECRET
-      });
-      
+      // Secret comes from JwtModule (resolveJwtSecret): no per-call fallback.
+      const payload = await this.jwtService.verifyAsync(token);
+
       const user = await this.userService.getUserByUsername(payload.username);
       if (!user || user.tokenVersion !== payload.tokenVersion) {
         throw new UnauthorizedException(err('AUTH_SESSION_EXPIRED'));
@@ -61,11 +62,24 @@ export class AuthGuard implements CanActivate {
       if (payload.companyId && payload.companyId !== user.companyId) {
         throw new UnauthorizedException(err('AUTH_SESSION_INVALID'));
       }
-      request['user'] = { ...payload, sub: user.id, companyId: user.companyId };
+      request['user'] = {
+        ...payload,
+        sub: user.id,
+        companyId: user.companyId,
+        role: user.role,
+        isSuperAdmin: !!user.isSuperAdmin,
+        mustChangePassword: !!user.mustChangePassword,
+      };
       this.tenant.set(user.companyId, user.username);
       this.tenant.setActor({ userId: user.id });
+      pendingPasswordChange = !!user.mustChangePassword;
     } catch {
       throw new UnauthorizedException(err('AUTH_SESSION_EXPIRED'));
+    }
+    // Admin-issued temporary password: only the password change (and profile read) is allowed.
+    if (pendingPasswordChange) {
+      const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_PENDING_PASSWORD_KEY, [context.getHandler(), context.getClass()]);
+      if (!allowed) throw new ForbiddenException(err('PASSWORD_CHANGE_REQUIRED'));
     }
     return true;
   }

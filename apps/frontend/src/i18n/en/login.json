@@ -59,5 +59,21 @@
   "login.toast.registerFailed": "Registration failed.",
   "login.toast.resetFailed": "Password reset request could not be sent.",
   "login.toast.loggedIn": "Signed in successfully.",
-  "login.toast.invalidCredentials": "Invalid username or password."
+  "login.toast.invalidCredentials": "Invalid username or password.",
+  "login.locked": "Your account is temporarily locked after too many failed attempts. {detail}",
+  "login.toast.weakPassword": "Signed in. Your password does not meet the current policy; change it under Settings > Profile.",
+  "login.invite.invalidTitle": "Invalid invitation",
+  "login.invite.invalid": "The invitation link is invalid or has expired. Ask your administrator for a new one.",
+  "login.invite.toLogin": "Back to sign in",
+  "login.invite.title": "Activate your account",
+  "login.invite.subtitle": "Choose a password for {name} ({username}) at {company}.",
+  "login.invite.done": "Your account is active.",
+  "login.changePassword.title": "Change your password",
+  "login.changePassword.subtitle": "The temporary password issued by your administrator must be replaced. Choose a new password.",
+  "login.changePassword.current": "Current (temporary) password",
+  "login.changePassword.new": "New password",
+  "login.changePassword.confirm": "Confirm new password",
+  "login.changePassword.submit": "Save password",
+  "login.policy.length": "At least {n} characters",
+  "login.policy.classes": "At least {n} of: uppercase, lowercase, digit, symbol"
 }

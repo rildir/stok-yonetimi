@@ -230,6 +230,19 @@
 }
 .readonly-banner svg { color: var(--color-warning); flex-shrink: 0; }
 
+/* Alert banners (compliance warnings, etc.): semantic tint, icon, optional action link */
+.alert-banner {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-info-border);
+  background: var(--color-info-subtle); color: var(--color-info-text);
+  border-radius: var(--radius-md); font-size: var(--text-sm); line-height: var(--leading-normal);
+}
+.alert-banner svg { flex-shrink: 0; }
+.alert-banner--danger { border-color: var(--color-danger-border); background: var(--color-danger-subtle); color: var(--color-danger-text); }
+.alert-banner--warning { border-color: var(--color-warning-border); background: var(--color-warning-subtle); color: var(--color-warning-text); }
+.alert-banner--info { border-color: var(--color-info-border); background: var(--color-info-subtle); color: var(--color-info-text); }
+
 /* 02 ─── PAGE SCAFFOLDING & GRID ────────────────────────────────────────── */
 .page { display: flex; flex-direction: column; gap: var(--space-6); }
 

@@ -4,7 +4,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { tap } from 'rxjs/operators';
 import { InventoryService } from '../../inventory.service';
-import { Customer } from '../../models/inventory.models';
+import { Customer, CustomerAddress } from '../../models/inventory.models';
+import { ComplianceService } from '../../services/compliance.service';
+import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGroup } from '../shared/address-fields.component';
+import { IdentityFieldsComponent, taxIdValidator } from '../shared/identity-fields.component';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
@@ -12,7 +15,7 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
 @Component({
   selector: 'app-customers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe, AddressFieldsComponent, IdentityFieldsComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .cust-sub { font-size: var(--text-2xs); color: var(--color-text-muted); margin-top: 2px; }
@@ -22,6 +25,17 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
     .ml-auto { margin-left: auto; margin-right: var(--space-2); }
     .upper { text-transform: uppercase; }
     @media (max-width: 640px) { .form-row { gap: var(--space-3); } }
+    .filter-chips { display: flex; gap: var(--space-2); align-items: center; }
+    .review-badge { margin-left: var(--space-2); }
+    .check-row { display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm); }
+    .check-row label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+    .review-note { display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-3); border-radius: var(--radius-md); border: var(--border-width) solid var(--color-warning-border); background: var(--color-warning-subtle); color: var(--color-warning-text); font-size: var(--text-sm); }
+    .addr-list { display: flex; flex-direction: column; gap: var(--space-2); }
+    .addr-item { display: flex; gap: var(--space-3); align-items: flex-start; justify-content: space-between; padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); font-size: var(--text-sm); }
+    .addr-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .addr-item-actions { display: flex; gap: var(--space-1); flex-shrink: 0; }
+    .addr-editor { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); border: var(--border-width) dashed var(--color-border-strong); border-radius: var(--radius-md); }
+    .addr-editor-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
   `],
   template: `
     <header class="page-header">
@@ -43,6 +57,10 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
       <div class="search-box">
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" [placeholder]="'customers.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+      </div>
+      <div class="segmented filter-chips" role="group" [attr.aria-label]="'customers.filter.label' | t">
+        <button type="button" [attr.aria-pressed]="!reviewOnly()" (click)="reviewOnly.set(false)">{{ 'customers.filter.all' | t }}</button>
+        <button type="button" [attr.aria-pressed]="reviewOnly()" (click)="reviewOnly.set(true)">{{ 'customers.filter.needsReview' | t }} ({{ reviewCount() }})</button>
       </div>
     </div>
 
@@ -85,7 +103,8 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
                 <tr>
                   <td [attr.data-label]="'customers.col.name' | t">
                     <strong>{{ c.name }}</strong>
-                    @if (c.taxNumber) { <div class="cust-sub">{{ 'customers.col.taxNumber' | t }}: {{ c.taxNumber }}</div> }
+                    @if (c.needsReview) { <span class="badge badge-warning review-badge" [title]="('customers.review.' + (c.reviewReason || 'GENERIC')) | t">{{ 'customers.filter.needsReview' | t }}</span> }
+                    @if (c.identityNumber) { <div class="cust-sub">{{ c.identityType || 'VKN' }} <span class="mono">{{ c.identityNumber }}</span>@if (c.taxOfficeName) { · {{ c.taxOfficeName }} }</div> }
                   </td>
                   <td [attr.data-label]="'customers.col.type' | t">
                     <span class="badge" [class.badge-primary]="c.type === 'company'" [class.badge-neutral]="c.type !== 'company'">
@@ -160,44 +179,87 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
                 <label for="custPhone" class="form-label">{{ 'customers.form.phone' | t }}</label>
               </div>
 
+              <div class="form-section-title">{{ 'customers.section.identity' | t }}</div>
+              @if (editingReview()) {
+                <div class="review-note" role="note">{{ ('customers.review.' + (editingReview() || 'GENERIC')) | t }}</div>
+              }
+              <app-identity-fields [form]="form" idPrefix="cust" [types]="identityTypes" [provinceCode]="addressGroup.value.provinceCode"></app-identity-fields>
+              @if (form.value.identityType === 'FOREIGN') {
+                <div class="form-row">
+                  <div class="form-field">
+                    <input id="custNat" type="text" maxlength="2" formControlName="nationality" class="form-input mono upper" (input)="upper('nationality', $event)" />
+                    <label for="custNat" class="form-label">{{ 'customers.form.nationality' | t }}</label>
+                  </div>
+                  <div class="form-field">
+                    <input id="custPassport" type="text" formControlName="passportNo" class="form-input mono" />
+                    <label for="custPassport" class="form-label">{{ 'customers.form.passportNo' | t }}</label>
+                  </div>
+                </div>
+              }
+              <div class="check-row">
+                <label><input type="checkbox" formControlName="isVatTaxpayer" /> {{ 'customers.form.isVatTaxpayer' | t }}</label>
+                <label><input type="checkbox" formControlName="isDesignatedBuyer" /> {{ 'customers.form.isDesignatedBuyer' | t }}</label>
+              </div>
+
+              <div class="form-section-title">{{ 'customers.section.address' | t }}</div>
+              <app-address-fields [group]="addressGroup" idPrefix="cust"></app-address-fields>
+
+              <div class="form-section-title">{{ 'customers.section.other' | t }}</div>
               <div class="form-field">
-                <input id="custTax" type="text" formControlName="taxNumber" class="form-input" [class.has-value]="hasValue('taxNumber')" />
-                <label for="custTax" class="form-label">{{ 'customers.form.taxNumber' | t }}</label>
-              </div>
-
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="custCountry" type="text" formControlName="country" maxlength="2" class="form-input mono upper" [class.has-value]="hasValue('country')" (input)="upper('country', $event)" />
-                  <label for="custCountry" class="form-label">{{ 'customers.form.country' | t }}</label>
-                  @if (isFieldInvalid('country')) { <div class="form-error">{{ 'customers.form.countryInvalid' | t }}</div> }
-                </div>
-                <div class="form-field">
-                  <input id="custCurrency" type="text" formControlName="currency" maxlength="3" class="form-input mono upper" [class.has-value]="hasValue('currency')" (input)="upper('currency', $event)" />
-                  <label for="custCurrency" class="form-label">{{ 'customers.form.currency' | t }}</label>
-                  @if (isFieldInvalid('currency')) { <div class="form-error">{{ 'customers.form.currencyInvalid' | t }}</div> }
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="custCity" type="text" formControlName="city" class="form-input" [class.has-value]="hasValue('city')" />
-                  <label for="custCity" class="form-label">{{ 'customers.form.city' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <input id="custPostal" type="text" formControlName="postalCode" class="form-input" [class.has-value]="hasValue('postalCode')" />
-                  <label for="custPostal" class="form-label">{{ 'customers.form.postalCode' | t }}</label>
-                </div>
-              </div>
-
-              <div class="form-field">
-                <textarea id="custAddress" formControlName="address" class="form-input" [class.has-value]="hasValue('address')"></textarea>
-                <label for="custAddress" class="form-label">{{ 'customers.form.address' | t }}</label>
+                <input id="custCurrency" type="text" formControlName="currency" maxlength="3" class="form-input mono upper" [class.has-value]="hasValue('currency')" (input)="upper('currency', $event)" />
+                <label for="custCurrency" class="form-label">{{ 'customers.form.currency' | t }}</label>
+                @if (isFieldInvalid('currency')) { <div class="form-error">{{ 'customers.form.currencyInvalid' | t }}</div> }
               </div>
 
               <div class="form-field">
                 <textarea id="custNotes" formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')"></textarea>
                 <label for="custNotes" class="form-label">{{ 'customers.form.notes' | t }}</label>
               </div>
+
+              @if (editId()) {
+                <div class="form-section-title">{{ 'customers.section.addresses' | t }}</div>
+                <div class="addr-list">
+                  @for (a of addresses(); track a.id) {
+                    <div class="addr-item">
+                      <div class="addr-item-main">
+                        <strong>{{ ('customers.addressKind.' + a.kind) | t }}@if (a.label) { · {{ a.label }} }@if (a.isDefault) { <span class="badge badge-primary review-badge">{{ 'customers.address.default' | t }}</span> }</strong>
+                        <span class="cust-sub">{{ formatAddress(a.address) }}</span>
+                      </div>
+                      <div class="addr-item-actions">
+                        <button type="button" class="icon-btn edit-btn" [title]="'common.edit' | t" [attr.aria-label]="'common.edit' | t" (click)="editAddress(a)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                        <button type="button" class="icon-btn delete-btn" [title]="'common.delete' | t" [attr.aria-label]="'common.delete' | t" (click)="removeAddress(a)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="cust-sub">{{ 'customers.address.none' | t }}</p>
+                  }
+                  @if (addrEditorOpen()) {
+                    <div class="addr-editor" [formGroup]="addrForm">
+                      <div class="form-row">
+                        <div class="form-field">
+                          <select id="addrKind" formControlName="kind" class="form-input has-value">
+                            <option value="DELIVERY">{{ 'customers.addressKind.DELIVERY' | t }}</option>
+                            <option value="BILLING">{{ 'customers.addressKind.BILLING' | t }}</option>
+                          </select>
+                          <label for="addrKind" class="form-label">{{ 'customers.address.kind' | t }}</label>
+                        </div>
+                        <div class="form-field">
+                          <input id="addrLabel" type="text" formControlName="label" class="form-input" />
+                          <label for="addrLabel" class="form-label">{{ 'customers.address.label' | t }}</label>
+                        </div>
+                      </div>
+                      <app-address-fields [group]="addrAddressGroup" idPrefix="caddr"></app-address-fields>
+                      <div class="check-row"><label><input type="checkbox" formControlName="isDefault" /> {{ 'customers.address.default' | t }}</label></div>
+                      <div class="addr-editor-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" (click)="addrEditorOpen.set(false)">{{ 'common.cancel' | t }}</button>
+                        <button type="button" class="btn btn-primary btn-sm" [disabled]="addrAddressGroup.invalid || addrSaving()" (click)="saveAddress()">{{ 'common.save' | t }}</button>
+                      </div>
+                    </div>
+                  } @else {
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="newAddress()">{{ 'customers.address.add' | t }}</button>
+                  }
+                </div>
+              }
             </div>
 
             <div class="drawer-footer">
@@ -216,6 +278,7 @@ import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../..
 })
 export class CustomersComponent implements OnInit {
   inventory = inject(InventoryService);
+  compliance = inject(ComplianceService);
   ui = inject(UiStateService);
   fb = inject(FormBuilder);
   route = inject(ActivatedRoute);
@@ -228,38 +291,55 @@ export class CustomersComponent implements OnInit {
   isSaving = signal(false);
   editId = signal<string | null>(null);
   searchQuery = signal('');
+  reviewOnly = signal(false);
+  addresses = signal<CustomerAddress[]>([]);
+  addrEditorOpen = signal(false);
+  addrEditId = signal<string | null>(null);
+  addrSaving = signal(false);
+  editingReview = signal<string | null>(null);
+  readonly identityTypes = ['ANONYMOUS', 'TCKN', 'VKN', 'YKN', 'FOREIGN'];
+  reviewCount = computed(() => this.customers().filter((c) => c.needsReview).length);
 
   canEdit = computed(() => ['admin', 'manager'].includes(this.ui.userProfile()?.role));
   canDelete = computed(() => this.ui.userProfile()?.role === 'admin');
 
   filteredCustomers = computed(() => {
     const q = this.searchQuery().toLowerCase().trim();
-    const list = this.customers();
+    const list = this.reviewOnly() ? this.customers().filter((c) => c.needsReview) : this.customers();
     if (!q) return list;
     return list.filter(c =>
-      [c.name, c.email, c.phone, c.taxNumber, c.city, c.country]
+      [c.name, c.email, c.phone, c.identityNumber, c.taxOfficeName, c.address?.province, c.address?.district, c.address?.country]
         .some(v => !!v && v.toLowerCase().includes(q))
     );
   });
 
+  addressGroup: FormGroup = createAddressGroup(this.fb);
   form: FormGroup = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
     type: ['individual'],
     email: ['', [Validators.email]],
     phone: [''],
-    taxNumber: [''],
-    country: ['', [Validators.pattern(/^[A-Z]{2}$/)]],
-    address: [''],
-    city: [''],
-    postalCode: [''],
+    identityType: ['ANONYMOUS'],
+    identityNumber: [''],
+    taxOfficeCode: [''],
+    taxOfficeName: [''],
+    isVatTaxpayer: [false],
+    isDesignatedBuyer: [false],
+    nationality: [''],
+    passportNo: [''],
+    address: this.addressGroup,
     currency: ['', [Validators.pattern(/^[A-Z]{3}$/)]],
     notes: ['']
-  });
+  }, { validators: taxIdValidator((f) => f.value?.type || null) });
+
+  addrAddressGroup: FormGroup = createAddressGroup(this.fb);
+  addrForm: FormGroup = this.fb.group({ kind: ['DELIVERY'], label: [''], isDefault: [false], address: this.addrAddressGroup });
 
   ngOnInit() {
     this.load();
     this.route.queryParams.subscribe(params => {
       this.searchQuery.set(params['q'] || '');
+      if (params['review'] === '1') this.reviewOnly.set(true);
       if (params['open'] === 'new') {
         this.openDrawer();
         this.router.navigate([], { relativeTo: this.route, queryParams: { open: null }, queryParamsHandling: 'merge', replaceUrl: true });
@@ -279,7 +359,15 @@ export class CustomersComponent implements OnInit {
   }
 
   location(c: Customer): string {
-    return [c.city, c.country].filter(Boolean).join(', ');
+    const a = c.address;
+    if (!a) return '';
+    return [a.district, a.province, a.country && a.country !== 'TR' ? a.country : null].filter(Boolean).join(' / ');
+  }
+
+  formatAddress(a: CustomerAddress['address']): string {
+    return [a?.line1, a?.line2, [a?.postalCode, [a?.district, a?.province].filter(Boolean).join(' / ')].filter(Boolean).join(' '), a?.country !== 'TR' ? a?.country : null]
+      .filter(Boolean)
+      .join(', ');
   }
 
   hasValue(name: string): boolean {
@@ -301,15 +389,25 @@ export class CustomersComponent implements OnInit {
 
   openDrawer(c?: Customer) {
     if (!this.canEdit()) return;
-    const blank = { name: '', type: 'individual', email: '', phone: '', taxNumber: '', country: '', address: '', city: '', postalCode: '', currency: '', notes: '' };
+    const country = this.ui.userProfile()?.company?.country || 'TR';
+    const blank = {
+      name: '', type: 'individual', email: '', phone: '', identityType: 'ANONYMOUS', identityNumber: '', taxOfficeCode: '', taxOfficeName: '',
+      isVatTaxpayer: false, isDesignatedBuyer: false, nationality: '', passportNo: '', currency: '', notes: '',
+    };
+    this.addrEditorOpen.set(false);
+    this.addresses.set([]);
     if (c) {
       this.editId.set(c.id);
+      this.editingReview.set(c.needsReview ? c.reviewReason || 'GENERIC' : null);
       const v: any = { ...blank };
       Object.keys(blank).forEach(k => { const val = (c as any)[k]; if (val !== null && val !== undefined) v[k] = val; });
-      this.form.reset(v);
+      if (!c.identityType) v.identityType = c.type === 'company' ? 'VKN' : 'ANONYMOUS';
+      this.form.reset({ ...v, address: addressToForm(c.address, country) });
+      this.compliance.listCustomerAddresses(c.id).subscribe({ next: (list) => this.addresses.set(list), error: () => undefined });
     } else {
       this.editId.set(null);
-      this.form.reset({ ...blank, currency: this.i18n.currency() || '' });
+      this.editingReview.set(null);
+      this.form.reset({ ...blank, currency: this.i18n.currency() || '', address: addressToForm(null, country) });
     }
     this.isDrawerOpen.set(true);
   }
@@ -325,9 +423,13 @@ export class CustomersComponent implements OnInit {
     const raw = this.form.value;
     const data: Partial<Customer> = {};
     Object.keys(raw).forEach(k => {
+      if (k === 'address') return;
       const v = typeof raw[k] === 'string' ? raw[k].trim() : raw[k];
       (data as any)[k] = v === '' ? null : v;
     });
+    if (data.identityType === 'ANONYMOUS') data.identityNumber = null;
+    if (!['VKN', 'TCKN'].includes(String(data.identityType))) { data.taxOfficeCode = null; data.taxOfficeName = null; }
+    data.address = addressFromForm(raw.address);
     const id = this.editId();
     const req = id ? this.inventory.updateCustomer(id, data) : this.inventory.createCustomer(data);
     req.subscribe({
@@ -341,6 +443,50 @@ export class CustomersComponent implements OnInit {
         this.isSaving.set(false);
         this.ui.showToast(err.error?.message || this.i18n.t('customers.actionFailed'), 'error');
       }
+    });
+  }
+
+  // ---------------------------------------------------------------- billing / delivery addresses
+  newAddress() {
+    this.addrEditId.set(null);
+    this.addrForm.reset({ kind: 'DELIVERY', label: '', isDefault: this.addresses().length === 0, address: addressToForm(null, this.ui.userProfile()?.company?.country || 'TR') });
+    this.addrEditorOpen.set(true);
+  }
+
+  editAddress(a: CustomerAddress) {
+    this.addrEditId.set(a.id || null);
+    this.addrForm.reset({ kind: a.kind, label: a.label || '', isDefault: !!a.isDefault, address: addressToForm(a.address) });
+    this.addrEditorOpen.set(true);
+  }
+
+  saveAddress() {
+    const customerId = this.editId();
+    if (!customerId) return;
+    const v = this.addrForm.value;
+    const payload: CustomerAddress = { kind: v.kind, label: v.label?.trim() || null, isDefault: !!v.isDefault, address: addressFromForm(v.address) };
+    const id = this.addrEditId();
+    this.addrSaving.set(true);
+    const req = id ? this.compliance.updateCustomerAddress(customerId, id, payload) : this.compliance.addCustomerAddress(customerId, payload);
+    req.subscribe({
+      next: () => {
+        this.addrSaving.set(false);
+        this.addrEditorOpen.set(false);
+        this.compliance.listCustomerAddresses(customerId).subscribe((list) => this.addresses.set(list));
+        this.ui.showToast(this.i18n.t('customers.address.saved'), 'success');
+      },
+      error: (err) => {
+        this.addrSaving.set(false);
+        this.ui.showToast(err.error?.message || this.i18n.t('customers.actionFailed'), 'error');
+      },
+    });
+  }
+
+  removeAddress(a: CustomerAddress) {
+    const customerId = this.editId();
+    if (!customerId || !a.id) return;
+    this.compliance.deleteCustomerAddress(customerId, a.id).subscribe({
+      next: () => this.addresses.update((list) => list.filter((x) => x.id !== a.id)),
+      error: (err) => this.ui.showToast(err.error?.message || this.i18n.t('customers.actionFailed'), 'error'),
     });
   }
 

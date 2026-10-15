@@ -152,6 +152,13 @@ export class ImportExportController {
     return this.svc.exportCustomers();
   }
 
+  @Get('export/suppliers.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="suppliers.csv"')
+  suppliers() {
+    return this.svc.exportSuppliers();
+  }
+
   @Get('export/orders.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="orders.csv"')
@@ -180,5 +187,13 @@ export class ImportExportController {
   @ApiOperation({ summary: 'CSV müşteri içe aktarma (e-posta ile eşleşir); dryRun=true yalnızca doğrular' })
   importCustomers(@Body() dto: CsvImportDto, @Query('dryRun') dryRun: string, @Headers('accept-language') al: string) {
     return this.svc.importCustomers(dto.csv, dryRun !== 'false', resolveLang(al));
+  }
+
+  @Roles('admin', 'manager')
+  @Post('import/suppliers')
+  @ApiQuery({ name: 'dryRun', required: false, type: Boolean })
+  @ApiOperation({ summary: 'CSV tedarikçi içe aktarma (ad ile eşleşir); dryRun=true yalnızca doğrular' })
+  importSuppliers(@Body() dto: CsvImportDto, @Query('dryRun') dryRun: string, @Headers('accept-language') al: string) {
+    return this.svc.importSuppliers(dto.csv, dryRun !== 'false', resolveLang(al));
   }
 }
