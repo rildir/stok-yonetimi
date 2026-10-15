@@ -1,0 +1,3 @@
+# WP5: vendored GİB packages, generated SEF and golden UBL fixtures are hashed / compared byte for byte.
+backend/src/assets/ebelge/** -text
+backend/src/app/shared/ebelge/ubl/__fixtures__/golden/** -text
