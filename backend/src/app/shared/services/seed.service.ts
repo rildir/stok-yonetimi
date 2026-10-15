@@ -35,7 +35,7 @@ import { isStrongPassword, NON_SI_STANDARD_UNIT_CODES, STANDARD_UNIT_DECIMALS } 
 import { seedDemoInventoryCore } from './demo-inventory.seed';
 import { seedDemoTaxData } from './demo-tax.seed';
 import { taxCodeSeedStatements } from '../finance/tax-code-seeds';
-import { WP3_FIX_PARAMETER_KEYS, WP3_PARAMETER_KEYS } from '../legal/legal-parameter-seeds';
+import { WP3_FIX2_PARAMETER_KEYS, WP3_FIX_PARAMETER_KEYS, WP3_PARAMETER_KEYS } from '../legal/legal-parameter-seeds';
 import { randomUUID } from 'crypto';
 import { ensureImmutabilityTriggers } from '../inventory/immutability-triggers';
 import { pickParameter } from './legal-parameter.service';
@@ -84,7 +84,7 @@ export class SeedService implements OnModuleInit {
       this.logger.log('Seeding UBL-TR tax code lists...');
       for (const st of taxCodeSeedStatements(randomUUID)) await m.query(st.sql, st.params);
     }
-    for (const p of LEGAL_PARAMETER_SEEDS.filter((x) => WP3_PARAMETER_KEYS.includes(x.key) || WP3_FIX_PARAMETER_KEYS.includes(x.key))) {
+    for (const p of LEGAL_PARAMETER_SEEDS.filter((x) => WP3_PARAMETER_KEYS.includes(x.key) || WP3_FIX_PARAMETER_KEYS.includes(x.key) || WP3_FIX2_PARAMETER_KEYS.includes(x.key))) {
       await m.query(
         'INSERT IGNORE INTO `legal_parameters` (`id`, `country`, `key`, `validFrom`, `validTo`, `value`, `sourceRef`, `confidence`, `note`, `createdBy`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [randomUUID(), p.country, p.key, p.validFrom, p.validTo, JSON.stringify(p.value), p.sourceRef, p.confidence, p.note || null, 'seed'],

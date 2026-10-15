@@ -11,6 +11,7 @@ import { InventoryCoreReviewFixes1784274130000 } from '../../migrations/17842741
 import { MakerCheckerControlRequests1784274131000 } from '../../migrations/1784274131000-MakerCheckerControlRequests';
 import { TaxEngine1784274132000 } from '../../migrations/1784274132000-TaxEngine';
 import { TaxEngineReviewFixes1784274133000 } from '../../migrations/1784274133000-TaxEngineReviewFixes';
+import { TaxEngineReviewFixes21784274134000 } from '../../migrations/1784274134000-TaxEngineReviewFixes2';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -32,4 +33,5 @@ export const MIGRATIONS = [
   MakerCheckerControlRequests1784274131000,
   TaxEngine1784274132000,
   TaxEngineReviewFixes1784274133000,
+  TaxEngineReviewFixes21784274134000,
 ];

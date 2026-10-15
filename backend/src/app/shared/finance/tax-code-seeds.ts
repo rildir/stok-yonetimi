@@ -248,6 +248,11 @@ const FULL_W: [code: string, of: string][] = [
   ['825', '627'],
 ];
 
+/** 8xx names that differ from their 6xx counterpart in v1.43 (818 adds lead). */
+const FULL_W_NAMES: Record<string, [tr: string, en: string]> = {
+  '818': ['Bakır, Çinko, Alüminyum ve Kurşun Ürünlerinin Teslimi', 'Copper, zinc, aluminium and lead products'],
+};
+
 export const WITHHOLDING_CODE_SEEDS: WithholdingSeed[] = [
   ...PARTIAL_W.map(([code, nameTr, nameEn, numerator, scope, designated, ref]): WithholdingSeed => ({
     code,
@@ -269,8 +274,8 @@ export const WITHHOLDING_CODE_SEEDS: WithholdingSeed[] = [
     const p = PARTIAL_W.find((w) => w[0] === of)!;
     return {
       code,
-      nameTr: `${p[1]} (tam tevkifat)`,
-      nameEn: `${p[2]} (full withholding)`,
+      nameTr: `${FULL_W_NAMES[code]?.[0] ?? p[1]} (tam tevkifat)`,
+      nameEn: `${FULL_W_NAMES[code]?.[1] ?? p[2]} (full withholding)`,
       numerator: 10,
       scope: 'FULL',
       requiresDesignatedBuyer: p[5],

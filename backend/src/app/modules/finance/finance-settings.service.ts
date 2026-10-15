@@ -44,7 +44,8 @@ export class FinanceSettingsService {
   /** Legal KDV rates valid on `date` for the company's country (TR: legal_parameters KDV_RATE_CATALOG). */
   async catalog(date?: string): Promise<{ country: string; date: string; locked: boolean; rates: { rate: number; code: string; isDefault?: boolean }[]; sourceRef: string | null; validTo?: string | null }> {
     const company = await this.finance.getCompany();
-    const day = date && isDateKey(date) ? date : todayKey(company.timezone);
+    if (date && !isDateKey(date)) throw new BadRequestException(err('VALIDATION_DATE'));
+    const day = date || todayKey(company.timezone);
     const locked = isTrCompany(company);
     if (!locked) return { country: company.country, date: day, locked, rates: [], sourceRef: null };
     const row = pickParameter(await this.legalParams.list(company.country, 'KDV_RATE_CATALOG'), day);
@@ -251,7 +252,8 @@ export class FinanceSettingsService {
 
   /** Rate the tax engine would use for `currency` on `taxPointDate`. */
   async taxRateFor(currency: string, taxPointDate?: string) {
-    const day = taxPointDate && isDateKey(taxPointDate) ? taxPointDate : await this.finance.today();
+    if (taxPointDate && !isDateKey(taxPointDate)) throw new BadRequestException(err('VALIDATION_DATE'));
+    const day = taxPointDate || (await this.finance.today());
     return { currency: currency.toUpperCase(), taxPointDate: day, ...(await this.finance.taxFxRate(currency, day)) };
   }
 }

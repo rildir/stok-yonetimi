@@ -108,6 +108,19 @@ export function lastWeekdayOnOrBefore(key: string): string {
 }
 
 /**
+ * True when no TCMB bulletin is due on any day after `rateDate` up to `expected`: every weekday
+ * in (rateDate, expected] is a listed no-bulletin day (public holiday, legal parameter
+ * TCMB_NO_BULLETIN_DAYS). Used when the TCMB archive cannot confirm the gap (manual rates, outage).
+ */
+export function gapIsNoBulletinDays(rateDate: string, expected: string, noBulletinDays: ReadonlySet<string>): boolean {
+  if (rateDate >= expected) return true;
+  for (let k = shiftDay(rateDate, 1), i = 0; k <= expected && i < 400; k = shiftDay(k, 1), i++) {
+    if (!isWeekend(k) && !noBulletinDays.has(k)) return false;
+  }
+  return true;
+}
+
+/**
  * Last bulletin day already announced at `now`: today after the 15:30 (Europe/Istanbul)
  * announcement on a weekday, else the previous weekday. `todayIstanbul` / `minutesIstanbul`
  * are the date and minutes since midnight in Europe/Istanbul.

@@ -9,7 +9,7 @@ import { CustomerEntity } from '../../entities/customer.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { OrderEntity } from '../../entities/order.entity';
 import { TenantContext } from '../tenant/tenant-context.service';
-import { RateRow, TaxFxRate, convertAmount, expectedBulletinDay, findRate, lastPublishedBulletinDay, selectTaxFxRate } from '../finance/currency';
+import { RateRow, TaxFxRate, convertAmount, expectedBulletinDay, findRate, gapIsNoBulletinDays, lastPublishedBulletinDay, selectTaxFxRate } from '../finance/currency';
 import {
   InvoiceTypeHint,
   PricedDocument,
@@ -184,10 +184,13 @@ export class FinanceService {
    * Staleness: the tax point calls for one bulletin day (expectedBulletinDay). When the newest
    * stored rate is older, the TCMB archive is asked for the missing days (company fetches rates
    * automatically); days the archive answers "no bulletin" (public holidays) confirm the older
-   * rate. An unconfirmed older rate is flagged `stale` (warning on quotes) and refused with 422
-   * FX_RATE_STALE when `strict` (freezing a document) or when it is more than
-   * KDV_FX_MAX_STALE_DAYS calendar days older than the expected bulletin. A tax point after the
-   * last published bulletin gets the latest rate flagged `provisional`. No rate: 422 FX_RATE_NOT_FOUND.
+   * rate. When the archive cannot answer (manual rates, TCMB outage) a gap made only of listed
+   * public holidays (legal parameter TCMB_NO_BULLETIN_DAYS) confirms it as well. An unconfirmed
+   * older rate is flagged `stale` (warning on quotes) and refused with 422 FX_RATE_STALE when
+   * `strict` (freezing a document) or when it is more than KDV_FX_MAX_STALE_DAYS calendar days
+   * older than the expected bulletin. A tax point after the last published bulletin gets the latest
+   * rate flagged `provisional`; freezing at such a rate is refused (422 FX_RATE_PROVISIONAL_FREEZE).
+   * No rate: 422 FX_RATE_NOT_FOUND.
    */
   async taxFxRate(currency: string, taxPointDate: string, manager?: EntityManager, opts: { strict?: boolean } = {}): Promise<TaxFxRate> {
     const company = await this.getCompany(manager);
@@ -209,8 +212,12 @@ export class FinanceService {
       confirmed = !!hit && (hit.date >= expected || (r.confirmed && (!r.date || r.date <= hit.date)));
     }
     if (!hit) throw new UnprocessableEntityException(err('FX_RATE_NOT_FOUND', { currency: cur, date: taxPointDate }));
+    if (!confirmed) confirmed = gapIsNoBulletinDays(hit.date, expected, await this.noBulletinDays(hit.date, expected, country));
     const out: TaxFxRate = { ...hit, expectedDate: expected };
-    if (provisional) out.provisional = true;
+    if (provisional) {
+      if (opts.strict) throw new UnprocessableEntityException(err('FX_RATE_PROVISIONAL_FREEZE', { currency: cur, date: taxPointDate, rateDate: hit.date }));
+      out.provisional = true;
+    }
     if (!confirmed) {
       const maxDays = await this.legalParams.paramOrNull<number>('KDV_FX_MAX_STALE_DAYS', taxPointDate, country);
       const tooOld = maxDays !== null && maxDays !== undefined && daysBetween(hit.date, expected) > Number(maxDays);
@@ -218,6 +225,18 @@ export class FinanceService {
         throw new UnprocessableEntityException(err('FX_RATE_STALE', { currency: cur, date: taxPointDate, rateDate: hit.date, expected }));
       }
       out.stale = true;
+    }
+    return out;
+  }
+
+  /** Listed weekday public holidays (TCMB_NO_BULLETIN_DAYS, one row per year) between two days. */
+  private async noBulletinDays(from: string, to: string, country: string): Promise<Set<string>> {
+    const out = new Set<string>();
+    for (let y = Number(from.slice(0, 4)); y <= Number(to.slice(0, 4)); y++) {
+      for (const d of [`${y}-01-01`, `${y}-12-31`]) {
+        const v = await this.legalParams.paramOrNull<string[]>('TCMB_NO_BULLETIN_DAYS', d, country);
+        if (Array.isArray(v)) v.forEach((x) => out.add(String(x).slice(0, 10)));
+      }
     }
     return out;
   }
@@ -268,7 +287,9 @@ export class FinanceService {
    * TR: the company's catalog row valid on `date` that corresponds to `row` (same position in
    * legal_parameters KDV_RATE_CATALOG: general / reduced / super-reduced). Creates the closed
    * system version (validFrom / validTo = that catalog period) when the company has none and links
-   * the newer row to it (supersedesId). Null when the catalog has no entry for `date`.
+   * the newer row to it (supersedesId); the creation runs under a lock on the company row so two
+   * concurrent first uses cannot insert the version twice. 422 TAX_RATE_CATALOG_NO_ENTRY when the
+   * catalog has no entry for `date` (a tax point before the first catalogued period).
    */
   private async catalogVersionOn(row: TaxRateEntity, date: string, manager?: EntityManager): Promise<TaxRateEntity | null> {
     if (row.kind !== 'STANDARD' || !row.code || !row.validFrom) return null;
@@ -276,16 +297,21 @@ export class FinanceService {
     const catalogs = await this.legalParams.list(company.country || 'TR', 'KDV_RATE_CATALOG');
     const current = pickParameter(catalogs, String(row.validFrom).slice(0, 10));
     const then = pickParameter(catalogs, date);
+    if (current && !then) throw new UnprocessableEntityException(err('TAX_RATE_CATALOG_NO_ENTRY', { date }));
     if (!current || !then || current === then) return null;
     const idx = (current.value as { code: string }[]).findIndex((r) => r.code === row.code);
     const target = idx >= 0 ? (then.value as { rate: number; code: string }[])[idx] : undefined;
     if (!target) return null;
-    const m = this.m(manager);
-    const candidates = await m.find(TaxRateEntity, { where: { companyId: this.tenant.companyId, code: target.code, kind: 'STANDARD', isDeleted: false } });
     const covers = (r: TaxRateEntity) =>
       (!r.validFrom || String(r.validFrom).slice(0, 10) <= date) && (!r.validTo || String(r.validTo).slice(0, 10) >= date) && Number(r.rate) === Number(target.rate);
-    let older = candidates.find(covers) || null;
-    if (!older) {
+    const find = async (m: EntityManager) =>
+      (await m.find(TaxRateEntity, { where: { companyId: this.tenant.companyId, code: target.code, kind: 'STANDARD', isDeleted: false } })).find(covers) || null;
+    const existing = await find(this.m(manager));
+    if (existing) return this.linkSuperseded(row, existing, manager);
+    const create = async (m: EntityManager) => {
+      await m.query('SELECT `id` FROM `companies` WHERE `id` = ? FOR UPDATE', [this.tenant.companyId]);
+      let older = await find(m);
+      if (older) return older;
       older = await m.save(
         TaxRateEntity,
         m.create(TaxRateEntity, {
@@ -302,9 +328,16 @@ export class FinanceService {
           taxTypeCode: row.taxTypeCode || '0015',
         }),
       );
-    }
+      return older;
+    };
+    const older = manager?.queryRunner?.isTransactionActive ? await create(manager) : await this.dataSource.transaction(create);
+    return this.linkSuperseded(row, older, manager);
+  }
+
+  private async linkSuperseded(row: TaxRateEntity, older: TaxRateEntity, manager?: EntityManager): Promise<TaxRateEntity> {
     if (!row.supersedesId && older.validTo && String(older.validTo).slice(0, 10) < String(row.validFrom).slice(0, 10)) {
-      await m.update(TaxRateEntity, { id: row.id, companyId: this.tenant.companyId }, { supersedesId: older.id });
+      await this.m(manager).update(TaxRateEntity, { id: row.id, companyId: this.tenant.companyId }, { supersedesId: older.id });
+      row.supersedesId = older.id;
     }
     return older;
   }
@@ -331,6 +364,8 @@ export class FinanceService {
     const tr = isTrCompany(company);
     const date = input.taxPointDate;
     if (!isDateKey(date)) throw new BadRequestException(err('VALIDATION_DATE'));
+    // A document is frozen once the taxable event happened: never at a future tax point.
+    if (input.freeze && date > todayKey(company.timezone)) throw new UnprocessableEntityException(err('TAX_POINT_IN_FUTURE', { date, today: todayKey(company.timezone) }));
     const currency = input.currency.toUpperCase();
     const warnings: DocWarning[] = [];
     const warn = (code: string, params?: Record<string, string | number>) => {

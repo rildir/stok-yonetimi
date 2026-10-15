@@ -106,9 +106,20 @@ describe('FinanceService review fixes', () => {
         return row;
       }),
       update: jest.fn(async (_e: any, where: any, patch: any) => Object.assign(rows[where.id], patch)),
+      query: jest.fn(async () => []),
     };
     const legal = {
-      paramOrNull: jest.fn(async (key: string) => (key === 'KDV_FX_RATE_DAY' ? 'PREVIOUS_BULLETIN' : key === 'KDV_FX_MAX_STALE_DAYS' ? (opts.staleDays === undefined ? 10 : opts.staleDays) : null)),
+      paramOrNull: jest.fn(async (key: string, date: string) =>
+        key === 'KDV_FX_RATE_DAY'
+          ? 'PREVIOUS_BULLETIN'
+          : key === 'KDV_FX_MAX_STALE_DAYS'
+            ? opts.staleDays === undefined
+              ? 10
+              : opts.staleDays
+            : key === 'TCMB_NO_BULLETIN_DAYS'
+              ? (LEGAL_PARAMETER_SEEDS.find((p) => p.key === key && p.validFrom <= date && (!p.validTo || p.validTo >= date))?.value ?? null)
+              : null,
+      ),
       param: jest.fn().mockResolvedValue(12000),
       list: jest.fn().mockResolvedValue(catalogRows),
     };
@@ -117,7 +128,7 @@ describe('FinanceService review fixes', () => {
       withholding: jest.fn(async (code: string) => ({ ...WITHHOLDING_CODE_SEEDS.find((x) => x.code === code)!, denominator: 10 })),
       otv: jest.fn(),
     };
-    const fin = new FinanceService({ companyId: 'c1' } as any, { manager } as any, legal as any, taxCodes as any);
+    const fin = new FinanceService({ companyId: 'c1' } as any, { manager, transaction: (fn: any) => fn(manager) } as any, legal as any, taxCodes as any);
     return { fin, manager, rows, saved };
   }
 
@@ -133,9 +144,9 @@ describe('FinanceService review fixes', () => {
     expect((await fin.resolveProductRate({ taxRateId: 'k20', name: 'Demir' }, '2026-10-15', (fin as any).dataSource.manager))!.rate).toBe(20);
   });
 
-  it('a tax point before any catalog entry is refused', async () => {
+  it('a tax point before any catalog entry is refused with a catalog error', async () => {
     const { fin } = make();
-    await fin.resolveProductRate({ taxRateId: 'k20', name: 'Demir' }, '2007-05-01', (fin as any).dataSource.manager).catch((e) => expect(err(e)).toBe('TAX_RATE_NOT_VALID_ON_DATE'));
+    await fin.resolveProductRate({ taxRateId: 'k20', name: 'Demir' }, '2007-05-01', (fin as any).dataSource.manager).catch((e) => expect(err(e)).toBe('TAX_RATE_CATALOG_NO_ENTRY'));
     expect.assertions(1);
   });
 
@@ -157,6 +168,33 @@ describe('FinanceService review fixes', () => {
     await fin.taxFxRate('USD', '2026-10-13', m, { strict: true }).catch((e) => expect(err(e)).toBe('FX_RATE_STALE'));
     const old = make({ rates: [usd('2026-09-01')] });
     await old.fin.taxFxRate('USD', '2026-10-13', (old.fin as any).dataSource.manager).catch((e) => expect(err(e)).toBe('FX_RATE_STALE'));
+    expect.assertions(3);
+  });
+
+  it('manual rates: a gap made of listed public holidays confirms the older rate, even when freezing', async () => {
+    // 19.05.2026 (Tuesday) is a holiday: tax point 20.05 calls for 19.05, the 18.05 rate is the right one.
+    const { fin } = make({ rates: [usd('2026-05-18')] });
+    const fx = await fin.taxFxRate('USD', '2026-05-20', (fin as any).dataSource.manager, { strict: true });
+    expect(fx).toMatchObject({ date: '2026-05-18', expectedDate: '2026-05-19' });
+    expect(fx.stale).toBeUndefined();
+    // Kurban Bayramı 27-29.05.2026 (Wed-Fri) + weekend: tax point 01.06 -> 26.05 rate confirmed.
+    const k = make({ rates: [usd('2026-05-26')] });
+    expect((await k.fin.taxFxRate('USD', '2026-06-01', (k.fin as any).dataSource.manager, { strict: true })).date).toBe('2026-05-26');
+    // An ordinary weekday in the gap is not confirmed.
+    const s = make({ rates: [usd('2026-05-15')] });
+    await s.fin.taxFxRate('USD', '2026-05-20', (s.fin as any).dataSource.manager, { strict: true }).catch((e) => expect(err(e)).toBe('FX_RATE_STALE'));
+    expect.assertions(4);
+  });
+
+  it('a provisional (future) rate is never frozen; a future tax point cannot freeze a document', async () => {
+    const { fin } = make({ rates: [usd('2026-10-14')] });
+    const m = (fin as any).dataSource.manager;
+    const future = '2099-12-01';
+    expect((await fin.taxFxRate('USD', future, m)).provisional).toBe(true);
+    await fin.taxFxRate('USD', future, m, { strict: true }).catch((e) => expect(err(e)).toBe('FX_RATE_PROVISIONAL_FREEZE'));
+    await fin
+      .priceDocumentFor({ kind: 'SALE', lines: [], currency: 'TRY', taxPointDate: future, freeze: true }, m)
+      .catch((e) => expect(err(e)).toBe('TAX_POINT_IN_FUTURE'));
     expect.assertions(3);
   });
 

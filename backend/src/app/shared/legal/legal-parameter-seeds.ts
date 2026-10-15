@@ -196,6 +196,36 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     confidence: 'low',
     note: 'Vergiyi doğuran olayın gerektirdiği bülten kayıtlı değilse ve TCMB arşivi aradaki günlerde bülten olmadığını (tatil) doğrulayamazsa, bu kadar günden eski kur kullanılmaz (FX_RATE_STALE). Belge kesinleşirken doğrulanamayan eski kur hiç kullanılmaz.',
   },
+  {
+    country: TR,
+    key: 'TCMB_NO_BULLETIN_DAYS',
+    validFrom: '2025-01-01',
+    validTo: '2025-12-31',
+    value: ['2025-01-01', '2025-03-31', '2025-04-01', '2025-04-23', '2025-05-01', '2025-05-19', '2025-06-06', '2025-06-09', '2025-07-15', '2025-10-29'],
+    sourceRef: '2429 s. Ulusal Bayram ve Genel Tatiller Hakkında Kanun md. 1-2; Diyanet 2025 dini günler takvimi (Ramazan Bayramı 30.03-01.04, Kurban Bayramı 06-09.06)',
+    confidence: 'medium',
+    note: 'Hafta içine denk gelen ve TCMB gösterge kuru yayımlanmayan tam gün tatiller. TCMB arşivi tatili doğrulayamadığında (elle kur girişi, arşiv hatası) kullanılır. Arife yarım günleri listede yoktur (bülten yayımlanır).',
+  },
+  {
+    country: TR,
+    key: 'TCMB_NO_BULLETIN_DAYS',
+    validFrom: '2026-01-01',
+    validTo: '2026-12-31',
+    value: ['2026-01-01', '2026-03-20', '2026-04-23', '2026-05-01', '2026-05-19', '2026-05-27', '2026-05-28', '2026-05-29', '2026-07-15', '2026-10-29'],
+    sourceRef: '2429 s. Ulusal Bayram ve Genel Tatiller Hakkında Kanun md. 1-2; Diyanet 2026 dini günler takvimi (Ramazan Bayramı 20-22.03, Kurban Bayramı 27-30.05)',
+    confidence: 'medium',
+    note: 'Hafta içine denk gelen ve TCMB gösterge kuru yayımlanmayan tam gün tatiller. TCMB arşivi tatili doğrulayamadığında (elle kur girişi, arşiv hatası) kullanılır. Arife yarım günleri listede yoktur (bülten yayımlanır).',
+  },
+  {
+    country: TR,
+    key: 'TCMB_NO_BULLETIN_DAYS',
+    validFrom: '2027-01-01',
+    validTo: '2027-12-31',
+    value: ['2027-01-01', '2027-04-23', '2027-07-15', '2027-08-30', '2027-10-29'],
+    sourceRef: '2429 s. Ulusal Bayram ve Genel Tatiller Hakkında Kanun md. 1-2 (yalnızca sabit tarihli tatiller)',
+    confidence: 'low',
+    note: '2027 dini bayram günleri (Ramazan / Kurban Bayramı) Diyanet takvimi kesinleşince POST /admin/legal-parameters ile eklenmelidir; eklenmeden önce elle kur giren şirketler o günlerden sonraki belgeleri kesinleştiremez (FX_RATE_STALE).',
+  },
 ];
 
 
@@ -204,3 +234,6 @@ export const WP3_PARAMETER_KEYS = ['KDV_RATE_CATALOG', 'KDV_FX_RATE_DAY', 'TCMB_
 
 /** Keys added by migration 1784274133000 (WP3 review fixes). */
 export const WP3_FIX_PARAMETER_KEYS = ['KDV_FX_MAX_STALE_DAYS'];
+
+/** Keys added by migration 1784274134000 (WP3 review fixes, round 2). */
+export const WP3_FIX2_PARAMETER_KEYS = ['TCMB_NO_BULLETIN_DAYS'];

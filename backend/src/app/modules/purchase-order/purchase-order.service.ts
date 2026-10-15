@@ -415,10 +415,16 @@ export class PurchaseOrderService {
           productsToEmit.push(prod);
         }
         if (targetWarehouse) po.warehouseId = targetWarehouse;
-        // Receipt = tax point of the purchase (supplier document date when given, else an explicit
-        // tax point, else the receipt day). The PO is re-priced at it (rate version, withholding
-        // threshold, TCMB rate; lines updated in place) and the tax data is frozen.
-        po.taxPointDate = meta.documentDate || (po.taxPointExplicit && po.taxPointDate ? po.taxPointDate : dateKeyInZone(receivedAt, company.timezone));
+        // Receipt = tax point of the purchase (KDVK 10: delivery, or an earlier invoice): the supplier
+        // document date when given (never after the receipt: 400 TAX_POINT_AFTER_RECEIPT), else an
+        // explicit tax point when it is not after the receipt, else the receipt day. The PO is
+        // re-priced at it (rate version, withholding threshold, TCMB rate; lines updated in place)
+        // and the tax data is frozen (a tax point after today is refused there).
+        const receiptDay = dateKeyInZone(receivedAt, company.timezone);
+        if (meta.documentDate && meta.documentDate > receiptDay) throw new BadRequestException(err('TAX_POINT_AFTER_RECEIPT', { date: meta.documentDate, received: receiptDay }));
+        const explicitTp = po.taxPointExplicit && po.taxPointDate ? String(po.taxPointDate).slice(0, 10) : null;
+        if (explicitTp && explicitTp > receiptDay) po.taxPointExplicit = false;
+        po.taxPointDate = meta.documentDate || (explicitTp && explicitTp <= receiptDay ? explicitTp : receiptDay);
         const rebuilt = await this.buildItems(manager, this.storedItems(po, company.pricesIncludeTax), po.currency, po.taxPointDate, supplier, this.storedTax(po), true);
         po.items.forEach((item, i) => {
           const { productId: _p, productName: _n, quantity: _q, unitId: _u, unitCode: _c, unitFactor: _f, unitQuantity: _uq, ...fields } = rebuilt.items[i];
