@@ -26,6 +26,7 @@ const stockStub = () => ({
   recordMovements: jest.fn().mockImplementation(async (m: any, p: any, prev: number, alloc: any[]) =>
     Promise.all(alloc.map((a) => m.save('StockMovement', m.create('StockMovement', { companyId: p.companyId, productId: p.id, quantity: a.delta }))))),
   attachWarehouseMap: jest.fn().mockImplementation(async (_m: any, _c: string, ps: any[]) => ps),
+  begin: jest.fn().mockResolvedValue({}),
 });
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';

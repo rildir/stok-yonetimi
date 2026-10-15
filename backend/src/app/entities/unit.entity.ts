@@ -24,6 +24,20 @@ export class UnitEntity {
   @Column({ default: false })
   isStandard: boolean;
 
+  /** Allowed fractional digits of quantities in this unit (0-3; 0 = whole numbers only) */
+  @Column('tinyint', { default: 0 })
+  decimals: number;
+
+  /** UN/ECE Rec. 20 code used in e-documents (C62, KGM, LTR, ...) */
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  uneceCode?: string | null;
+
+  @Column({ default: false })
+  allowsFraction: boolean;
+
+  /** Response-only: unit is not used for new entries (e.g. lb in a TR company). */
+  deprecated?: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

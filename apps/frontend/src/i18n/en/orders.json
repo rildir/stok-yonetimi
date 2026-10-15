@@ -95,5 +95,6 @@
   "orders.scan.outOfStock": "{name} is out of stock",
   "orders.scan.serialAlready": "{serial} already added",
   "orders.create.warehouse": "Ship from warehouse",
-  "orders.create.warehouseAuto": "Automatic (all warehouses)"
+  "orders.create.warehouseAuto": "Automatic (all warehouses)",
+  "orders.create.precision": "At most {decimals} decimals"
 }

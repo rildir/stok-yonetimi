@@ -13,6 +13,18 @@ import { PurchaseOrderStatus, StockMovementType } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { UnitService } from '../../shared/services/unit.service';
 import { isTracked, LotReceiptInput } from '../../shared/services/warehouse-stock.service';
+import { CompanyEntity } from '../../entities/company.entity';
+import { partyTaxId } from '../order/order.service';
+import { dateKeyInZone, parseZonedDateTime } from '../../shared/tr';
+
+/** Receipt document details (supplier's despatch advice / invoice) and the actual receipt time. */
+export interface PoReceiptMeta {
+  transactionDate?: string | null;
+  documentType?: string | null;
+  documentNo?: string | null;
+  documentDate?: string | null;
+}
+
 
 export interface PoReceiptInput {
   itemId: string;
@@ -185,9 +197,11 @@ export class PurchaseOrderService {
     performedBy = 'System',
     warehouseId?: string | null,
     receipts: PoReceiptInput[] = [],
+    meta: PoReceiptMeta = {},
   ): Promise<PurchaseOrderEntity | null> {
     const productsToEmit: ProductEntity[] = [];
     const saved = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
       const po = await manager.findOne(PurchaseOrderEntity, {
         where: { companyId: this.companyId, id },
         relations: { items: true },
@@ -207,6 +221,10 @@ export class PurchaseOrderService {
 
       if (status === PurchaseOrderStatus.RECEIVED) {
         const targetWarehouse = warehouseId || po.warehouseId || null;
+        const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
+        const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: po.supplierId } });
+        const receivedAt = parseZonedDateTime(meta.transactionDate, company.timezone) || new Date();
+        const docNo = meta.documentNo || po.poNumber;
         for (const r of receipts || []) {
           if (!po.items.some((i) => i.id === r.itemId)) throw new BadRequestException(err('PO_RECEIPT_ITEM_NOT_FOUND', { id: r.itemId }));
         }
@@ -223,6 +241,12 @@ export class PurchaseOrderService {
           if (isTracked(prod)) item.tracking = this.warehouseStock.toTracking(allocations);
           await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
             type: StockMovementType.IN,
+            reasonCode: 'PURCHASE',
+            transactionDate: receivedAt,
+            documentType: meta.documentNo ? meta.documentType || 'DESPATCH' : 'PURCHASE_ORDER',
+            documentNo: docNo,
+            documentDate: meta.documentDate || dateKeyInZone(receivedAt, company.timezone),
+            counterpartyTaxId: partyTaxId(supplier?.identityNumber),
             referenceId: po.poNumber,
             referenceType: 'purchase_order',
             note: `Satın alma siparişi teslim alındı: ${po.poNumber}`,
@@ -279,6 +303,8 @@ export class PurchaseOrderService {
           updates.items ||
           po.items.map((i) => ({ productId: i.productId, quantity: i.unitId && i.unitFactor !== 1 ? Number(i.unitQuantity) : i.quantity, unitId: i.unitId })); // re-price in the new currency
         const built = await this.buildItems(manager, source, po.currency, new Date());
+        // Only draft lines are replaced; received lines are never deleted (DB trigger enforces it too).
+        if (po.items.some((i) => i.tracking && i.tracking.length)) throw new BadRequestException(err('RECEIVED_LINE_UNDELETABLE'));
         await manager.delete(PurchaseOrderItemEntity, { purchaseOrderId: po.id });
         po.items = built.items;
         po.exchangeRate = built.exchangeRate;

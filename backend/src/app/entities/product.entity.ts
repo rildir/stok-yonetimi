@@ -9,6 +9,7 @@ import { TaxRateEntity } from './tax-rate.entity';
 import { UnitEntity } from './unit.entity';
 import { ProductUnitEntity } from './product-unit.entity';
 import { TrackingType } from './tracking';
+import { qtyColumn } from '../utils/quantity-transformer';
 
 @Entity('products')
 @Index('UQ_products_company_sku', ['companyId', 'sku'], { unique: true })
@@ -46,10 +47,10 @@ export class ProductEntity {
   price: number;
 
   /** Denormalized SUM(product_warehouse_stocks.quantity); kept in sync by WarehouseStockService. */
-  @Column('int', { default: 0 })
+  @Column(qtyColumn({ default: 0 }))
   quantity: number;
 
-  @Column('int')
+  @Column(qtyColumn())
   minQuantity: number;
 
   @Column({ type: 'varchar', default: ProductStatus.IN_STOCK })
@@ -84,6 +85,18 @@ export class ProductEntity {
 
   @Column({ default: false })
   hasExpiry: boolean;
+
+  /** Regulatory category (R67): none | food | medicine_its | medical_device_uts | cosmetic_uts */
+  @Column({ type: 'varchar', length: 30, default: 'none' })
+  regulatoryCategory: string;
+
+  /** Tekdüzen Hesap Planı stock class: TICARI_MAL_153 | ILK_MADDE_150 | YARI_MAMUL_151 | MAMUL_152 | DIGER_157 */
+  @Column({ type: 'varchar', length: 30, default: 'TICARI_MAL_153' })
+  inventoryClass: string;
+
+  /** GS1 GTIN in 14-digit form (İTS / ÜTS / e-Belge item identification) */
+  @Column({ type: 'varchar', length: 14, nullable: true })
+  gtin14?: string | null;
 
   @Index()
   @Column({ default: false })

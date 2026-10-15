@@ -11,6 +11,19 @@ import {
 } from '@nestjs/common';
 import { isCodedErrorBody } from './app-error';
 import { Lang, MessageParams, resolveLang, translate } from './messages';
+import { TRIGGER_ERROR_CODES } from '../inventory/immutability-triggers';
+
+/**
+ * Error code raised by an immutability trigger (SIGNAL SQLSTATE '45000'), if `exception`
+ * is such a database error; it is answered as 409 Conflict instead of 500.
+ */
+export function triggerErrorCode(exception: unknown): string | null {
+  const e = exception as { driverError?: { sqlState?: string; sqlMessage?: string }; sqlState?: string; sqlMessage?: string; message?: string };
+  const state = e?.driverError?.sqlState ?? e?.sqlState;
+  const msg = e?.driverError?.sqlMessage ?? e?.sqlMessage ?? e?.message ?? '';
+  if (state !== '45000') return null;
+  return TRIGGER_ERROR_CODES.find((c) => msg.includes(c)) ?? null;
+}
 
 interface ValidationIssue {
   code: string;
@@ -72,6 +85,20 @@ export const PROMOTED_VALIDATION_CODES = new Set([
   'INVALID_WEBSITE',
   'INVALID_DOCUMENT_SERIES',
   'WEAK_PASSWORD',
+  'REASON_CODE_REQUIRED',
+  'REASON_CODE_INVALID',
+  'QUANTITY_INVALID',
+  'VALIDATION_QUANTITY_DECIMAL',
+  'DOCUMENT_DATE_INVALID',
+  'DOCUMENT_TYPE_INVALID',
+  'UNECE_CODE_INVALID',
+  'UNIT_DECIMALS_INVALID',
+  'WAREHOUSE_TYPE_INVALID',
+  'WAREHOUSE_OWNERSHIP_INVALID',
+  'REGULATORY_CATEGORY_INVALID',
+  'INVENTORY_CLASS_INVALID',
+  'COMPLIANCE_MODULE_INVALID',
+  'REVERSAL_NOTE_REQUIRED',
 ]);
 
 /** ValidationPipe exceptionFactory: keeps codes + constraint params for later localization. */
@@ -92,8 +119,11 @@ export class I18nExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest();
     const lang = resolveLang(request?.headers?.['accept-language']);
 
-    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-    const body = buildErrorBody(exception, status, lang);
+    const triggerCode = triggerErrorCode(exception);
+    const status = triggerCode ? HttpStatus.CONFLICT : exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const body: LocalizedErrorBody = triggerCode
+      ? { statusCode: status, code: triggerCode, message: translate(triggerCode, lang), error: 'Conflict' }
+      : buildErrorBody(exception, status, lang);
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(`HTTP ${status} ${request?.method} ${request?.url}: ${exception}`, (exception as Error)?.stack);

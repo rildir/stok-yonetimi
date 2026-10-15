@@ -31,7 +31,10 @@ import { LegalParameterEntity } from '../../entities/legal-parameter.entity';
 import { TR_DISTRICTS, TR_PROVINCES, TR_TAX_OFFICES } from '../refdata/tr-refdata';
 import { LEGAL_PARAMETER_SEEDS } from '../legal/legal-parameter-seeds';
 import { seedDemoFiscalData } from './demo-fiscal.seed';
-import { isStrongPassword } from '../tr';
+import { isStrongPassword, NON_SI_STANDARD_UNIT_CODES, STANDARD_UNIT_DECIMALS } from '../tr';
+import { seedDemoInventoryCore } from './demo-inventory.seed';
+import { ensureImmutabilityTriggers } from '../inventory/immutability-triggers';
+import { pickParameter } from './legal-parameter.service';
 
 @Injectable()
 export class SeedService implements OnModuleInit {
@@ -59,6 +62,24 @@ export class SeedService implements OnModuleInit {
     await this.ensureUnits();
     await this.seedTrackingDemo(DEFAULT_COMPANY.id);
     await seedDemoFiscalData(this.dataSource.manager, DEFAULT_COMPANY.id, this.logger);
+    await this.ensureInventoryCore();
+    await seedDemoInventoryCore(this.dataSource, DEFAULT_COMPANY.id, this.warehouseStock, this.logger);
+  }
+
+  /**
+   * WP2 safety net for databases built by schema sync (migration 1784274129000 does the
+   * same otherwise): immutability triggers and the movement chain heads. Idempotent.
+   */
+  private async ensureInventoryCore() {
+    const created = await ensureImmutabilityTriggers((sql, params) => this.dataSource.query(sql, params));
+    if (created.length) this.logger.log(`Created immutability triggers: ${created.join(', ')}`);
+  }
+
+  /** Standard unit -> UN/ECE code from legal parameter UNECE_STANDARD_UNIT_MAP (low confidence for pack / pallet). */
+  private async uneceMap(): Promise<Record<string, string>> {
+    const rows = await this.dataSource.manager.find(LegalParameterEntity, { where: { country: 'TR', key: 'UNECE_STANDARD_UNIT_MAP' } });
+    const row = pickParameter(rows, new Date().toISOString().slice(0, 10));
+    return (row?.value as Record<string, string>) || {};
   }
 
   /**
@@ -115,12 +136,24 @@ export class SeedService implements OnModuleInit {
    */
   private async ensureUnits() {
     const m = this.dataSource.manager;
+    const unece = await this.uneceMap();
     for (const c of await m.find(CompanyEntity)) {
       const units = await m.find(UnitEntity, { where: { companyId: c.id } });
       for (const u of STANDARD_UNITS) {
+        // lb is not offered to Turkish companies (SI units, 3516 s.K.); existing ones are kept and flagged.
+        if (c.country === 'TR' && NON_SI_STANDARD_UNIT_CODES.includes(u.code)) continue;
         if (!units.some((x) => x.code === u.code)) {
-          units.push(await m.save(UnitEntity, m.create(UnitEntity, { ...u, companyId: c.id, isStandard: true })));
+          const decimals = STANDARD_UNIT_DECIMALS[u.code] ?? 0;
+          units.push(
+            await m.save(
+              UnitEntity,
+              m.create(UnitEntity, { ...u, companyId: c.id, isStandard: true, decimals, allowsFraction: decimals > 0, uneceCode: unece[u.code] ?? null }),
+            ),
+          );
         }
+      }
+      for (const u of units) {
+        if (u.isStandard && !u.uneceCode && unece[u.code]) await m.update(UnitEntity, { id: u.id }, { uneceCode: unece[u.code] });
       }
       const orphans = await m.find(ProductEntity, { where: { companyId: c.id, baseUnitId: IsNull() } });
       for (const p of orphans) {
@@ -159,6 +192,7 @@ export class SeedService implements OnModuleInit {
     const wh2 = (warehouses[1] || warehouses[0]).id;
 
     await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, companyId);
       // Barcodes (EAN-13, Turkish GS1 prefix 869) for existing demo products without one.
       const products = await manager.find(ProductEntity, { where: { companyId, isDeleted: false }, order: { createdAt: 'ASC' } });
       let seq = 1;
@@ -214,7 +248,7 @@ export class SeedService implements OnModuleInit {
           const before = prod.quantity;
           const allocs = await this.warehouseStock.receive(manager, prod, lots.reduce((s, l) => s + l.quantity, 0), wh, { lots });
           await this.warehouseStock.recordMovements(manager, prod, before, allocs, {
-            type: StockMovementType.IN, referenceType: 'manual', note: 'Demo lot stock', performedBy: 'SeedSystem',
+            type: StockMovementType.IN, reasonCode: 'OPENING', referenceType: 'manual', note: 'Demo lot stock', performedBy: 'SeedSystem',
           });
         }
       }
@@ -395,6 +429,7 @@ export class SeedService implements OnModuleInit {
     ];
 
     await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, companyId);
       const warehouses = await this.warehouseStock.activeWarehouses(manager, companyId);
       const savedProducts: ProductEntity[] = [];
       for (const { stock, ...p } of initialProducts) {
@@ -414,7 +449,7 @@ export class SeedService implements OnModuleInit {
           .filter((a) => a.warehouseId && a.delta > 0);
         await this.warehouseStock.apply(manager, prod, allocations);
         await this.warehouseStock.recordMovements(manager, prod, 0, allocations, {
-          type: StockMovementType.IN, referenceType: 'manual', note: 'Initial seed stock', performedBy: 'SeedSystem',
+          type: StockMovementType.IN, reasonCode: 'OPENING', referenceType: 'manual', note: 'Initial seed stock', performedBy: 'SeedSystem',
         });
         savedProducts.push(prod);
       }
@@ -440,9 +475,11 @@ export class SeedService implements OnModuleInit {
         for (const item of template.items) {
           const prod = savedProducts[item.pIndex];
           const oldQty = prod.quantity;
-          const allocations = await this.warehouseStock.deduct(manager, prod, item.qty);
+          const allocations = await this.warehouseStock.deduct(manager, prod, item.qty, null, { sale: true });
           await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
-            type: StockMovementType.ORDER, referenceId: orderNum, referenceType: 'order',
+            type: StockMovementType.ORDER, reasonCode: 'SALE', transactionDate: orderDate,
+            documentType: 'ORDER', documentNo: orderNum, documentDate: orderDate.toISOString().slice(0, 10),
+            referenceId: orderNum, referenceType: 'order',
             note: `Initial seed order: ${orderNum}`, performedBy: 'SeedSystem',
           });
           const line = calculateLine({ quantity: item.qty, unitPrice: prod.price, taxRate: taxPct }, company.pricesIncludeTax);

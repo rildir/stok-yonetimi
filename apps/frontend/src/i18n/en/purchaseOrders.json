@@ -97,5 +97,10 @@
   "purchaseOrders.receiveDialog.duplicateSerials": "Duplicate serial numbers",
   "purchaseOrders.receiveDialog.serialAlready": "{serial} is already in the list",
   "purchaseOrders.col.poNumber": "PO number",
-  "purchaseOrders.status.partiallyReceived": "Partially received"
+  "purchaseOrders.status.partiallyReceived": "Partially received",
+  "purchaseOrders.receiveDialog.receivedAt": "Received at",
+  "purchaseOrders.receiveDialog.documentNo": "Supplier despatch / invoice no",
+  "purchaseOrders.receiveDialog.documentNoPh": "e.g. GKY2026000004127",
+  "purchaseOrders.receiveDialog.documentDate": "Document date",
+  "purchaseOrders.receiveDialog.dateHint": "The stock movement is dated with the receipt time; a late entry falls into its own period."
 }

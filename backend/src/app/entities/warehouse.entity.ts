@@ -40,6 +40,18 @@ export class WarehouseEntity {
   @Column({ type: 'varchar', length: 3, nullable: true })
   defaultSeries?: string | null;
 
+  /** NORMAL | QUARANTINE (awaiting destruction) | CONSIGNMENT | IN_TRANSIT */
+  @Column({ type: 'varchar', length: 20, default: 'NORMAL' })
+  type: string;
+
+  /** Stock here can be sold / auto-allocated to orders (always false for QUARANTINE / IN_TRANSIT) */
+  @Column({ default: true })
+  isSellable: boolean;
+
+  /** OWN | CONSIGNMENT_IN (third-party goods held) | CONSIGNMENT_OUT (own goods at a third party) */
+  @Column({ type: 'varchar', length: 20, default: 'OWN' })
+  ownership: string;
+
   @Column({ default: false })
   isDeleted: boolean;
 

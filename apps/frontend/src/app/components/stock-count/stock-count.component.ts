@@ -4,14 +4,17 @@ import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { AppStateService } from '../../services/app-state.service';
-import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
+import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe } from '../../i18n';
+import { QuantityInputDirective } from '../shared/quantity-input.directive';
+import { roundQty, sumQty } from '@stok/tr-compliance';
+import { Unit } from '../../models/inventory.models';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { StockCount, StockCountItem } from '../../models/inventory.models';
 
 @Component({
   selector: 'app-stock-count',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, BarcodeScannerComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, BarcodeScannerComponent, QuantityInputDirective],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .drawer-field { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); }
@@ -143,17 +146,17 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                     </td>
                     <td class="mono" [attr.data-label]="'stockCount.col.sku' | t">{{ item.sku }}</td>
                     <td [attr.data-label]="'stockCount.col.unit' | t">{{ item.unit || ('stockCount.defaultUnit' | t) }}</td>
-                    <td class="num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ item.systemQuantity }}</td>
+                    <td class="num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ item.systemQuantity | num }}</td>
                     <td class="num" [attr.data-label]="'stockCount.col.countedStock' | t">
                       @if (isTracked(item)) {
                         <span class="mono" [title]="'stockCount.trackedSumHint' | t">{{ item.countedQuantity }}</span>
                       } @else {
-                        <input type="number" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
+                        <input type="text" appQty [qtyDecimals]="unitDecimals(item.unit)" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" [disabled]="isActionLoading()" />
                       }
                     </td>
                     <td class="num" [attr.data-label]="'stockCount.col.difference' | t">
                       <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
-                        {{ item.difference > 0 ? '+' : '' }}{{ item.difference }}
+                        {{ item.difference > 0 ? '+' : '' }}{{ item.difference | num }}
                       </span>
                     </td>
                   </tr>
@@ -166,9 +169,9 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                           <td [attr.data-label]="'products.lots.warehouse' | t">{{ lot.warehouseName || '-' }}</td>
                           <td class="num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ lot.systemQuantity }}</td>
                           <td class="num" [attr.data-label]="'stockCount.col.countedStock' | t">
-                            <input type="number" [(ngModel)]="lot.countedQuantity" (ngModelChange)="recomputeTracked(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
+                            <input type="text" appQty [qtyDecimals]="unitDecimals(item.unit)" [(ngModel)]="lot.countedQuantity" (ngModelChange)="recomputeTracked(item)" class="qty-input" [disabled]="isActionLoading()" />
                           </td>
-                          <td class="num" [attr.data-label]="'stockCount.col.difference' | t">{{ lot.countedQuantity - lot.systemQuantity }}</td>
+                          <td class="num" [attr.data-label]="'stockCount.col.difference' | t">{{ diff(lot.countedQuantity, lot.systemQuantity) | num }}</td>
                         </tr>
                       } @empty {
                         <tr class="track-sub"><td colspan="6" class="indent">{{ 'stockCount.noLots' | t }}</td></tr>
@@ -340,7 +343,7 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                       <td class="num">{{ item.countedQuantity }}</td>
                       <td class="num">
                         <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
-                          {{ item.difference > 0 ? '+' : '' }}{{ item.difference }}
+                          {{ item.difference > 0 ? '+' : '' }}{{ item.difference | num }}
                         </span>
                       </td>
                     </tr>
@@ -356,6 +359,7 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
 })
 export class StockCountComponent implements OnInit {
   inventoryService = inject(InventoryService);
+  units = signal<Unit[]>([]);
   ui = inject(UiStateService);
   state = inject(AppStateService);
   i18n = inject(I18nService);
@@ -389,6 +393,7 @@ export class StockCountComponent implements OnInit {
   });
 
   ngOnInit() {
+    this.inventoryService.getUnits().subscribe({ next: (u) => this.units.set(u || []), error: () => undefined });
     this.loadHistory();
   }
 
@@ -435,9 +440,18 @@ export class StockCountComponent implements OnInit {
     });
   }
 
+  /** Unit precision for count inputs (kg: 3, pcs: 0). */
+  unitDecimals(code: string | null | undefined): number {
+    return Number(this.units().find((u) => u.code === code)?.decimals) || 0;
+  }
+
+  diff(a: number, b: number): number {
+    return roundQty((Number(a) || 0) - (Number(b) || 0));
+  }
+
   onCountedChange(item: StockCountItem) {
-    const counted = Number(item.countedQuantity);
-    item.difference = counted - item.systemQuantity;
+    const counted = Number(item.countedQuantity) || 0;
+    item.difference = roundQty(counted - item.systemQuantity);
     item.isModified = true;
     this.activeItems.set([...this.activeItems()]);
   }
@@ -454,11 +468,11 @@ export class StockCountComponent implements OnInit {
 
   recomputeTracked(item: StockCountItem) {
     if (item.trackingType === 'lot') {
-      item.countedQuantity = (item.lots || []).reduce((sum, l) => sum + (Number(l.countedQuantity) || 0), 0);
+      item.countedQuantity = sumQty((item.lots || []).map((l) => Number(l.countedQuantity) || 0));
     } else if (item.trackingType === 'serial') {
       item.countedQuantity = (item.serials || []).filter((s) => s.present).length;
     }
-    item.difference = item.countedQuantity - item.systemQuantity;
+    item.difference = roundQty(item.countedQuantity - item.systemQuantity);
     item.isModified = true;
     this.activeItems.set([...this.activeItems()]);
   }

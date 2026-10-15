@@ -10,11 +10,13 @@ import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { tap } from 'rxjs/operators';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
+import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
+import { fitsDecimals, roundQty, sumQty } from '@stok/tr-compliance';
 
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -229,7 +231,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                         </select>
                       </div>
                       <div class="po-line-num">
-                        <input type="number" formControlName="quantity" class="input" [placeholder]="'purchaseOrders.quantity' | t" [title]="'purchaseOrders.quantity' | t" min="1" />
+                        <input type="text" appQty [qtyDecimals]="lineDecimals(item.get('productId')?.value, item.get('unitId')?.value)" formControlName="quantity" class="input" [placeholder]="'purchaseOrders.quantity' | t" [title]="'purchaseOrders.quantity' | t" />
                       </div>
                       @if (productById(item.get('productId')?.value); as lp) {
                         @if (lp.units?.length) {
@@ -422,6 +424,21 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
               @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
             </select>
           </div>
+          <div class="po-receipt-doc">
+            <div class="form-group">
+              <label for="poRecvAt">{{ 'purchaseOrders.receiveDialog.receivedAt' | t }}</label>
+              <input id="poRecvAt" type="datetime-local" class="input" [max]="nowLocal()" [ngModel]="receiveAt()" (ngModelChange)="receiveAt.set($event)" />
+            </div>
+            <div class="form-group">
+              <label for="poRecvDocNo">{{ 'purchaseOrders.receiveDialog.documentNo' | t }}</label>
+              <input id="poRecvDocNo" type="text" maxlength="50" class="input mono" [placeholder]="'purchaseOrders.receiveDialog.documentNoPh' | t" [ngModel]="receiveDocNo()" (ngModelChange)="receiveDocNo.set($event)" />
+            </div>
+            <div class="form-group">
+              <label for="poRecvDocDate">{{ 'purchaseOrders.receiveDialog.documentDate' | t }}</label>
+              <input id="poRecvDocDate" type="date" class="input" [ngModel]="receiveDocDate()" (ngModelChange)="receiveDocDate.set($event)" />
+            </div>
+          </div>
+          <div class="field-hint">{{ 'purchaseOrders.receiveDialog.dateHint' | t }}</div>
           @if (receiveLines().length) {
             <div class="field-hint">{{ 'purchaseOrders.receiveDialog.trackedInfo' | t }}</div>
             <div class="po-rlines">
@@ -438,7 +455,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                       <div class="po-lot">
                         <input class="input po-lot-no" [placeholder]="'purchaseOrders.receiveDialog.lotNumber' | t" [(ngModel)]="lot.lotNumber" (ngModelChange)="touchReceive()"/>
                         <input type="date" class="input po-lot-date" [title]="'purchaseOrders.receiveDialog.expiryDate' | t" [(ngModel)]="lot.expiryDate" (ngModelChange)="touchReceive()"/>
-                        <input type="number" min="1" class="input po-lot-qty" [placeholder]="'purchaseOrders.receiveDialog.quantity' | t" [(ngModel)]="lot.quantity" (ngModelChange)="touchReceive()"/>
+                        <input type="text" appQty [qtyDecimals]="rl.decimals" class="input po-lot-qty" [placeholder]="'purchaseOrders.receiveDialog.quantity' | t" [(ngModel)]="lot.quantity" (ngModelChange)="touchReceive()"/>
                         <button type="button" class="delete-btn" (click)="removeReceiveLot(rl, li)" [disabled]="rl.lots.length <= 1" [title]="'common.delete' | t">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                         </button>
@@ -481,6 +498,8 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
     <app-toast></app-toast>
   `,
   styles: [`
+    .po-receipt-doc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
+    @media (max-width: 640px) { .po-receipt-doc { grid-template-columns: 1fr; } }
     .po-dates { display: flex; align-items: center; gap: var(--space-2); }
     .po-dates .input { width: auto; min-width: 0; }
     .po-skel { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
@@ -579,7 +598,25 @@ export class PurchaseOrdersComponent implements OnInit {
   warehouses = signal<Warehouse[]>([]);
   receiveTarget = signal<any>(null);
   receiveWarehouseId = signal<string>('');
+  /** Actual receipt moment (datetime-local, company time) and the supplier's despatch / invoice reference */
+  receiveAt = signal<string>('');
+  receiveDocNo = signal<string>('');
+  receiveDocDate = signal<string>('');
   private formValue = signal<any>(null);
+
+  nowLocal(): string {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }
+
+  /** Decimals of a PO line's unit (base unit precision, or the alternate unit's). */
+  lineDecimals(productId: string, unitId?: string | null): number {
+    const p = this.productById(productId);
+    if (!p) return 0;
+    if (!unitId) return productDecimals(p);
+    return Number(p.units?.find(u => u.unitId === unitId)?.unit?.decimals) || 0;
+  }
 
   pricesIncludeTax = computed(() => !!this.ui.userProfile()?.company?.pricesIncludeTax);
   currencies = computed(() => Array.from(new Set([this.i18n.currency(), 'TRY', 'USD', 'EUR', 'GBP'])));
@@ -766,7 +803,7 @@ export class PurchaseOrdersComponent implements OnInit {
 
   // ─── Receive with lot / serial capture ───
   receiveLines = signal<{
-    itemId: string; productName: string; quantity: number; trackingType: 'lot' | 'serial'; hasExpiry: boolean;
+    itemId: string; productName: string; quantity: number; trackingType: 'lot' | 'serial'; hasExpiry: boolean; decimals: number;
     lots: { lotNumber: string; expiryDate: string; quantity: number | null }[]; serialsText: string;
   }[]>([]);
   private receiveVersion = signal(0);
@@ -785,14 +822,14 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   receiveLineCount(rl: { trackingType: string; lots: { quantity: number | null }[]; serialsText: string }): number {
-    if (rl.trackingType === 'lot') return rl.lots.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
+    if (rl.trackingType === 'lot') return sumQty(rl.lots.map((l) => Number(l.quantity) || 0));
     return this.parseSerials(rl.serialsText).length;
   }
 
   receiveLineValid(rl: any): boolean {
     if (rl.trackingType === 'lot') {
-      const rowsOk = rl.lots.every((l: any) => (l.lotNumber || '').trim() && Number(l.quantity) > 0 && Number.isInteger(Number(l.quantity)) && (!rl.hasExpiry || l.expiryDate));
-      return rowsOk && this.receiveLineCount(rl) === rl.quantity;
+      const rowsOk = rl.lots.every((l: any) => (l.lotNumber || '').trim() && Number(l.quantity) > 0 && fitsDecimals(Number(l.quantity), rl.decimals) && (!rl.hasExpiry || l.expiryDate));
+      return rowsOk && this.receiveLineCount(rl) === roundQty(rl.quantity);
     }
     return !this.hasDuplicateSerials(rl) && this.receiveLineCount(rl) === rl.quantity;
   }
@@ -957,7 +994,7 @@ export class PurchaseOrdersComponent implements OnInit {
     this.itemsArray.push(this.fb.group({
       productId: ['', Validators.required],
       unitId: [''],
-      quantity: [1, [Validators.required, Validators.min(1)]],
+      quantity: [1, [Validators.required, Validators.min(0.0001)]],
       unitPrice: [null as number | null, [Validators.min(0)]]
     }));
   }
@@ -1033,7 +1070,7 @@ export class PurchaseOrdersComponent implements OnInit {
       this.itemsArray.push(this.fb.group({
         productId: [it.productId, Validators.required],
         unitId: [it.unitId || ''],
-        quantity: [inUnit ? it.unitQuantity : it.quantity, [Validators.required, Validators.min(1)]],
+        quantity: [inUnit ? it.unitQuantity : it.quantity, [Validators.required, Validators.min(0.0001)]],
         unitPrice: [it.unitPrice ?? it.price ?? null, [Validators.min(0)]]
       }));
     });
@@ -1085,6 +1122,9 @@ export class PurchaseOrdersComponent implements OnInit {
 
   receivePurchaseOrder(order: any) {
     this.receiveWarehouseId.set(order.warehouseId || this.defaultWarehouseId());
+    this.receiveAt.set(this.nowLocal());
+    this.receiveDocNo.set('');
+    this.receiveDocDate.set(this.nowLocal().slice(0, 10));
     const lines = (order.items || [])
       .map((it: any) => ({ it, p: this.productById(it.productId) }))
       .filter(({ it, p }: any) => it.id && (p?.trackingType === 'lot' || p?.trackingType === 'serial'))
@@ -1094,6 +1134,7 @@ export class PurchaseOrdersComponent implements OnInit {
         quantity: Number(it.quantity) || 0,
         trackingType: p.trackingType as 'lot' | 'serial',
         hasExpiry: !!p.hasExpiry,
+        decimals: productDecimals(p),
         lots: [{ lotNumber: '', expiryDate: '', quantity: Number(it.quantity) || null }],
         serialsText: ''
       }));
@@ -1113,7 +1154,13 @@ export class PurchaseOrdersComponent implements OnInit {
     if (!order || !this.receiveValid()) return;
     this.isSaving.set(true);
     const receipts = this.buildReceipts();
-    this.inventory.updatePurchaseOrderStatus(order.id, 'Received', this.receiveWarehouseId() || undefined, receipts.length ? receipts : undefined).subscribe({
+    const docNo = this.receiveDocNo().trim();
+    this.inventory.updatePurchaseOrderStatus(order.id, 'Received', this.receiveWarehouseId() || undefined, receipts.length ? receipts : undefined, {
+      transactionDate: this.receiveAt() || undefined,
+      documentType: docNo ? 'DESPATCH' : undefined,
+      documentNo: docNo || undefined,
+      documentDate: docNo ? this.receiveDocDate() || undefined : undefined,
+    }).subscribe({
       next: () => {
         this.isSaving.set(false);
         this.receiveTarget.set(null);

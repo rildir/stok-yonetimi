@@ -95,5 +95,6 @@
   "orders.scan.outOfStock": "{name} stokta yok",
   "orders.scan.serialAlready": "{serial} zaten eklendi",
   "orders.create.warehouse": "Çıkış deposu",
-  "orders.create.warehouseAuto": "Otomatik (tüm depolar)"
+  "orders.create.warehouseAuto": "Otomatik (tüm depolar)",
+  "orders.create.precision": "En fazla {decimals} ondalık"
 }

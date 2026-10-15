@@ -1,5 +1,5 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, IsPositive, MaxLength, Matches, IsIn } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
@@ -9,8 +9,8 @@ export class PurchaseOrderItemDto {
   @IsNotEmpty({ message: 'VALIDATION_PRODUCT_ID_REQUIRED' })
   productId: string;
 
-  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
-  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
+  @IsPositive({ message: 'VALIDATION_QUANTITY_POSITIVE' })
   quantity: number;
 
   /** Unit price in PO currency (legacy name; same as unitPrice) */
@@ -97,8 +97,8 @@ export class PoReceiptLotDto {
   @IsString()
   expiryDate?: string | null;
 
-  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
-  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
+  @IsPositive({ message: 'VALIDATION_QUANTITY_POSITIVE' })
   quantity: number;
 }
 
@@ -136,4 +136,23 @@ export class UpdatePurchaseOrderStatusDto {
   @ValidateNested({ each: true })
   @Type(() => PoReceiptDto)
   receipts?: PoReceiptDto[];
+
+  /** When the goods were actually received (ISO / 'YYYY-MM-DDTHH:mm' company time / 'YYYY-MM-DD'); default now */
+  @IsOptional()
+  @IsString()
+  transactionDate?: string | null;
+
+  /** Supplier's delivery document (irsaliye / fatura) number and date */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  documentNo?: string | null;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'DOCUMENT_DATE_INVALID' })
+  documentDate?: string | null;
+
+  @IsOptional()
+  @IsIn(['DESPATCH', 'INVOICE', 'GOODS_RECEIPT', 'OTHER', null, ''], { message: 'DOCUMENT_TYPE_INVALID' })
+  documentType?: string | null;
 }

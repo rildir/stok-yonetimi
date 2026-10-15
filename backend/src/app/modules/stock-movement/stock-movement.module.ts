@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { StockMovementController } from './stock-movement.controller';
+import { StockMovementController, IntegrityController } from './stock-movement.controller';
 import { StockMovementService } from './stock-movement.service';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { ProductEntity } from '../../entities/product.entity';
@@ -14,7 +14,7 @@ import { GatewayModule } from '../../shared/gateway.module';
     SharedModule,
     GatewayModule,
   ],
-  controllers: [StockMovementController],
+  controllers: [StockMovementController, IntegrityController],
   providers: [StockMovementService],
   exports: [StockMovementService],
 })

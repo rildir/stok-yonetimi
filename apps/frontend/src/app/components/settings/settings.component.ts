@@ -11,20 +11,21 @@ import { SocketService } from '../../services/socket.service';
 import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe } from '../../i18n';
 import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 import { AbstractControl, ValidationErrors } from '@angular/forms';
-import { isStrongPassword } from '@stok/tr-compliance';
+import { isStrongPassword, UNECE_UNIT_CODES } from '@stok/tr-compliance';
 import { FiscalSettingsComponent } from './fiscal-settings.component';
+import { InventoryComplianceSettingsComponent } from './inventory-compliance-settings.component';
 import { EBelgeSettingsComponent } from './ebelge-settings.component';
 import { LegalParametersComponent } from './legal-parameters.component';
 
 /** Empty passes (optional field); otherwise the KVKK-guide password policy. */
 const strongPasswordValidator = (c: AbstractControl): ValidationErrors | null => (c.value && !isStrongPassword(c.value) ? { weakPassword: true } : null);
 
-type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
+type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent],
   template: `
     <header class="page-header">
       <div>
@@ -43,6 +44,7 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'company'" [attr.aria-selected]="activeTab() === 'company'" (click)="changeTab('company')">{{ 'settings.tab.company' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'fiscal'" [attr.aria-selected]="activeTab() === 'fiscal'" (click)="changeTab('fiscal')">{{ 'settings.tab.fiscal' | t }}</button>
         <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'ebelge'" [attr.aria-selected]="activeTab() === 'ebelge'" (click)="changeTab('ebelge')">{{ 'settings.tab.ebelge' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'compliance'" [attr.aria-selected]="activeTab() === 'compliance'" (click)="changeTab('compliance')">{{ 'settings.tab.compliance' | t }}</button>
         @if (ui.userProfile()?.isSuperAdmin) {
           <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'legalParams'" [attr.aria-selected]="activeTab() === 'legalParams'" (click)="changeTab('legalParams')">{{ 'settings.tab.legalParams' | t }}</button>
         }
@@ -108,6 +110,14 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
             <span class="settings-hub-text">
               <span class="settings-hub-title">{{ 'settings.tab.ebelge' | t }}</span>
               <span class="settings-hub-desc">{{ 'settings.card.ebelgeDesc' | t }}</span>
+            </span>
+            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-hub-card" (click)="changeTab('compliance')">
+            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4l4 9a2 2 0 0 1-1.8 3H6.8A2 2 0 0 1 5 16l4-9Z"/><path d="M7 12h10"/></svg></span>
+            <span class="settings-hub-text">
+              <span class="settings-hub-title">{{ 'settings.tab.compliance' | t }}</span>
+              <span class="settings-hub-desc">{{ 'settings.card.complianceDesc' | t }}</span>
             </span>
             <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
@@ -201,6 +211,7 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
         <!-- FISCAL / E-BELGE / LEGAL PARAMETERS (WP1) -->
         @if (activeTab() === 'fiscal' && isAdmin()) { <app-fiscal-settings></app-fiscal-settings> }
         @if (activeTab() === 'ebelge' && isAdmin()) { <app-ebelge-settings></app-ebelge-settings> }
+        @if (activeTab() === 'compliance' && isAdmin()) { <app-inventory-compliance-settings></app-inventory-compliance-settings> }
         @if (activeTab() === 'legalParams' && ui.userProfile()?.isSuperAdmin) { <app-legal-parameters></app-legal-parameters> }
 
         <!-- TAX RATES TAB (Admin) -->
@@ -294,6 +305,27 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
                     <label for="unitName">{{ 'settings.units.name' | t }}</label>
                     <input id="unitName" type="text" formControlName="name" [placeholder]="'settings.units.namePh' | t" />
                   </div>
+                  <div class="form-group">
+                    <label for="unitUnece">{{ 'units.uneceCode' | t }}</label>
+                    <select id="unitUnece" formControlName="uneceCode" (change)="onUneceChange()">
+                      <option value="">—</option>
+                      @for (g of uneceGroups; track g.group) {
+                        <optgroup [label]="('units.uneceGroup.' + g.group) | t">
+                          @for (c of g.codes; track c.code) {
+                            <option [value]="c.code">{{ c.code }} · {{ ('units.unece.' + c.code) | t }}</option>
+                          }
+                        </optgroup>
+                      }
+                    </select>
+                    <span class="field-hint">{{ 'units.uneceHint' | t }}</span>
+                  </div>
+                  <div class="form-group">
+                    <label for="unitDecimals">{{ 'units.decimals' | t }}</label>
+                    <select id="unitDecimals" formControlName="decimals">
+                      @for (d of [0, 1, 2, 3]; track d) { <option [ngValue]="d">{{ ('units.decimalsOption.' + d) | t }}</option> }
+                    </select>
+                    <span class="field-hint">{{ 'units.decimalsHint' | t }}</span>
+                  </div>
                 </div>
                 <div class="settings-form-actions">
                   <button type="submit" class="btn btn-primary" [disabled]="unitForm.invalid || isSavingUnit()">
@@ -314,6 +346,8 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
                     <tr>
                       <th>{{ 'settings.units.code' | t }}</th>
                       <th>{{ 'settings.units.name' | t }}</th>
+                      <th>{{ 'units.uneceCode' | t }}</th>
+                      <th class="num">{{ 'units.decimals' | t }}</th>
                       <th>{{ 'settings.units.type' | t }}</th>
                       @if (canManageUnits()) { <th class="th-actions">{{ 'common.actions' | t }}</th> }
                     </tr>
@@ -323,9 +357,14 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
                       <tr>
                         <td class="mono" [attr.data-label]="'settings.units.code' | t">{{ u.code }}</td>
                         <td [attr.data-label]="'settings.units.name' | t"><strong>{{ u | unitLabel }}</strong></td>
+                        <td class="mono" [attr.data-label]="'units.uneceCode' | t">
+                          @if (u.uneceCode) { {{ u.uneceCode }} } @else { <span class="badge badge-warning" [title]="'units.uneceMissingHint' | t">{{ 'units.uneceMissing' | t }}</span> }
+                        </td>
+                        <td class="num" [attr.data-label]="'units.decimals' | t">{{ u.decimals ?? 0 }}</td>
                         <td [attr.data-label]="'settings.units.type' | t">
                           @if (u.isStandard) { <span class="badge badge-instock">{{ 'settings.units.standard' | t }}</span> }
                           @else { <span class="badge badge-neutral">{{ 'settings.units.custom' | t }}</span> }
+                          @if (u.deprecated) { <span class="badge badge-warning" [title]="'units.deprecatedHint' | t">{{ 'units.deprecated' | t }}</span> }
                         </td>
                         @if (canManageUnits()) {
                           <td class="td-actions">
@@ -1126,7 +1165,18 @@ export class SettingsComponent implements OnInit {
   unitForm: FormGroup = this.fb.group({
     code: ['', [Validators.required, Validators.maxLength(20)]],
     name: ['', [Validators.required, Validators.maxLength(60)]],
+    uneceCode: [''],
+    decimals: [0],
   });
+  /** UN/ECE Rec. 20 codes grouped for the unit form */
+  readonly uneceGroups = Array.from(new Set(UNECE_UNIT_CODES.map((u) => u.group))).map((group) => ({ group, codes: UNECE_UNIT_CODES.filter((u) => u.group === group) }));
+
+  /** Picking a UN/ECE code proposes its usual precision (kg: 3, pcs: 0). */
+  onUneceChange() {
+    const code = this.unitForm.get('uneceCode')?.value;
+    const hit = UNECE_UNIT_CODES.find((u) => u.code === code);
+    if (hit && !this.editUnitId()) this.unitForm.patchValue({ decimals: hit.decimals });
+  }
 
   canManageUnits(): boolean {
     const role = this.ui.userProfile()?.role;
@@ -1144,20 +1194,20 @@ export class SettingsComponent implements OnInit {
   resetUnitForm() {
     this.editUnitId.set(null);
     this.editUnitStandard.set(false);
-    this.unitForm.reset({ code: '', name: '' });
+    this.unitForm.reset({ code: '', name: '', uneceCode: '', decimals: 0 });
   }
 
   editUnit(u: Unit) {
     this.editUnitId.set(u.id);
     this.editUnitStandard.set(!!u.isStandard);
-    this.unitForm.reset({ code: u.code, name: u.name });
+    this.unitForm.reset({ code: u.code, name: u.name, uneceCode: u.uneceCode || '', decimals: u.decimals ?? 0 });
   }
 
   saveUnit() {
     if (this.unitForm.invalid) { this.unitForm.markAllAsTouched(); return; }
     const v = this.unitForm.value;
     const id = this.editUnitId();
-    const payload: Partial<Unit> = { name: String(v.name).trim() };
+    const payload: Partial<Unit> = { name: String(v.name).trim(), uneceCode: v.uneceCode || null, decimals: Number(v.decimals) || 0 };
     if (!this.editUnitStandard()) payload.code = String(v.code).trim();
     this.isSavingUnit.set(true);
     (id ? this.inventoryService.updateUnit(id, payload) : this.inventoryService.createUnit(payload)).subscribe({
@@ -1284,6 +1334,7 @@ export class SettingsComponent implements OnInit {
       case 'taxRates': return this.i18n.t('settings.tab.taxRates');
       case 'exchangeRates': return this.i18n.t('settings.tab.exchangeRates');
       case 'units': return this.i18n.t('settings.tab.units');
+      case 'compliance': return this.i18n.t('settings.tab.compliance');
       default: return this.i18n.t('settings.account');
     }
   }
@@ -1350,7 +1401,7 @@ export class SettingsComponent implements OnInit {
     this.loadProfile();
     this.route.queryParams.subscribe(params => {
       const tab = params['tab'];
-      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
+      if (['profile', 'categories', 'users', 'company', 'fiscal', 'ebelge', 'compliance', 'legalParams', 'taxRates', 'exchangeRates', 'units'].includes(tab)) {
         this.activeTab.set(tab);
         if (tab === 'units') this.loadUnits();
       } else {

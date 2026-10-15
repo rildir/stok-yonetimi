@@ -363,5 +363,20 @@
   "settings.users.passwordEditHint": "Girilen şifre geçicidir; kullanıcı bir sonraki girişte değiştirmek zorundadır.",
   "settings.ebelge.sectorThreshold": "hasılat eşiği uygulanır",
   "settings.ebelge.reason.SECTOR_YEAR": "Sektör: {sector} ({year} hasılatı eşiği aştı)",
-  "settings.ebelge.reason.GIB_NOTICE": "GİB yazılı bildirimi (en az 3 ay; yazıdaki süreyi kontrol edin)"
+  "settings.ebelge.reason.GIB_NOTICE": "GİB yazılı bildirimi (en az 3 ay; yazıdaki süreyi kontrol edin)",
+  "settings.tab.compliance": "Uyum modülleri",
+  "settings.card.complianceDesc": "Gıda izlenebilirliği, İTS / ÜTS ürün sınıfları ve stok düzeltme onay eşiği.",
+  "settings.complianceModules.title": "Uyum modülleri",
+  "settings.complianceModules.subtitle": "Şirketinizin satın alıp sattığı düzenlemeye tabi ürün grupları. Açık modüller ürün formunda kategori olarak seçilebilir ve kurallarıyla denetlenir.",
+  "settings.complianceModules.desc.food": "Parti (lot) ve son tüketim tarihi takibi; geri çağırma ve izlenebilirlik (WP6 ile zorunlu hale gelir).",
+  "settings.complianceModules.desc.medicine_its": "Karekod verisi: GTIN + seri no + parti + SKT. İTS bildirimi kapsam dışıdır.",
+  "settings.complianceModules.desc.medical_device_uts": "UDI-DI (GTIN) ve lot veya seri numarası. ÜTS bildirimi kapsam dışıdır.",
+  "settings.complianceModules.desc.cosmetic_uts": "Parti numarası takibi. ÜTS kozmetik bildirimi kapsam dışıdır.",
+  "settings.complianceModules.outOfScope": "İTS ve ÜTS canlı bildirimleri bu sürümde yoktur; yalnızca bildirimlerin gerektirdiği veriler tutulur.",
+  "settings.complianceModules.saved": "Uyum ayarları kaydedildi.",
+  "settings.approval.title": "Stok düzeltmesi için ikinci onay",
+  "settings.approval.subtitle": "Tahmini tutarı (fark × birim fiyat) bu eşiği aşan elle düzeltmeler, talep edenden farklı bir yönetici onaylayana kadar stoğa işlenmez.",
+  "settings.approval.enable": "İkinci onayı etkinleştir",
+  "settings.approval.threshold": "Eşik tutarı ({currency})",
+  "settings.approval.example": "{value} üzerindeki düzeltmeler onaya gider."
 }

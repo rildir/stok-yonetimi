@@ -3,6 +3,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { CompanyEntity } from '../../entities/company.entity';
+import { ProductEntity } from '../../entities/product.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { UserRole } from '../../entities/enums';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
@@ -56,6 +57,19 @@ export class CompanyService {
     if (dto.timezone !== undefined) company.timezone = dto.timezone;
     if (dto.pricesIncludeTax !== undefined) company.pricesIncludeTax = dto.pricesIncludeTax;
     if (dto.expiryAlertDays !== undefined) company.expiryAlertDays = dto.expiryAlertDays;
+    if (dto.enabledComplianceModules !== undefined) {
+      const next = [...new Set(dto.enabledComplianceModules)];
+      // A module can only be switched off when no active product uses it.
+      for (const module of company.enabledComplianceModules || []) {
+        if (next.includes(module)) continue;
+        const count = await this.companyRepo.manager.count(ProductEntity, { where: { companyId: company.id, regulatoryCategory: module, isDeleted: false } });
+        if (count) throw new BadRequestException(err('COMPLIANCE_MODULE_IN_USE', { module, count }));
+      }
+      company.enabledComplianceModules = next;
+    }
+    if (dto.adjustmentApprovalThreshold !== undefined) {
+      company.adjustmentApprovalThreshold = dto.adjustmentApprovalThreshold === null ? null : Number(dto.adjustmentApprovalThreshold);
+    }
     return this.companyRepo.save(company);
   }
 

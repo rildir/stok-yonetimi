@@ -115,3 +115,21 @@ export function timeKeyInZone(d: Date, tz: string = DEFAULT_TIMEZONE): string {
   const p = Object.fromEntries(f.formatToParts(d).map((x) => [x.type, x.value]));
   return `${p['hour']}:${p['minute']}:${p['second']}`;
 }
+
+/**
+ * Parses a user-entered moment: 'YYYY-MM-DD' = start of that day in `tz`,
+ * 'YYYY-MM-DDTHH:mm[:ss]' (no zone) = that wall-clock time in `tz`, anything
+ * else as an ISO timestamp. Returns null for empty input, an Invalid Date for garbage.
+ */
+export function parseZonedDateTime(value: string | null | undefined, tz: string = DEFAULT_TIMEZONE): Date | null {
+  if (!value) return null;
+  const s = String(value).trim();
+  if (isDateKey(s)) return zonedDayStart(s, tz);
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(s);
+  if (m && isDateKey(m[1])) {
+    // Offset at that wall time (DST-safe enough for whole-hour zones).
+    const start = zonedDayStart(m[1], tz).getTime();
+    return new Date(start + (+m[2] * 3600 + +m[3] * 60 + +(m[4] || 0)) * 1000);
+  }
+  return new Date(s);
+}

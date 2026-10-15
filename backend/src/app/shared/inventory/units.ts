@@ -1,4 +1,8 @@
-/** Standard units created for every company; names are display fallbacks (UI translates `units.<code>`). */
+/**
+ * Standard units created for every company; names are display fallbacks (UI translates `units.<code>`).
+ * UN/ECE codes are not hard-coded: they come from legal parameter UNECE_STANDARD_UNIT_MAP.
+ * `lb` is not created for TR companies (3516 s.K., SI units).
+ */
 export const STANDARD_UNITS: { code: string; name: string }[] = [
   { code: 'pcs', name: 'Adet' },
   { code: 'box', name: 'Kutu' },
@@ -35,13 +39,8 @@ export function legacyUnitCode(unit: string | null | undefined): string | null {
 }
 
 /**
- * Converts a quantity entered in an alternate unit into base units.
- * Stock is integral, so the result must be a positive integer; returns null otherwise.
+ * Converts a quantity entered in an alternate unit into base units, rounded to the
+ * base unit's precision (integral base units reject fractional results). Shared with
+ * the frontend: see @stok/tr-compliance inventory.ts.
  */
-export function toBaseQuantity(quantity: number, factor: number): number | null {
-  if (!(quantity > 0) || !(factor > 0)) return null;
-  const raw = quantity * factor;
-  const rounded = Math.round(raw);
-  if (Math.abs(raw - rounded) > 1e-6 || rounded <= 0) return null;
-  return rounded;
-}
+export { toBaseQuantity, roundQty, sumQty, addQty, fitsDecimals, STANDARD_UNIT_DECIMALS, NON_SI_STANDARD_UNIT_CODES, NON_SI_UNECE_CODES } from '../tr';

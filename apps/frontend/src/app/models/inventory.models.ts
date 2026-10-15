@@ -25,6 +25,13 @@ export interface Product {
   baseUnit?: Unit | null;
   /** Alternate units (factor = base units per 1 alternate unit) */
   units?: ProductUnit[];
+  /** none | food | medicine_its | medical_device_uts | cosmetic_uts */
+  regulatoryCategory?: string;
+  /** TICARI_MAL_153 | ILK_MADDE_150 | YARI_MAMUL_151 | MAMUL_152 | DIGER_157 */
+  inventoryClass?: string;
+  gtin14?: string | null;
+  /** Category rule warnings returned on save (e.g. food without lot / expiry) */
+  complianceWarnings?: string[];
   createdAt?: string;
 }
 
@@ -37,6 +44,13 @@ export interface Unit {
   code: string;
   name: string;
   isStandard: boolean;
+  /** Allowed decimals for quantities in this unit (0-3) */
+  decimals?: number;
+  /** UN/ECE Rec. 20 code (C62, KGM, LTR...) */
+  uneceCode?: string | null;
+  allowsFraction?: boolean;
+  /** Not offered for new entries (e.g. lb in a TR company) */
+  deprecated?: boolean;
 }
 
 export interface ProductUnit {
@@ -246,6 +260,11 @@ export interface Warehouse {
   branchCode?: string | null;
   siteGroup?: string | null;
   defaultSeries?: string | null;
+  /** NORMAL | QUARANTINE | CONSIGNMENT | IN_TRANSIT */
+  type?: string;
+  isSellable?: boolean;
+  /** OWN | CONSIGNMENT_IN | CONSIGNMENT_OUT */
+  ownership?: string;
   /** Oldest active warehouse; receives stock when no warehouse is chosen */
   isDefault?: boolean;
   productCount?: number;
@@ -321,6 +340,9 @@ export interface CompanyInfo {
   address?: Address | null;
   bookkeepingType?: BookkeepingType | string | null;
   fiscalStatus?: FiscalStatus;
+  enabledComplianceModules?: string[] | null;
+  /** Manual adjustments above this value (base currency) need a second approver; null = off */
+  adjustmentApprovalThreshold?: number | null;
 }
 
 export interface GrossSales { year: number; amount: number; }
@@ -418,18 +440,92 @@ export interface StockMovement {
   id: string;
   productId: string;
   productName: string;
-  type: 'IN' | 'OUT' | 'ORDER' | 'RETURN' | 'ADJUSTMENT' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'TRANSFER';
+  productSku?: string | null;
+  type: 'IN' | 'OUT' | 'ORDER' | 'RETURN' | 'ADJUSTMENT' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'TRANSFER' | 'REVERSAL' | 'DISPOSAL' | 'QUARANTINE_IN' | 'QUARANTINE_OUT' | string;
+  reasonCode: string;
   warehouseId?: string | null;
+  warehouseName?: string | null;
+  unitCode?: string | null;
   quantity: number;
   previousQuantity: number;
   newQuantity: number;
   note?: string;
   referenceType?: string;
+  referenceId?: string;
   performedBy?: string;
+  /** When the goods moved (legal period) */
+  transactionDate: string;
+  documentType?: string | null;
+  documentNo?: string | null;
+  documentDate?: string | null;
+  counterpartyTaxId?: string | null;
+  reversesMovementId?: string | null;
+  reversedByMovementId?: string | null;
+  reversible?: boolean;
+  attachmentCount?: number;
+  sequenceNo?: number;
+  hash?: string;
+  /** When the row was recorded */
   createdAt: string;
   lotId?: string | null;
   lotNumber?: string | null;
   serials?: string[] | null;
+}
+
+export interface MovementAttachmentInput { fileName: string; mimeType: string; dataBase64: string; }
+
+export interface StockAdjustmentInput {
+  productId: string;
+  newQuantity: number;
+  warehouseId?: string | null;
+  lotId?: string | null;
+  reasonCode: string;
+  note: string;
+  transactionDate?: string | null;
+  documentType?: string | null;
+  documentNo?: string | null;
+  documentDate?: string | null;
+  counterpartyTaxId?: string | null;
+  attachment?: MovementAttachmentInput | null;
+}
+
+/** POST /stock-movements/adjust: booked movement (+warnings) or a pending maker-checker request (HTTP 202). */
+export interface StockAdjustmentResult extends Partial<StockMovement> {
+  status?: 'PENDING_APPROVAL';
+  code?: string;
+  message?: string;
+  request?: StockAdjustmentRequest;
+  warnings?: { code: string; params?: Record<string, unknown> }[];
+}
+
+export interface StockAdjustmentRequest {
+  id: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  productId: string;
+  productName: string;
+  warehouseId?: string | null;
+  quantityDelta: number;
+  estimatedValue: number;
+  currency: string;
+  threshold: number;
+  payload: Partial<StockAdjustmentInput>;
+  requestedBy: string;
+  decidedBy?: string | null;
+  decisionNote?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
+export interface MovementAttachment { id: string; fileName: string; mimeType: string; size: number; sha256: string; uploadedBy?: string | null; createdAt: string; }
+
+export interface ChainVerification {
+  ok: boolean;
+  checked: number;
+  lastSequenceNo: number;
+  lastHash: string;
+  chainHead: { lastSequenceNo: number; lastHash: string };
+  issues: { sequenceNo: number | null; id: string; problem: string }[];
+  verifiedAt: string;
 }
 
 export interface StockCountItem {

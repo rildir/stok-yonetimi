@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToOne, JoinColumn, C
 import { CompanyEntity } from './company.entity';
 import { ProductEntity } from './product.entity';
 import { WarehouseEntity } from './warehouse.entity';
+import { qtyColumn } from '../utils/quantity-transformer';
 
 /**
  * Lot/batch stock of a lot-tracked product in one warehouse. For such products
@@ -44,7 +45,7 @@ export class StockLotEntity {
   @Column({ type: 'date', nullable: true })
   expiryDate?: string | null;
 
-  @Column('int', { default: 0 })
+  @Column(qtyColumn({ default: 0 }))
   quantity: number;
 
   @CreateDateColumn()

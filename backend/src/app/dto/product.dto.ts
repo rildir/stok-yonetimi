@@ -1,6 +1,7 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize, IsIn, IsBoolean, MaxLength, IsPositive } from 'class-validator';
 import { BARCODE_TYPES } from '../shared/inventory/barcode';
+import { INVENTORY_CLASSES, MOVEMENT_REASON_CODES, REGULATORY_CATEGORIES } from '../shared/tr';
 import { Transform, Type } from 'class-transformer';
 import { IsISO4217CurrencyCode } from 'class-validator';
 
@@ -39,8 +40,8 @@ export class LotReceiptDto {
   expiryDate?: string | null;
 
   @ApiProperty({ description: 'Temel birim cinsinden miktar' })
-  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
-  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
+  @IsPositive({ message: 'VALIDATION_QUANTITY_POSITIVE' })
   quantity: number;
 }
 
@@ -80,6 +81,27 @@ class ProductTrackingFieldsDto {
   @ValidateNested({ each: true })
   @Type(() => ProductUnitDto)
   units?: ProductUnitDto[];
+
+  @ApiPropertyOptional({ enum: REGULATORY_CATEGORIES, description: 'Düzenleyici kategori (R67)' })
+  @IsOptional()
+  @IsIn(REGULATORY_CATEGORIES, { message: 'REGULATORY_CATEGORY_INVALID' })
+  regulatoryCategory?: string;
+
+  @ApiPropertyOptional({ enum: INVENTORY_CLASSES, description: 'Tekdüzen hesap planı stok sınıfı' })
+  @IsOptional()
+  @IsIn(INVENTORY_CLASSES, { message: 'INVENTORY_CLASS_INVALID' })
+  inventoryClass?: string;
+
+  @ApiPropertyOptional({ description: 'GTIN (8/12/13/14 hane, 14 haneye tamamlanır)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(14)
+  gtin14?: string | null;
+
+  @ApiPropertyOptional({ description: 'Stok miktarı değişirse zorunlu hareket nedeni (MOVEMENT_REASONS)' })
+  @IsOptional()
+  @IsIn(MOVEMENT_REASON_CODES, { message: 'REASON_CODE_INVALID' })
+  reasonCode?: string;
 }
 
 export class CreateProductDto extends ProductTrackingFieldsDto {
@@ -104,12 +126,12 @@ export class CreateProductDto extends ProductTrackingFieldsDto {
   price: number;
 
   @ApiProperty({ description: 'Stok miktarı', example: 50 })
-  @IsInt({ message: 'VALIDATION_QUANTITY_INT' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
   @Min(0, { message: vmsg('VALIDATION_QUANTITY_MIN', 'min') })
   quantity: number;
 
   @ApiProperty({ description: 'Kritik stok uyarısı verilecek minimum miktar', example: 5 })
-  @IsInt({ message: 'VALIDATION_MIN_QUANTITY_INT' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
   @Min(0, { message: vmsg('VALIDATION_MIN_QUANTITY_MIN', 'min') })
   minQuantity: number;
 
@@ -184,13 +206,13 @@ export class UpdateProductDto extends ProductTrackingFieldsDto {
   price?: number;
 
   @ApiPropertyOptional({ description: 'Stok miktarı' })
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
   @Min(0)
   @IsOptional()
   quantity?: number;
 
   @ApiPropertyOptional({ description: 'Minimum stok miktarı' })
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
   @Min(0)
   @IsOptional()
   minQuantity?: number;

@@ -48,6 +48,7 @@ describe('OrderService', () => {
       toTracking: jest.fn().mockReturnValue([]),
       apply: jest.fn(),
       recordMovements: jest.fn().mockResolvedValue([]),
+      begin: jest.fn().mockResolvedValue({}),
     };
     financeMock = {
       getCompany: jest.fn().mockResolvedValue({ id: COMPANY_ID, baseCurrency: 'TRY', pricesIncludeTax: true }),

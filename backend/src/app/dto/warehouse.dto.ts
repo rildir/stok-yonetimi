@@ -1,7 +1,8 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsArray, IsBoolean, MaxLength, Matches, ValidateIf, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsPositive, IsIn, IsArray, IsBoolean, MaxLength, Matches, ValidateIf, ValidateNested, IsNumber } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AddressDto, addressFromLegacy } from './address.dto';
+import { WAREHOUSE_OWNERSHIPS, WAREHOUSE_TYPES } from '../shared/tr';
 
 export class CreateWarehouseDto {
   @IsString()
@@ -37,6 +38,21 @@ export class CreateWarehouseDto {
   @ValidateIf((_: unknown, v: unknown) => v !== undefined && v !== null && v !== '')
   @Matches(/^[A-Z0-9]{3}$/, { message: 'INVALID_DOCUMENT_SERIES' })
   defaultSeries?: string | null;
+
+  /** NORMAL | QUARANTINE | CONSIGNMENT | IN_TRANSIT */
+  @IsOptional()
+  @IsIn(WAREHOUSE_TYPES, { message: 'WAREHOUSE_TYPE_INVALID' })
+  type?: string;
+
+  /** Ignored (false) for QUARANTINE / IN_TRANSIT */
+  @IsOptional()
+  @IsBoolean()
+  isSellable?: boolean;
+
+  /** OWN | CONSIGNMENT_IN | CONSIGNMENT_OUT */
+  @IsOptional()
+  @IsIn(WAREHOUSE_OWNERSHIPS, { message: 'WAREHOUSE_OWNERSHIP_INVALID' })
+  ownership?: string;
 }
 
 export class UpdateWarehouseDto {
@@ -73,6 +89,21 @@ export class UpdateWarehouseDto {
   @ValidateIf((_: unknown, v: unknown) => v !== undefined && v !== null && v !== '')
   @Matches(/^[A-Z0-9]{3}$/, { message: 'INVALID_DOCUMENT_SERIES' })
   defaultSeries?: string | null;
+
+  /** NORMAL | QUARANTINE | CONSIGNMENT | IN_TRANSIT */
+  @IsOptional()
+  @IsIn(WAREHOUSE_TYPES, { message: 'WAREHOUSE_TYPE_INVALID' })
+  type?: string;
+
+  /** Ignored (false) for QUARANTINE / IN_TRANSIT */
+  @IsOptional()
+  @IsBoolean()
+  isSellable?: boolean;
+
+  /** OWN | CONSIGNMENT_IN | CONSIGNMENT_OUT */
+  @IsOptional()
+  @IsIn(WAREHOUSE_OWNERSHIPS, { message: 'WAREHOUSE_OWNERSHIP_INVALID' })
+  ownership?: string;
 }
 
 export class TransferStockDto {
@@ -97,8 +128,8 @@ export class TransferStockDto {
   @IsOptional()
   toWarehouse?: string;
 
-  @IsInt({ message: 'TRANSFER_QUANTITY_INVALID' })
-  @Min(1, { message: 'TRANSFER_QUANTITY_INVALID' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'TRANSFER_QUANTITY_INVALID' })
+  @IsPositive({ message: 'TRANSFER_QUANTITY_INVALID' })
   quantity: number;
 
   @IsString()

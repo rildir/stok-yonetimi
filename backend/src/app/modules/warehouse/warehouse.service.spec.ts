@@ -37,6 +37,10 @@ function makeManager() {
       return [];
     }),
     create: jest.fn((_e: any, o: any) => ({ ...o })),
+    // movement chain head (WarehouseStockService.begin / recordMovements)
+    query: jest.fn(async () => undefined),
+    findOneOrFail: jest.fn(async () => ({ companyId: COMPANY, lastSequenceNo: 0, lastHash: '0'.repeat(64) })),
+    update: jest.fn(async () => undefined),
     save: jest.fn(async (entity: any, o: any) => {
       if (entity === StockMovementEntity) movements.push(o);
       if (entity === ProductWarehouseStockEntity && !rows.includes(o)) rows.push(o);
@@ -47,11 +51,12 @@ function makeManager() {
 }
 
 function makeService(manager: any) {
-  const stock = new WarehouseStockService(new StockHelperService());
-  const tenant: any = { companyId: COMPANY };
+  const tenant: any = { companyId: COMPANY, actor: { username: 'tester' } };
+  const stock = new WarehouseStockService(new StockHelperService(), tenant);
   const gateway: any = { emitToCompany: jest.fn() };
   const dataSource: any = { transaction: (cb: any) => cb(manager) };
-  return new WarehouseService(tenant, {} as any, {} as any, stock, gateway, dataSource, {} as any, {} as any);
+  const finance: any = { getCompany: async () => ({ id: COMPANY, timezone: 'Europe/Istanbul' }) };
+  return new WarehouseService(tenant, {} as any, {} as any, stock, gateway, dataSource, {} as any, finance);
 }
 
 describe('WarehouseService.transferWarehouseStock', () => {
@@ -70,6 +75,12 @@ describe('WarehouseService.transferWarehouseStock', () => {
       ['TRANSFER_IN', 'w2', 4],
     ]);
     expect(movements.every((m) => m.companyId === COMPANY && m.previousQuantity === 10 && m.newQuantity === 10)).toBe(true);
+    // reason code + hash chain: consecutive sequence numbers, each linked to the previous hash
+    expect(movements.map((m) => [m.reasonCode, m.sequenceNo])).toEqual([
+      ['TRANSFER', 1],
+      ['TRANSFER', 2],
+    ]);
+    expect(movements[1].prevHash).toBe(movements[0].hash);
   });
 
   it('accepts warehouse names for older clients', async () => {
@@ -102,7 +113,7 @@ describe('WarehouseStockService', () => {
       if (entity === WarehouseEntity) return [{ id: 'w1' }, { id: 'w2' }];
       return rows.filter((r) => r.productId === opts.where.productId);
     });
-    const stock = new WarehouseStockService(new StockHelperService());
+    const stock = new WarehouseStockService(new StockHelperService(), { actor: {} } as any);
     const alloc = await stock.deduct(manager, product, 9);
     expect(alloc).toEqual([{ warehouseId: 'w1', delta: -7 }, { warehouseId: 'w2', delta: -2 }]);
     expect(product.quantity).toBe(1);

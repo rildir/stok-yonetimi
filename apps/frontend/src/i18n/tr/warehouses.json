@@ -75,5 +75,22 @@
   "warehouses.form.defaultSeries": "Varsayılan belge serisi (3 karakter)",
   "warehouses.form.seriesInvalid": "Seri 3 karakter olmalıdır (A-Z, 0-9).",
   "warehouses.form.siteGroup": "Aynı tesis grubu",
-  "warehouses.form.siteGroupHint": "Aynı adreste bulunan depolara aynı grup adını verin; aralarındaki transferler için sevk irsaliyesi gerekmez."
+  "warehouses.form.siteGroupHint": "Aynı adreste bulunan depolara aynı grup adını verin; aralarındaki transferler için sevk irsaliyesi gerekmez.",
+  "warehouses.section.inventory": "Stok kullanımı",
+  "warehouses.form.type": "Depo türü",
+  "warehouses.form.ownership": "Mülkiyet",
+  "warehouses.form.isSellable": "Bu depodan satış yapılabilir",
+  "warehouses.type.NORMAL": "Normal",
+  "warehouses.type.QUARANTINE": "Karantina / imha bekleyen",
+  "warehouses.type.CONSIGNMENT": "Konsinye",
+  "warehouses.type.IN_TRANSIT": "Yolda (transit)",
+  "warehouses.typeHint.NORMAL": "Satışa açık olağan depo.",
+  "warehouses.typeHint.QUARANTINE": "TETT/SKT geçen, hasarlı veya imha bekleyen mallar; buradan satış yapılamaz.",
+  "warehouses.typeHint.CONSIGNMENT": "Konsinye mallar; mülkiyet alanını doğru seçin (değerlemede kullanılır).",
+  "warehouses.typeHint.IN_TRANSIT": "Sevkiyattaki mallar; satışa kapalıdır.",
+  "warehouses.ownership.OWN": "Kendi malımız",
+  "warehouses.ownership.CONSIGNMENT_IN": "Emanet (üçüncü kişiye ait)",
+  "warehouses.ownership.CONSIGNMENT_OUT": "Konsinye verilen (bizim malımız)",
+  "warehouses.notSellable": "Satışa kapalı",
+  "warehouses.notSellableHint": "Siparişler bu depodan stok ayırmaz."
 }

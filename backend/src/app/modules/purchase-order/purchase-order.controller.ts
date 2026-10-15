@@ -41,7 +41,12 @@ export class PurchaseOrderController {
     @Req() req: any
   ): Promise<PurchaseOrderEntity | null> {
     const user = req.user?.username || 'System';
-    return this.poService.updatePurchaseOrderStatus(id, dto.status, user, dto.warehouseId, dto.receipts || []);
+    return this.poService.updatePurchaseOrderStatus(id, dto.status, user, dto.warehouseId, dto.receipts || [], {
+      transactionDate: dto.transactionDate,
+      documentType: dto.documentType,
+      documentNo: dto.documentNo,
+      documentDate: dto.documentDate,
+    });
   }
 
   @Roles('admin', 'manager')

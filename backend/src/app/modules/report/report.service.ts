@@ -55,7 +55,7 @@ export class ReportService {
       .addSelect('COALESCE(SUM(CASE WHEN sm.quantity < 0 THEN ABS(sm.quantity) ELSE 0 END), 0)', 'totalOut')
       .where('sm.companyId = :companyId', { companyId: this.companyId });
 
-    await this.applyDateRange(query, 'sm.createdAt', startDate, endDate);
+    await this.applyDateRange(query, 'sm.transactionDate', startDate, endDate);
 
     const raw = await query.getRawOne();
     const totalIn = Number(raw?.totalIn || 0);
@@ -78,7 +78,7 @@ export class ReportService {
       .andWhere('sm.productId IS NOT NULL')
       .groupBy('sm.productId');
 
-    await this.applyDateRange(query, 'sm.createdAt', startDate, endDate);
+    await this.applyDateRange(query, 'sm.transactionDate', startDate, endDate);
 
     const rawResults = await query.getRawMany();
     return rawResults.map((r) => ({

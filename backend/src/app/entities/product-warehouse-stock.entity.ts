@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index } 
 import { ProductEntity } from './product.entity';
 import { WarehouseEntity } from './warehouse.entity';
 import { CompanyEntity } from './company.entity';
+import { qtyColumn } from '../utils/quantity-transformer';
 
 /**
  * Authoritative per-warehouse stock. `products.quantity` is a denormalized
@@ -36,6 +37,6 @@ export class ProductWarehouseStockEntity {
   @JoinColumn({ name: 'warehouseId', foreignKeyConstraintName: 'FK_pws_warehouse' })
   warehouse: WarehouseEntity;
 
-  @Column('int', { default: 0 })
+  @Column(qtyColumn({ default: 0 }))
   quantity: number;
 }

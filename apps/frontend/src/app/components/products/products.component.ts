@@ -1,6 +1,9 @@
 import { Component, inject, signal, computed, HostListener, effect, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
+import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup, AbstractControl } from '@angular/forms';
+import { checkCategoryRules, INVENTORY_CLASSES, isValidGtin, REGULATORY_CATEGORIES } from '@stok/tr-compliance';
+import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
+import { ComplianceService } from '../../services/compliance.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
@@ -15,7 +18,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
 @Component({
   selector: 'app-products',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective],
   styleUrls: ['../../drawer.css'],
   styles: [`
 .tracking-badge { display: inline-flex; align-items: center; font-size: var(--text-2xs); font-weight: var(--weight-semibold); padding: 1px 6px; border-radius: var(--radius-full); background: var(--color-primary-subtle); color: var(--color-primary-text); border: 1px solid var(--color-primary-border); white-space: nowrap; }
@@ -591,10 +594,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
               </div>
 
               <div class="form-field">
-                <input id="productQuantity" type="number" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" min="0" />
-                <label for="productQuantity" class="form-label">{{ 'products.form.currentStock' | t }}</label>
-                @if (isFieldInvalid('quantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
-                @if (formTracked()) { <div style="font-size: 12px; color: var(--color-text-muted); margin-top: 4px;">ⓘ {{ 'products.tracking.qtyLockedHint' | t }}</div> }
+                <input id="productQuantity" type="text" appQty [qtyDecimals]="formDecimals()" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" />
+                <label for="productQuantity" class="form-label">{{ (editingProductId() ? 'products.form.currentStock' : 'products.form.openingStock') | t }}</label>
+                @if (productForm.get('quantity')?.errors?.['qtyPrecision']) { <div class="form-error">⚠ {{ 'products.form.precision' | t: { decimals: formDecimals() } }}</div> }
+                @else if (isFieldInvalid('quantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
+                @if (editingProductId()) { <div class="field-hint">ⓘ {{ 'products.form.qtyEditHint' | t }}</div> }
+                @else if (formTracked()) { <div class="field-hint">ⓘ {{ 'products.tracking.qtyLockedHint' | t }}</div> }
               </div>
 
               @if (!editingProductId()) {
@@ -653,7 +658,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                         <option [value]="u.id" [selected]="u.id === au.unitId">{{ u | unitLabel }}</option>
                       }
                     </select>
-                    <input type="number" min="1" step="1" class="form-input" style="width: 80px; height: 34px; padding: 4px 8px;" [value]="au.factor" (input)="updateAltUnit(i, 'factor', $any($event.target).value)" [title]="'products.altUnits.factorHint' | t" [placeholder]="'products.altUnits.factor' | t" />
+                    <input type="number" min="0.0001" step="any" class="form-input" style="width: 80px; height: 34px; padding: 4px 8px;" [value]="au.factor" (input)="updateAltUnit(i, 'factor', $any($event.target).value)" [title]="'products.altUnits.factorHint' | t" [placeholder]="'products.altUnits.factor' | t" />
                     <input type="text" class="form-input" style="flex: 1.4; height: 34px; padding: 4px 8px;" [value]="au.barcode || ''" (input)="updateAltUnit(i, 'barcode', $any($event.target).value)" [placeholder]="'products.altUnits.barcode' | t" />
                     <button type="button" (click)="removeAltUnit(i)" style="border: 1px solid var(--color-danger-border); background: var(--color-surface); color: var(--color-danger); width: 28px; height: 28px; border-radius: 6px; cursor: pointer;" [title]="'common.delete' | t">✕</button>
                   </div>
@@ -664,9 +669,39 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
               </div>
               
               <div class="form-field">
-                <input id="productMinQuantity" type="number" formControlName="minQuantity" class="form-input" [class.has-value]="hasValue('minQuantity')" min="0" [disabled]="isSaveLoading()" />
+                <input id="productMinQuantity" type="text" appQty [qtyDecimals]="formDecimals()" formControlName="minQuantity" class="form-input" [class.has-value]="hasValue('minQuantity')" />
                 <label for="productMinQuantity" class="form-label">{{ 'products.form.minQuantity' | t }}</label>
-                @if (isFieldInvalid('minQuantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
+                @if (productForm.get('minQuantity')?.errors?.['qtyPrecision']) { <div class="form-error">⚠ {{ 'products.form.precision' | t: { decimals: formDecimals() } }}</div> }
+                @else if (isFieldInvalid('minQuantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
+              </div>
+
+              <!-- Regulatory category / inventory class / GTIN (WP2) -->
+              <div class="form-section-title">{{ 'products.regulatory.section' | t }}</div>
+              <div class="form-row">
+                <div class="form-field">
+                  <select id="productRegCat" formControlName="regulatoryCategory" class="form-input form-select has-value">
+                    @for (c of regulatoryCategories; track c) {
+                      <option [value]="c" [disabled]="c !== 'none' && !enabledModules().includes(c)">{{ 'products.regulatory.' + c | t }}{{ c !== 'none' && !enabledModules().includes(c) ? ' (' + ('products.regulatory.moduleOff' | t) + ')' : '' }}</option>
+                    }
+                  </select>
+                  <label for="productRegCat" class="form-label">{{ 'products.regulatory.category' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <select id="productInvClass" formControlName="inventoryClass" class="form-input form-select has-value">
+                    @for (c of inventoryClasses; track c) { <option [value]="c">{{ 'products.inventoryClass.' + c | t }}</option> }
+                  </select>
+                  <label for="productInvClass" class="form-label">{{ 'products.inventoryClass.label' | t }}</label>
+                </div>
+              </div>
+              <div class="form-field">
+                <input id="productGtin" type="text" inputmode="numeric" maxlength="14" formControlName="gtin14" class="form-input mono" [class.has-value]="hasValue('gtin14')" />
+                <label for="productGtin" class="form-label">{{ 'products.regulatory.gtin' | t }}</label>
+                @if (isFieldInvalid('gtin14')) { <div class="form-error">⚠ {{ 'products.regulatory.gtinInvalid' | t }}</div> }
+                @if (categoryHints().length) {
+                  @for (h of categoryHints(); track h.code) {
+                    <div class="field-hint" [class.text-danger]="h.severity === 'error'" [class.text-warning]="h.severity === 'warning'">ⓘ {{ 'products.regulatory.issue.' + h.code | t: h.params }}</div>
+                  }
+                }
               </div>
 
               <div class="form-field">
@@ -899,7 +934,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
 
             <!-- Miktar Girişi -->
             <div class="form-field">
-              <input type="number" class="form-input" [ngModel]="transferQuantity()" (ngModelChange)="transferQuantity.set($event)" min="1" [max]="maxTransferQuantity()" [readonly]="transferTracking() === 'serial'" />
+              <input type="text" appQty [qtyDecimals]="transferDecimals()" class="form-input" [ngModel]="transferQuantity()" (ngModelChange)="transferQuantity.set($event)" [readonly]="transferTracking() === 'serial'" />
               <label class="form-label">{{ 'products.transferModal.quantity' | t }}</label>
               @if (maxTransferQuantity() > 0) {
                 <span class="form-error" style="color: var(--text-muted);">{{ 'products.transferModal.max' | t: { max: maxTransferQuantity() } }}</span>
@@ -946,6 +981,7 @@ export class ProductsComponent implements OnInit {
   route = inject(ActivatedRoute);
   router = inject(Router);
   i18n = inject(I18nService);
+  compliance = inject(ComplianceService);
 
   readonly units = ['Adet', 'Kg', 'Lt', 'Metre', 'Paket', 'Kutu'];
 
@@ -1075,6 +1111,7 @@ export class ProductsComponent implements OnInit {
   transferFromWarehouse = signal('');
   transferToWarehouse = signal('');
   transferQuantity = signal(1);
+  transferDecimals = computed(() => productDecimals(this.selectedProductForTransfer()));
   transferError = signal<string | null>(null);
   isTransferLoading = signal(false);
 
@@ -1250,9 +1287,19 @@ export class ProductsComponent implements OnInit {
     return !!t && t !== 'none';
   }
 
+  /** Toast text plus regulatory category warnings returned by the server. */
+  private withWarnings(key: string, p: Product): string {
+    const w = (p.complianceWarnings || []).map((c) => this.i18n.t('products.regulatory.issue.' + c, { category: this.i18n.t('products.regulatory.' + (p.regulatoryCategory || 'none')), tracking: '' }));
+    return [this.i18n.t(key), ...w].join(' ');
+  }
+
   private applyTrackingLock() {
     const qty = this.productForm.get('quantity');
     if (!qty) return;
+    if (this.editingProductId()) {
+      if (qty.enabled) qty.disable({ emitEvent: false });
+      return;
+    }
     if (this.formTracked()) {
       if (!this.editingProductId()) qty.setValue(0, { emitEvent: false });
       if (qty.enabled) qty.disable({ emitEvent: false });
@@ -1682,6 +1729,27 @@ export class ProductsComponent implements OnInit {
   editingProductId = signal<string | null>(null);
   isSaveLoading = signal(false);
 
+  readonly regulatoryCategories = REGULATORY_CATEGORIES;
+  readonly inventoryClasses = INVENTORY_CLASSES;
+  enabledModules = signal<string[]>([]);
+  private formState = signal<Record<string, any>>({});
+  /** Precision of the selected base unit (kg: 3, pcs: 0; serial-tracked: 0). */
+  formDecimals = computed(() => {
+    const v = this.formState();
+    if (v['trackingType'] === 'serial') return 0;
+    return Number(this.unitsList().find((u) => u.id === v['baseUnitId'])?.decimals) || 0;
+  });
+  /** Live category rule check (same rule table as the server). */
+  categoryHints = computed(() => {
+    const v = this.formState();
+    return checkCategoryRules(
+      { regulatoryCategory: v['regulatoryCategory'], trackingType: v['trackingType'], hasExpiry: v['hasExpiry'], gtin14: v['gtin14'] || null },
+      this.enabledModules(),
+    )
+      .filter((i) => i.code !== 'REGULATORY_MODULE_DISABLED')
+      .map((i) => ({ ...i, params: { ...(i.params || {}), category: this.i18n.t('products.regulatory.' + (v['regulatoryCategory'] || 'none')), tracking: (i.params?.['tracking'] || '').split('/').map((t: string) => this.i18n.t('products.tracking.' + t)).join(' / ') } }));
+  });
+
   productForm: FormGroup = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(3)]],
     sku: ['', [Validators.required, Validators.minLength(2)]],
@@ -1695,6 +1763,9 @@ export class ProductsComponent implements OnInit {
     barcodeType: [''],
     trackingType: ['none'],
     hasExpiry: [false],
+    regulatoryCategory: ['none'],
+    inventoryClass: ['TICARI_MAL_153'],
+    gtin14: ['', [(c: AbstractControl) => (c.value && String(c.value).trim() && !isValidGtin(String(c.value).trim()) ? { gtin: true } : null)]],
     supplierId: [null],
     imageUrl: [''],
     currency: ['TRY', Validators.required],
@@ -1765,6 +1836,8 @@ export class ProductsComponent implements OnInit {
     this.loadTaxRates();
     this.loadUnits();
     this.productForm.get('trackingType')!.valueChanges.subscribe(() => this.applyTrackingLock());
+    this.productForm.valueChanges.subscribe(() => this.formState.set(this.productForm.getRawValue()));
+    this.compliance.getCompany().subscribe({ next: (c) => this.enabledModules.set(c.enabledComplianceModules || []), error: () => undefined });
     if (this.state.products().length === 0) {
       this.state.loadData();
     }
@@ -1819,8 +1892,11 @@ export class ProductsComponent implements OnInit {
     this.productForm.reset({
       name: '', sku: '', category: defaultCat, price: 0, quantity: 0, minQuantity: 5, unit: 'Adet', supplierId: null, imageUrl: '',
       currency: this.i18n.currency(), taxRateId: null, warehouseId: this.defaultWarehouseId(),
-      baseUnitId: this.defaultUnitId(), barcode: '', barcodeType: '', trackingType: 'none', hasExpiry: false
+      baseUnitId: this.defaultUnitId(), barcode: '', barcodeType: '', trackingType: 'none', hasExpiry: false,
+      regulatoryCategory: 'none', inventoryClass: 'TICARI_MAL_153', gtin14: ''
     });
+    this.productForm.get('quantity')!.enable({ emitEvent: false });
+    this.applyTrackingLock();
     this.altUnits.set([]);
     this.resetTrackingDetail();
     this.showProductFormModal.set(true);
@@ -1845,8 +1921,13 @@ export class ProductsComponent implements OnInit {
       barcode: p.barcode || '',
       barcodeType: p.barcodeType || '',
       trackingType: p.trackingType || 'none',
-      hasExpiry: !!p.hasExpiry
+      hasExpiry: !!p.hasExpiry,
+      regulatoryCategory: p.regulatoryCategory || 'none',
+      inventoryClass: p.inventoryClass || 'TICARI_MAL_153',
+      gtin14: p.gtin14 || ''
     });
+    // Stock corrections go through Stock movements (reason code + reversal), not the product form.
+    this.productForm.get('quantity')!.disable({ emitEvent: false });
     this.productForm.markAsPristine();
     this.altUnits.set((p.units || []).map(u => ({ unitId: u.unitId || u.unit?.id || '', factor: Number(u.factor) || 1, barcode: u.barcode || '' })));
     this.loadTrackingDetail(p);
@@ -1887,10 +1968,10 @@ export class ProductsComponent implements OnInit {
     payload.units = this.altUnits()
       .filter(u => u.unitId && Number(u.factor) > 0)
       .map(u => ({ unitId: u.unitId, factor: Number(u.factor), barcode: (u.barcode || '').trim() || null }));
-    if (payload.trackingType !== 'none') {
-      // Stock of tracked products only changes via PO receipt / stock count / orders.
-      if (editingId) delete payload.quantity; else payload.quantity = 0;
-    }
+    payload.gtin14 = String(rest.gtin14 || '').trim() || null;
+    // Edits never change stock (corrections are reason-coded movements); tracked products start at 0.
+    if (editingId) delete payload.quantity;
+    else if (payload.trackingType !== 'none') payload.quantity = 0;
 
     if (editingId) {
       // Edit mode
@@ -1899,7 +1980,7 @@ export class ProductsComponent implements OnInit {
           this.state.products.update(list => list.map(p => p.id === editingId ? updatedProd : p));
           this.isSaveLoading.set(false);
           this.closeProductForm();
-          this.ui.showToast(this.i18n.t('products.toast.updated'), 'success');
+          this.ui.showToast(this.withWarnings('products.toast.updated', updatedProd), 'success');
         },
         error: (err) => {
           this.isSaveLoading.set(false);
@@ -1916,7 +1997,7 @@ export class ProductsComponent implements OnInit {
           });
           this.closeProductForm();
           this.isSaveLoading.set(false);
-          this.ui.showToast(this.i18n.t('products.toast.created'), 'success');
+          this.ui.showToast(this.withWarnings('products.toast.created', prod), 'success');
         },
         error: (err) => {
           this.isSaveLoading.set(false);

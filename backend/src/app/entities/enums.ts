@@ -32,4 +32,11 @@ export enum StockMovementType {
   ADJUSTMENT = 'ADJUSTMENT',
   TRANSFER_OUT = 'TRANSFER_OUT',
   TRANSFER_IN = 'TRANSFER_IN',
+  /** Correction: exact opposite of an earlier movement (reversesMovementId) */
+  REVERSAL = 'REVERSAL',
+  /** Goods taken out of use for good (zayi, imha, hurda, SKT geçmiş) */
+  DISPOSAL = 'DISPOSAL',
+  /** Transfer legs at a QUARANTINE warehouse */
+  QUARANTINE_IN = 'QUARANTINE_IN',
+  QUARANTINE_OUT = 'QUARANTINE_OUT',
 }

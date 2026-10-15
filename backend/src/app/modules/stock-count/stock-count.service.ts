@@ -15,7 +15,11 @@ import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { TrackingType } from '../../entities/tracking';
 import { MoreThan } from 'typeorm';
 import { CompanyEntity } from '../../entities/company.entity';
-import { dateKeyInZone, DEFAULT_TIMEZONE, timeKeyInZone } from '../../shared/tr';
+import { dateKeyInZone, DEFAULT_TIMEZONE, fitsDecimals, roundQty, sumQty, timeKeyInZone } from '../../shared/tr';
+import { UnitEntity } from '../../entities/unit.entity';
+
+/** Counted quantity: >= 0, at most 4 decimals. */
+const countQty = (v: unknown) => Math.max(0, roundQty(Number(v) || 0));
 
 @Injectable()
 export class StockCountService {
@@ -113,11 +117,24 @@ export class StockCountService {
     const count = await this.stockCountRepo.findOne({ where: { companyId: this.companyId, id, status: 'InProgress' } });
     if (!count) return null;
 
+    // Counted quantities must fit the unit's precision (kg: 3 decimals, pcs: whole numbers).
+    const units = await this.dataSource.manager.find(UnitEntity, { where: { companyId: this.companyId } });
+    const decimalsOf = (code: string | undefined) => Number(units.find((u) => u.code === code)?.decimals) || 0;
+    for (const item of items || []) {
+      const prev = count.items.find((i) => i.productId === item.productId);
+      const d = decimalsOf(item.unit || prev?.unit);
+      const values = [item.countedQuantity, ...((item.lots || []) as any[]).map((l) => l.countedQuantity)];
+      for (const v of values) {
+        if (v !== undefined && v !== null && v !== '' && !fitsDecimals(Number(v) || 0, d)) {
+          throw new BadRequestException(err('QUANTITY_PRECISION_EXCEEDED', { quantity: v, decimals: d }));
+        }
+      }
+    }
     // Tracked lines keep the server's lot/serial lists; only counts / presence are taken from the client.
     const updatedItems: StockCountItem[] = items.map(item => {
       const prev = count.items.find((i) => i.productId === item.productId);
       const system = Number(prev?.systemQuantity ?? item.systemQuantity) || 0;
-      let counted = Math.max(0, Math.floor(Number(item.countedQuantity) || 0));
+      let counted = countQty(item.countedQuantity);
       const out: StockCountItem = {
         productId: item.productId,
         productName: item.productName,
@@ -131,9 +148,9 @@ export class StockCountService {
       if (prev?.lots) {
         out.lots = prev.lots.map((l) => {
           const c = (item.lots || []).find((x: any) => x.lotId === l.lotId);
-          return { ...l, countedQuantity: c ? Math.max(0, Math.floor(Number(c.countedQuantity) || 0)) : l.countedQuantity };
+          return { ...l, countedQuantity: c ? countQty(c.countedQuantity) : l.countedQuantity };
         });
-        counted = out.lots.reduce((s, l) => s + l.countedQuantity, 0);
+        counted = sumQty(out.lots.map((l) => l.countedQuantity));
       } else if (prev?.serials) {
         out.serials = prev.serials.map((x) => {
           const c = (item.serials || []).find((y: any) => y.serial === x.serial);
@@ -142,7 +159,7 @@ export class StockCountService {
         counted = out.serials.filter((x) => x.present).length;
       }
       out.countedQuantity = counted;
-      out.difference = counted - system;
+      out.difference = roundQty(counted - system);
       return out;
     });
 
@@ -161,6 +178,9 @@ export class StockCountService {
     if (!count) return null;
 
     const completedCount = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
+      const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
+      const countDay = dateKeyInZone(new Date(), company.timezone || DEFAULT_TIMEZONE);
       for (const item of count.items) {
         const product = await manager.findOne(ProductEntity, {
           where: { companyId: this.companyId, id: item.productId, isDeleted: false },
@@ -169,13 +189,17 @@ export class StockCountService {
         
         if (product) {
           const oldQty = product.quantity;
-          const difference = Number(item.countedQuantity) - oldQty;
+          const difference = roundQty(Number(item.countedQuantity) - oldQty);
           
           item.systemQuantity = oldQty;
           item.difference = difference;
 
           const info = {
             type: 'ADJUSTMENT',
+            reasonCode: (delta: number) => (delta > 0 ? 'COUNT_SURPLUS' : 'COUNT_SHORTAGE'),
+            documentType: 'STOCK_COUNT',
+            documentNo: count.countNumber,
+            documentDate: countDay,
             referenceId: count.id,
             referenceType: 'stock_count',
             note: `Sayım Düzeltmesi (Fark: ${difference > 0 ? '+' : ''}${difference})`,
@@ -188,7 +212,7 @@ export class StockCountService {
               const allocs = await this.warehouseStock.setLotQuantity(manager, product, l.lotId, l.countedQuantity);
               await this.warehouseStock.recordMovements(manager, product, before, allocs, info);
             }
-            item.difference = product.quantity - oldQty;
+            item.difference = roundQty(product.quantity - oldQty);
             if (item.difference) this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product });
           } else if (product.trackingType === TrackingType.SERIAL && item.serials) {
             const missing = item.serials.filter((x) => !x.present).map((x) => x.serial);
@@ -205,16 +229,10 @@ export class StockCountService {
               await this.warehouseStock.recordMovements(manager, product, oldQty, allocs, info);
               this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product });
             }
-            item.difference = product.quantity - oldQty;
+            item.difference = roundQty(product.quantity - oldQty);
           } else if (difference !== 0 && (product.trackingType || TrackingType.NONE) === TrackingType.NONE) {
             const allocations = await this.warehouseStock.setTotal(manager, product, Number(item.countedQuantity));
-            await this.warehouseStock.recordMovements(manager, product, oldQty, allocations, {
-              type: 'ADJUSTMENT',
-              referenceId: count.id,
-              referenceType: 'stock_count',
-              note: `Sayım Düzeltmesi (Fark: ${difference > 0 ? '+' : ''}${difference})`,
-              performedBy: performedBy || 'System',
-            });
+            await this.warehouseStock.recordMovements(manager, product, oldQty, allocations, info);
             const savedProd = product;
 
             this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: savedProd });

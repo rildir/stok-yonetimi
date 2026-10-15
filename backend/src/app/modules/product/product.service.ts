@@ -22,6 +22,10 @@ import { TrackingType } from '../../entities/tracking';
 import { BarcodeType, validateBarcode } from '../../shared/inventory/barcode';
 import { isTracked, LotReceiptInput } from '../../shared/services/warehouse-stock.service';
 import { NotFoundException } from '@nestjs/common';
+import { UnitEntity } from '../../entities/unit.entity';
+import { CompanyEntity } from '../../entities/company.entity';
+import { checkCategoryRules } from '../../shared/compliance/category-rules';
+import { fitsDecimals, INVENTORY_CLASSES, toGtin14 } from '../../shared/tr';
 
 /** Input accepted for create/update; `quantity` is applied through warehouse stock. */
 export type ProductInput = Partial<Omit<ProductEntity, 'warehouses' | 'units'>> & {
@@ -30,6 +34,8 @@ export type ProductInput = Partial<Omit<ProductEntity, 'warehouses' | 'units'>> 
   /** Opening stock details for tracked products */
   lots?: LotReceiptInput[];
   serials?: string[];
+  /** Required when an update changes the stock quantity */
+  reasonCode?: string;
 };
 
 @Injectable()
@@ -196,6 +202,46 @@ export class ProductService {
       target.unit = unit.code;
     }
     if (data.hasExpiry !== undefined) target.hasExpiry = !!data.hasExpiry;
+    if (data.regulatoryCategory !== undefined) target.regulatoryCategory = data.regulatoryCategory || 'none';
+    if (data.inventoryClass !== undefined) {
+      if (!(INVENTORY_CLASSES as readonly string[]).includes(String(data.inventoryClass))) {
+        throw new BadRequestException(err('INVENTORY_CLASS_INVALID', { value: String(data.inventoryClass) }));
+      }
+      target.inventoryClass = data.inventoryClass;
+    }
+    if (data.gtin14 !== undefined) {
+      const raw = typeof data.gtin14 === 'string' ? data.gtin14.trim() : '';
+      if (raw) {
+        const gtin = toGtin14(raw);
+        if (!gtin) throw new BadRequestException(err('GTIN_INVALID', { code: raw }));
+        target.gtin14 = gtin;
+      } else {
+        target.gtin14 = null;
+      }
+    }
+  }
+
+  /**
+   * Regulatory category rules (R67): errors reject the save, warnings (rules a later
+   * package enforces, e.g. food lot / expiry in WP6) are returned with the product.
+   */
+  private async checkCategory(manager: EntityManager, product: ProductEntity): Promise<string[]> {
+    const company = await manager.findOne(CompanyEntity, { where: { id: this.companyId }, select: ['id', 'enabledComplianceModules'] });
+    const issues = checkCategoryRules(product, company?.enabledComplianceModules || []);
+    const error = issues.find((i) => i.severity === 'error');
+    if (error) throw new BadRequestException(err(error.code, error.params));
+    return issues.map((i) => i.code);
+  }
+
+  /** Quantities of a product must fit its base unit's precision. */
+  private async assertPrecision(manager: EntityManager, product: ProductEntity, values: (number | null | undefined)[]): Promise<void> {
+    const unit = product.baseUnitId ? await manager.findOne(UnitEntity, { where: { id: product.baseUnitId, companyId: this.companyId } }) : null;
+    const decimals = product.trackingType === TrackingType.SERIAL ? 0 : Number(unit?.decimals) || 0;
+    for (const v of values) {
+      if (v !== null && v !== undefined && !fitsDecimals(Number(v), decimals)) {
+        throw new BadRequestException(err('QUANTITY_PRECISION_EXCEEDED', { quantity: v, decimals }));
+      }
+    }
   }
 
   /** Replaces the product's alternate units. */
@@ -294,13 +340,17 @@ export class ProductService {
     }) as unknown as ProductEntity;
     await this.applyCatalogFields(manager, draft, data, true);
     if (draft.trackingType !== TrackingType.LOT) draft.hasExpiry = false;
+    const warnings = await this.checkCategory(manager, draft);
+    await this.assertPrecision(manager, draft, [Number(quantity) || 0, draft.minQuantity]);
     const product = await manager.save(ProductEntity, draft);
+    (product as any).complianceWarnings = warnings;
     await this.saveUnits(manager, product, units);
     const initial = Number(quantity) || 0;
     if (initial > 0) {
       const allocations = await this.warehouseStock.receive(manager, product, initial, warehouseId, { lots, serials });
       await this.warehouseStock.recordMovements(manager, product, 0, allocations, {
         type: StockMovementType.IN,
+        reasonCode: 'OPENING',
         referenceType: 'manual',
         note,
         performedBy,
@@ -311,6 +361,7 @@ export class ProductService {
 
   async createProduct(data: ProductInput, performedBy = 'System'): Promise<ProductEntity> {
     const saved = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
       if (data.sku && (await manager.exists(ProductEntity, { where: { companyId: this.companyId, sku: data.sku } }))) {
         throw new BadRequestException(err('PRODUCT_SKU_TAKEN', { sku: data.sku }));
       }
@@ -341,6 +392,7 @@ export class ProductService {
     }
 
     const savedProducts = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
       const out: ProductEntity[] = [];
       for (const data of products) {
         out.push(await this.insertProduct(manager, data, performedBy, 'Toplu (Bulk) ürün yükleme'));
@@ -357,7 +409,7 @@ export class ProductService {
   /** Applies field updates; a quantity change goes through warehouse stock + ADJUSTMENT movement(s). */
   private async applyUpdate(manager: EntityManager, current: ProductEntity, updates: ProductInput, performedBy: string, note: string) {
     await this.validateRefs(manager, updates);
-    const { warehouseId, quantity, id: _id, companyId: _c, status: _s, units, lots: _l, serials: _sr, trackingType, ...fields } = updates as any;
+    const { warehouseId, quantity, id: _id, companyId: _c, status: _s, units, lots: _l, serials: _sr, trackingType, reasonCode, ...fields } = updates as any;
     delete fields.warehouses;
     delete fields.warehouseStocks;
     delete fields.baseUnit;
@@ -366,6 +418,10 @@ export class ProductService {
     delete fields.baseUnitId;
     delete fields.hasExpiry;
     delete fields.unit; // derived from the base unit
+    delete fields.regulatoryCategory;
+    delete fields.inventoryClass;
+    delete fields.gtin14;
+    delete fields.complianceWarnings;
     if (fields.currency) fields.currency = String(fields.currency).toUpperCase();
     Object.assign(current, fields);
     if (updates.baseUnitId && updates.baseUnitId !== current.baseUnitId && current.quantity > 0) {
@@ -375,15 +431,22 @@ export class ProductService {
     await this.applyCatalogFields(manager, current, updates, false);
     if (trackingType !== undefined) await this.changeTracking(manager, current, trackingType);
     if (current.trackingType !== TrackingType.LOT) current.hasExpiry = false;
+    const warnings = await this.checkCategory(manager, current);
+    await this.assertPrecision(manager, current, [current.minQuantity, quantity]);
     await this.saveUnits(manager, current, units);
     current.status = this.stockHelper.calculateStatus(current.quantity, current.minQuantity);
     let saved = await manager.save(ProductEntity, current);
 
+    (saved as any).complianceWarnings = warnings;
+
     if (quantity !== undefined && quantity !== null && Number(quantity) !== saved.quantity) {
+      // A stock change needs a reason (corrections normally go through POST /stock-movements/adjust).
+      if (!reasonCode) throw new BadRequestException(err('REASON_CODE_REQUIRED'));
       const oldQty = saved.quantity;
       const allocations = await this.warehouseStock.setTotal(manager, saved, Number(quantity), warehouseId);
       await this.warehouseStock.recordMovements(manager, saved, oldQty, allocations, {
         type: StockMovementType.ADJUSTMENT,
+        reasonCode,
         referenceType: 'manual',
         note,
         performedBy,
@@ -395,6 +458,7 @@ export class ProductService {
 
   async updateProduct(id: string, updates: ProductInput, performedBy = 'System'): Promise<ProductEntity | null> {
     const saved = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
       const current = await manager.findOne(ProductEntity, {
         where: { companyId: this.companyId, id, isDeleted: false },
         lock: { mode: 'pessimistic_write' },
@@ -441,6 +505,7 @@ export class ProductService {
 
   async bulkUpdateProducts(ids: string[], updates: ProductInput): Promise<boolean> {
     const updated = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
       const out: ProductEntity[] = [];
       for (const id of ids) {
         const current = await manager.findOne(ProductEntity, {
@@ -471,8 +536,8 @@ export class ProductService {
       .createQueryBuilder('sm')
       .where('sm.companyId = :companyId', { companyId: this.companyId })
       .andWhere('sm.productId = :productId', { productId })
-      .andWhere('sm.createdAt >= :since', { since: ninetyDaysAgo })
-      .orderBy('sm.createdAt', 'ASC')
+      .andWhere('sm.transactionDate >= :since', { since: ninetyDaysAgo })
+      .orderBy('sm.transactionDate', 'ASC')
       .getMany();
 
     return { product, movements };

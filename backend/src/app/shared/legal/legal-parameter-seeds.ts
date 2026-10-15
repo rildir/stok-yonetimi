@@ -116,4 +116,16 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     note: '11111111111 yalnızca e-İrsaliye için resmî; e-Arşiv kullanımı teyit edilmeli. Sürücü TCKN\'si bu değer olamaz.',
   },
   { country: TR, key: 'EXPORT_GTB_VKN', validFrom: '2018-01-01', validTo: null, value: '1460415308', sourceRef: '509 Sıra No.lu VUK GT IV.1.7.1; Gümrük İşlemleri Kılavuzu', confidence: 'low', note: 'İhracat faturasında alıcı VKN\'si; teyit edilmeli.' },
+  // WP2: inventory core
+  {
+    country: TR,
+    key: 'UNECE_STANDARD_UNIT_MAP',
+    validFrom: '2018-01-01',
+    validTo: null,
+    value: { pcs: 'C62', box: 'BX', pack: 'PK', pallet: 'PF', kg: 'KGM', g: 'GRM', lb: 'LBR', l: 'LTR', ml: 'MLT', m: 'MTR' },
+    sourceRef: 'UBL-TR Kod Listeleri §1.5 (UN/ECE Rec. 20 / Rec. 21 birim kodları)',
+    confidence: 'low',
+    note: 'Standart birim -> UN/ECE kodu. pack = PA veya PK, pallet = PF karşılıkları teyit edilmeli; diğerleri Rec. 20 ile birebir.',
+  },
+  { country: TR, key: 'VUK219_RECORD_DAYS', validFrom: '2018-01-01', validTo: null, value: 10, sourceRef: 'VUK md. 219/a (kayıtlar 10 günden fazla geciktirilemez)', confidence: 'high', note: 'Stok hareketi işlem tarihinden bu kadar gün sonra girilirse uyarı verilir.' },
 ];

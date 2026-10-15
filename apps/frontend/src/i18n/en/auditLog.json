@@ -45,5 +45,20 @@
   "auditLog.entity.suppliers": "Suppliers",
   "auditLog.entity.purchase_orders": "Purchase Orders",
   "auditLog.entity.warehouses": "Warehouses",
-  "auditLog.entity.categories": "Categories"
+  "auditLog.entity.categories": "Categories",
+  "auditLog.integrity.verify": "Verify integrity",
+  "auditLog.integrity.ok": "Stock ledger intact: the chain verifies.",
+  "auditLog.integrity.broken": "Integrity error found in the stock ledger!",
+  "auditLog.integrity.summary": "{count} movements checked · last sequence no {seq} · {at}",
+  "auditLog.integrity.head": "Chain head",
+  "auditLog.integrity.legal": "Every movement carries the SHA-256 hash of the previous one; a changed, deleted or inserted row breaks the chain (TTK 65/3, VUK 217).",
+  "auditLog.integrity.failed": "Verification failed.",
+  "auditLog.integrity.problem.SEQUENCE_GAP": "Sequence gap (deleted row)",
+  "auditLog.integrity.problem.PREV_HASH_MISMATCH": "Broken link to the previous row",
+  "auditLog.integrity.problem.HASH_MISMATCH": "Row content changed",
+  "auditLog.integrity.problem.UNSEALED": "Unsealed row",
+  "auditLog.integrity.problem.HEAD_MISMATCH": "Chain head mismatch (rows removed at the end)",
+  "auditLog.entity.stock_adjustment_requests": "Stock Adjustment Requests",
+  "auditLog.entity.units": "Units of Measure",
+  "auditLog.entity.stock_counts": "Stock Counts"
 }

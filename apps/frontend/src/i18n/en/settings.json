@@ -363,5 +363,20 @@
   "settings.users.passwordEditHint": "A password set here is temporary; the user must change it at the next sign-in.",
   "settings.ebelge.sectorThreshold": "turnover threshold applies",
   "settings.ebelge.reason.SECTOR_YEAR": "Sector: {sector} (gross sales of {year} exceeded the threshold)",
-  "settings.ebelge.reason.GIB_NOTICE": "Written notice from the tax administration (at least 3 months; check the deadline in the letter)"
+  "settings.ebelge.reason.GIB_NOTICE": "Written notice from the tax administration (at least 3 months; check the deadline in the letter)",
+  "settings.tab.compliance": "Compliance modules",
+  "settings.card.complianceDesc": "Food traceability, İTS / ÜTS product classes and the adjustment approval threshold.",
+  "settings.complianceModules.title": "Compliance modules",
+  "settings.complianceModules.subtitle": "Regulated product groups your company trades in. Enabled modules can be chosen as a product category and are checked against their rules.",
+  "settings.complianceModules.desc.food": "Lot and expiry tracking; recall and traceability (enforced with WP6).",
+  "settings.complianceModules.desc.medicine_its": "Data matrix data: GTIN + serial + lot + expiry. İTS notifications are out of scope.",
+  "settings.complianceModules.desc.medical_device_uts": "UDI-DI (GTIN) and lot or serial number. ÜTS notifications are out of scope.",
+  "settings.complianceModules.desc.cosmetic_uts": "Batch number tracking. ÜTS cosmetic notifications are out of scope.",
+  "settings.complianceModules.outOfScope": "Live İTS / ÜTS notifications are not part of this release; only the data they require is kept.",
+  "settings.complianceModules.saved": "Compliance settings saved.",
+  "settings.approval.title": "Second approval for stock adjustments",
+  "settings.approval.subtitle": "Manual adjustments whose estimated value (difference × unit price) exceeds this threshold are booked only after an administrator other than the requester approves them.",
+  "settings.approval.enable": "Require a second approval",
+  "settings.approval.threshold": "Threshold ({currency})",
+  "settings.approval.example": "Adjustments above {value} need approval."
 }

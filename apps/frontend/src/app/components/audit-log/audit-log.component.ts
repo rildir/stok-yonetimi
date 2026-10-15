@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IntegrationsService } from '../../services/integrations.service';
+import { InventoryService } from '../../inventory.service';
+import { ChainVerification } from '../../models/inventory.models';
 import { AuditLog, AuditLogMeta } from '../../models/inventory.models';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
@@ -25,6 +27,9 @@ interface DiffRow {
     .audit-filters .form-group { margin: 0; min-width: 0; }
     .audit-filters .input, .audit-filters .select { width: 100%; min-width: 0; }
     .audit-row { cursor: pointer; }
+    .integrity-result { margin-bottom: var(--space-4); align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+    .integrity-body { display: grid; gap: var(--space-1); min-width: 0; font-size: var(--text-sm); }
+    .integrity-issues { margin: var(--space-1) 0 0; padding-left: var(--space-5); font-size: var(--text-xs); }
     .sub { font-size: var(--text-2xs); color: var(--color-text-muted); }
     .id-cell { max-width: 220px; }
     .id-cell > .truncate { min-width: 0; }
@@ -53,7 +58,34 @@ interface DiffRow {
         <h1>{{ 'auditLog.title' | t }}</h1>
         <p>{{ 'auditLog.subtitle' | t }}</p>
       </div>
+      <div class="page-actions">
+        <button type="button" class="btn btn-secondary" (click)="verifyIntegrity()" [disabled]="verifying()">
+          @if (verifying()) { <span class="spinner-sm"></span> } @else {
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+          }
+          {{ 'auditLog.integrity.verify' | t }}
+        </button>
+      </div>
     </div>
+
+    @if (integrity(); as r) {
+      <div class="alert-banner integrity-result" [class.alert-banner--info]="r.ok" [class.alert-banner--danger]="!r.ok" role="status">
+        <div class="integrity-body">
+          <strong>{{ (r.ok ? 'auditLog.integrity.ok' : 'auditLog.integrity.broken') | t }}</strong>
+          <span>{{ 'auditLog.integrity.summary' | t: { count: (r.checked | num), seq: r.lastSequenceNo, at: (r.verifiedAt | appDate: 'datetime') } }}</span>
+          <span class="mono text-2xs truncate" [title]="r.lastHash">{{ 'auditLog.integrity.head' | t }}: {{ r.lastHash }}</span>
+          @if (!r.ok) {
+            <ul class="integrity-issues">
+              @for (i of r.issues.slice(0, 5); track $index) {
+                <li>#{{ i.sequenceNo ?? '-' }} · {{ 'auditLog.integrity.problem.' + i.problem | t }}</li>
+              }
+            </ul>
+          }
+          <span class="text-2xs">{{ 'auditLog.integrity.legal' | t }}</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost" (click)="integrity.set(null)" [attr.aria-label]="'common.close' | t">✕</button>
+      </div>
+    }
 
     <div class="filter-bar">
       <div class="audit-filters">
@@ -197,6 +229,19 @@ interface DiffRow {
   `
 })
 export class AuditLogComponent implements OnInit {
+  private inventory = inject(InventoryService);
+  verifying = signal(false);
+  integrity = signal<ChainVerification | null>(null);
+
+  /** Recomputes the stock movement hash chain (TTK 65/3, VUK 217) on the server. */
+  verifyIntegrity() {
+    this.verifying.set(true);
+    this.inventory.verifyMovementIntegrity().subscribe({
+      next: (r) => { this.verifying.set(false); this.integrity.set(r); },
+      error: (err) => { this.verifying.set(false); this.ui.showToast(err?.error?.message || this.i18n.t('auditLog.integrity.failed'), 'error'); },
+    });
+  }
+
   api = inject(IntegrationsService);
   ui = inject(UiStateService);
   route = inject(ActivatedRoute);

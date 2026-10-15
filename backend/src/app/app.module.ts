@@ -37,6 +37,9 @@ import { ProvinceEntity, DistrictEntity, TaxOfficeEntity } from './entities/refd
 import { LegalParameterEntity } from './entities/legal-parameter.entity';
 import { CompanyEBelgeProfileEntity } from './entities/company-ebelge-profile.entity';
 import { CustomerAddressEntity } from './entities/customer-address.entity';
+import { StockMovementChainEntity } from './entities/stock-movement-chain.entity';
+import { StockMovementAttachmentEntity } from './entities/stock-movement-attachment.entity';
+import { StockAdjustmentRequestEntity } from './entities/stock-adjustment-request.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -103,11 +106,15 @@ import { RefdataModule } from './modules/refdata/refdata.module';
         LegalParameterEntity,
         CompanyEBelgeProfileEntity,
         CustomerAddressEntity,
+        StockMovementChainEntity,
+        StockMovementAttachmentEntity,
+        StockAdjustmentRequestEntity,
       ],
       // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
       timezone: 'Z',
       dateStrings: ['DATE'],
-      synchronize: process.env.NODE_ENV !== 'production',
+      // Dev only; DB_SYNCHRONIZE=false pauses it (e.g. while a migration is pending).
+      synchronize: process.env.NODE_ENV !== 'production' && process.env.DB_SYNCHRONIZE !== 'false',
       migrations: [__dirname + '/migrations/*{.ts,.js}'],
       migrationsRun: false,
     }),

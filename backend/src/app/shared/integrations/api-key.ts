@@ -25,6 +25,7 @@ const SEGMENT_TO_RESOURCE: Record<string, string> = {
   'purchase-orders': 'purchase_orders',
   'stock-movements': 'stock',
   'stock-counts': 'stock',
+  integrity: 'stock',
   warehouses: 'warehouses',
   suppliers: 'suppliers',
   categories: 'categories',

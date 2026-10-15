@@ -68,6 +68,11 @@ export class ComplianceService {
     return this.http.get<CompanyInfo>(`${this.api}/company`);
   }
 
+  /** PUT /company: general settings incl. compliance modules and the adjustment approval threshold (admin). */
+  updateCompany(data: Partial<CompanyInfo>): Observable<CompanyInfo> {
+    return this.http.put<CompanyInfo>(`${this.api}/company`, data);
+  }
+
   updateFiscal(data: Partial<CompanyInfo>): Observable<CompanyInfo> {
     return this.http.patch<CompanyInfo>(`${this.api}/company/fiscal`, data);
   }

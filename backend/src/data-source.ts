@@ -31,6 +31,9 @@ import { ProvinceEntity, DistrictEntity, TaxOfficeEntity } from './app/entities/
 import { LegalParameterEntity } from './app/entities/legal-parameter.entity';
 import { CompanyEBelgeProfileEntity } from './app/entities/company-ebelge-profile.entity';
 import { CustomerAddressEntity } from './app/entities/customer-address.entity';
+import { StockMovementChainEntity } from './app/entities/stock-movement-chain.entity';
+import { StockMovementAttachmentEntity } from './app/entities/stock-movement-attachment.entity';
+import { StockAdjustmentRequestEntity } from './app/entities/stock-adjustment-request.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -74,6 +77,9 @@ export const AppDataSource = new DataSource({
     LegalParameterEntity,
     CompanyEBelgeProfileEntity,
     CustomerAddressEntity,
+    StockMovementChainEntity,
+    StockMovementAttachmentEntity,
+    StockAdjustmentRequestEntity,
   ],
   timezone: 'Z',
   dateStrings: ['DATE'],

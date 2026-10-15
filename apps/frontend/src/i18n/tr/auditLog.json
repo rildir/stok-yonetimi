@@ -45,5 +45,20 @@
   "auditLog.entity.suppliers": "Tedarikçiler",
   "auditLog.entity.purchase_orders": "Satın Alma Siparişleri",
   "auditLog.entity.warehouses": "Depolar",
-  "auditLog.entity.categories": "Kategoriler"
+  "auditLog.entity.categories": "Kategoriler",
+  "auditLog.integrity.verify": "Bütünlüğü doğrula",
+  "auditLog.integrity.ok": "Stok defteri bütün: zincir doğrulandı.",
+  "auditLog.integrity.broken": "Stok defterinde bütünlük hatası bulundu!",
+  "auditLog.integrity.summary": "{count} hareket kontrol edildi · son sıra no {seq} · {at}",
+  "auditLog.integrity.head": "Zincir başı",
+  "auditLog.integrity.legal": "Her stok hareketi bir öncekinin SHA-256 özetini içerir; değiştirilen, silinen veya araya eklenen kayıt zinciri bozar (TTK 65/3, VUK 217).",
+  "auditLog.integrity.failed": "Doğrulama yapılamadı.",
+  "auditLog.integrity.problem.SEQUENCE_GAP": "Sıra numarasında boşluk (silinmiş kayıt)",
+  "auditLog.integrity.problem.PREV_HASH_MISMATCH": "Önceki kayıt bağlantısı bozuk",
+  "auditLog.integrity.problem.HASH_MISMATCH": "Kayıt içeriği değiştirilmiş",
+  "auditLog.integrity.problem.UNSEALED": "Mühürsüz kayıt",
+  "auditLog.integrity.problem.HEAD_MISMATCH": "Zincir başı uyuşmuyor (sondan kayıt silinmiş)",
+  "auditLog.entity.stock_adjustment_requests": "Stok Düzeltme Talepleri",
+  "auditLog.entity.units": "Ölçü Birimleri",
+  "auditLog.entity.stock_counts": "Stok Sayımları"
 }

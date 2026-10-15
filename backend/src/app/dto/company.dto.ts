@@ -23,6 +23,7 @@ import {
   IsNumber,
   IsDefined,
 } from 'class-validator';
+import { COMPLIANCE_MODULES } from '../shared/tr';
 import { Transform, Type } from 'class-transformer';
 import { AddressDto } from './address.dto';
 import { IsKepAddress, IsMersis, IsTaxIdFor } from '../shared/identity/validators';
@@ -79,6 +80,17 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @IsNotEmpty({ message: 'VALIDATION_COMPANY_NAME_REQUIRED' })
   @MaxLength(120)
   name?: string;
+  @ApiPropertyOptional({ description: 'Açık uyum modülleri (food, medicine_its, medical_device_uts, cosmetic_uts)' })
+  @IsOptional()
+  @IsArray()
+  @IsIn(COMPLIANCE_MODULES, { each: true, message: 'COMPLIANCE_MODULE_INVALID' })
+  enabledComplianceModules?: string[];
+
+  @ApiPropertyOptional({ description: 'Bu tutarı (ana para birimi) aşan elle düzeltmeler ikinci onay ister; null = kapalı', example: 25000 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  adjustmentApprovalThreshold?: number | null;
 }
 
 export class RegisterCompanyDto extends CompanySettingsDto {

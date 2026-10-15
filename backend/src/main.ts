@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 // Manual env loader to support running directly without NX
 function loadEnv() {
@@ -37,7 +38,9 @@ import { validationExceptionFactory } from './app/shared/i18n/i18n-exception.fil
 async function bootstrap() {
   // Fail fast on insecure production configuration (e.g. missing JWT_SECRET).
   assertSecurityConfig();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Stock adjustment attachments are sent as base64 JSON (max 5 MB file).
+  app.useBodyParser('json', { limit: '8mb' });
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
 

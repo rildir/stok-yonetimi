@@ -9,11 +9,13 @@ import { Customer, TaxRate, OrderItem, Product, StockLot, SerialNumber, BarcodeL
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { tap } from 'rxjs';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
+import { QuantityInputDirective, parseLocalizedQuantity, productDecimals } from '../shared/quantity-input.directive';
+import { roundQty, sumQty } from '@stok/tr-compliance';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe],
+  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .z-top { z-index: 3000; }
@@ -362,9 +364,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                         </div>
                       </div>
                       <div class="ol-qty" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
-                        <input type="number" formControlName="quantity" class="form-input ol-input" [placeholder]="'orders.create.quantity' | t" min="1" [max]="line.get('maxQuantity')?.value" (input)="enforceMaxQuantity($event, i)" [disabled]="isOrderSaving()"/>
+                        <input type="text" appQty [qtyDecimals]="lineDecimals(line)" formControlName="quantity" class="form-input ol-input" [placeholder]="'orders.create.quantity' | t" />
                         @if (line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)) {
                           <span class="form-error">{{ 'orders.create.max' | t }}: {{ maxForLine(line) | num }}</span>
+                        }
+                        @if (line.get('quantity')?.hasError('qtyPrecision')) {
+                          <span class="form-error">{{ 'orders.create.precision' | t: { decimals: lineDecimals(line) } }}</span>
                         }
                       </div>
                       @if (lineProduct(line); as lp) {
@@ -416,8 +421,8 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                                     <span class="mono">{{ lot.lotNumber }}{{ lot.warehouseName ? ' · ' + lot.warehouseName : '' }}</span>
                                     <span>{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</span>
                                     <span class="num">{{ 'orders.tracking.available' | t }}: {{ lot.quantity | num }}</span>
-                                    <input type="number" class="form-input ol-lot-input" min="0" [max]="lot.quantity"
-                                      [value]="lotQty(line, lot.id)" (input)="setLotQty(i, lot, $event)"/>
+                                    <input type="text" inputmode="decimal" class="form-input ol-lot-input"
+                                      [value]="lotQty(line, lot.id)" (change)="setLotQty(i, lot, $event)"/>
                                   </div>
                                 } @empty {
                                   <span>{{ 'orders.tracking.noLots' | t }}</span>
@@ -918,7 +923,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
       productName: [''],
       price: [0],
       unitPrice: [null as number | null, [Validators.min(0)]],
-      quantity: [1, [Validators.required, Validators.min(1)]],
+      quantity: [1, [Validators.required, Validators.min(0.0001)]],
       maxQuantity: [0],
       unitId: [''],
       trackMode: ['auto'],
@@ -995,17 +1000,29 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   lineBaseQty(line: any): number {
-    return (Number(line.get('quantity')?.value) || 0) * this.lineFactor(line);
+    return roundQty((Number(line.get('quantity')?.value) || 0) * this.lineFactor(line));
+  }
+
+  /** Decimals allowed in the line's unit (base unit precision, or the alternate unit's). */
+  lineDecimals(line: any): number {
+    const p = this.lineProduct(line);
+    const unitId = line.get('unitId')?.value;
+    if (!p) return 0;
+    if (!unitId) return productDecimals(p);
+    const pu = p.units?.find(u => u.unitId === unitId);
+    return Number(pu?.unit?.decimals) || 0;
   }
 
   maxForLine(line: any): number {
-    return Math.floor((Number(line.get('maxQuantity')?.value) || 0) / this.lineFactor(line));
+    const d = this.lineDecimals(line);
+    const f = 10 ** d;
+    return Math.floor(((Number(line.get('maxQuantity')?.value) || 0) / this.lineFactor(line)) * f + 1e-9) / f;
   }
 
   private applyMaxValidator(index: number) {
     const line = this.linesArray.at(index);
     const ctrl = line.get('quantity');
-    ctrl?.setValidators([Validators.required, Validators.min(1), Validators.max(this.maxForLine(line))]);
+    ctrl?.setValidators([Validators.required, Validators.min(0.0001), Validators.max(this.maxForLine(line))]);
     ctrl?.updateValueAndValidity();
   }
 
@@ -1091,12 +1108,14 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   lotsSum(line: any): number {
-    return (line.get('lots')?.value || []).reduce((sum: number, l: any) => sum + (Number(l.quantity) || 0), 0);
+    return sumQty((line.get('lots')?.value || []).map((l: any) => Number(l.quantity) || 0));
   }
 
   setLotQty(index: number, lot: StockLot, event: Event) {
     const line = this.linesArray.at(index);
-    let qty = Math.floor(Number((event.target as HTMLInputElement).value) || 0);
+    const sep = (1.5).toLocaleString(this.i18n.locale()).includes(',') ? ',' : '.';
+    const parsed = parseLocalizedQuantity((event.target as HTMLInputElement).value, sep);
+    let qty = roundQty(Number.isNaN(parsed) ? 0 : parsed, productDecimals(this.lineProduct(line)));
     qty = Math.max(0, Math.min(qty, lot.quantity));
     const lots = (line.get('lots')?.value || []).filter((l: any) => l.lotId !== lot.id);
     if (qty > 0) lots.push({ lotId: lot.id, quantity: qty });
@@ -1184,15 +1203,10 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => this.highlightLineIndex.set(null), 600);
   }
 
-  enforceMaxQuantity(event: Event, index: number) {
-    const input = event.target as HTMLInputElement;
+  enforceMaxQuantity(_event: Event, index: number) {
     const lineGroup = this.linesArray.at(index);
     const max = this.maxForLine(lineGroup);
-    
-    if (input.value !== '' && parseInt(input.value) > max) {
-      input.value = max.toString();
-      lineGroup.patchValue({ quantity: max });
-    }
+    if (Number(lineGroup.get('quantity')?.value) > max) lineGroup.patchValue({ quantity: max });
   }
 
   // Customers / currency / tax preview

@@ -11,9 +11,16 @@ import { TrackingEntry, TrackingType } from '../../entities/tracking';
 import { StockHelperService } from './stock-helper.service';
 import { allocateLots, todayKey } from '../inventory/lot-allocation';
 import { CompanyEntity } from '../../entities/company.entity';
+import { randomUUID } from 'crypto';
+import { StockMovementChainEntity } from '../../entities/stock-movement-chain.entity';
+import { GENESIS_HASH, movementHash, toSecond } from '../inventory/movement-hash';
+import { addQty, isDateKey, isReasonCode, reasonAllowsDirection, roundQty, sumQty, warehouseTypeAllowsSale, daysBetween, dateKeyInZone, DEFAULT_TIMEZONE } from '../tr';
+import { TenantContext } from '../tenant/tenant-context.service';
 
 export interface StockAllocation {
   warehouseId: string;
+  /** Movement type override for this allocation (e.g. TRANSFER_OUT / QUARANTINE_IN legs) */
+  type?: string;
   /** Signed change applied to that warehouse (base units) */
   delta: number;
   /** Lot-tracked products: the lot this change applies to */
@@ -26,11 +33,27 @@ export interface StockAllocation {
 
 export interface MovementInfo {
   type: string;
+  /** Mandatory reason (MOVEMENT_REASONS); a function picks it per allocation sign (e.g. count surplus / shortage). */
+  reasonCode: string | ((delta: number) => string);
+  /** When the goods moved; default now. Not in the future. */
+  transactionDate?: Date | string | null;
+  documentType?: string | null;
+  documentNo?: string | null;
+  /** YYYY-MM-DD */
+  documentDate?: string | null;
+  counterpartyTaxId?: string | null;
+  reversesMovementId?: string | null;
   referenceId?: string;
   referenceType?: string;
   note?: string;
   performedBy?: string;
+  /** Transfers: every row keeps the (unchanged) product total as previous/new quantity */
+  totalsUnchanged?: boolean;
 }
+
+/** Allowed clock skew for "future" transaction dates. */
+const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
+const CHAIN_LOCK_KEY = '__stockChainLocked';
 
 /** Lots captured when stock comes in (quantities in base units). */
 export interface LotReceiptInput {
@@ -56,6 +79,9 @@ export function isTracked(p: Pick<ProductEntity, 'trackingType'>): boolean {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Positive quantity with at most 4 decimals. */
+const validQty = (q: number) => Number.isFinite(q) && q > 0 && Math.abs(roundQty(q) - q) < 1e-9;
+
 function normDate(d: unknown): string | null {
   if (!d) return null;
   if (d instanceof Date) return d.toISOString().slice(0, 10);
@@ -77,17 +103,57 @@ function normDate(d: unknown): string | null {
  */
 @Injectable()
 export class WarehouseStockService {
-  constructor(private readonly stockHelper: StockHelperService) {}
+  constructor(
+    private readonly stockHelper: StockHelperService,
+    private readonly tenant: TenantContext,
+  ) {}
 
   /** Active warehouses of a company; the oldest is the default target. */
   activeWarehouses(manager: EntityManager, companyId: string): Promise<WarehouseEntity[]> {
     return manager.find(WarehouseEntity, { where: { companyId, isDeleted: false }, order: { createdAt: 'ASC', name: 'ASC' } });
   }
 
+  /** Active warehouses stock may be sold from (not QUARANTINE / IN_TRANSIT, isSellable). */
+  async sellableWarehouses(manager: EntityManager, companyId: string): Promise<WarehouseEntity[]> {
+    return (await this.activeWarehouses(manager, companyId)).filter((w) => this.isSellable(w));
+  }
+
+  isSellable(w: Pick<WarehouseEntity, 'type' | 'isSellable'>): boolean {
+    return w.isSellable !== false && warehouseTypeAllowsSale(w.type);
+  }
+
+  /** Default receiving warehouse: the oldest active sellable one (else the oldest active one). */
   async defaultWarehouse(manager: EntityManager, companyId: string): Promise<WarehouseEntity> {
-    const [first] = await this.activeWarehouses(manager, companyId);
+    const all = await this.activeWarehouses(manager, companyId);
+    const first = all.find((w) => this.isSellable(w)) || all[0];
     if (!first) throw new BadRequestException(err('WAREHOUSE_NONE_ACTIVE'));
     return first;
+  }
+
+  /**
+   * Locks the company's movement chain head (SELECT ... FOR UPDATE), creating it when
+   * missing. Every stock-changing transaction calls this FIRST (before locking product
+   * rows), so all stock transactions of a company take their locks in the same order
+   * and movement numbers are assigned without gaps. Idempotent within a transaction.
+   */
+  async begin(manager: EntityManager, companyId: string): Promise<StockMovementChainEntity> {
+    const qr = manager.queryRunner;
+    const data = (qr?.data || {}) as Record<string, unknown>;
+    const locked = data[CHAIN_LOCK_KEY] as Record<string, StockMovementChainEntity> | undefined;
+    if (locked?.[companyId]) return locked[companyId];
+    // A missing head is created outside this transaction (separate autocommit connection): an INSERT
+    // inside it would take shared / gap locks that deadlock concurrent transactions of the company,
+    // and a plain read here would fix this transaction's snapshot before the locks are taken.
+    const outside = manager.connection ?? manager;
+    const exists = await outside.query('SELECT 1 AS x FROM `stock_movement_chains` WHERE `companyId` = ?', [companyId]);
+    if (!exists?.length) {
+      await outside.query('INSERT IGNORE INTO `stock_movement_chains` (`companyId`, `lastSequenceNo`, `lastHash`) VALUES (?, 0, ?)', [companyId, GENESIS_HASH]);
+    }
+    const chain = await manager.findOneOrFail(StockMovementChainEntity, { where: { companyId }, lock: { mode: 'pessimistic_write' } });
+    if (qr && qr.isTransactionActive) {
+      qr.data = { ...(qr.data || {}), [CHAIN_LOCK_KEY]: { ...(locked || {}), [companyId]: chain } };
+    }
+    return chain;
   }
 
   async requireWarehouse(manager: EntityManager, companyId: string, warehouseId: string): Promise<WarehouseEntity> {
@@ -128,7 +194,7 @@ export class WarehouseStockService {
         });
         rows.push(row);
       }
-      const next = row.quantity + a.delta;
+      const next = addQty(row.quantity, a.delta);
       if (next < 0) {
         const wh = await manager.findOne(WarehouseEntity, { where: { id: a.warehouseId, companyId: product.companyId } });
         throw new BadRequestException(
@@ -138,7 +204,7 @@ export class WarehouseStockService {
       row.quantity = next;
       await manager.save(ProductWarehouseStockEntity, row);
     }
-    product.quantity = rows.reduce((s, r) => s + r.quantity, 0);
+    product.quantity = sumQty(rows.map((r) => r.quantity));
     product.status = this.stockHelper.calculateStatus(product.quantity, product.minQuantity);
     return manager.save(ProductEntity, product);
   }
@@ -157,18 +223,18 @@ export class WarehouseStockService {
    * Removes stock of an untracked product from one warehouse, or (when
    * omitted) greedily from the active warehouses in default order.
    */
-  async deduct(manager: EntityManager, product: ProductEntity, qty: number, warehouseId?: string | null): Promise<StockAllocation[]> {
+  async deduct(manager: EntityManager, product: ProductEntity, qty: number, warehouseId?: string | null, opts: { sale?: boolean } = {}): Promise<StockAllocation[]> {
     this.assertUntracked(product);
     if (qty <= 0) return [];
     if (warehouseId) {
-      await this.requireWarehouse(manager, product.companyId, warehouseId);
+      await this.requireIssueWarehouse(manager, product.companyId, warehouseId, !!opts.sale);
       const allocations = [{ warehouseId, delta: -qty }];
       await this.apply(manager, product, allocations);
       return allocations;
     }
-    const warehouses = await this.activeWarehouses(manager, product.companyId);
+    const warehouses = opts.sale ? await this.sellableWarehouses(manager, product.companyId) : await this.activeWarehouses(manager, product.companyId);
     const rows = await this.lockRows(manager, product.companyId, product.id);
-    let remaining = qty;
+    let remaining = roundQty(qty);
     const allocations: StockAllocation[] = [];
     for (const wh of warehouses) {
       if (remaining <= 0) break;
@@ -176,7 +242,7 @@ export class WarehouseStockService {
       if (available <= 0) continue;
       const take = Math.min(available, remaining);
       allocations.push({ warehouseId: wh.id, delta: -take });
-      remaining -= take;
+      remaining = roundQty(remaining - take);
     }
     if (remaining > 0) {
       throw new BadRequestException(err('STOCK_INSUFFICIENT_BY_WAREHOUSE', { missing: remaining }));
@@ -185,10 +251,17 @@ export class WarehouseStockService {
     return allocations;
   }
 
+  /** Explicit source warehouse; for sales it must be sellable. */
+  private async requireIssueWarehouse(manager: EntityManager, companyId: string, warehouseId: string, sale: boolean): Promise<WarehouseEntity> {
+    const wh = await this.requireWarehouse(manager, companyId, warehouseId);
+    if (sale && !this.isSellable(wh)) throw new BadRequestException(err('WAREHOUSE_NOT_SELLABLE', { warehouse: wh.name }));
+    return wh;
+  }
+
   /** Brings the total of an untracked product to `newTotal` (adds to default / deducts greedily). */
   async setTotal(manager: EntityManager, product: ProductEntity, newTotal: number, warehouseId?: string | null): Promise<StockAllocation[]> {
     this.assertUntracked(product);
-    const diff = newTotal - product.quantity;
+    const diff = roundQty(newTotal - product.quantity);
     if (diff > 0) return this.add(manager, product, diff, warehouseId);
     if (diff < 0) return this.deduct(manager, product, -diff, warehouseId);
     return [];
@@ -231,26 +304,26 @@ export class WarehouseStockService {
       const lotNumber = String(l?.lotNumber || '').trim();
       const q = Number(l?.quantity);
       if (!lotNumber) throw new BadRequestException(err('LOT_NUMBER_REQUIRED', { name: product.name }));
-      if (!Number.isInteger(q) || q <= 0) throw new BadRequestException(err('LOT_QUANTITY_INVALID', { lot: lotNumber }));
+      if (!validQty(q)) throw new BadRequestException(err('LOT_QUANTITY_INVALID', { lot: lotNumber }));
       const expiry = normDate(l.expiryDate);
       if (expiry && !DATE_RE.test(expiry)) throw new BadRequestException(err('LOT_EXPIRY_INVALID', { lot: lotNumber }));
       if (product.hasExpiry && !expiry) throw new BadRequestException(err('LOT_EXPIRY_REQUIRED', { lot: lotNumber, name: product.name }));
       const prev = merged.get(lotNumber);
       if (prev) {
         if ((prev.expiryDate || null) !== (expiry || null)) throw new BadRequestException(err('LOT_EXPIRY_CONFLICT', { lot: lotNumber }));
-        prev.quantity += q;
+        prev.quantity = addQty(prev.quantity, q);
       } else {
         merged.set(lotNumber, { lotNumber, expiryDate: expiry, quantity: q });
       }
     }
-    const total = [...merged.values()].reduce((s, l) => s + l.quantity, 0);
-    if (total !== qty) {
+    const total = sumQty([...merged.values()].map((l) => l.quantity));
+    if (total !== roundQty(qty)) {
       throw new BadRequestException(err('LOT_QUANTITY_MISMATCH', { name: product.name, expected: qty, actual: total }));
     }
     const out: StockAllocation[] = [];
     for (const l of merged.values()) {
       const lot = await this.upsertLot(manager, product, warehouseId, l.lotNumber, l.expiryDate || null);
-      lot.quantity += l.quantity;
+      lot.quantity = addQty(lot.quantity, l.quantity);
       await manager.save(StockLotEntity, lot);
       out.push({ warehouseId, delta: l.quantity, lotId: lot.id, lotNumber: lot.lotNumber, expiryDate: normDate(lot.expiryDate) });
     }
@@ -295,6 +368,7 @@ export class WarehouseStockService {
       if (seen.has(s)) throw new BadRequestException(err('SERIAL_DUPLICATE_INPUT', { serial: s }));
       seen.add(s);
     }
+    if (!Number.isInteger(Number(qty))) throw new BadRequestException(err('QUANTITY_PRECISION_EXCEEDED', { quantity: qty, decimals: 0 }));
     if (list.length !== qty) {
       throw new BadRequestException(err('SERIAL_COUNT_MISMATCH', { name: product.name, expected: qty, actual: list.length }));
     }
@@ -349,15 +423,15 @@ export class WarehouseStockService {
     qty: number,
     warehouseId: string | null | undefined,
     details: IssueDetails = {},
-    opts: { serialStatus?: SerialStatus; allowExpired?: boolean } = {},
+    opts: { serialStatus?: SerialStatus; allowExpired?: boolean; sale?: boolean } = {},
   ): Promise<StockAllocation[]> {
     if (qty <= 0) return [];
-    if (!isTracked(product)) return this.deduct(manager, product, qty, warehouseId);
-    if (warehouseId) await this.requireWarehouse(manager, product.companyId, warehouseId);
+    if (!isTracked(product)) return this.deduct(manager, product, qty, warehouseId, { sale: opts.sale });
+    if (warehouseId) await this.requireIssueWarehouse(manager, product.companyId, warehouseId, !!opts.sale);
     const allocations =
       product.trackingType === TrackingType.LOT
-        ? await this.pickLots(manager, product, qty, warehouseId || null, details.lots, !!opts.allowExpired)
-        : await this.pickSerials(manager, product, qty, warehouseId || null, details.serials, opts.serialStatus || SerialStatus.SOLD);
+        ? await this.pickLots(manager, product, qty, warehouseId || null, details.lots, !!opts.allowExpired, !!opts.sale)
+        : await this.pickSerials(manager, product, qty, warehouseId || null, details.serials, opts.serialStatus || SerialStatus.SOLD, !!opts.sale);
     await this.apply(manager, product, allocations);
     return allocations;
   }
@@ -369,6 +443,7 @@ export class WarehouseStockService {
     warehouseId: string | null,
     explicit: { lotId: string; quantity: number }[] | undefined,
     allowExpired: boolean,
+    sale = false,
   ): Promise<StockAllocation[]> {
     const picks: { lot: StockLotEntity; quantity: number }[] = [];
     if (explicit && explicit.length) {
@@ -381,19 +456,22 @@ export class WarehouseStockService {
         const lot = lots.find((l) => l.id === e.lotId);
         const q = Number(e.quantity);
         if (!lot) throw new BadRequestException(err('LOT_NOT_FOUND', { lot: e.lotId }));
-        if (!Number.isInteger(q) || q <= 0) throw new BadRequestException(err('LOT_QUANTITY_INVALID', { lot: lot.lotNumber }));
+        if (!validQty(q)) throw new BadRequestException(err('LOT_QUANTITY_INVALID', { lot: lot.lotNumber }));
         if (warehouseId && lot.warehouseId !== warehouseId) throw new BadRequestException(err('LOT_WRONG_WAREHOUSE', { lot: lot.lotNumber }));
-        const total = (used.get(lot.id) || 0) + q;
+        if (sale && !warehouseId) await this.requireIssueWarehouse(manager, product.companyId, lot.warehouseId, true);
+        const total = addQty(used.get(lot.id) || 0, q);
         if (total > lot.quantity) {
           throw new BadRequestException(err('LOT_INSUFFICIENT', { lot: lot.lotNumber, available: lot.quantity, requested: total }));
         }
         used.set(lot.id, total);
         picks.push({ lot, quantity: q });
       }
-      const sum = picks.reduce((s, p) => s + p.quantity, 0);
-      if (sum !== qty) throw new BadRequestException(err('LOT_QUANTITY_MISMATCH', { name: product.name, expected: qty, actual: sum }));
+      const sum = sumQty(picks.map((p) => p.quantity));
+      if (sum !== roundQty(qty)) throw new BadRequestException(err('LOT_QUANTITY_MISMATCH', { name: product.name, expected: qty, actual: sum }));
     } else {
-      const activeIds = warehouseId ? [warehouseId] : (await this.activeWarehouses(manager, product.companyId)).map((w) => w.id);
+      const activeIds = warehouseId
+        ? [warehouseId]
+        : (sale ? await this.sellableWarehouses(manager, product.companyId) : await this.activeWarehouses(manager, product.companyId)).map((w) => w.id);
       const lots = await manager.find(StockLotEntity, {
         where: { companyId: product.companyId, productId: product.id, warehouseId: In(activeIds), quantity: MoreThan(0) },
         lock: { mode: 'pessimistic_write' },
@@ -407,14 +485,14 @@ export class WarehouseStockService {
       if (!result) {
         const usable = lots
           .filter((l) => allowExpired || !product.hasExpiry || !l.expiryDate || normDate(l.expiryDate)! >= today)
-          .reduce((s, l) => s + l.quantity, 0);
+          .reduce((s, l) => addQty(s, l.quantity), 0);
         throw new BadRequestException(err('LOT_INSUFFICIENT_AUTO', { name: product.name, available: usable, requested: qty }));
       }
       for (const p of result.picks) picks.push({ lot: p.lot as StockLotEntity, quantity: p.quantity });
     }
     const out: StockAllocation[] = [];
     for (const p of picks) {
-      p.lot.quantity -= p.quantity;
+      p.lot.quantity = addQty(p.lot.quantity, -p.quantity);
       await manager.save(StockLotEntity, p.lot);
       out.push({
         warehouseId: p.lot.warehouseId,
@@ -434,6 +512,7 @@ export class WarehouseStockService {
     warehouseId: string | null,
     explicit: string[] | undefined,
     newStatus: SerialStatus,
+    sale = false,
   ): Promise<StockAllocation[]> {
     let rows: SerialNumberEntity[];
     if (explicit && explicit.length) {
@@ -446,9 +525,12 @@ export class WarehouseStockService {
         const row = rows.find((r) => r.serial === s);
         if (!row || row.status !== SerialStatus.IN_STOCK) throw new BadRequestException(err('SERIAL_NOT_IN_STOCK', { serial: s }));
         if (warehouseId && row.warehouseId !== warehouseId) throw new BadRequestException(err('SERIAL_WRONG_WAREHOUSE', { serial: s }));
+        if (sale && !warehouseId && row.warehouseId) await this.requireIssueWarehouse(manager, product.companyId, row.warehouseId, true);
       }
     } else {
-      const activeIds = warehouseId ? [warehouseId] : (await this.activeWarehouses(manager, product.companyId)).map((w) => w.id);
+      const activeIds = warehouseId
+        ? [warehouseId]
+        : (sale ? await this.sellableWarehouses(manager, product.companyId) : await this.activeWarehouses(manager, product.companyId)).map((w) => w.id);
       const available = await manager.find(SerialNumberEntity, {
         where: { companyId: product.companyId, productId: product.id, status: SerialStatus.IN_STOCK, warehouseId: In(activeIds) },
         order: { createdAt: 'ASC', serial: 'ASC' },
@@ -482,7 +564,7 @@ export class WarehouseStockService {
           ? await manager.findOne(StockLotEntity, { where: { id: e.lotId, companyId: product.companyId, productId: product.id }, lock: { mode: 'pessimistic_write' } })
           : null;
         if (!lot) lot = await this.upsertLot(manager, product, e.warehouseId, e.lotNumber, e.expiryDate || null);
-        lot.quantity += e.quantity;
+        lot.quantity = addQty(lot.quantity, e.quantity);
         await manager.save(StockLotEntity, lot);
         out.push({ warehouseId: lot.warehouseId, delta: e.quantity, lotId: lot.id, lotNumber: lot.lotNumber, expiryDate: normDate(lot.expiryDate) });
       } else if (product.trackingType === TrackingType.SERIAL && e.serials?.length) {
@@ -527,7 +609,7 @@ export class WarehouseStockService {
       inn = [];
       for (const o of out) {
         const lot = await this.upsertLot(manager, product, toId, o.lotNumber as string, o.expiryDate || null);
-        lot.quantity += -o.delta;
+        lot.quantity = addQty(lot.quantity, -o.delta);
         await manager.save(StockLotEntity, lot);
         inn.push({ warehouseId: toId, delta: -o.delta, lotId: lot.id, lotNumber: lot.lotNumber, expiryDate: normDate(lot.expiryDate) });
       }
@@ -555,8 +637,8 @@ export class WarehouseStockService {
       lock: { mode: 'pessimistic_write' },
     });
     if (!lot) throw new BadRequestException(err('LOT_NOT_FOUND', { lot: lotId }));
-    const target = Math.max(0, Math.floor(Number(counted) || 0));
-    const delta = target - lot.quantity;
+    const target = Math.max(0, roundQty(Number(counted) || 0));
+    const delta = roundQty(target - lot.quantity);
     if (!delta) return [];
     lot.quantity = target;
     await manager.save(StockLotEntity, lot);
@@ -578,8 +660,10 @@ export class WarehouseStockService {
   }
 
   /**
-   * Writes one stock movement per allocation (per lot / serial group).
-   * previous/new quantities are company-wide product totals, chained across rows.
+   * Writes one stock movement per allocation (per lot / serial group), appending
+   * each to the company's hash chain. previous/new quantities are company-wide
+   * product totals, chained across rows. Requires a reason code; the transaction
+   * date defaults to now and may not lie in the future.
    */
   async recordMovements(
     manager: EntityManager,
@@ -588,36 +672,122 @@ export class WarehouseStockService {
     allocations: StockAllocation[],
     info: MovementInfo,
   ): Promise<StockMovementEntity[]> {
+    const active = allocations.filter((a) => a.delta);
+    if (!active.length) return [];
+    const now = Date.now();
+    const txDate = toSecond(info.transactionDate ? new Date(info.transactionDate) : new Date(now));
+    if (Number.isNaN(txDate.getTime())) throw new BadRequestException(err('TRANSACTION_DATE_INVALID'));
+    if (txDate.getTime() > now + FUTURE_TOLERANCE_MS) throw new BadRequestException(err('TRANSACTION_DATE_IN_FUTURE'));
+    if (info.documentDate && !isDateKey(info.documentDate)) throw new BadRequestException(err('DOCUMENT_DATE_INVALID'));
+    const reasons = active.map((a) => (typeof info.reasonCode === 'function' ? info.reasonCode(a.delta) : info.reasonCode));
+    reasons.forEach((r, i) => {
+      if (!r) throw new BadRequestException(err('REASON_CODE_REQUIRED'));
+      if (!isReasonCode(r)) throw new BadRequestException(err('REASON_CODE_INVALID', { reason: r }));
+      if (!reasonAllowsDirection(r, active[i].delta)) throw new BadRequestException(err('REASON_DIRECTION_MISMATCH', { reason: r }));
+    });
+
+    const chain = await this.begin(manager, product.companyId);
+    const actor = this.tenant.actor;
+    const whIds = [...new Set(active.map((a) => a.warehouseId).filter(Boolean))];
+    const whs = whIds.length ? await manager.find(WarehouseEntity, { where: { companyId: product.companyId, id: In(whIds) } }) : [];
     const saved: StockMovementEntity[] = [];
-    let running = previousTotal;
-    for (const a of allocations) {
-      if (!a.delta) continue;
-      const next = running + a.delta;
-      saved.push(
-        await manager.save(
-          StockMovementEntity,
-          manager.create(StockMovementEntity, {
-            companyId: product.companyId,
-            productId: product.id,
-            productName: product.name,
-            warehouseId: a.warehouseId,
-            type: info.type,
-            quantity: a.delta,
-            previousQuantity: running,
-            newQuantity: next,
-            lotId: a.lotId ?? null,
-            lotNumber: a.lotNumber ?? null,
-            serials: a.serials?.length ? a.serials : null,
-            referenceId: info.referenceId,
-            referenceType: info.referenceType,
-            note: info.note,
-            performedBy: info.performedBy || 'System',
-          }),
-        ),
-      );
+    let running = roundQty(previousTotal);
+    for (let i = 0; i < active.length; i++) {
+      const a = active[i];
+      const next = info.totalsUnchanged ? running : addQty(running, a.delta);
+      const row = manager.create(StockMovementEntity, {
+        id: randomUUID(),
+        companyId: product.companyId,
+        sequenceNo: Number(chain.lastSequenceNo) + 1,
+        productId: product.id,
+        productSku: product.sku ?? null,
+        productName: product.name,
+        unitCode: product.unit ?? null,
+        warehouseId: a.warehouseId,
+        warehouseName: whs.find((w) => w.id === a.warehouseId)?.name ?? null,
+        type: a.type || info.type,
+        reasonCode: reasons[i],
+        quantity: roundQty(a.delta),
+        previousQuantity: running,
+        newQuantity: next,
+        lotId: a.lotId ?? null,
+        lotNumber: a.lotNumber ?? null,
+        serials: a.serials?.length ? a.serials : null,
+        transactionDate: txDate,
+        documentType: info.documentType || null,
+        documentNo: info.documentNo ? String(info.documentNo).slice(0, 50) : null,
+        documentDate: info.documentDate || null,
+        counterpartyTaxId: info.counterpartyTaxId || null,
+        referenceId: info.referenceId as string,
+        referenceType: info.referenceType as string,
+        note: (info.note ? String(info.note).slice(0, 255) : info.note) as string,
+        performedBy: info.performedBy || actor.username || 'System',
+        performedByUserId: actor.userId ?? null,
+        performedViaApiKeyId: actor.apiKeyId ?? null,
+        reversesMovementId: info.reversesMovementId ?? null,
+      });
+      row.prevHash = chain.lastHash;
+      row.hash = movementHash(chain.lastHash, row as unknown as Record<string, unknown>);
+      saved.push(await manager.save(StockMovementEntity, row));
+      chain.lastSequenceNo = row.sequenceNo;
+      chain.lastHash = row.hash;
       running = next;
     }
+    await manager.update(StockMovementChainEntity, { companyId: product.companyId }, { lastSequenceNo: chain.lastSequenceNo, lastHash: chain.lastHash });
     return saved;
+  }
+
+  /**
+   * VUK 219: records may not be entered later than `limitDays` (legal parameter
+   * VUK219_RECORD_DAYS) after the transaction. Returns a warning or null.
+   */
+  lateEntryWarning(
+    transactionDate: Date | string | null | undefined,
+    timezone: string | null | undefined,
+    limitDays: number,
+  ): { code: string; params: Record<string, number> } | null {
+    if (!transactionDate) return null;
+    const tz = timezone || DEFAULT_TIMEZONE;
+    const days = daysBetween(dateKeyInZone(new Date(transactionDate), tz), dateKeyInZone(new Date(), tz));
+    return days > limitDays ? { code: 'LATE_ENTRY_WARNING', params: { days, limit: limitDays } } : null;
+  }
+
+  /**
+   * Stock effect of reversing `original`: the opposite quantity at the same
+   * warehouse / lot / serials. Returns the allocations (already applied).
+   */
+  async applyReversal(manager: EntityManager, product: ProductEntity, original: StockMovementEntity): Promise<StockAllocation[]> {
+    const delta = roundQty(-Number(original.quantity));
+    if (!delta) return [];
+    const warehouseId = original.warehouseId;
+    if (!warehouseId) throw new BadRequestException(err('MOVEMENT_NOT_REVERSIBLE'));
+    await this.requireWarehouse(manager, product.companyId, warehouseId);
+    if (product.trackingType === TrackingType.LOT) {
+      if (!original.lotId && !original.lotNumber) throw new BadRequestException(err('TRACKING_RESTORE_UNAVAILABLE', { name: product.name }));
+      if (delta > 0) {
+        return this.restore(manager, product, [
+          { warehouseId, quantity: delta, lotId: original.lotId ?? null, lotNumber: original.lotNumber ?? null, expiryDate: null },
+        ]);
+      }
+      const lot = original.lotId
+        ? await manager.findOne(StockLotEntity, { where: { id: original.lotId, companyId: product.companyId, productId: product.id } })
+        : await manager.findOne(StockLotEntity, { where: { companyId: product.companyId, productId: product.id, warehouseId, lotNumber: original.lotNumber as string } });
+      if (!lot) throw new BadRequestException(err('LOT_NOT_FOUND', { lot: original.lotNumber || original.lotId }));
+      const out = await this.pickLots(manager, product, -delta, warehouseId, [{ lotId: lot.id, quantity: -delta }], true);
+      await this.apply(manager, product, out);
+      return out;
+    }
+    if (product.trackingType === TrackingType.SERIAL) {
+      const serials = original.serials || [];
+      if (serials.length !== Math.abs(delta)) throw new BadRequestException(err('TRACKING_RESTORE_UNAVAILABLE', { name: product.name }));
+      if (delta > 0) return this.restore(manager, product, [{ warehouseId, quantity: delta, serials }]);
+      const out = await this.pickSerials(manager, product, -delta, warehouseId, serials, SerialStatus.RETURNED);
+      await this.apply(manager, product, out);
+      return out;
+    }
+    const allocations = [{ warehouseId, delta }];
+    await this.apply(manager, product, allocations);
+    return allocations;
   }
 
   /** Fills the read-only `warehouses` (name -> qty) map for API responses. */

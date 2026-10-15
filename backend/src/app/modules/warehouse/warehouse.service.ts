@@ -4,7 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, MoreThan } from 'typeorm';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { ProductEntity } from '../../entities/product.entity';
-import { StockMovementEntity } from '../../entities/stock-movement.entity';
+import { UnitEntity } from '../../entities/unit.entity';
+import { dateKeyInZone, fitsDecimals, roundQty, warehouseTypeAllowsSale } from '../../shared/tr';
 import { ProductWarehouseStockEntity } from '../../entities/product-warehouse-stock.entity';
 import { StockMovementType } from '../../entities/enums';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
@@ -38,6 +39,12 @@ export class WarehouseService {
     if (dto.branchCode !== undefined) wh.branchCode = dto.branchCode || null;
     if (dto.siteGroup !== undefined) wh.siteGroup = dto.siteGroup ? dto.siteGroup.trim() || null : null;
     if (dto.defaultSeries !== undefined) wh.defaultSeries = dto.defaultSeries || null;
+    if (dto.type !== undefined) wh.type = dto.type || 'NORMAL';
+    if (dto.ownership !== undefined) wh.ownership = dto.ownership || 'OWN';
+    if (dto.isSellable !== undefined) wh.isSellable = !!dto.isSellable;
+    if (isCreate && dto.isSellable === undefined) wh.isSellable = true;
+    // Quarantine (awaiting destruction) and goods in transit are never sellable.
+    if (!warehouseTypeAllowsSale(wh.type)) wh.isSellable = false;
     if (dto.address !== undefined || isCreate) {
       const country = (await this.finance.getCompany()).country || 'TR';
       wh.address = await this.refdata.normalizeAddress(dto.address || {}, country);
@@ -77,6 +84,9 @@ export class WarehouseService {
         branchCode: wh.branchCode ?? null,
         siteGroup: wh.siteGroup ?? null,
         defaultSeries: wh.defaultSeries ?? null,
+        type: wh.type || 'NORMAL',
+        isSellable: wh.isSellable !== false,
+        ownership: wh.ownership || 'OWN',
         isDefault: i === 0,
         productCount: Number(r?.productCount || 0),
         totalStock: Number(r?.totalStock || 0),
@@ -183,16 +193,19 @@ export class WarehouseService {
     note?: string,
     details: { lotId?: string; serials?: string[] } = {},
   ): Promise<ProductEntity | null> {
-    const qty = Number(quantity);
-    if (!Number.isInteger(qty) || qty <= 0) {
+    const qty = roundQty(Number(quantity));
+    if (!(qty > 0) || Math.abs(qty - Number(quantity)) > 1e-9) {
       throw new BadRequestException(err('TRANSFER_QUANTITY_INVALID'));
     }
     const saved = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
       const product = await manager.findOne(ProductEntity, {
         where: { id: productId, companyId: this.companyId, isDeleted: false },
         lock: { mode: 'pessimistic_write' },
       });
       if (!product) throw new NotFoundException(err('PRODUCT_NOT_FOUND'));
+      const decimals = await this.unitDecimals(manager, product);
+      if (!fitsDecimals(qty, decimals)) throw new BadRequestException(err('QUANTITY_PRECISION_EXCEEDED', { quantity: qty, decimals }));
       const from = await this.resolveWarehouse(manager, fromWarehouse);
       const to = await this.resolveWarehouse(manager, toWarehouse);
       if (from.id === to.id) {
@@ -203,36 +216,38 @@ export class WarehouseService {
       const moved = await this.warehouseStock.transfer(manager, product, from.id, to.id, qty, details);
       const ref = `TRF-${Date.now()}`;
       const text = note || `Depo transferi: ${from.name} -> ${to.name} (${qty})`;
-      const info = { referenceId: ref, referenceType: 'warehouse_transfer', note: text, performedBy };
+      // Legs at a quarantine warehouse are typed QUARANTINE_IN / QUARANTINE_OUT.
+      const outType = from.type === 'QUARANTINE' ? StockMovementType.QUARANTINE_OUT : StockMovementType.TRANSFER_OUT;
+      const inType = to.type === 'QUARANTINE' ? StockMovementType.QUARANTINE_IN : StockMovementType.TRANSFER_IN;
       // Totals are unchanged by a transfer, so previous/new both equal the product total.
-      for (const [allocs, type] of [
-        [moved.out, StockMovementType.TRANSFER_OUT],
-        [moved.in, StockMovementType.TRANSFER_IN],
-      ] as const) {
-        for (const a of allocs) {
-          await manager.save(
-            StockMovementEntity,
-            manager.create(StockMovementEntity, {
-              companyId: this.companyId,
-              productId: product.id,
-              productName: product.name,
-              warehouseId: a.warehouseId,
-              type,
-              quantity: a.delta,
-              previousQuantity: total,
-              newQuantity: total,
-              lotId: a.lotId ?? null,
-              lotNumber: a.lotNumber ?? null,
-              serials: a.serials?.length ? a.serials : null,
-              ...info,
-            }),
-          );
-        }
-      }
+      await this.warehouseStock.recordMovements(
+        manager,
+        product,
+        total,
+        [...moved.out.map((a) => ({ ...a, type: outType })), ...moved.in.map((a) => ({ ...a, type: inType }))],
+        {
+          type: StockMovementType.TRANSFER_OUT,
+          reasonCode: 'TRANSFER',
+          totalsUnchanged: true,
+          documentType: 'TRANSFER',
+          documentNo: ref,
+          documentDate: dateKeyInZone(new Date(), (await this.finance.getCompany(manager)).timezone),
+          referenceId: ref,
+          referenceType: 'warehouse_transfer',
+          note: text,
+          performedBy,
+        },
+      );
       await this.warehouseStock.attachWarehouseMap(manager, this.companyId, [product]);
       return product;
     });
     this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: saved });
     return saved;
+  }
+
+  private async unitDecimals(manager: EntityManager, product: ProductEntity): Promise<number> {
+    if (product.trackingType === 'serial' || !product.baseUnitId) return 0;
+    const unit = await manager.findOne(UnitEntity, { where: { id: product.baseUnitId, companyId: this.companyId } });
+    return Number(unit?.decimals) || 0;
   }
 }

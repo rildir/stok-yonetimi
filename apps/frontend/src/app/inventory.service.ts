@@ -20,7 +20,13 @@ import {
   SerialNumber,
   BarcodeLookupResult,
   ExpiringLot,
+  StockAdjustmentInput,
+  StockAdjustmentResult,
+  StockAdjustmentRequest,
+  MovementAttachment,
+  ChainVerification,
 } from './models/inventory.models';
+import { HttpResponse } from '@angular/common/http';
 
 export type {
   Product,
@@ -51,6 +57,11 @@ export type {
   LineUnitInfo,
   BarcodeLookupResult,
   ExpiringLot,
+  StockAdjustmentInput,
+  StockAdjustmentResult,
+  StockAdjustmentRequest,
+  MovementAttachment,
+  ChainVerification,
 } from './models/inventory.models';
 
 /** Payload for POST /orders (customerId preferred; customerName used when no customer is linked). */
@@ -156,7 +167,9 @@ export class InventoryService {
     startDate?: string,
     endDate?: string,
     type?: string,
-    warehouseId?: string
+    warehouseId?: string,
+    reasonCode?: string,
+    dateField: 'transactionDate' | 'createdAt' = 'transactionDate',
   ): Observable<{ data: StockMovement[], total: number }> {
     let url = `${this.apiUrl}/stock-movements?page=${page}&limit=${limit}`;
     if (productId) url += `&productId=${productId}`;
@@ -165,12 +178,43 @@ export class InventoryService {
     if (endDate) url += `&endDate=${endDate}`;
     if (type) url += `&type=${type}`;
     if (warehouseId) url += `&warehouseId=${encodeURIComponent(warehouseId)}`;
+    if (reasonCode) url += `&reasonCode=${encodeURIComponent(reasonCode)}`;
+    if (dateField !== 'transactionDate') url += `&dateField=${dateField}`;
     return this.http.get<{ data: StockMovement[], total: number }>(url);
   }
 
-  /** Sets the product total to newQuantity; the difference is booked on warehouseId (default/greedy if omitted). */
-  createManualAdjustment(productId: string, newQuantity: number, note: string, warehouseId?: string): Observable<StockMovement> {
-    return this.http.post<StockMovement>(`${this.apiUrl}/stock-movements/adjust`, { productId, newQuantity, note, warehouseId });
+  /**
+   * Manual adjustment with mandatory reason (and optional document / attachment). The target
+   * quantity is the warehouse's (or the lot's) when given. HTTP 202 = waiting for a second approver.
+   */
+  createManualAdjustment(input: StockAdjustmentInput): Observable<HttpResponse<StockAdjustmentResult>> {
+    return this.http.post<StockAdjustmentResult>(`${this.apiUrl}/stock-movements/adjust`, input, { observe: 'response' });
+  }
+
+  /** Books the exact opposite of a movement (corrections never edit the original). */
+  reverseMovement(id: string, note: string, transactionDate?: string | null): Observable<StockMovement> {
+    return this.http.post<StockMovement>(`${this.apiUrl}/stock-movements/${id}/reverse`, { note, transactionDate: transactionDate || undefined });
+  }
+
+  getAdjustmentRequests(status = 'PENDING'): Observable<StockAdjustmentRequest[]> {
+    return this.http.get<StockAdjustmentRequest[]>(`${this.apiUrl}/stock-movements/adjustment-requests?status=${status}`);
+  }
+
+  decideAdjustmentRequest(id: string, approve: boolean, note?: string): Observable<{ request: StockAdjustmentRequest }> {
+    return this.http.post<{ request: StockAdjustmentRequest }>(`${this.apiUrl}/stock-movements/adjustment-requests/${id}/${approve ? 'approve' : 'reject'}`, { note });
+  }
+
+  getMovementAttachments(movementId: string): Observable<MovementAttachment[]> {
+    return this.http.get<MovementAttachment[]>(`${this.apiUrl}/stock-movements/${movementId}/attachments`);
+  }
+
+  downloadMovementAttachment(attachmentId: string): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/stock-movements/attachments/${attachmentId}/download`, { responseType: 'blob' });
+  }
+
+  /** Recomputes the company's stock movement hash chain on the server. */
+  verifyMovementIntegrity(): Observable<ChainVerification> {
+    return this.http.get<ChainVerification>(`${this.apiUrl}/integrity/stock-movements/verify`);
   }
 
   // Suppliers
@@ -201,8 +245,15 @@ export class InventoryService {
 
   /** warehouseId: receiving warehouse when status becomes Received (default warehouse if omitted) */
   /** receipts are required for lot/serial tracked lines when status = Received */
-  updatePurchaseOrderStatus(id: string, status: string, warehouseId?: string, receipts?: PurchaseOrderReceipt[]): Observable<PurchaseOrder> {
-    const body: any = { status };
+  /** Receipt metadata: actual receipt time (company local) and the supplier's delivery document. */
+  updatePurchaseOrderStatus(
+    id: string,
+    status: string,
+    warehouseId?: string,
+    receipts?: PurchaseOrderReceipt[],
+    meta?: { transactionDate?: string; documentType?: string; documentNo?: string; documentDate?: string },
+  ): Observable<PurchaseOrder> {
+    const body: any = { status, ...(meta || {}) };
     if (warehouseId) body.warehouseId = warehouseId;
     if (receipts?.length) body.receipts = receipts;
     return this.http.put<PurchaseOrder>(`${this.apiUrl}/purchase-orders/${id}/status`, body);

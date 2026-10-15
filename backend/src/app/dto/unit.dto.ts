@@ -1,4 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, MaxLength, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MaxLength, Matches, IsInt, Min, Max, IsBoolean, IsIn } from 'class-validator';
+import { UNECE_UNIT_CODES, UNIT_MAX_DECIMALS } from '../shared/tr';
+
+const UNECE = UNECE_UNIT_CODES.map((u) => u.code);
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateUnitDto {
@@ -14,6 +17,22 @@ export class CreateUnitDto {
   @IsNotEmpty({ message: 'UNIT_NAME_REQUIRED' })
   @MaxLength(100)
   name: string;
+  @ApiPropertyOptional({ example: 3, description: 'Allowed decimals (0-3)' })
+  @IsOptional()
+  @IsInt({ message: 'UNIT_DECIMALS_INVALID|max=3' })
+  @Min(0, { message: 'UNIT_DECIMALS_INVALID|max=3' })
+  @Max(UNIT_MAX_DECIMALS, { message: 'UNIT_DECIMALS_INVALID|max=3' })
+  decimals?: number;
+
+  @ApiPropertyOptional({ example: 'KGM', description: 'UN/ECE Rec. 20 code' })
+  @IsOptional()
+  @IsIn([...UNECE, null], { message: 'UNECE_CODE_INVALID' })
+  uneceCode?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  allowsFraction?: boolean;
 }
 
 export class UpdateUnitDto {
@@ -29,4 +48,20 @@ export class UpdateUnitDto {
   @IsString()
   @MaxLength(100)
   name?: string;
+  @ApiPropertyOptional({ example: 3, description: 'Allowed decimals (0-3)' })
+  @IsOptional()
+  @IsInt({ message: 'UNIT_DECIMALS_INVALID|max=3' })
+  @Min(0, { message: 'UNIT_DECIMALS_INVALID|max=3' })
+  @Max(UNIT_MAX_DECIMALS, { message: 'UNIT_DECIMALS_INVALID|max=3' })
+  decimals?: number;
+
+  @ApiPropertyOptional({ example: 'KGM', description: 'UN/ECE Rec. 20 code' })
+  @IsOptional()
+  @IsIn([...UNECE, null], { message: 'UNECE_CODE_INVALID' })
+  uneceCode?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  allowsFraction?: boolean;
 }

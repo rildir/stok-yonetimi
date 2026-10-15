@@ -12,11 +12,13 @@ import { AppStateService } from '../../services/app-state.service';
 type WarehouseStockItem = { productId: string; productName: string; sku: string; quantity: number };
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
 import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGroup } from '../shared/address-fields.component';
+import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
+import { WAREHOUSE_OWNERSHIPS, WAREHOUSE_TYPES, warehouseTypeAllowsSale } from '@stok/tr-compliance';
 
 @Component({
   selector: 'app-warehouses',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AddressFieldsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AddressFieldsComponent, QuantityInputDirective],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .wh-check { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); cursor: pointer; }
@@ -121,6 +123,9 @@ import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGr
                 <tr (click)="goToWarehouseProducts(w)" class="warehouse-row">
                   <td class="td-primary"><span class="wh-name">{{ w.name }}</span>
                     @if (w.isDefault) { <span class="badge badge-primary" style="margin-left: var(--space-2);" [title]="'warehouses.defaultHint' | t">{{ 'warehouses.default' | t }}</span> }
+                    @if (w.type && w.type !== 'NORMAL') { <span class="badge" [class.badge-warning]="w.type === 'QUARANTINE'" [class.badge-info]="w.type !== 'QUARANTINE'" style="margin-left: var(--space-2);">{{ 'warehouses.type.' + w.type | t }}</span> }
+                    @if (w.isSellable === false) { <span class="badge badge-neutral" style="margin-left: var(--space-2);" [title]="'warehouses.notSellableHint' | t">{{ 'warehouses.notSellable' | t }}</span> }
+                    @if (w.ownership && w.ownership !== 'OWN') { <span class="badge badge-neutral" style="margin-left: var(--space-2);">{{ 'warehouses.ownership.' + w.ownership | t }}</span> }
                   </td>
                   <td class="mono" [attr.data-label]="'warehouses.col.code' | t">{{ w.code }}</td>
                   <td class="text-muted" [attr.data-label]="'warehouses.col.address' | t">
@@ -192,6 +197,24 @@ import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGr
 
               <div class="form-section-title">{{ 'warehouses.col.address' | t }}</div>
               <app-address-fields [group]="addressGroup" idPrefix="wh"></app-address-fields>
+
+              <div class="form-section-title">{{ 'warehouses.section.inventory' | t }}</div>
+              <div class="form-row">
+                <div class="form-field">
+                  <select id="whType" formControlName="type" class="form-input form-select has-value" (change)="onTypeChange()">
+                    @for (t of warehouseTypes; track t) { <option [value]="t">{{ 'warehouses.type.' + t | t }}</option> }
+                  </select>
+                  <label for="whType" class="form-label">{{ 'warehouses.form.type' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <select id="whOwnership" formControlName="ownership" class="form-input form-select has-value">
+                    @for (o of ownerships; track o) { <option [value]="o">{{ 'warehouses.ownership.' + o | t }}</option> }
+                  </select>
+                  <label for="whOwnership" class="form-label">{{ 'warehouses.form.ownership' | t }}</label>
+                </div>
+              </div>
+              <label class="wh-check"><input type="checkbox" formControlName="isSellable" /> {{ 'warehouses.form.isSellable' | t }}</label>
+              <span class="field-hint">{{ ('warehouses.typeHint.' + (warehouseForm.get('type')?.value || 'NORMAL')) | t }}</span>
 
               <div class="form-section-title">{{ 'warehouses.section.legal' | t }}</div>
               <label class="wh-check"><input type="checkbox" formControlName="isBranch" /> {{ 'warehouses.form.isBranch' | t }}</label>
@@ -342,7 +365,7 @@ import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGr
                 }
 
                 <div class="form-field">
-                  <input id="trQty" type="number" min="1" [max]="availableQty()" step="1" formControlName="quantity" class="form-input has-value" [readonly]="selectedTracking() === 'serial'" />
+                  <input id="trQty" type="text" appQty [qtyDecimals]="transferDecimals()" formControlName="quantity" class="form-input has-value" [readonly]="selectedTracking() === 'serial'" />
                   <label for="trQty" class="form-label">{{ 'warehouses.transfer.quantity' | t }}</label>
                   @if (selectedTransferItem()) {
                     <div class="dim-text hint">{{ 'warehouses.transfer.available' | t: { qty: availableQty() } }}</div>
@@ -408,6 +431,8 @@ export class WarehousesComponent implements OnInit {
     const id = this.selectedProductId();
     return (this.appState.products().find(p => p.id === id)?.trackingType as TrackingType) || 'none';
   });
+  /** Precision of the selected product's base unit (kg: 3, pcs: 0). */
+  transferDecimals = computed(() => productDecimals(this.appState.products().find(p => p.id === this.selectedProductId())));
   availableQty = computed(() => {
     if (this.selectedTracking() === 'lot' && this.selectedLotId()) {
       return this.transferLots().find(l => l.id === this.selectedLotId())?.quantity ?? 0;
@@ -418,7 +443,7 @@ export class WarehousesComponent implements OnInit {
   transferForm: FormGroup = this.fb.group({
     productId: ['', Validators.required],
     toWarehouseId: ['', Validators.required],
-    quantity: [1, [Validators.required, Validators.min(1)]],
+    quantity: [1, [Validators.required, Validators.min(0.0001)]],
     note: ['']
   });
   isLoading = signal(true);
@@ -463,7 +488,24 @@ export class WarehousesComponent implements OnInit {
     branchCode: [''],
     siteGroup: [''],
     defaultSeries: ['', [Validators.pattern(/^[A-Z0-9]{3}$/)]],
+    type: ['NORMAL'],
+    isSellable: [true],
+    ownership: ['OWN'],
   });
+  readonly warehouseTypes = WAREHOUSE_TYPES;
+  readonly ownerships = WAREHOUSE_OWNERSHIPS;
+
+  /** Quarantine and in-transit stock is never sellable. */
+  onTypeChange() {
+    const type = this.warehouseForm.get('type')?.value;
+    const sellable = this.warehouseForm.get('isSellable')!;
+    if (!warehouseTypeAllowsSale(type)) {
+      sellable.setValue(false);
+      sellable.disable();
+    } else {
+      sellable.enable();
+    }
+  }
 
   upperSeries(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -524,11 +566,15 @@ export class WarehousesComponent implements OnInit {
         branchCode: warehouse.branchCode || '',
         siteGroup: warehouse.siteGroup || '',
         defaultSeries: warehouse.defaultSeries || '',
+        type: warehouse.type || 'NORMAL',
+        isSellable: warehouse.isSellable !== false,
+        ownership: warehouse.ownership || 'OWN',
       });
     } else {
       this.editId.set(null);
-      this.warehouseForm.reset({ name: '', code: '', address: addressToForm(null, country), isBranch: false, branchCode: '', siteGroup: '', defaultSeries: '' });
+      this.warehouseForm.reset({ name: '', code: '', address: addressToForm(null, country), isBranch: false, branchCode: '', siteGroup: '', defaultSeries: '', type: 'NORMAL', isSellable: true, ownership: 'OWN' });
     }
+    this.onTypeChange();
     this.isDrawerOpen.set(true);
   }
 
@@ -554,6 +600,9 @@ export class WarehousesComponent implements OnInit {
       branchCode: raw.branchCode?.trim() || null,
       siteGroup: raw.siteGroup?.trim() || null,
       defaultSeries: raw.defaultSeries || null,
+      type: raw.type || 'NORMAL',
+      isSellable: warehouseTypeAllowsSale(raw.type) && this.warehouseForm.getRawValue().isSellable !== false,
+      ownership: raw.ownership || 'OWN',
     };
     const id = this.editId();
 
@@ -696,7 +745,7 @@ export class WarehousesComponent implements OnInit {
   private applyQtyMax() {
     const max = this.availableQty();
     const qtyCtrl = this.transferForm.get('quantity')!;
-    qtyCtrl.setValidators([Validators.required, Validators.min(1), Validators.max(max)]);
+    qtyCtrl.setValidators([Validators.required, Validators.min(0.0001), Validators.max(max)]);
     if (qtyCtrl.value > max) qtyCtrl.setValue(max);
     qtyCtrl.updateValueAndValidity();
   }
@@ -715,7 +764,7 @@ export class WarehousesComponent implements OnInit {
     }
     const { productId, toWarehouseId, quantity, note } = this.transferForm.value;
     const qty = Number(quantity);
-    if (!Number.isInteger(qty) || qty < 1 || qty > this.availableQty()) {
+    if (!(qty > 0) || qty > this.availableQty()) {
       this.transferError.set(this.i18n.t('warehouses.transfer.quantityInvalid', { max: this.availableQty() }));
       return;
     }

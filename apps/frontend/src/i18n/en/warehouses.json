@@ -75,5 +75,22 @@
   "warehouses.form.defaultSeries": "Default document series (3 characters)",
   "warehouses.form.seriesInvalid": "The series must be 3 characters (A-Z, 0-9).",
   "warehouses.form.siteGroup": "Same-site group",
-  "warehouses.form.siteGroupHint": "Give warehouses on the same premises the same group name; transfers between them need no despatch advice."
+  "warehouses.form.siteGroupHint": "Give warehouses on the same premises the same group name; transfers between them need no despatch advice.",
+  "warehouses.section.inventory": "Stock usage",
+  "warehouses.form.type": "Warehouse type",
+  "warehouses.form.ownership": "Ownership",
+  "warehouses.form.isSellable": "Stock here can be sold",
+  "warehouses.type.NORMAL": "Normal",
+  "warehouses.type.QUARANTINE": "Quarantine",
+  "warehouses.type.CONSIGNMENT": "Consignment",
+  "warehouses.type.IN_TRANSIT": "In transit",
+  "warehouses.typeHint.NORMAL": "Regular warehouse open for sales.",
+  "warehouses.typeHint.QUARANTINE": "Expired, damaged or awaiting-destruction goods; never sold from here.",
+  "warehouses.typeHint.CONSIGNMENT": "Consignment goods; set ownership correctly (used for valuation).",
+  "warehouses.typeHint.IN_TRANSIT": "Goods on the way; not sellable.",
+  "warehouses.ownership.OWN": "Own goods",
+  "warehouses.ownership.CONSIGNMENT_IN": "Consignment in (third party goods)",
+  "warehouses.ownership.CONSIGNMENT_OUT": "Consignment out (our goods at a third party)",
+  "warehouses.notSellable": "Not sellable",
+  "warehouses.notSellableHint": "Orders never take stock from this warehouse."
 }

@@ -3,6 +3,7 @@ import { PurchaseOrderEntity } from './purchase-order.entity';
 import { ProductEntity } from './product.entity';
 import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 import { TrackingEntry } from './tracking';
+import { qtyColumn } from '../utils/quantity-transformer';
 
 @Entity('purchase_order_items')
 export class PurchaseOrderItemEntity {
@@ -16,7 +17,7 @@ export class PurchaseOrderItemEntity {
   productName: string;
 
   /** Quantity in the product's base unit (what moves stock). */
-  @Column('int')
+  @Column(qtyColumn())
   quantity: number;
 
   /** Unit the line was entered in (null = base unit); unitPrice is per this unit. */
@@ -31,7 +32,7 @@ export class PurchaseOrderItemEntity {
   unitFactor: number;
 
   /** Quantity as entered (in unitCode); lineTotal = unitQuantity * unitPrice (+ tax) */
-  @Column('decimal', { precision: 12, scale: 4, default: 0, transformer: new ColumnNumericTransformer() })
+  @Column(qtyColumn({ default: 0 }))
   unitQuantity: number;
 
   /** Lots / serials taken or received for this line */

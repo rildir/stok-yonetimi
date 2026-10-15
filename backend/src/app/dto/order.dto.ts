@@ -1,5 +1,5 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, ArrayMinSize } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, ArrayMinSize, IsPositive } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
@@ -9,8 +9,8 @@ export class OrderLotPickDto {
   @IsNotEmpty()
   lotId: string;
 
-  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
-  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
+  @IsPositive({ message: 'VALIDATION_QUANTITY_POSITIVE' })
   quantity: number;
 }
 
@@ -23,8 +23,8 @@ export class OrderItemDto {
   @IsOptional()
   productName?: string;
 
-  @IsInt({ message: 'VALIDATION_ITEM_QUANTITY_INT' })
-  @Min(1, { message: vmsg('VALIDATION_ITEM_QUANTITY_MIN', 'min') })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
+  @IsPositive({ message: 'VALIDATION_QUANTITY_POSITIVE' })
   quantity: number;
 
   /** Unit price in document currency (gross if the company enters tax-inclusive prices) */

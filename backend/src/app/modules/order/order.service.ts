@@ -15,6 +15,10 @@ import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { UnitService, LineUnit } from '../../shared/services/unit.service';
 import { isTracked, StockAllocation } from '../../shared/services/warehouse-stock.service';
 import { TrackingEntry } from '../../entities/tracking';
+import { addQty, dateKeyInZone, isValidTckn, isValidVkn, roundQty } from '../../shared/tr';
+
+/** VKN / TCKN of a party when valid (snapshotted on stock movements). */
+export const partyTaxId = (v: string | null | undefined): string | null => (v && (isValidVkn(v) || isValidTckn(v)) ? v : null);
 
 export interface OrderItemInput {
   productId: string;
@@ -89,6 +93,8 @@ export class OrderService {
     const productsToEmit: ProductEntity[] = [];
 
     const savedOrder = await this.dataSource.transaction(async (manager) => {
+      // Movement chain lock first (same lock order as every stock transaction).
+      await this.warehouseStock.begin(manager, this.companyId);
       let orderNumber = '';
       let attempts = 0;
       const maxAttempts = 10;
@@ -117,6 +123,8 @@ export class OrderService {
       const company = await this.finance.getCompany(manager);
       const currency = (data.currency || customer?.currency || company.baseCurrency).toUpperCase();
       const orderDate = data.date ? new Date(data.date) : new Date();
+      // Stock leaves at the order date (legacy deduct-on-order mode), never in the future.
+      const txDate = new Date(Math.min(orderDate.getTime(), Date.now()));
 
       // Merge duplicates in payload (same product + same source warehouse)
       const mergedMap = new Map<string, OrderItemInput>();
@@ -124,7 +132,7 @@ export class OrderService {
         const key = `${item.productId}|${item.warehouseId || data.warehouseId || ''}|${item.unitId || ''}`;
         const existing = mergedMap.get(key);
         if (existing) {
-          existing.quantity += item.quantity;
+          existing.quantity = addQty(existing.quantity, item.quantity);
           if (item.lots?.length) existing.lots = [...(existing.lots || []), ...item.lots];
           if (item.serials?.length) existing.serials = [...(existing.serials || []), ...item.serials];
         } else {
@@ -152,12 +160,22 @@ export class OrderService {
         let allocations: StockAllocation[] = [];
         if (data.status === OrderStatus.COMPLETED || data.status === OrderStatus.PENDING) {
           const oldQty = prod.quantity;
-          allocations = await this.warehouseStock.issue(manager, prod, baseQty, item.warehouseId || data.warehouseId, {
-            lots: item.lots,
-            serials: item.serials,
-          });
+          allocations = await this.warehouseStock.issue(
+            manager,
+            prod,
+            baseQty,
+            item.warehouseId || data.warehouseId,
+            { lots: item.lots, serials: item.serials },
+            { sale: true },
+          );
           await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
             type: StockMovementType.ORDER,
+            reasonCode: 'SALE',
+            transactionDate: txDate,
+            documentType: 'ORDER',
+            documentNo: orderNumber,
+            documentDate: dateKeyInZone(orderDate, company.timezone),
+            counterpartyTaxId: partyTaxId(customer?.identityNumber),
             referenceId: orderNumber,
             referenceType: 'order',
             note: `Sipariş oluşturuldu: ${orderNumber}`,
@@ -229,6 +247,7 @@ export class OrderService {
     const productsToEmit: ProductEntity[] = [];
 
     const savedOrder = await this.dataSource.transaction(async (manager) => {
+      await this.warehouseStock.begin(manager, this.companyId);
       const order = await manager.findOne(OrderEntity, {
         where: { companyId: this.companyId, id },
         relations: { items: true },
@@ -261,6 +280,9 @@ export class OrderService {
             const restored = await this.warehouseStock.restore(manager, prod, item.tracking || []);
             await this.warehouseStock.recordMovements(manager, prod, oldQty, restored, {
               type: StockMovementType.RETURN,
+              reasonCode: 'CORRECTION',
+              documentType: 'ORDER',
+              documentNo: order.orderNumber,
               referenceId: order.orderNumber,
               referenceType: 'order',
               note: `Sipariş iptal edildi: ${order.orderNumber}`,
@@ -274,16 +296,23 @@ export class OrderService {
           const outs = await manager.find(StockMovementEntity, {
             where: { companyId: this.companyId, productId: prod.id, referenceId: order.orderNumber, type: StockMovementType.ORDER },
           });
-          let allocations = outs
+          let allocations: StockAllocation[] = outs
             .filter((m) => !!m.warehouseId)
             .map((m) => ({ warehouseId: m.warehouseId as string, delta: Math.abs(m.quantity) }));
-          if (allocations.reduce((s, a) => s + a.delta, 0) === item.quantity) {
+          let reverses: string | null = null;
+          if (roundQty(allocations.reduce((s, a) => s + a.delta, 0)) === roundQty(item.quantity)) {
             await this.warehouseStock.apply(manager, prod, allocations);
+            // One-to-one with the sale movement: link it (shows as "reversed" in the ledger).
+            if (outs.length === 1) reverses = outs[0].id;
           } else {
             allocations = await this.warehouseStock.add(manager, prod, item.quantity);
           }
           await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
             type: StockMovementType.RETURN,
+            reasonCode: 'CORRECTION',
+            reversesMovementId: reverses,
+            documentType: 'ORDER',
+            documentNo: order.orderNumber,
             referenceId: order.orderNumber,
             referenceType: 'order',
             note: `Sipariş iptal edildi: ${order.orderNumber}`,

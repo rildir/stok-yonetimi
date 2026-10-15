@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { BadRequestException } from '@nestjs/common';
 import { gs1CheckDigit, hasValidGs1Checksum, detectBarcodeType, validateBarcode, makeEan13 } from './barcode';
 import { allocateLots, sortLotsForPicking, daysUntil } from './lot-allocation';
-import { toBaseQuantity, legacyUnitCode } from './units';
+import { toBaseQuantity, legacyUnitCode, addQty, sumQty, roundQty, fitsDecimals } from './units';
 import { WarehouseStockService } from '../services/warehouse-stock.service';
 import { StockHelperService } from '../services/stock-helper.service';
 import { SerialNumberEntity } from '../../entities/serial-number.entity';
@@ -121,7 +121,7 @@ describe('serial number uniqueness (WarehouseStockService.receive)', () => {
       }),
     };
     const product = { id: 'p1', companyId: COMPANY, name: 'Headphones', quantity: 0, minQuantity: 1, trackingType: 'serial' } as ProductEntity;
-    return { manager, product, serials, pws, svc: new WarehouseStockService(new StockHelperService()) };
+    return { manager, product, serials, pws, svc: new WarehouseStockService(new StockHelperService(), { actor: {} } as any) };
   }
 
   it('creates new serials and syncs warehouse stock', async () => {
@@ -159,5 +159,57 @@ describe('serial number uniqueness (WarehouseStockService.receive)', () => {
   it('refuses untracked-only helpers for tracked products', async () => {
     const { manager, product, svc } = setup([]);
     await expect(svc.add(manager, product, 1, 'w1')).rejects.toMatchObject({ response: { code: 'PRODUCT_TRACKED_QTY_LOCKED' } });
+  });
+});
+
+describe('decimal unit conversion (WP2)', () => {
+  it('converts into fractional base units at the base unit precision', () => {
+    // 1 box = 0.25 kg; kg allows 3 decimals
+    expect(toBaseQuantity(5, 0.25, 3)).toBe(1.25);
+    expect(toBaseQuantity(1.25, 1, 3)).toBe(1.25);
+    // 1 lb-equivalent pack = 0.4536 kg -> 3 decimals: 0.454 (rounded, not rejected)
+    expect(toBaseQuantity(1, 0.4536, 3)).toBe(0.454);
+    // 3 decimals x 4-decimal factor stays inside DECIMAL(18,4)
+    expect(toBaseQuantity(2.125, 12, 3)).toBe(25.5);
+  });
+
+  it('still rejects fractional results for integral base units', () => {
+    expect(toBaseQuantity(0.5, 12, 0)).toBe(6);
+    expect(toBaseQuantity(0.1, 12, 0)).toBeNull();
+    expect(toBaseQuantity(1, 0.4536, 0)).toBeNull();
+  });
+
+  it('rounds and sums without binary float drift', () => {
+    expect(0.1 + 0.2).not.toBe(0.3);
+    expect(addQty(0.1, 0.2)).toBe(0.3);
+    expect(sumQty([1.25, 2.125, 0.0005, -0.0005])).toBe(3.375);
+    expect(roundQty(-0.00001)).toBe(0);
+    expect(roundQty('42.7500')).toBe(42.75);
+  });
+
+  it('checks a quantity against the unit precision', () => {
+    expect(fitsDecimals(1.25, 3)).toBe(true);
+    expect(fitsDecimals(1.2345, 3)).toBe(false);
+    expect(fitsDecimals(1.5, 0)).toBe(false);
+    expect(fitsDecimals(12, 0)).toBe(true);
+  });
+
+  it('moves decimal stock between warehouses and keeps products.quantity = SUM(rows)', async () => {
+    const rows: any[] = [
+      { companyId: 'c', productId: 'p', warehouseId: 'w1', quantity: 42.75 },
+      { companyId: 'c', productId: 'p', warehouseId: 'w2', quantity: 0.1 },
+    ];
+    const manager: any = {
+      find: jest.fn(async () => rows),
+      findOne: jest.fn(async () => null),
+      create: jest.fn((_e: any, o: any) => ({ ...o })),
+      save: jest.fn(async (_e: any, o: any) => o),
+    };
+    const product: any = { id: 'p', companyId: 'c', name: 'Fıstık', quantity: 42.85, minQuantity: 10, trackingType: 'none' };
+    const svc = new WarehouseStockService(new StockHelperService(), { actor: {} } as any);
+    await svc.apply(manager, product, [{ warehouseId: 'w1', delta: -1.25 }, { warehouseId: 'w2', delta: 0.2 }]);
+    expect(rows.map((r) => r.quantity)).toEqual([41.5, 0.3]);
+    expect(product.quantity).toBe(41.8);
+    await expect(svc.apply(manager, product, [{ warehouseId: 'w2', delta: -0.3001 }])).rejects.toMatchObject({ response: { code: 'WAREHOUSE_INSUFFICIENT_STOCK' } });
   });
 });

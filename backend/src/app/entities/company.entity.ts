@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { AddressColumns } from './address.embedded';
+import { ColumnNumericTransformer } from '../utils/numeric-transformer';
 
 export type CompanyTaxIdType = 'VKN' | 'TCKN';
 export type BookkeepingType = 'BILANCO' | 'ISLETME' | 'BASIT';
@@ -92,6 +93,14 @@ export class CompanyEntity {
   /** Defter tutma usulu */
   @Column({ type: 'varchar', length: 10, nullable: true })
   bookkeepingType?: BookkeepingType | string | null;
+
+  /** Regulatory modules enabled for products (food, medicine_its, medical_device_uts, cosmetic_uts) */
+  @Column({ type: 'simple-json', nullable: true })
+  enabledComplianceModules?: string[] | null;
+
+  /** Manual stock adjustments worth more than this (base currency) need a second approver; null = off */
+  @Column('decimal', { precision: 18, scale: 2, nullable: true, transformer: new ColumnNumericTransformer() })
+  adjustmentApprovalThreshold?: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -17,8 +17,12 @@ import { computeDiff } from '../../shared/integrations/audit-diff';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { WebhookService, PendingEvent } from './webhook.service';
 
-/** Tables that are never audited (logs themselves, derived stock rows covered by stock_movements). */
-const NOT_AUDITED = new Set(['audit_logs', 'webhook_deliveries', 'stock_movements', 'product_warehouse_stocks', 'migrations']);
+/**
+ * Tables that are never audited: logs themselves, derived stock rows covered by stock_movements,
+ * the movement chain head (bookkeeping of the hash chain) and attachment blobs (linked to their
+ * immutable movement; the content would bloat the diff).
+ */
+const NOT_AUDITED = new Set(['audit_logs', 'webhook_deliveries', 'stock_movements', 'product_warehouse_stocks', 'migrations', 'stock_movement_chains', 'stock_movement_attachments']);
 
 /** Changes to only these fields are noise (e.g. API key last-used bookkeeping). */
 const NOISE_ONLY = new Set(['lastUsedAt', 'updatedAt']);
@@ -157,7 +161,7 @@ export class AuditSubscriber implements EntitySubscriberInterface {
     } else if (table === 'purchase_orders') {
       if (action === 'update' && after?.status === 'Received' && before?.status !== 'Received') ev('purchase_order.received', after);
     } else if (table === 'stock_movements') {
-      if (action === 'create' && after?.type === 'TRANSFER_IN') {
+      if (action === 'create' && (after?.type === 'TRANSFER_IN' || after?.type === 'QUARANTINE_IN')) {
         out.push({ companyId, event: 'transfer.completed', entityType: table, entityId: after.id ?? null, data: after });
       }
     }
