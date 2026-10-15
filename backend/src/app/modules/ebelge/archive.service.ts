@@ -10,6 +10,7 @@ import { htmlToPdf, renderHtml } from '../../shared/ebelge/render';
 import { buildArchivePackage, sha256 } from '../../shared/ebelge/archive-package';
 import { parseUbl } from '../../shared/ebelge/ubl/parser';
 import { qrPayload } from '../../shared/ebelge/qr';
+import { maskPersonalIdsInText } from '../../shared/kvkk/masking';
 import { AuditService } from '../integrations/audit.service';
 import { EBelgeSettingsService } from './ebelge-settings.service';
 import { EDocumentService } from './edocument.service';
@@ -101,9 +102,11 @@ export class EDocumentArchiveService {
     return { ...rest, hasSignedXml: !!e.signedXml, events, deliveries, notices, outbox: outbox.map(({ payload: _p, ...o }) => o), cancelWindow, noticeWindow, qr, legalArchive: 'PROVIDER' };
   }
 
-  async xml(id: string, signed = false): Promise<{ fileName: string; xml: string }> {
+  /** `maskPii`: caller without customers.pii.read - every TCKN / YKN in this copy is masked (R61). */
+  async xml(id: string, signed = false, maskPii = false): Promise<{ fileName: string; xml: string }> {
     const e = await this.find(id);
-    return { fileName: `${e.documentNo || e.ettn}.xml`, xml: signed && e.signedXml ? e.signedXml : e.xml };
+    const xml = signed && e.signedXml ? e.signedXml : e.xml;
+    return { fileName: `${e.documentNo || e.ettn}.xml`, xml: maskPii ? maskPersonalIdsInText(xml) : xml };
   }
 
   async html(id: string): Promise<string> {
@@ -113,13 +116,16 @@ export class EDocumentArchiveService {
     return renderHtml(e.signedXml || e.xml, { logoDataUri: e.direction === 'OUT' ? s.logoDataUri : null, watermark });
   }
 
-  async pdf(id: string): Promise<{ fileName: string; pdf: Buffer }> {
+  async pdf(id: string, maskPii = false): Promise<{ fileName: string; pdf: Buffer }> {
     const e = await this.find(id);
     try {
-      return { fileName: `${e.documentNo || e.ettn}.pdf`, pdf: await htmlToPdf(await this.html(id)) };
+      const html = await this.html(id);
+      return { fileName: `${e.documentNo || e.ettn}.pdf`, pdf: await htmlToPdf(maskPii ? maskPersonalIdsInText(html) : html) };
     } catch (ex) {
       this.logger.warn(`local PDF rendering failed: ${(ex as Error).message}`);
     }
+    // The integrator's PDF cannot be masked: not offered to callers without customers.pii.read.
+    if (maskPii) throw new ServiceUnavailableException(err('EDOC_PDF_UNAVAILABLE'));
     // Alternative source: the integrator's PDF.
     try {
       const r = await this.settings.resolve();

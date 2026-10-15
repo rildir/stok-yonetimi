@@ -597,6 +597,7 @@ export class SubprocessorEntity {
 @Entity('user_sessions')
 @Index('IDX_user_sessions_user', ['userId'])
 @Index('UQ_user_sessions_token', ['tokenHash'], { unique: true })
+@Index('IDX_user_sessions_prev_token', ['prevTokenHash'])
 export class UserSessionEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -609,6 +610,10 @@ export class UserSessionEntity {
 
   @Column({ type: 'char', length: 64 })
   tokenHash: string;
+
+  /** Hash of the previous (rotated) refresh token: presenting it again revokes the session (theft detection) */
+  @Column({ type: 'char', length: 64, nullable: true })
+  prevTokenHash?: string | null;
 
   @Column({ type: 'datetime' })
   lastUsedAt: Date;

@@ -9,11 +9,12 @@ import { tap } from 'rxjs/operators';
 import { I18nService, TranslatePipe } from '../../i18n';
 import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGroup } from '../shared/address-fields.component';
 import { IdentityFieldsComponent, taxIdValidator } from '../shared/identity-fields.component';
+import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
 
 @Component({
   selector: 'app-suppliers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AddressFieldsComponent, IdentityFieldsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AddressFieldsComponent, IdentityFieldsComponent, SpecialCategoryWarningComponent],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -201,6 +202,7 @@ import { IdentityFieldsComponent, taxIdValidator } from '../shared/identity-fiel
                 <textarea id="supplierNotes" formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')" [disabled]="isSaving()"></textarea>
                 <label for="supplierNotes" class="form-label">{{ 'suppliers.form.notes' | t }}</label>
               </div>
+              <app-special-category-warning [text]="supplierForm.get('notes')?.value" />
             </div>
 
             <div class="drawer-footer">

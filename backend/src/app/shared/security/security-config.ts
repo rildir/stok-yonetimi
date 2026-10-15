@@ -38,6 +38,11 @@ export function assertSecurityConfig(env: Env = process.env): void {
   if (isProduction(env) && !(env['DB_PASSWORD'] || '').trim()) {
     throw new SecurityConfigError('DB_PASSWORD must be set in production.');
   }
+  // Aydınlatma Tebliği md. 4: the platform documents must name the operator (unvan, adres, MERSİS).
+  if (isProduction(env)) {
+    const missing = ['PLATFORM_OPERATOR_NAME', 'PLATFORM_OPERATOR_ADDRESS', 'PLATFORM_OPERATOR_MERSIS', 'PLATFORM_KVKK_EMAIL'].filter((k) => !(env[k] || '').trim());
+    if (missing.length) new Logger('Security').warn(`${missing.join(', ')} not set: the platform privacy documents show placeholders instead of the data controller's identity (Aydınlatma Tebliği md. 4).`);
+  }
 }
 
 /**

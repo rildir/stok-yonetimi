@@ -167,5 +167,7 @@
   "settings.kvkk.closure.slug": "Type \"{slug}\" to confirm",
   "settings.kvkk.closure.close": "Close account",
   "settings.kvkk.closure.confirm": "The company account will be closed and its data frozen read-only. This cannot be undone.",
-  "settings.kvkk.closure.closed": "Account closed; data is read-only."
+  "settings.kvkk.closure.closed": "Account closed; data is read-only.",
+  "settings.kvkk.verbis.inputsMissingEmployees": "Enter the number of employees.",
+  "settings.kvkk.verbis.employeesOnly": "Threshold: {emp} employees. As you do not keep balance-sheet books, only the number of employees is assessed ({src})."
 }

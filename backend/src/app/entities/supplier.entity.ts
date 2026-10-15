@@ -43,7 +43,8 @@ export class SupplierEntity {
   @Column({ type: 'varchar', length: 100, nullable: true, transformer: encryptedColumnTransformer })
   identityNumber?: string | null;
 
-  @Column({ type: 'char', length: 64, nullable: true })
+  /** Tenant-scoped blind index; never selected by default, so never part of an API response (R61) */
+  @Column({ type: 'char', length: 64, nullable: true, select: false })
   identityNumberHash?: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
@@ -99,7 +100,7 @@ export class SupplierEntity {
   @BeforeInsert()
   @BeforeUpdate()
   syncIdentityHash() {
-    if (this.identityNumber !== undefined) this.identityNumberHash = piiHash(this.identityNumber);
+    if (this.identityNumber !== undefined && this.companyId) this.identityNumberHash = piiHash(this.identityNumber, this.companyId);
   }
 
 }

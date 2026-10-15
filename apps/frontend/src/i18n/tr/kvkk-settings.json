@@ -167,5 +167,7 @@
   "settings.kvkk.closure.slug": "Onay için \"{slug}\" yazın",
   "settings.kvkk.closure.close": "Hesabı kapat",
   "settings.kvkk.closure.confirm": "Şirket hesabı kapatılacak ve veriler salt okunur dondurulacak. Bu işlem geri alınamaz.",
-  "settings.kvkk.closure.closed": "Hesap kapatıldı; veriler salt okunur."
+  "settings.kvkk.closure.closed": "Hesap kapatıldı; veriler salt okunur.",
+  "settings.kvkk.verbis.inputsMissingEmployees": "Çalışan sayısını girin.",
+  "settings.kvkk.verbis.employeesOnly": "Eşik: {emp} çalışan. Bilanço esasına göre defter tutmadığınız için yalnızca çalışan sayısı dikkate alınır ({src})."
 }

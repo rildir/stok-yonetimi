@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AuditChainHeadEntity } from '../../entities/kvkk.entity';
-import { ChainRow, ChainVerification, GENESIS_HASH, auditDigestSql, chainHash, verifyChain } from '../../shared/kvkk/audit-chain';
+import { AUDIT_MASK_ACTION, ChainRow, ChainVerification, GENESIS_HASH, auditDigestSql, chainHash, maskEventDigests, verifyChain } from '../../shared/kvkk/audit-chain';
 
 /**
  * Seals audit_logs rows into the per-company hash chain (in commit order) and verifies it.
@@ -85,6 +85,18 @@ export class AuditChainService implements OnModuleInit, OnModuleDestroy {
     const [{ n: unsealed }] = await this.ds.query('SELECT COUNT(*) n FROM audit_logs WHERE companyId = ? AND hash IS NULL', [companyId]);
     const [{ n: masked }] = await this.ds.query('SELECT COUNT(*) n FROM audit_logs WHERE companyId = ? AND maskedAt IS NOT NULL', [companyId]);
     const tampered: { id: string }[] = await this.ds.query(`SELECT a.id FROM audit_logs a WHERE a.companyId = ? AND a.maskedAt IS NULL AND (a.payloadDigest IS NULL OR a.payloadDigest <> ${auditDigestSql('a')}) LIMIT 100`, [companyId]);
+    // Masked rows: the content must match the digest the trigger stored and a chained kvkk.audit_mask event.
+    const masks = maskEventDigests(
+      await this.ds.query('SELECT `after` FROM audit_logs WHERE companyId = ? AND action = ? ORDER BY chainSeq IS NULL, chainSeq ASC, createdAt ASC', [companyId, AUDIT_MASK_ACTION]),
+    );
+    const maskedRows: { id: string; maskedDigest: string | null; cur: string }[] = await this.ds.query(
+      `SELECT a.id, a.maskedDigest, ${auditDigestSql('a')} AS cur FROM audit_logs a WHERE a.companyId = ? AND a.maskedAt IS NOT NULL`,
+      [companyId],
+    );
+    for (const r of maskedRows) {
+      if (tampered.length >= 100) break;
+      if (!r.maskedDigest || r.maskedDigest !== r.cur || masks.get(r.id) !== r.maskedDigest) tampered.push({ id: r.id });
+    }
     const head = await this.ds.manager.findOne(AuditChainHeadEntity, { where: { chainKey: companyId } });
     const lastOk = !rows.length || !head || (Number(head.lastSeq) === Number(rows[rows.length - 1].chainSeq) && head.lastHash === rows[rows.length - 1].hash);
     return {

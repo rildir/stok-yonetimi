@@ -6,6 +6,8 @@ export interface JwtPayload {
   role: string;
   companyId: string;
   tokenVersion: number;
+  /** refresh session id (WP7): the token is rejected once the session is revoked */
+  sid?: string;
 }
 
 export function buildJwtPayload(user: UserEntity): JwtPayload {

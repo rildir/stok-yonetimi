@@ -73,6 +73,11 @@ export class AuthGuard implements CanActivate {
       if (!user || user.tokenVersion !== payload.tokenVersion) {
         throw new UnauthorizedException(err('AUTH_SESSION_EXPIRED'));
       }
+      // WP7: an access token dies with its refresh session (logout, token reuse, idle / absolute expiry).
+      if (payload.sid) {
+        const [s] = await this.dataSource.query('SELECT revokedAt, expiresAt FROM user_sessions WHERE id = ? AND userId = ?', [payload.sid, user.id]);
+        if (!s || s.revokedAt || new Date(s.expiresAt) <= new Date()) throw new UnauthorizedException(err('AUTH_SESSION_EXPIRED'));
+      }
 
       // The DB row is authoritative for the tenant; a token minted for a
       // different company (or a tampered one) is rejected.

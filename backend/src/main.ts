@@ -54,26 +54,24 @@ async function bootstrap() {
   // Per-request tenant context (filled by AuthGuard, read by services)
   app.use(TenantContext.middleware);
 
-  // Helmet HTTP security headers. WP7: CSP on API responses too - JSON, the printable legal pages
-  // (inline styles, data: images / QR codes, no scripts) and Swagger UI (inline bootstrap script).
-  app.use(helmet({
-    contentSecurityPolicy: {
-      useDefaults: false,
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'blob:'],
-        fontSrc: ["'self'", 'data:'],
-        connectSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        baseUri: ["'self'"],
-        formAction: ["'self'"],
-        frameAncestors: ["'self'"],
-      },
-    },
-    crossOriginResourcePolicy: { policy: 'same-site' },
-  }));
+  // Helmet HTTP security headers. WP7: CSP on API responses too. JSON and the printable legal pages
+  // (subject report, documents, e-document HTML: inline styles, data: images / QR codes) never need
+  // a script: script-src 'none'. Only Swagger UI (inline bootstrap script) gets 'self' + inline.
+  const cspDirectives = (scriptSrc: string[]) => ({
+    defaultSrc: ["'self'"],
+    scriptSrc,
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    imgSrc: ["'self'", 'data:', 'blob:'],
+    fontSrc: ["'self'", 'data:'],
+    connectSrc: ["'self'"],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+    frameAncestors: ["'self'"],
+  });
+  const strictHelmet = helmet({ contentSecurityPolicy: { useDefaults: false, directives: cspDirectives(["'none'"]) }, crossOriginResourcePolicy: { policy: 'same-site' } });
+  const swaggerHelmet = helmet({ contentSecurityPolicy: { useDefaults: false, directives: cspDirectives(["'self'", "'unsafe-inline'"]) }, crossOriginResourcePolicy: { policy: 'same-site' } });
+  app.use((req: any, res: any, next: any) => (String(req.url || '').startsWith(`/${globalPrefix}/docs`) ? swaggerHelmet : strictHelmet)(req, res, next));
 
   // CORS configuration
   app.enableCors({

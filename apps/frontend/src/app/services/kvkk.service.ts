@@ -190,11 +190,16 @@ export interface VerbisStatus {
   registrationNo: string | null;
   warning: boolean;
   bookkeepingType: string | null;
+  /** false for işletme hesabı / basit usul (Kurul 2025/2393: employee count only) */
+  balanceSheetApplies: boolean;
   employeeCount: number | null;
   balanceSheetTotal: number | null;
   thresholds: {
     employees: { value: number; sourceRef: string; confidence: string } | null;
     balanceSheet: { value: number; sourceRef: string; confidence: string; note: string | null } | null;
+    specialEmployees: { value: number; sourceRef: string; confidence: string } | null;
+    specialBalanceSheet: { value: number; sourceRef: string; confidence: string } | null;
+    nonBalanceSheetEmployeesOnly: { sourceRef: string; confidence: string } | null;
   };
 }
 

@@ -213,5 +213,6 @@
   "kvkk.socket.dsrDue": "{days} days left to answer request {no}.",
   "kvkk.socket.dsrOverdue": "The 30-day answer period of request {no} has passed.",
   "kvkk.socket.alert": "Security alert ({no}): {title}. Assess whether it is a breach.",
-  "kvkk.socket.destruction": "Periodic destruction list {no} ({n} items) awaits your approval."
+  "kvkk.socket.destruction": "Periodic destruction list {no} ({n} items) awaits your approval.",
+  "kvkk.notesSensitiveWarning": "This note may contain special-category personal data ({categories}). Such data must not be written in notes (KVKK art. 6)."
 }

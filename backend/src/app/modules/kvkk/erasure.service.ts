@@ -10,13 +10,14 @@ import { ConsentEntity, DestructionLogEntity } from '../../entities/kvkk.entity'
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { ANON_MARK, PERSONAL_KEYS, anonymousSupplierName, customerErasurePatch, customerReplacement, maskJson } from '../../shared/kvkk/anonymizer';
 import { addPeriod, legalRecordRetentionUntil } from '../../shared/kvkk/retention';
+import { AuditMaskItem, applyAuditMasks } from '../../shared/kvkk/audit-chain';
 import { todayKey } from '../../shared/tr';
 import { WebhookService } from '../integrations/webhook.service';
 import { AppGateway } from '../../app.gateway';
 
 /** A legal record group that keeps (restricts) the erasure. */
 export interface RetainedGroup {
-  type: 'invoices' | 'despatches' | 'returns' | 'incoming_documents' | 'document_line_tracking' | 'stock_movements' | 'goods_receipts' | 'purchase_orders';
+  type: 'orders' | 'invoices' | 'despatches' | 'returns' | 'incoming_documents' | 'document_line_tracking' | 'stock_movements' | 'goods_receipts' | 'purchase_orders';
   count: number;
   lastDate: string | null;
   retentionUntil: string | null;
@@ -49,7 +50,7 @@ export interface ErasureContext {
   retentionEnded?: boolean;
 }
 
-const LEGAL_REASON = 'VUK md. 253 ve TTK md. 82 gereği 10 yıllık saklama yükümlülüğü (fatura, irsaliye, iade ve envanter kayıtları)';
+const LEGAL_REASON = 'VUK md. 253 ve TTK md. 82 gereği 10 yıllık saklama yükümlülüğü (sipariş, fatura, irsaliye, iade ve envanter kayıtları)';
 
 /**
  * Applies the right to erasure (KVKK md. 7, 11/1-e) to a customer or a natural-person supplier.
@@ -81,6 +82,8 @@ export class ErasureService {
       return { type, count, lastDate: last, retentionUntil: until };
     };
     const groups: RetainedGroup[] = [
+      // Orders are commercial correspondence kept 10 years (TTK md. 82; retention policy ORDERS).
+      await q('orders', 'SELECT COUNT(*) n, MAX(DATE(createdAt)) last FROM orders WHERE companyId = ? AND customerId = ?', [cid, customer.id]),
       await q('invoices', 'SELECT COUNT(*) n, MAX(COALESCE(issueDate, DATE(createdAt))) last FROM invoices WHERE companyId = ? AND customerId = ?', [cid, customer.id]),
       await q('despatches', 'SELECT COUNT(*) n, MAX(COALESCE(issueDate, DATE(createdAt))) last FROM despatches WHERE companyId = ? AND customerId = ?', [cid, customer.id]),
       await q('returns', 'SELECT COUNT(*) n, MAX(COALESCE(invoiceDate, DATE(createdAt))) last FROM returns WHERE companyId = ? AND customerId = ?', [cid, customer.id]),
@@ -100,26 +103,18 @@ export class ErasureService {
       `SELECT id, \`before\`, \`after\`, username FROM audit_logs WHERE companyId = ? AND (${where})`,
       [this.companyId, ...params],
     );
-    let n = 0;
-    await m.query('SET @kvkk_erasure = 1');
-    try {
-      for (const r of rows) {
-        const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v);
-        const before = parse(r.before);
-        const after = parse(r.after);
-        const mb = maskJson(before, keys, replacement);
-        const ma = maskJson(after, keys, replacement);
-        if (mb === before && ma === after && !clearActor) continue;
-        await m.query(
-          `UPDATE audit_logs SET \`before\` = ?, \`after\` = ?, maskedAt = UTC_TIMESTAMP()${clearActor ? ', userId = NULL, username = NULL, ip = NULL, userAgent = NULL' : ''} WHERE id = ?`,
-          [mb === null || mb === undefined ? null : JSON.stringify(mb), ma === null || ma === undefined ? null : JSON.stringify(ma), r.id],
-        );
-        n++;
-      }
-    } finally {
-      await m.query('SET @kvkk_erasure = NULL');
+    const items: AuditMaskItem[] = [];
+    for (const r of rows) {
+      const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v);
+      const before = parse(r.before);
+      const after = parse(r.after);
+      const mb = maskJson(before, keys, replacement);
+      const ma = maskJson(after, keys, replacement);
+      if (mb === before && ma === after && !clearActor) continue;
+      items.push({ id: r.id, companyId: this.companyId, before: mb, after: ma, clearActor });
     }
-    return n;
+    // Each masking is recorded as a chained kvkk.audit_mask event (tamper evidence).
+    return applyAuditMasks((sql, p) => m.query(sql, p), items, { userId: this.tenant.actor.userId ?? null, username: this.tenant.actor.username ?? 'system' });
   }
 
   private async log(m: EntityManager, ctx: ErasureContext, row: Partial<DestructionLogEntity>) {
@@ -137,9 +132,13 @@ export class ErasureService {
     } as DestructionLogEntity);
   }
 
-  async eraseCustomer(customerId: string, ctx: ErasureContext): Promise<ErasureResult> {
+  /**
+   * `opts.manager`: run inside the caller's transaction (tenant closure); `opts.deferNotify`: the
+   * caller sends the customer.erased notifications (notifyErased) after its commit.
+   */
+  async eraseCustomer(customerId: string, ctx: ErasureContext, opts: { manager?: EntityManager; deferNotify?: boolean } = {}): Promise<ErasureResult> {
     const today = todayKey('Europe/Istanbul');
-    const result = await this.ds.transaction(async (m) => {
+    const run = async (m: EntityManager) => {
       const c = await m.findOne(CustomerEntity, { where: { id: customerId, companyId: this.companyId }, lock: { mode: 'pessimistic_write' } });
       if (!c) throw new NotFoundException(err('CUSTOMER_NOT_FOUND'));
       const retained = await this.retainedRecords(m, c, today);
@@ -219,15 +218,22 @@ export class ErasureService {
         notified: { webhookEvent: 'customer.erased', endpoints: 0 },
         performedAt: now.toISOString(),
       };
-    });
-    // Notify the recipients (KVKK md. 11/1-f) after commit: no personal data in the event.
-    const endpoints = await this.ds.query("SELECT COUNT(*) n FROM webhook_endpoints WHERE companyId = ? AND active = 1 AND JSON_CONTAINS(events, '\"customer.erased\"')", [this.companyId]);
-    result.notified.endpoints = Number(endpoints?.[0]?.n || 0);
-    await this.webhooks.emitMany([
-      { companyId: this.companyId, event: 'customer.erased', entityType: 'customers', entityId: customerId, data: { customerId, mode: result.mode, restrictedUntil: result.restrictedUntil, erasedAt: result.performedAt } },
-    ]);
-    this.gateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'update', customerId, changedFields: ['kvkkErasure'] });
+    };
+    const result = opts.manager ? await run(opts.manager) : await this.ds.transaction(run);
+    if (!opts.deferNotify) await this.notifyErased([result]);
     return result;
+  }
+
+  /** Notifies the recipients (KVKK md. 11/1-f) after commit: no personal data in the event. */
+  async notifyErased(results: ErasureResult[], opts: { awaitDispatch?: boolean } = {}): Promise<void> {
+    if (!results.length) return;
+    const endpoints = await this.ds.query("SELECT COUNT(*) n FROM webhook_endpoints WHERE companyId = ? AND active = 1 AND JSON_CONTAINS(events, '\"customer.erased\"')", [this.companyId]);
+    for (const r of results) r.notified.endpoints = Number(endpoints?.[0]?.n || 0);
+    await this.webhooks.emitMany(
+      results.map((r) => ({ companyId: this.companyId, event: 'customer.erased', entityType: 'customers', entityId: r.subjectId, data: { customerId: r.subjectId, mode: r.mode, restrictedUntil: r.restrictedUntil, erasedAt: r.performedAt } })),
+      opts,
+    );
+    for (const r of results) this.gateway.emitToCompany(this.companyId, 'customer_mutated', { type: 'update', customerId: r.subjectId, changedFields: ['kvkkErasure'] });
   }
 
   /** Supplier (natural person / farmer): contact data always; the name only without legal records. */
@@ -266,10 +272,14 @@ export class ErasureService {
   }
 }
 
-/** Reasoned answer to the applicant (KVKK md. 13; Başvuru Tebliği md. 6), Turkish and English. */
+/**
+ * Reasoned answer to the applicant (KVKK md. 13; Başvuru Tebliği md. 6), Turkish and English.
+ * Legal basis of the partial refusal: KVKK 7/1 with 5/2-a / 5/2-ç and VUK 253 / TTK 82 (not 28/2,
+ * which lists exceptions unrelated to record keeping). Customer-facing wording: to be reviewed by counsel.
+ */
 export function erasureResponseText(r: ErasureResult, applicant: string, lang: 'tr' | 'en' = 'tr'): string {
   const tr = lang === 'tr';
-  const groupTr: Record<string, string> = { invoices: 'fatura', despatches: 'sevk irsaliyesi', returns: 'iade belgesi', incoming_documents: 'gelen e-belge', document_line_tracking: 'gıda izlenebilirlik kaydı', stock_movements: 'stok hareket kaydı', goods_receipts: 'mal kabul belgesi', purchase_orders: 'satın alma siparişi' };
+  const groupTr: Record<string, string> = { orders: 'sipariş', invoices: 'fatura', despatches: 'sevk irsaliyesi', returns: 'iade belgesi', incoming_documents: 'gelen e-belge', document_line_tracking: 'gıda izlenebilirlik kaydı', stock_movements: 'stok hareket kaydı', goods_receipts: 'mal kabul belgesi', purchase_orders: 'satın alma siparişi' };
   if (r.mode === 'FULL') {
     return tr
       ? `Sayın ${applicant}, KVKK md. 7 ve 11 kapsamındaki silme talebiniz kabul edilmiştir. Kişisel verileriniz ${r.performedAt.slice(0, 10)} tarihinde geri döndürülemez biçimde anonim hale getirilmiştir. Verilerinizin aktarıldığı alıcılar bilgilendirilmiştir.`
@@ -277,6 +287,6 @@ export function erasureResponseText(r: ErasureResult, applicant: string, lang: '
   }
   const list = r.retained.map((g) => `${g.count} ${tr ? groupTr[g.type] || g.type : g.type.replace(/_/g, ' ')} (${tr ? 'saklama sonu' : 'retained until'} ${g.retentionUntil})`).join(', ');
   return tr
-    ? `Sayın ${applicant}, silme talebiniz kısmen yerine getirilmiştir. İletişim bilgileriniz, notlar ve teslimat adresleriniz silinmiş, rızaya dayalı izinleriniz geri alınmıştır. Ancak ${list} için Vergi Usul Kanunu md. 253 ve Türk Ticaret Kanunu md. 82 uyarınca 10 yıllık saklama yükümlülüğümüz bulunduğundan (KVKK md. 5/2-ç, md. 28/2), kimlik bilgileriniz bu kayıtlarda ${r.restrictedUntil} tarihine kadar yalnızca bu amaçla, erişimi kısıtlanarak saklanacak ve sürenin sonunda resen imha edilecektir.`
-    : `Dear ${applicant}, your erasure request has been partially fulfilled. Your contact details, notes and delivery addresses were deleted and your consents withdrawn. Because of our 10-year retention duty (Tax Procedure Law art. 253, Commercial Code art. 82) for ${list}, your identity data is kept in these records, with restricted access and for this purpose only, until ${r.restrictedUntil} and destroyed afterwards.`;
+    ? `Sayın ${applicant}, silme talebiniz kısmen yerine getirilmiştir. İletişim bilgileriniz, notlar ve teslimat adresleriniz silinmiş, rızaya dayalı izinleriniz geri alınmıştır. Ancak ${list} için Vergi Usul Kanunu md. 253 ve Türk Ticaret Kanunu md. 82 uyarınca 10 yıllık saklama yükümlülüğümüz bulunduğundan (KVKK md. 7/1 ile md. 5/2-a ve 5/2-ç: kanunlarda açıkça öngörülmesi ve hukuki yükümlülüğün yerine getirilmesi), kimlik bilgileriniz bu kayıtlarda ${r.restrictedUntil} tarihine kadar yalnızca bu amaçla, erişimi kısıtlanarak saklanacak ve sürenin sonunda resen imha edilecektir.`
+    : `Dear ${applicant}, your erasure request has been partially fulfilled. Your contact details, notes and delivery addresses were deleted and your consents withdrawn. Because of our 10-year retention duty (Tax Procedure Law art. 253, Commercial Code art. 82; KVKK art. 7/1 with art. 5/2-a and 5/2-ç: provided by law, legal obligation) for ${list}, your identity data is kept in these records, with restricted access and for this purpose only, until ${r.restrictedUntil} and destroyed afterwards.`;
 }

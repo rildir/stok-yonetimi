@@ -570,7 +570,8 @@ export class IntegrationsComponent implements OnInit {
   hookDesc = signal('');
   hookActive = signal(true);
   // WP7: KVKK md. 9 transfer fields
-  readonly transferBases = TRANSFER_BASES;
+  // A webhook is a regular transfer: incidental consent (KVKK md. 9/6) is not a valid basis for it.
+  readonly transferBases = TRANSFER_BASES.filter((b) => b !== 'INCIDENTAL_CONSENT');
   hookCountry = signal('TR');
   hookBasis = signal('DOMESTIC');
   hookSccSigned = signal('');

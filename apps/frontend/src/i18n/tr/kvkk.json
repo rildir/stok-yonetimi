@@ -213,5 +213,6 @@
   "kvkk.socket.dsrDue": "{no} numaralı başvurunun yanıt süresinin dolmasına {days} gün kaldı.",
   "kvkk.socket.dsrOverdue": "{no} numaralı başvurunun 30 günlük yanıt süresi geçti.",
   "kvkk.socket.alert": "Güvenlik alarmı ({no}): {title}. İhlal olup olmadığını değerlendirin.",
-  "kvkk.socket.destruction": "Periyodik imha listesi {no} ({n} kalem) onayınızı bekliyor."
+  "kvkk.socket.destruction": "Periyodik imha listesi {no} ({n} kalem) onayınızı bekliyor.",
+  "kvkk.notesSensitiveWarning": "Bu not özel nitelikli kişisel veri içeriyor olabilir ({categories}). Bu tür veriler not alanına yazılmamalıdır (KVKK md. 6)."
 }

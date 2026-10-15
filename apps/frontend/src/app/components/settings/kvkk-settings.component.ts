@@ -433,8 +433,9 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
         @if (verbis(); as v) {
           <div class="doc-alert" [class.info]="!v.warning" [class.danger]="v.warning">
             @if (v.required) { {{ 'settings.kvkk.verbis.required' | t: { reasons: reasonList(v.reasons) } }} } @else { {{ 'settings.kvkk.verbis.notRequired' | t }} }
-            @if (v.inputsMissing) { {{ 'settings.kvkk.verbis.inputsMissing' | t }} }
+            @if (v.inputsMissing) { {{ (v.balanceSheetApplies ? 'settings.kvkk.verbis.inputsMissing' : 'settings.kvkk.verbis.inputsMissingEmployees') | t }} }
             @if (v.thresholds.balanceSheet; as b) { <div class="doc-hint">{{ 'settings.kvkk.verbis.thresholds' | t: { emp: v.thresholds.employees?.value, bal: (b.value | money: 'TRY'), src: b.sourceRef } }}@if (b.confidence === 'low') { · <strong>{{ 'settings.kvkk.verbis.lowConfidence' | t }}</strong> }</div> }
+            @else if (!v.balanceSheetApplies && v.thresholds.nonBalanceSheetEmployeesOnly; as nb) { <div class="doc-hint">{{ 'settings.kvkk.verbis.employeesOnly' | t: { emp: v.thresholds.employees?.value, src: nb.sourceRef } }}@if (nb.confidence === 'low') { · <strong>{{ 'settings.kvkk.verbis.lowConfidence' | t }}</strong> }</div> }
           </div>
         }
         @if (settings(); as s) {

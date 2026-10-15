@@ -4,14 +4,16 @@ import { NoticeCompany } from './notice-template';
 /**
  * Platform (SaaS operator) facts used by the platform documents and the sub-processor list.
  * The operator's identity comes from the environment (PLATFORM_OPERATOR_NAME, PLATFORM_KVKK_EMAIL,
- * PLATFORM_OPERATOR_ADDRESS); the sub-processors are the hosting layers of the deployment and must be
+ * PLATFORM_OPERATOR_ADDRESS, PLATFORM_OPERATOR_MERSIS - mandatory in production, Aydınlatma Tebliği
+ * md. 4; development shows explicit placeholders); the sub-processors are the hosting layers of the deployment and must be
  * kept current by the operator (Settings > KVKK > Sub-processors lists them read-only for tenants).
  */
 export const PLATFORM_OPERATOR: NoticeCompany = {
   name: process.env['PLATFORM_OPERATOR_NAME'] || 'Ecelon',
-  legalName: process.env['PLATFORM_OPERATOR_NAME'] || 'Ecelon uygulama işletmecisi',
+  legalName: process.env['PLATFORM_OPERATOR_NAME'] || 'Ecelon uygulama işletmecisi [ticaret unvanı: PLATFORM_OPERATOR_NAME]',
   kvkkContactEmail: process.env['PLATFORM_KVKK_EMAIL'] || null,
-  addressText: process.env['PLATFORM_OPERATOR_ADDRESS'] || null,
+  mersisNo: process.env['PLATFORM_OPERATOR_MERSIS'] || '[PLATFORM_OPERATOR_MERSIS]',
+  addressText: process.env['PLATFORM_OPERATOR_ADDRESS'] || '[adres: PLATFORM_OPERATOR_ADDRESS]',
 };
 
 export interface PlatformProcessor {
@@ -31,14 +33,12 @@ export const PLATFORM_SUBPROCESSORS: PlatformProcessor[] = [
     transferBasis: 'DOMESTIC',
     dataCategories: ['Kimlik', 'İletişim', 'Müşteri İşlem', 'İşlem Güvenliği'],
   },
-  {
-    name: 'Özel entegratör (e-Belge) - şirketin sözleşmeli entegratörü',
-    service: 'e-Fatura / e-Arşiv / e-İrsaliye mali mühür imzası, GİB iletimi ve yasal arşiv',
-    country: 'TR',
-    transferBasis: 'DOMESTIC',
-    dataCategories: ['Kimlik', 'İletişim', 'Müşteri İşlem'],
-  },
+  // The e-Belge integrator is contracted by each company (its own processor, Settings > KVKK >
+  // Sub-processors), not a sub-processor of the platform: listed once, by the tenant.
 ];
+
+/** Name of the former global integrator entry (deactivated by migration 1784274142000). */
+export const LEGACY_PLATFORM_INTEGRATOR_NAME = 'Özel entegratör (e-Belge) - şirketin sözleşmeli entegratörü';
 
 const UNIT_TR: Record<string, string> = { DAY: 'gün', MONTH: 'ay', YEAR: 'yıl' };
 const UNIT_EN: Record<string, string> = { DAY: 'days', MONTH: 'months', YEAR: 'years' };

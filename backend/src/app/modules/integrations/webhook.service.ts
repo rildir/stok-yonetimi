@@ -10,7 +10,7 @@ import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { redact } from '../../shared/integrations/audit-diff';
 import { checkWebhookUrl } from '../../shared/integrations/url-guard';
 import { stripPersonalData } from '../../shared/kvkk/data-catalog';
-import { isAbroad, sccNoticeStatus, validateTransfer } from '../../shared/kvkk/transfer';
+import { TransferRules, isAbroad, sccNoticeStatus, validateTransfer } from '../../shared/kvkk/transfer';
 import {
   MAX_ATTEMPTS,
   SIGNATURE_HEADER,
@@ -92,15 +92,25 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     return { ...rest, abroad: isAbroad(e.destinationCountry), sccNotice: sccNoticeStatus(e.sccSignedAt, e.sccNotifiedAt) };
   }
 
+  /** Countries with a published Board adequacy decision (legal parameter, KVKK md. 9/1). */
+  private async transferRules(): Promise<TransferRules> {
+    const rows: { value: unknown }[] = await this.endpoints.manager.query(
+      "SELECT value FROM legal_parameters WHERE country = 'TR' AND `key` = 'KVKK_ADEQUACY_COUNTRIES' AND validFrom <= CURRENT_DATE() AND (validTo IS NULL OR validTo >= CURRENT_DATE()) ORDER BY validFrom DESC LIMIT 1",
+    );
+    const v = rows[0]?.value;
+    const list = typeof v === 'string' ? JSON.parse(v) : v;
+    return { adequacyCountries: Array.isArray(list) ? list.map(String) : [], regular: true };
+  }
+
   /** KVKK md. 9: an endpoint abroad needs a transfer basis (and the SCC notification) to be active. */
-  private applyTransfer(ep: WebhookEndpointEntity, input: WebhookEndpointInput) {
+  private async applyTransfer(ep: WebhookEndpointEntity, input: WebhookEndpointInput) {
     if (input.destinationCountry !== undefined) ep.destinationCountry = (input.destinationCountry || '').toUpperCase();
     if (input.transferBasis !== undefined) ep.transferBasis = input.transferBasis || (isAbroad(ep.destinationCountry) ? '' : 'DOMESTIC');
     if (input.sccSignedAt !== undefined) ep.sccSignedAt = input.sccSignedAt || null;
     if (input.sccNotifiedAt !== undefined) ep.sccNotifiedAt = input.sccNotifiedAt || null;
     if (input.includePersonalData !== undefined) ep.includePersonalData = !!input.includePersonalData;
     if (!isAbroad(ep.destinationCountry) && !ep.transferBasis) ep.transferBasis = 'DOMESTIC';
-    const code = validateTransfer({ ...ep, active: ep.active });
+    const code = validateTransfer({ ...ep, active: ep.active }, await this.transferRules());
     if (code) throw new BadRequestException(err(code, { country: ep.destinationCountry }));
   }
 
@@ -141,7 +151,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       transferBasis: 'DOMESTIC',
       includePersonalData: false,
     });
-    this.applyTransfer(draft, input);
+    await this.applyTransfer(draft, input);
     const ep = await this.endpoints.save(draft);
     return { ...this.present(ep), secret: ep.secret };
   }
@@ -155,7 +165,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     if (input.description !== undefined) ep.description = input.description || null;
     if (input.events !== undefined) ep.events = this.validateEvents(input.events);
     if (input.active !== undefined) ep.active = input.active;
-    this.applyTransfer(ep, input);
+    await this.applyTransfer(ep, input);
     return this.present(await this.endpoints.save(ep));
   }
 
@@ -207,17 +217,18 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
 
   // ---------------------------------------------------------------- emission
   /** Called by AuditSubscriber after commit. Never throws. */
-  async emitMany(events: PendingEvent[]): Promise<void> {
+  /** `awaitDispatch`: wait for the first delivery attempt (e.g. before the endpoints are removed). */
+  async emitMany(events: PendingEvent[], opts: { awaitDispatch?: boolean } = {}): Promise<void> {
     for (const e of events) {
       try {
-        await this.emit(e);
+        await this.emit(e, !!opts.awaitDispatch);
       } catch (error) {
         this.logger.warn(`webhook emit ${e.event} failed: ${(error as Error).message}`);
       }
     }
   }
 
-  private async emit(e: PendingEvent) {
+  private async emit(e: PendingEvent, awaitDispatch = false) {
     const all = await this.endpoints.find({ where: { companyId: e.companyId, active: true } });
     const targets = all.filter((ep) => (ep.events || []).includes(e.event));
     if (!targets.length) return;
@@ -225,7 +236,8 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     for (const ep of targets) {
       // Data minimisation (KVKK md. 4/2-ç): personal data only for endpoints that opted in.
       const d = await this.createDelivery(ep, e.event, ep.includePersonalData ? data : stripPersonalData(data));
-      void this.dispatch(d.id);
+      if (awaitDispatch) await this.dispatch(d.id);
+      else void this.dispatch(d.id);
     }
   }
 
@@ -272,7 +284,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       let responseBody: string | null = null;
       let error: string | null = null;
       const check = await checkWebhookUrl(ep.url);
-      const transferError = validateTransfer({ ...ep, active: true });
+      const transferError = validateTransfer({ ...ep, active: true }, await this.transferRules());
       if (transferError) {
         // An endpoint abroad without a valid basis (legacy row) never receives data.
         await this.deliveries.update({ id }, { attempts, status: 'failed', error: transferError, nextRetryAt: null });

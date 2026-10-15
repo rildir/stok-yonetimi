@@ -7,6 +7,7 @@ import { UiStateService } from '../../services/ui-state.service';
 import { GoodsReceipt } from '../../models/documents.models';
 import { Product, PurchaseOrder, Warehouse } from '../../models/inventory.models';
 import { receiptSplit, REJECT_REASONS } from '@stok/tr-compliance';
+import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
 
 interface ReceiptLine {
   purchaseOrderItemId: string;
@@ -32,7 +33,7 @@ interface ReceiptLine {
 @Component({
   selector: 'app-goods-receipt-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe],
+  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe, SpecialCategoryWarningComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   styles: [`.drawer-overlay.stacked { z-index: 1150; } .diff { font-size: var(--text-xs); font-variant-numeric: tabular-nums; } .diff.neg { color: var(--color-danger-text); } .diff.pos { color: var(--color-warning-text); }`],
   template: `
@@ -91,7 +92,7 @@ interface ReceiptLine {
               </tbody>
             </table>
           </div>
-          <div class="doc-field doc-section"><label for="grNote">{{ 'despatches.note' | t }}</label><textarea id="grNote" class="textarea" rows="2" [(ngModel)]="note"></textarea></div>
+          <div class="doc-field doc-section"><label for="grNote">{{ 'despatches.note' | t }}</label><textarea id="grNote" class="textarea" rows="2" [(ngModel)]="note"></textarea><app-special-category-warning [text]="note" /></div>
           <p class="doc-hint">{{ 'goodsReceipt.formHint' | t }}</p>
           @if (error()) { <div class="doc-alert danger">{{ error() }}</div> }
         </div>

@@ -13,6 +13,7 @@ import { EDocumentService } from './edocument.service';
 import { InboxService } from './inbox.service';
 import { EDocumentArchiveService } from './archive.service';
 import { ProviderRegistry } from './provider-registry.service';
+import { callerCanReadPii } from '../../shared/kvkk/pii.interceptor';
 
 const who = (req: any): string | undefined => req?.user?.username;
 const asciiName = (s: string) => s.replace(/[^A-Za-z0-9._-]/g, '_');
@@ -184,8 +185,8 @@ export class EDocumentController {
   }
 
   @Get(':id/xml')
-  async xml(@Param('id') id: string, @Query('signed') signed: string, @Res() res: Response) {
-    const x = await this.archive.xml(id, signed === '1');
+  async xml(@Param('id') id: string, @Query('signed') signed: string, @Req() req: any, @Res() res: Response) {
+    const x = await this.archive.xml(id, signed === '1', !callerCanReadPii(req));
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${asciiName(x.fileName)}"`);
     res.send(x.xml);
@@ -198,8 +199,8 @@ export class EDocumentController {
   }
 
   @Get(':id/pdf')
-  async pdf(@Param('id') id: string, @Query('download') download: string, @Res() res: Response) {
-    const p = await this.archive.pdf(id);
+  async pdf(@Param('id') id: string, @Query('download') download: string, @Req() req: any, @Res() res: Response) {
+    const p = await this.archive.pdf(id, !callerCanReadPii(req));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${download === '1' ? 'attachment' : 'inline'}; filename="${asciiName(p.fileName)}"`);
     res.send(p.pdf);

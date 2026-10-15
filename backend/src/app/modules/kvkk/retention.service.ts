@@ -203,12 +203,16 @@ export class RetentionService {
     const { candidates, awaitingApproval } = await this.candidates(companyId, today);
     return this.ds.transaction(async (m) => {
       const year = today.slice(0, 4);
-      const n = await m.count(DestructionRunEntity, { where: { companyId } });
+      // Yearly counter, serialised per company (scheduled and manual runs created at the same time).
+      await m.query('SELECT id FROM companies WHERE id = ? FOR UPDATE', [companyId]);
+      const prefix = `IMH-${year}-`;
+      const [row] = await m.query('SELECT MAX(CAST(SUBSTRING(runNo, ?) AS UNSIGNED)) n FROM destruction_runs WHERE companyId = ? AND runNo LIKE ?', [prefix.length + 1, companyId, `${prefix}%`]);
+      const n = Number(row?.n || 0);
       return m.save(
         DestructionRunEntity,
         m.create(DestructionRunEntity, {
           companyId,
-          runNo: `IMH-${year}-${String(n + 1).padStart(4, '0')}`,
+          runNo: `${prefix}${String(n + 1).padStart(4, '0')}`,
           trigger,
           status: 'PENDING_APPROVAL',
           asOfDate: today,

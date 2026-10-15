@@ -21,11 +21,12 @@ import { toastMovementResult } from '../shared/movement-warnings';
 import { GoodsReceiptFormComponent } from '../documents/goods-receipt-form.component';
 import { DocumentsService } from '../../services/documents.service';
 import { RouterLink } from '@angular/router';
+import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
 
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent, GoodsReceiptFormComponent, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent, GoodsReceiptFormComponent, RouterLink, SpecialCategoryWarningComponent],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -213,6 +214,7 @@ import { RouterLink } from '@angular/router';
                 <textarea formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')"></textarea>
                 <label class="form-label">{{ 'purchaseOrders.notes' | t }}</label>
               </div>
+              <app-special-category-warning [text]="poForm.get('notes')?.value" />
 
               <div class="po-section">
                 <div class="po-section-head">
@@ -1127,7 +1129,6 @@ export class PurchaseOrdersComponent implements OnInit {
       ...(data.customsDeclarationDate ? { customsDeclarationDate: data.customsDeclarationDate } : {}),
     };
     if (data.expectedDate) payload.expectedDate = data.expectedDate;
-
 
     const request$ = this.editingPoId()
       ? this.inventory.updatePurchaseOrder(this.editingPoId()!, payload as PurchaseOrderPayload)

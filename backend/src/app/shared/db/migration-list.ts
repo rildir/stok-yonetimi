@@ -19,6 +19,7 @@ import { CostingPeriodsInventoryReports1784274139000 } from '../../migrations/17
 import { EBelgeReviewFixes1784274138000 } from '../../migrations/1784274138000-EBelgeReviewFixes';
 import { CostingReviewFixes1784274140000 } from '../../migrations/1784274140000-CostingReviewFixes';
 import { KvkkDataGovernance1784274141000 } from '../../migrations/1784274141000-KvkkDataGovernance';
+import { KvkkReviewFixes1784274142000 } from '../../migrations/1784274142000-KvkkReviewFixes';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -48,4 +49,5 @@ export const MIGRATIONS = [
   CostingPeriodsInventoryReports1784274139000,
   CostingReviewFixes1784274140000,
   KvkkDataGovernance1784274141000,
+  KvkkReviewFixes1784274142000,
 ];

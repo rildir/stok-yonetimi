@@ -127,15 +127,32 @@ export class GovernanceService {
     const c = await this.ds.manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
     const today = todayKey(c.timezone);
     const country = c.country || 'TR';
-    const empRow = (await this.legal.list(country, 'VERBIS_EMPLOYEE_THRESHOLD')).find((p) => p.validFrom <= today && (!p.validTo || p.validTo >= today));
-    const balRow = (await this.legal.list(country, 'VERBIS_BALANCE_SHEET_THRESHOLD')).find((p) => p.validFrom <= today && (!p.validTo || p.validTo >= today));
+    const active = async (key: string) => (await this.legal.list(country, key)).find((p) => p.validFrom <= today && (!p.validTo || p.validTo >= today)) ?? null;
+    const empRow = await active('VERBIS_EMPLOYEE_THRESHOLD');
+    const balRow = await active('VERBIS_BALANCE_SHEET_THRESHOLD');
+    const spEmpRow = await active('VERBIS_SPECIAL_EMPLOYEE_THRESHOLD');
+    const spBalRow = await active('VERBIS_SPECIAL_BALANCE_SHEET_THRESHOLD');
+    const nonBsRow = await active('VERBIS_NON_BALANCE_SHEET_EMPLOYEES_ONLY');
     const empLimit = empRow ? Number(empRow.value) : null;
     const balLimit = balRow ? Number(balRow.value) : null;
+    // Kurul 2025/2393: controllers not keeping balance-sheet books (işletme hesabı, basit usul) are
+    // assessed on the employee count only.
+    const balanceSheetBooks = !c.bookkeepingType || c.bookkeepingType === 'BILANCO';
+    const balanceApplies = balanceSheetBooks || !(nonBsRow && nonBsRow.value === true);
+    const emp = c.verbisEmployeeCount ?? null;
+    const bal = c.verbisBalanceSheetTotal ?? null;
     const reasons: string[] = [];
-    if (c.verbisMainActivitySpecial) reasons.push('MAIN_ACTIVITY_SPECIAL');
-    if (empLimit !== null && (c.verbisEmployeeCount ?? 0) >= empLimit) reasons.push('EMPLOYEES');
-    if (balLimit !== null && (c.verbisBalanceSheetTotal ?? 0) >= balLimit) reasons.push('BALANCE_SHEET');
-    const missing = c.verbisEmployeeCount === null || c.verbisEmployeeCount === undefined || c.verbisBalanceSheetTotal === null || c.verbisBalanceSheetTotal === undefined;
+    if (c.verbisMainActivitySpecial) {
+      // Kurul 2025/1572: main activity special-category processing below 10 employees and 10M TL is exempt.
+      const spEmp = spEmpRow ? Number(spEmpRow.value) : null;
+      const spBal = spBalRow ? Number(spBalRow.value) : null;
+      const exemptionKnown = spEmp !== null || spBal !== null;
+      const overSpecial = (spEmp !== null && (emp ?? 0) >= spEmp) || (balanceApplies && spBal !== null && (bal ?? 0) >= spBal);
+      if (!exemptionKnown || overSpecial) reasons.push('MAIN_ACTIVITY_SPECIAL');
+    }
+    if (empLimit !== null && (emp ?? 0) >= empLimit) reasons.push('EMPLOYEES');
+    if (balanceApplies && balLimit !== null && (bal ?? 0) >= balLimit) reasons.push('BALANCE_SHEET');
+    const missing = emp === null || (balanceApplies && bal === null);
     return {
       required: reasons.length > 0,
       reasons,
@@ -144,11 +161,15 @@ export class GovernanceService {
       registrationNo: c.verbisRegistrationNo ?? null,
       warning: reasons.length > 0 && !c.verbisRegistered,
       bookkeepingType: c.bookkeepingType ?? null,
-      employeeCount: c.verbisEmployeeCount ?? null,
-      balanceSheetTotal: c.verbisBalanceSheetTotal ?? null,
+      balanceSheetApplies: balanceApplies,
+      employeeCount: emp,
+      balanceSheetTotal: bal,
       thresholds: {
         employees: empLimit !== null ? { value: empLimit, sourceRef: empRow!.sourceRef, confidence: empRow!.confidence } : null,
-        balanceSheet: balLimit !== null ? { value: balLimit, sourceRef: balRow!.sourceRef, confidence: balRow!.confidence, note: balRow!.note ?? null } : null,
+        balanceSheet: balLimit !== null && balanceApplies ? { value: balLimit, sourceRef: balRow!.sourceRef, confidence: balRow!.confidence, note: balRow!.note ?? null } : null,
+        specialEmployees: spEmpRow ? { value: Number(spEmpRow.value), sourceRef: spEmpRow.sourceRef, confidence: spEmpRow.confidence } : null,
+        specialBalanceSheet: spBalRow && balanceApplies ? { value: Number(spBalRow.value), sourceRef: spBalRow.sourceRef, confidence: spBalRow.confidence } : null,
+        nonBalanceSheetEmployeesOnly: nonBsRow ? { sourceRef: nonBsRow.sourceRef, confidence: nonBsRow.confidence } : null,
       },
     };
   }

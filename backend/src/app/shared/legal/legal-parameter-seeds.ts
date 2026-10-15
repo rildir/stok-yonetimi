@@ -351,9 +351,14 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
   { country: TR, key: 'KVKK_PERIODIC_DESTRUCTION_MAX_MONTHS', validFrom: '2018-01-01', validTo: null, value: 6, sourceRef: 'Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik md. 11/2 (6 ayı geçmeyen periyot)', confidence: 'high' },
   { country: TR, key: 'KVKK_DESTRUCTION_LOG_MIN_YEARS', validFrom: '2018-01-01', validTo: null, value: 3, sourceRef: 'Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik md. 7/3 (kayıtlar en az 3 yıl saklanır)', confidence: 'high' },
   { country: TR, key: 'KVKK_SCC_NOTIFY_BUSINESS_DAYS', validFrom: '2024-06-01', validTo: null, value: 5, sourceRef: 'KVKK md. 9/5 (7499 s.K. ile değişik): standart sözleşme imzadan itibaren 5 iş günü içinde Kurula bildirilir', confidence: 'high' },
-  { country: TR, key: 'VERBIS_EMPLOYEE_THRESHOLD', validFrom: '2018-04-19', validTo: null, value: 50, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 19.07.2018, 2018/87 (yıllık çalışan sayısı 50 ve üzeri)', confidence: 'medium', note: 'Eşik; 2023/1154, 2025/1572 ve 2025/2393 sayılı Kurul kararlarıyla yapılan güncellemeler karşısında teyit edilmeli.' },
-  { country: TR, key: 'VERBIS_BALANCE_SHEET_THRESHOLD', validFrom: '2018-04-19', validTo: '2023-12-31', value: 25000000, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 19.07.2018, 2018/87 (yıllık mali bilanço toplamı 25 milyon TL)', confidence: 'medium' },
-  { country: TR, key: 'VERBIS_BALANCE_SHEET_THRESHOLD', validFrom: '2024-01-01', validTo: null, value: 100000000, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararları 2023/1154, 2025/1572, 2025/2393 (yıllık mali bilanço toplamı eşiği)', confidence: 'low', note: 'Tutar ve yürürlük tarihi teyit edilmeden kullanılmamalı (plan Ek listesi): mali müşavir / hukuk onayıyla POST /admin/legal-parameters ile güncellenir. Uygulama yalnızca uyarı üretir.' },
+  { country: TR, key: 'VERBIS_EMPLOYEE_THRESHOLD', validFrom: '2018-07-19', validTo: null, value: 50, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 19.07.2018, 2018/87 (yıllık çalışan sayısı 50 ve üzeri)', confidence: 'medium', note: 'Eşik; 2025/1572 ve 2025/2393 sayılı Kurul kararlarıyla yapılan güncellemeler karşısında teyit edilmeli.' },
+  { country: TR, key: 'VERBIS_BALANCE_SHEET_THRESHOLD', validFrom: '2018-07-19', validTo: '2023-07-05', value: 25000000, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 19.07.2018, 2018/87 (yıllık mali bilanço toplamı 25 milyon TL)', confidence: 'medium' },
+  { country: TR, key: 'VERBIS_BALANCE_SHEET_THRESHOLD', validFrom: '2023-07-06', validTo: null, value: 100000000, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 06.07.2023, 2023/1154 (yıllık mali bilanço toplamı 100 milyon TL)', confidence: 'medium', note: 'Uygulama yalnızca uyarı üretir; tutar mali müşavir / hukuk onayıyla POST /admin/legal-parameters ile güncellenir.' },
+  { country: TR, key: 'KVKK_ADEQUACY_COUNTRIES', validFrom: '2024-06-01', validTo: null, value: [], sourceRef: 'KVKK md. 9/1 (7499 s.K.): Kurulca yeterlilik kararı verilen ülkeler; Kurul henüz yeterlilik kararı ilan etmemiştir', confidence: 'medium', note: 'Kurul bir ülke, sektör veya uluslararası kuruluş için yeterlilik kararı ilan ettiğinde ISO ülke kodu eklenir.' },
+  // WP7 review round 1 - low confidence (plan Ek): used only for the warning, confirm before relying on them.
+  { country: TR, key: 'VERBIS_SPECIAL_EMPLOYEE_THRESHOLD', validFrom: '2025-12-25', validTo: null, value: 10, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 2025/1572 (ana faaliyeti özel nitelikli veri işleme olan sorumlular: yıllık çalışan sayısı 10 ve üzeri)', confidence: 'low', note: 'Karar tarihi ve yürürlüğü teyit edilmeli; teyide kadar muafiyet temkinli olarak 2025/2393 tarihinden itibaren uygulanır.' },
+  { country: TR, key: 'VERBIS_SPECIAL_BALANCE_SHEET_THRESHOLD', validFrom: '2025-12-25', validTo: null, value: 10000000, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 2025/1572 (ana faaliyeti özel nitelikli veri işleme olan sorumlular: yıllık mali bilanço toplamı 10 milyon TL ve üzeri)', confidence: 'low', note: 'Karar tarihi ve yürürlüğü teyit edilmeli.' },
+  { country: TR, key: 'VERBIS_NON_BALANCE_SHEET_EMPLOYEES_ONLY', validFrom: '2025-12-25', validTo: null, value: true, sourceRef: 'Kişisel Verileri Koruma Kurulu Kararı 25.12.2025, 2025/2393 (bilanço esasına göre defter tutmayan sorumlular yalnızca çalışan sayısına göre değerlendirilir)', confidence: 'low', note: 'İşletme hesabı / basit usul şirketlerde bilanço eşiği uygulanmaz; teyit edilmeli.' },
 ];
 
 
@@ -419,4 +424,14 @@ export const WP7_PARAMETER_KEYS = [
   'KVKK_SCC_NOTIFY_BUSINESS_DAYS',
   'VERBIS_EMPLOYEE_THRESHOLD',
   'VERBIS_BALANCE_SHEET_THRESHOLD',
+];
+
+/** Keys added (or re-dated) by migration 1784274142000 (WP7 review round 1). */
+export const WP7R1_PARAMETER_KEYS = [
+  'KVKK_ADEQUACY_COUNTRIES',
+  'VERBIS_EMPLOYEE_THRESHOLD',
+  'VERBIS_BALANCE_SHEET_THRESHOLD',
+  'VERBIS_SPECIAL_EMPLOYEE_THRESHOLD',
+  'VERBIS_SPECIAL_BALANCE_SHEET_THRESHOLD',
+  'VERBIS_NON_BALANCE_SHEET_EMPLOYEES_ONLY',
 ];

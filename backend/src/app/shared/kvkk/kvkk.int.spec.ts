@@ -125,11 +125,17 @@ describe('WP7 KVKK (MySQL)', () => {
     await m.insert(ConsentEntity, { companyId: co.id, subjectType: 'CUSTOMER', subjectId: c.id, purposeCode: 'MARKETING_EMAIL', channel: 'WEB', givenAt: new Date() });
     await chain.seal();
 
-    const r = await tenant.run(co.id, () => erasure.eraseCustomer(c.id, { reason: 'test', performedBy: 'admin' }));
+    // Orders are kept 10 years (TTK 82): the erasure is partial while they are in retention ...
+    const p = await tenant.run(co.id, () => erasure.eraseCustomer(c.id, { reason: 'test', performedBy: 'admin' }));
+    expect(p.mode).toBe('PARTIAL');
+    expect(p.retained.map((g) => g.type)).toEqual(['orders']);
+    expect(p.maskedOrders).toBe(0);
+    // ... and full once the retention has ended (periodic destruction).
+    const r = await tenant.run(co.id, () => erasure.eraseCustomer(c.id, { reason: 'test', performedBy: 'admin', retentionEnded: true }));
     expect(r.mode).toBe('FULL');
     expect(r.maskedAuditRows).toBeGreaterThanOrEqual(2);
     expect(r.maskedOrders).toBe(1);
-    expect(r.withdrawnConsents).toBe(1);
+    expect(p.withdrawnConsents).toBe(1);
 
     const row = (await ds!.query('SELECT * FROM customers WHERE id = ?', [c.id]))[0];
     expect(row.name).toBe(anonymousCustomerName(c.id));
@@ -149,7 +155,10 @@ describe('WP7 KVKK (MySQL)', () => {
     const masked = await ds!.query('SELECT COUNT(*) n FROM audit_logs WHERE companyId = ? AND maskedAt IS NOT NULL', [co.id]);
     expect(Number(masked[0].n)).toBeGreaterThanOrEqual(2);
     expect(await m.count(DestructionLogEntity, { where: { companyId: co.id, entityId: c.id } })).toBeGreaterThanOrEqual(1);
-    expect(webhooks.emitMany).toHaveBeenCalledWith([expect.objectContaining({ event: 'customer.erased', data: expect.not.objectContaining({ name: expect.anything() }) })]);
+    expect(webhooks.emitMany).toHaveBeenCalledWith([expect.objectContaining({ event: 'customer.erased', data: expect.not.objectContaining({ name: expect.anything() }) })], expect.anything());
+    // every masking is a chained, visible event
+    const events = await ds!.query("SELECT COUNT(*) n FROM audit_logs WHERE companyId = ? AND action = 'kvkk.audit_mask'", [co.id]);
+    expect(Number(events[0].n)).toBeGreaterThanOrEqual(2);
 
     const v = await chain.verify(co.id);
     expect(v.ok).toBe(true);
@@ -216,6 +225,27 @@ describe('WP7 KVKK (MySQL)', () => {
     await expect(ds!.query('DELETE FROM audit_logs WHERE id = ?', [first.id])).rejects.toBeTruthy();
     // masking only with the KVKK session flag
     await expect(ds!.query('UPDATE audit_logs SET username = NULL, maskedAt = UTC_TIMESTAMP() WHERE id = ?', [first.id])).rejects.toBeTruthy();
+    // the masking flag does not allow a silent rewrite: keys must stay, actor columns only cleared ...
+    // session variable: one connection
+    const qr = ds!.createQueryRunner();
+    await qr.connect();
+    const flagged = async (sql: string, id: string = first.id) => {
+      await qr.query('SET @kvkk_erasure = 1');
+      try {
+        await qr.query(sql, [id]);
+      } finally {
+        await qr.query('SET @kvkk_erasure = NULL');
+      }
+    };
+    await expect(flagged("UPDATE audit_logs SET `after` = JSON_OBJECT('other', 1), maskedAt = UTC_TIMESTAMP() WHERE id = ?")).rejects.toBeTruthy();
+    await expect(flagged("UPDATE audit_logs SET username = 'mallory', maskedAt = UTC_TIMESTAMP() WHERE id = ?")).rejects.toBeTruthy();
+    // ... and a value rewrite under the flag without a chained kvkk.audit_mask event is reported as tampered
+    const [second] = await ds!.query('SELECT id FROM audit_logs WHERE companyId = ? ORDER BY chainSeq LIMIT 1 OFFSET 1', [co.id]);
+    await flagged("UPDATE audit_logs SET `after` = JSON_OBJECT('price', 1234), maskedAt = UTC_TIMESTAMP() WHERE id = ?", second.id);
+    await qr.release();
+    const silent = await chain.verify(co.id);
+    expect(silent.ok).toBe(false);
+    expect(silent.tampered).toContain(second.id);
     // simulate a privileged tamper (triggers dropped): the verifier finds the changed row
     await ds!.query('DROP TRIGGER trg_audit_logs_append_only');
     await ds!.query("UPDATE audit_logs SET `after` = JSON_OBJECT('price', 999) WHERE id = ?", [first.id]);

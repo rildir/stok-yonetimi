@@ -7,6 +7,7 @@ import { DocumentsService, apiError, nowLocalInput } from '../../services/docume
 import { UiStateService } from '../../services/ui-state.service';
 import { GoodsReceipt, Invoice, ReturnDoc, statusBadge } from '../../models/documents.models';
 import { REFUND_CHANNELS, RETURN_CONDITIONS, returnableQuantity } from '@stok/tr-compliance';
+import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
 
 interface ReturnFormLine {
   sourceId: string;
@@ -20,7 +21,7 @@ interface ReturnFormLine {
 @Component({
   selector: 'app-returns',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, SpecialCategoryWarningComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   template: `
     <header class="page-header">
@@ -171,7 +172,7 @@ interface ReturnFormLine {
               @if (type === 'WITHDRAWAL') { <div class="doc-field"><label for="rtNot">{{ 'returns.notifiedAt' | t }}</label><input id="rtNot" type="datetime-local" class="input" [(ngModel)]="notifiedAt" /></div> }
             </div>
             <p class="doc-hint">{{ 'returns.formHint' | t }}</p>
-            <div class="doc-field"><label for="rtNote">{{ 'despatches.note' | t }}</label><textarea id="rtNote" class="textarea" rows="2" [(ngModel)]="note"></textarea></div>
+            <div class="doc-field"><label for="rtNote">{{ 'despatches.note' | t }}</label><textarea id="rtNote" class="textarea" rows="2" [(ngModel)]="note"></textarea><app-special-category-warning [text]="note" /></div>
             @if (error()) { <div class="doc-alert danger">{{ error() }}</div> }
           </div>
           <div class="drawer-footer">

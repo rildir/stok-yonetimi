@@ -43,7 +43,8 @@ export class CustomerEntity {
   identityNumber?: string | null;
 
   /** Keyed HMAC-SHA256 blind index of identityNumber (equality search) */
-  @Column({ type: 'char', length: 64, nullable: true })
+  // never selected by default: not part of any API response (R61)
+  @Column({ type: 'char', length: 64, nullable: true, select: false })
   identityNumberHash?: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
@@ -151,7 +152,7 @@ export class CustomerEntity {
   @BeforeInsert()
   @BeforeUpdate()
   syncIdentityHash() {
-    if (this.identityNumber !== undefined) this.identityNumberHash = piiHash(this.identityNumber);
+    if (this.identityNumber !== undefined && this.companyId) this.identityNumberHash = piiHash(this.identityNumber, this.companyId);
   }
 }
 

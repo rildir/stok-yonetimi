@@ -5,9 +5,14 @@
 --
 -- REVOKE ALL PRIVILEGES ON `stok_yonetimi`.`audit_logs` FROM 'stok_app'@'%';
 -- GRANT SELECT, INSERT ON `stok_yonetimi`.`audit_logs` TO 'stok_app'@'%';
--- GRANT UPDATE (`chainSeq`, `prevHash`, `hash`, `maskedAt`, `before`, `after`, `userId`, `username`, `ip`, `userAgent`)
+-- GRANT UPDATE (`chainSeq`, `prevHash`, `hash`, `maskedAt`, `maskedDigest`, `before`, `after`, `userId`, `username`, `ip`, `userAgent`)
 --   ON `stok_yonetimi`.`audit_logs` TO 'stok_app'@'%';
 -- The triggers (trg_audit_logs_*) additionally allow those updates only once (sealing) or with the
--- KVKK masking flag, and refuse every delete.
+-- KVKK masking flag, and refuse every delete. A masking may only replace values (same top-level
+-- keys) and clear actor columns; the trigger itself records maskedDigest, and the verifier accepts a
+-- masked row only when a chained kvkk.audit_mask event names that digest - so even a session that
+-- sets @kvkk_erasure cannot rewrite a row without leaving a visible, chained masking event.
+-- For stronger separation, run the masking through a dedicated DB account (the only one allowed to
+-- UPDATE before / after) instead of the application user.
 --
 -- Destruction records and acceptance records are append-only by trigger as well.

@@ -12,7 +12,7 @@ import { invalidateCompanyPolicy } from '../../shared/kvkk/company-policy';
 import { todayKey } from '../../shared/tr';
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AuditService } from '../integrations/audit.service';
-import { ErasureService } from './erasure.service';
+import { ErasureResult, ErasureService } from './erasure.service';
 
 /** Columns never exported (credentials, secrets). */
 const SECRET_COLUMN = /^(password|secret|secretHash|tokenHash|inviteTokenHash|totpSecret|totpPendingSecret|totpRecoveryCodes|credentials|encryptedCredentials|apiSecret)$/i;
@@ -85,19 +85,14 @@ export class TenantClosureService {
     const now = new Date();
     const today = todayKey(c.timezone, now);
     const ctx = { reason: 'Şirket hesabının kapatılması (yasal saklama gerektirmeyen veriler)', performedBy: user.username, performedByUserId: user.sub };
-    // Customers: anonymised unless legal records keep them (partial erasure: restricted until retention ends).
-    const customers: { id: string }[] = await this.ds.query('SELECT id FROM customers WHERE companyId = ? AND anonymizedAt IS NULL', [this.companyId]);
-    let full = 0;
-    let partial = 0;
-    for (const cu of customers) {
-      const r = await this.erasure.eraseCustomer(cu.id, ctx);
-      if (r.mode === 'FULL') full++;
-      else partial++;
-    }
+    // One transaction (atomic): customer erasures, removal of keys / sessions / accounts and the
+    // CLOSED status - a failure leaves the tenant ACTIVE with no customer anonymised.
+    const erased: ErasureResult[] = [];
     const summary = await this.ds.transaction(async (m) => {
+      // Customers: anonymised unless legal records keep them (partial erasure: restricted until retention ends).
+      const customers: { id: string }[] = await m.query('SELECT id FROM customers WHERE companyId = ? AND anonymizedAt IS NULL', [this.companyId]);
+      for (const cu of customers) erased.push(await this.erasure.eraseCustomer(cu.id, ctx, { manager: m, deferNotify: true }));
       const del = async (sql: string) => (await m.query(sql, [this.companyId]))?.affectedRows ?? 0;
-      const deliveries = await del('DELETE FROM webhook_deliveries WHERE companyId = ?');
-      const endpoints = await del('DELETE FROM webhook_endpoints WHERE companyId = ?');
       const keys = await del('DELETE FROM api_keys WHERE companyId = ?');
       const sessions = await del('DELETE FROM user_sessions WHERE companyId = ?');
       // Accounts other than administrators / auditors are removed (their audit entries keep the trail).
@@ -105,8 +100,6 @@ export class TenantClosureService {
       if (users.length) await m.delete(UserEntity, { id: In(users.map((u) => u.id)) });
       const retainUntil = addPeriod(today, 3, 'YEAR');
       const logs: [string, string, number, string][] = [
-        ['WEBHOOK_DELIVERIES', 'webhook_deliveries', deliveries, 'DELETION'],
-        ['INTEGRATIONS', 'webhook_endpoints', endpoints, 'DELETION'],
         ['INTEGRATIONS', 'api_keys', keys, 'DELETION'],
         ['USER_SESSIONS', 'user_sessions', sessions, 'DELETION'],
         ['USERS', 'users', users.length, 'DELETION'],
@@ -117,10 +110,27 @@ export class TenantClosureService {
       }
       const retentionUntil = legalRecordRetentionUntil(today);
       await m.update(CompanyEntity, { id: this.companyId }, { status: 'CLOSED', closedAt: now, closedBy: user.username, retentionUntil });
-      return { deliveries, endpoints, apiKeys: keys, sessions, users: users.length, retentionUntil };
+      return { apiKeys: keys, sessions, users: users.length, retentionUntil, retainUntil };
     });
     invalidateCompanyPolicy(this.companyId);
-    await this.audit.record({ companyId: this.companyId, action: 'tenant_closed', entityType: 'companies', entityId: this.companyId, after: { ...summary, customersAnonymized: full, customersRestricted: partial } });
-    return { status: 'CLOSED', ...summary, customersAnonymized: full, customersRestricted: partial };
+    const full = erased.filter((r) => r.mode === 'FULL').length;
+    const partial = erased.length - full;
+    // After commit: the recipients are told about the erasures (KVKK md. 11/1-f; first attempt awaited),
+    // then the webhook endpoints and their deliveries are removed.
+    await this.erasure.notifyErased(erased, { awaitDispatch: true });
+    const { deliveries, endpoints } = await this.ds.transaction(async (m) => {
+      const del = async (sql: string) => (await m.query(sql, [this.companyId]))?.affectedRows ?? 0;
+      const d = await del('DELETE FROM webhook_deliveries WHERE companyId = ?');
+      const e = await del('DELETE FROM webhook_endpoints WHERE companyId = ?');
+      const rows: [string, string, number][] = [['WEBHOOK_DELIVERIES', 'webhook_deliveries', d], ['INTEGRATIONS', 'webhook_endpoints', e]];
+      for (const [cat, type, n] of rows) {
+        if (!n) continue;
+        await m.insert(DestructionLogEntity, { companyId: this.companyId, dataCategory: cat, entityType: type, recordCount: n, method: 'DELETION', result: 'DONE', reason: ctx.reason, performedBy: user.username, performedByUserId: user.sub, performedAt: now, retainUntil: summary.retainUntil } as DestructionLogEntity);
+      }
+      return { deliveries: d, endpoints: e };
+    });
+    const { retainUntil: _r, ...rest } = summary;
+    await this.audit.record({ companyId: this.companyId, action: 'tenant_closed', entityType: 'companies', entityId: this.companyId, after: { ...rest, deliveries, endpoints, customersAnonymized: full, customersRestricted: partial } });
+    return { status: 'CLOSED', ...rest, deliveries, endpoints, customersAnonymized: full, customersRestricted: partial };
   }
 }

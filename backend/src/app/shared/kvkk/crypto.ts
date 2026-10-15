@@ -101,11 +101,15 @@ export function normalizeIdentifier(value: string): string {
   return String(value).replace(/\s+/g, '').toLocaleUpperCase('tr-TR');
 }
 
-/** Keyed HMAC-SHA256 blind index of an identifier (null for empty values). */
-export function piiHash(value: string | null | undefined, env?: Env): string | null {
+/**
+ * Keyed HMAC-SHA256 blind index of an identifier (null for empty values). `scope` (the company id)
+ * makes the index tenant-specific: the same TCKN gives unrelated values in two tenants. The index is
+ * never returned by the API (column select: false).
+ */
+export function piiHash(value: string | null | undefined, scope?: string | null, env?: Env): string | null {
   if (value === null || value === undefined || value === '' || isEncrypted(value)) return null;
   const { mac } = resolvePiiKeys(env);
-  return createHmac('sha256', mac).update(normalizeIdentifier(value), 'utf8').digest('hex');
+  return createHmac('sha256', mac).update(`${scope ? `${scope}:` : ''}${normalizeIdentifier(value)}`, 'utf8').digest('hex');
 }
 
 /** TypeORM column transformer: encrypt on write, decrypt on read (deterministic, see above). */

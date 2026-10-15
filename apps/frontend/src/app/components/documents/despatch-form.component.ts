@@ -7,6 +7,7 @@ import { UiStateService } from '../../services/ui-state.service';
 import { Despatch } from '../../models/documents.models';
 import { Order, Product, Warehouse } from '../../models/inventory.models';
 import { isValidDriverTckn, isValidTrPlate, transferNeedsDespatch, PAPER_REASONS } from '@stok/tr-compliance';
+import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
 
 interface FormLine {
   orderItemId?: string;
@@ -24,7 +25,7 @@ interface FormLine {
 @Component({
   selector: 'app-despatch-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe],
+  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe, SpecialCategoryWarningComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   styles: [`.drawer-overlay.stacked { z-index: 1150; }`],
   template: `
@@ -131,7 +132,7 @@ interface FormLine {
             </div>
           }
 
-          <div class="doc-field doc-section"><label for="dfNote">{{ 'despatches.note' | t }}</label><textarea id="dfNote" class="textarea" rows="2" [(ngModel)]="note"></textarea></div>
+          <div class="doc-field doc-section"><label for="dfNote">{{ 'despatches.note' | t }}</label><textarea id="dfNote" class="textarea" rows="2" [(ngModel)]="note"></textarea><app-special-category-warning [text]="note" /></div>
           <div class="doc-hint">{{ 'despatches.form.approveHint' | t }}</div>
           @if (error()) { <div class="doc-alert danger" style="margin-top: var(--space-3)">{{ error() }}</div> }
         </div>

@@ -72,4 +72,8 @@ export class AuditLogEntity {
   /** Personal data in this row was masked (KVKK erasure / retention); the digest no longer matches the content */
   @Column({ type: 'datetime', nullable: true })
   maskedAt: Date | null;
+
+  /** Digest of the masked content, set by the masking trigger and recorded by a kvkk.audit_mask chain event */
+  @Column({ type: 'char', length: 64, nullable: true })
+  maskedDigest: string | null;
 }

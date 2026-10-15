@@ -4,7 +4,7 @@ import { RolesGuard } from '../../guards/roles.guard';
 import { REQUIRE_PERMISSION_KEY, SELF_SERVICE_KEY } from '../../guards/security.decorators';
 import { base32Decode, base32Encode, generateRecoveryCodes, hashRecoveryCode, hotp, otpauthUrl, totp, verifyTotp } from './totp';
 import { decryptPii, encryptPii, isEncrypted, piiHash } from './crypto';
-import { maskCustomer, maskPersonalIdentifiers } from './masking';
+import { maskCustomer, maskPersonalIdentifiers, maskPersonalIdsInText, stripInternalKeys } from './masking';
 import { apiKeyPermissions, effectivePermissions } from './permissions';
 import { ANON_MARK, anonymousCustomerName, customerErasurePatch, customerReplacement, maskJson, PERSONAL_KEYS } from './anonymizer';
 import { GENESIS_HASH, chainHash, verifyChain } from './audit-chain';
@@ -13,7 +13,7 @@ import { addBusinessDays, sccNoticeStatus, validateTransfer } from './transfer';
 import { stripPersonalData } from './data-catalog';
 import { buildPrivacyNotice } from './notice-template';
 import { detectSpecialCategoryData, isMaskedValue, kvkkDaysLeft, kvkkHoursLeft, maskEmail, maskIdentifier } from '../tr';
-import { computeDiff, REDACTED } from '../integrations/audit-diff';
+import { computeDiff, redactStoredAuditJson, REDACTED } from '../integrations/audit-diff';
 import { CustomerService } from '../../modules/customer/customer.service';
 import { totpSetupBlocking } from './company-policy';
 import { accessTokenTtlSeconds, assertSecurityConfig, dbSslOptions, sessionPolicy, SecurityConfigError } from '../security/security-config';
@@ -300,5 +300,55 @@ describe('WP7 retention, deadlines and special-category warning', () => {
     expect(n.body).toContain('Çerezler ve yerel depolama');
     expect(n.body).toContain('hooks.example.com');
     expect(n.body).toContain('demo@hs01.kep.tr');
+  });
+});
+
+describe('WP7 review r1: nested audit redaction, text masking, tenant-scoped blind index, transfer bases', () => {
+  const T = '10000000146'; // checksum-valid TCKN
+  it('audit snapshots keep no natural person identity / contact data at any depth', () => {
+    const d = computeDiff(null, {
+      id: 'i1',
+      buyerSnapshot: { name: 'Zeynep Arslan', taxIdType: 'TCKN', taxId: T, phone: '+90 532', email: 'z@x.tr', address: { line1: 'Moda Cad.' }, addressText: 'Moda' },
+      sellerSnapshot: { name: 'Demo A.Ş.', taxIdType: 'VKN', taxId: '1234567890', email: 'info@demo.tr' },
+      drivers: [{ firstName: 'Ali', lastName: 'Veli', tckn: T }],
+      lines: [{ counterpartyTaxId: T, note: 'Çiftçi ' + T + ' teslim etti' }],
+      xml: '<cbc:ID schemeID="TCKN">' + T + '</cbc:ID>',
+    });
+    const a = d.after as any;
+    expect(a.buyerSnapshot.name).toBe(REDACTED);
+    expect(a.buyerSnapshot.taxId).toBe(REDACTED);
+    expect(a.buyerSnapshot.phone).toBe(REDACTED);
+    expect(a.buyerSnapshot.address).toBe(REDACTED);
+    expect(a.sellerSnapshot.name).toBe('Demo A.Ş.');
+    expect(a.sellerSnapshot.taxId).toBe('1234567890');
+    expect(a.drivers).toBe(REDACTED);
+    expect(a.lines[0].counterpartyTaxId).toBe(REDACTED);
+    expect(JSON.stringify(a)).not.toContain(T);
+    // stored rows: same top-level keys (masking trigger rule), markers kept
+    const stored = redactStoredAuditJson({ drivers: [{ tckn: T }], email: '[ANONIMLESTIRILDI]', partySnapshot: { name: 'Ahmet', taxId: T } }) as any;
+    expect(Object.keys(stored)).toEqual(['drivers', 'email', 'partySnapshot']);
+    expect(stored.email).toBe('[ANONIMLESTIRILDI]');
+    expect(JSON.stringify(stored)).not.toContain(T);
+  });
+  it('printable text: valid TCKNs are masked, UUIDs / hashes / VKN / phone numbers are not', () => {
+    const uuid = 'e6473f95-7fd9-47eb-917f-12497072142a';
+    const out = maskPersonalIdsInText(`<td>${T}</td><td>1234567890</td><td>05324182763</td>${uuid} sha:ab${T}cd`);
+    expect(out).not.toContain(`>${T}<`);
+    expect(out).toContain('*******0146');
+    expect(out).toContain('1234567890');
+    expect(out).toContain('05324182763');
+    expect(out).toContain(uuid);
+    expect(out).toContain(`ab${T}cd`);
+  });
+  it('blind index is tenant-scoped and never part of a JSON response', () => {
+    expect(piiHash(T, 'company-a')).not.toBe(piiHash(T, 'company-b'));
+    expect(piiHash(T, 'company-a')).toBe(piiHash(' 100 000 001 46 ', 'company-a'));
+    expect(stripInternalKeys({ list: [{ id: 1, identityNumberHash: 'x' }] })).toEqual({ list: [{ id: 1 }] });
+  });
+  it('a webhook is a regular transfer: no incidental consent; adequacy only with a published decision', () => {
+    expect(validateTransfer({ destinationCountry: 'US', transferBasis: 'INCIDENTAL_CONSENT', active: true })).toBe('TRANSFER_INCIDENTAL_NOT_REGULAR');
+    expect(validateTransfer({ destinationCountry: 'US', transferBasis: 'ADEQUACY', active: true })).toBe('TRANSFER_ADEQUACY_NOT_DECIDED');
+    expect(validateTransfer({ destinationCountry: 'US', transferBasis: 'ADEQUACY', active: true }, { adequacyCountries: ['us'] })).toBeNull();
+    expect(validateTransfer({ destinationCountry: 'US', transferBasis: 'BCR', active: true })).toBeNull();
   });
 });

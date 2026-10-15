@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { DataSource, IsNull } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { err } from '../../shared/i18n/app-error';
@@ -14,7 +14,14 @@ import { sessionPolicy } from '../../shared/security/security-config';
  * the session continues through an opaque refresh token in an httpOnly, SameSite=Strict cookie that
  * is rotated on every use, expires after REFRESH_TOKEN_TTL_HOURS and after SESSION_IDLE_MINUTES
  * without activity (boşta kalınca oturum kapatma). Only the SHA-256 of the token is stored.
+ *
+ * Theft detection: the hash of the previous (rotated) token is kept; presenting it again after the
+ * grace period revokes the whole session, so neither the thief nor the victim can continue with it.
+ * Access tokens carry the session id (`sid`): AuthGuard rejects them once the session is revoked
+ * (logout, reuse, idle, password change), so logout ends the access token immediately.
  */
+/** Two tabs refreshing at the same moment present the same token: not treated as theft. */
+const REUSE_GRACE_MS = 30_000;
 export const REFRESH_COOKIE = 'rt';
 const COOKIE_PATH = '/api/auth';
 const sha256 = (v: string) => createHash('sha256').update(v, 'utf8').digest('hex');
@@ -49,7 +56,9 @@ export class SessionService {
     const raw = randomBytes(32).toString('base64url');
     const now = new Date();
     const expiresAt = new Date(now.getTime() + p.absoluteHours * 3600000);
+    const id = randomUUID();
     await this.ds.manager.insert(UserSessionEntity, {
+      id,
       companyId: user.companyId,
       userId: user.id,
       tokenHash: sha256(raw),
@@ -59,7 +68,7 @@ export class SessionService {
       userAgent: (req?.headers?.['user-agent'] || '').toString().slice(0, 255) || null,
     });
     this.setCookie(res, raw, expiresAt);
-    return this.jwt.signAsync(buildJwtPayload(user));
+    return this.jwt.signAsync({ ...buildJwtPayload(user), sid: id });
   }
 
   /** Rotates the refresh token; returns a fresh access token. */
@@ -68,32 +77,55 @@ export class SessionService {
     if (!raw) throw new UnauthorizedException(err('REFRESH_TOKEN_INVALID'));
     const p = sessionPolicy();
     const now = new Date();
-    return this.ds.transaction(async (m) => {
+    // The transaction returns null instead of throwing, so the revocations below are committed.
+    const result = await this.ds.transaction(async (m) => {
       const s = await m.findOne(UserSessionEntity, { where: { tokenHash: sha256(raw), revokedAt: IsNull() }, lock: { mode: 'pessimistic_write' } });
-      const idleLimit = s ? new Date(new Date(s.lastUsedAt).getTime() + p.idleMinutes * 60000) : null;
-      if (!s || new Date(s.expiresAt) <= now || (idleLimit && idleLimit <= now)) {
-        if (s) await m.update(UserSessionEntity, { id: s.id }, { revokedAt: now, revokeReason: new Date(s.expiresAt) <= now ? 'expired' : 'idle' });
-        this.clearCookie(res);
-        throw new UnauthorizedException(err('REFRESH_TOKEN_INVALID'));
+      if (!s) {
+        // A rotated token presented again: possible theft - revoke the session (outside the grace period).
+        const reused = await m.findOne(UserSessionEntity, { where: { prevTokenHash: sha256(raw), revokedAt: IsNull() }, lock: { mode: 'pessimistic_write' } });
+        if (reused && now.getTime() - new Date(reused.lastUsedAt).getTime() > REUSE_GRACE_MS) {
+          await m.update(UserSessionEntity, { id: reused.id }, { revokedAt: now, revokeReason: 'reuse' });
+        }
+        return null;
+      }
+      const idleLimit = new Date(new Date(s.lastUsedAt).getTime() + p.idleMinutes * 60000);
+      if (new Date(s.expiresAt) <= now || idleLimit <= now) {
+        await m.update(UserSessionEntity, { id: s.id }, { revokedAt: now, revokeReason: new Date(s.expiresAt) <= now ? 'expired' : 'idle' });
+        return null;
       }
       const user = await m.findOne(UserEntity, { where: { id: s.userId } });
       if (!user || user.companyId !== s.companyId) {
         await m.update(UserSessionEntity, { id: s.id }, { revokedAt: now, revokeReason: 'user' });
-        throw new UnauthorizedException(err('REFRESH_TOKEN_INVALID'));
+        return null;
       }
       const next = randomBytes(32).toString('base64url');
-      await m.update(UserSessionEntity, { id: s.id }, { tokenHash: sha256(next), lastUsedAt: now });
-      this.setCookie(res, next, new Date(s.expiresAt));
-      return { token: await this.jwt.signAsync(buildJwtPayload(user)), user };
+      await m.update(UserSessionEntity, { id: s.id }, { tokenHash: sha256(next), prevTokenHash: s.tokenHash, lastUsedAt: now });
+      return { next, expiresAt: new Date(s.expiresAt), token: await this.jwt.signAsync({ ...buildJwtPayload(user), sid: s.id }), user };
     });
+    if (!result) {
+      this.clearCookie(res);
+      throw new UnauthorizedException(err('REFRESH_TOKEN_INVALID'));
+    }
+    this.setCookie(res, result.next, result.expiresAt);
+    return { token: result.token, user: result.user };
   }
 
   async logout(req: any, res: any): Promise<void> {
     const raw = readCookie(req, REFRESH_COOKIE);
-    if (raw) await this.ds.manager.update(UserSessionEntity, { tokenHash: sha256(raw), revokedAt: IsNull() }, { revokedAt: new Date(), revokeReason: 'logout' });
+    const now = new Date();
+    if (raw) await this.ds.manager.update(UserSessionEntity, { tokenHash: sha256(raw), revokedAt: IsNull() }, { revokedAt: now, revokeReason: 'logout' });
+    // Also the session of the presented access token (logout without the cookie).
+    const [type, bearer] = String(req?.headers?.authorization || '').split(' ');
+    if (type === 'Bearer' && bearer && !bearer.startsWith('sk_')) {
+      try {
+        const payload: { sid?: string } = await this.jwt.verifyAsync(bearer);
+        if (payload?.sid) await this.ds.manager.update(UserSessionEntity, { id: payload.sid, revokedAt: IsNull() }, { revokedAt: now, revokeReason: 'logout' });
+      } catch {
+        /* expired / invalid token: nothing to revoke */
+      }
+    }
     this.clearCookie(res);
   }
-
   async revokeAll(userId: string, reason: string): Promise<void> {
     await this.ds.manager.update(UserSessionEntity, { userId, revokedAt: IsNull() }, { revokedAt: new Date(), revokeReason: reason.slice(0, 30) });
   }

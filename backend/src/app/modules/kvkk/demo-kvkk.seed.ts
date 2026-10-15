@@ -6,11 +6,11 @@ import { CompanyEntity, DEFAULT_COMPANY } from '../../entities/company.entity';
 import { CustomerEntity } from '../../entities/customer.entity';
 import { DistrictEntity, ProvinceEntity } from '../../entities/refdata.entity';
 import { ConsentEntity, DsrRequestEntity, PrivacyNoticeEntity, RetentionPolicyEntity, SecurityIncidentEntity, SubprocessorEntity } from '../../entities/kvkk.entity';
-import { LEGAL_PARAMETER_SEEDS, WP7_PARAMETER_KEYS } from '../../shared/legal/legal-parameter-seeds';
+import { LEGAL_PARAMETER_SEEDS, WP7_PARAMETER_KEYS, WP7R1_PARAMETER_KEYS } from '../../shared/legal/legal-parameter-seeds';
 import { ensureAuditTriggers } from '../../shared/kvkk/audit-chain';
 import { RETENTION_DEFAULTS } from '../../shared/kvkk/retention';
 import { buildPrivacyNotice, platformDocument } from '../../shared/kvkk/notice-template';
-import { PLATFORM_OPERATOR, PLATFORM_SUBPROCESSORS, retentionLabel } from '../../shared/kvkk/platform';
+import { LEGACY_PLATFORM_INTEGRATOR_NAME, PLATFORM_OPERATOR, PLATFORM_SUBPROCESSORS, retentionLabel } from '../../shared/kvkk/platform';
 import { tcknCheckDigits } from '../../shared/tr';
 import { NoticeService } from './notice.service';
 import { RetentionService } from './retention.service';
@@ -54,14 +54,32 @@ export class KvkkDemoSeeder implements OnApplicationBootstrap {
       if (created.length) this.logger.log(`Created KVKK triggers: ${created.join(', ')}`);
       await this.ensureGlobals();
       await this.tenant.run(DEFAULT_COMPANY.id, () => this.seedDemo());
+      await this.tenant.run(DEFAULT_COMPANY.id, () => this.republishNoticesWithoutLegacyIntegrator());
     } catch (e) {
       this.logger.warn(`WP7 demo seed skipped: ${(e as Error).message}`);
     }
   }
 
+  /**
+   * WP7 review r1: published demo notices listed the e-Belge integrator twice (the tenant's entry and
+   * the former platform-wide placeholder). A corrected version is generated and published once.
+   */
+  private async republishNoticesWithoutLegacyIntegrator() {
+    const companyId = DEFAULT_COMPANY.id;
+    const stale = await this.ds.manager.find(PrivacyNoticeEntity, { where: { companyId, status: 'PUBLISHED' } });
+    for (const n of stale.filter((x) => x.body.includes(LEGACY_PLATFORM_INTEGRATOR_NAME))) {
+      const [major, minor] = n.version.split('.').map((x) => Number(x) || 0);
+      const version = `${major}.${minor + 1}`;
+      if (await this.ds.manager.exists(PrivacyNoticeEntity, { where: { companyId, docType: n.docType, audience: n.audience, language: n.language, version } })) continue;
+      const draft = await this.notices.create({ audience: n.audience, language: n.language, version }, SEED_USER);
+      await this.notices.publish(draft.id, SEED_USER);
+      this.logger.log(`Republished ${n.audience}/${n.language} privacy notice as ${version} (integrator listed once)`);
+    }
+  }
+
   private async ensureGlobals() {
     const m = this.ds.manager;
-    for (const p of LEGAL_PARAMETER_SEEDS.filter((x) => WP7_PARAMETER_KEYS.includes(x.key))) {
+    for (const p of LEGAL_PARAMETER_SEEDS.filter((x) => WP7_PARAMETER_KEYS.includes(x.key) || WP7R1_PARAMETER_KEYS.includes(x.key))) {
       await this.ds.query(
         'INSERT IGNORE INTO `legal_parameters` (`id`, `country`, `key`, `validFrom`, `validTo`, `value`, `sourceRef`, `confidence`, `note`, `createdBy`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [randomUUID(), p.country, p.key, p.validFrom, p.validTo, JSON.stringify(p.value), p.sourceRef, p.confidence, p.note || null, 'seed'],
@@ -85,6 +103,18 @@ export class KvkkDemoSeeder implements OnApplicationBootstrap {
     }
     if (!(await m.exists(SubprocessorEntity, { where: { companyId: IsNull() } }))) {
       for (const p of PLATFORM_SUBPROCESSORS) await m.insert(SubprocessorEntity, { ...p, companyId: null, active: true });
+    }
+    // WP7 review r1: the platform privacy notice listed the companies' e-Belge integrator as a platform
+    // sub-processor; a corrected version (with the operator identity fields) replaces it once.
+    const stale = await m.find(PrivacyNoticeEntity, { where: { companyId: IsNull(), docType: 'PRIVACY', audience: 'USER', status: 'PUBLISHED' } });
+    for (const n of stale.filter((x) => x.body.includes(LEGACY_PLATFORM_INTEGRATOR_NAME))) {
+      const lang = n.language === 'en' ? 'en' : 'tr';
+      const [major, minor] = n.version.split('.').map((x) => Number(x) || 0);
+      const d = buildPrivacyNotice(PLATFORM_OPERATOR, 'USER', lang, PLATFORM_SUBPROCESSORS, [], (c) => retentionLabel(c, lang));
+      const now = new Date();
+      await m.update(PrivacyNoticeEntity, { id: n.id }, { status: 'RETIRED', retiredAt: now });
+      await m.insert(PrivacyNoticeEntity, { companyId: null, docType: 'PRIVACY', audience: 'USER', language: lang, version: `${major}.${minor + 1}`, title: d.title, body: d.body, contentSha256: sha256(`${d.title}\n${d.body}`), status: 'PUBLISHED', publishedAt: now, publishedBy: 'seed', createdBy: 'seed' });
+      this.logger.log(`Republished the platform privacy notice (${lang}) as ${major}.${minor + 1}`);
     }
   }
 

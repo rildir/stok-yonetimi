@@ -1,4 +1,37 @@
-import { maskEmail, maskIdentifier } from '../tr';
+import { isValidTckn, maskEmail, maskIdentifier } from '../tr';
+
+/**
+ * Masks every valid T.C. Kimlik No / YKN (11 digits, checksum) in free text - printable documents,
+ * e-document XML / HTML, audit snapshots. A number glued to letters, digits, '-', '+', '/', '='
+ * (UUIDs, hashes, base64 images, phone numbers) is left alone; VKN (10 digits) stays visible.
+ */
+const TEXT_TCKN = /(?<![0-9A-Za-z+/=-])[1-9][0-9]{10}(?![0-9A-Za-z+/=-])/g;
+export function maskPersonalIdsInText(text: string): string {
+  if (!text || !/[1-9][0-9]{10}/.test(text)) return text;
+  return text.replace(TEXT_TCKN, (m) => (isValidTckn(m) ? (maskIdentifier(m) as string) : m));
+}
+
+/** Keys never returned by the API: the blind index of identity numbers (R61). */
+const INTERNAL_KEYS = new Set(['identityNumberHash']);
+
+/** Deep copy without internal keys (applied to every JSON response). */
+export function stripInternalKeys<T>(value: T, depth = 0): T {
+  if (depth > 40 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((v) => stripInternalKeys(v, depth + 1)) as T;
+  if (value instanceof Date || Buffer.isBuffer(value)) return value;
+  let found = false;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (INTERNAL_KEYS.has(k)) {
+      found = true;
+      continue;
+    }
+    const s = stripInternalKeys(v, depth + 1);
+    if (s !== v) found = true;
+    out[k] = s;
+  }
+  return (found ? out : value) as T;
+}
 
 /**
  * Response masking of personal identifiers for callers without `customers.pii.read` (R61).

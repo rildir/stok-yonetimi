@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'crypto';
 import { MigrationInterface, QueryRunner } from 'typeorm';
 import { LEGAL_PARAMETER_SEEDS, WP7_PARAMETER_KEYS } from '../shared/legal/legal-parameter-seeds';
-import { AUDIT_TRIGGERS, GENESIS_HASH, auditDigestSql, chainHash, dropAuditTriggers } from '../shared/kvkk/audit-chain';
+import { AUDIT_TRIGGERS_V1, GENESIS_HASH, auditDigestSql, chainHash, dropAuditTriggers } from '../shared/kvkk/audit-chain';
 import { RETENTION_DEFAULTS } from '../shared/kvkk/retention';
 import { decryptPii, encryptPii, piiHash } from '../shared/kvkk/crypto';
 import { buildPrivacyNotice, platformDocument } from '../shared/kvkk/notice-template';
@@ -199,11 +199,11 @@ export class KvkkDataGovernance1784274141000 implements MigrationInterface {
     }
 
     // C. triggers
-    for (const t of AUDIT_TRIGGERS) await q.query(t.sql);
+    for (const t of AUDIT_TRIGGERS_V1) await q.query(t.sql);
   }
 
   public async down(q: QueryRunner): Promise<void> {
-    await dropAuditTriggers((sql) => q.query(sql));
+    await dropAuditTriggers((sql) => q.query(sql), AUDIT_TRIGGERS_V1);
     for (const table of ['customers', 'suppliers']) {
       const cols = table === 'customers' ? ['identityNumber', 'passportNo'] : ['identityNumber'];
       const rows: Record<string, string | null>[] = await q.query(`SELECT \`id\`, ${cols.map((c) => `\`${c}\``).join(', ')} FROM \`${table}\` WHERE ${cols.map((c) => `\`${c}\` IS NOT NULL`).join(' OR ')}`);
