@@ -183,5 +183,10 @@
   "stockMovements.approvals.reversalRequest": "Reversal request",
   "stockMovements.toast.reversalPending": "The reversal exceeds the approval threshold (or reverses an approved adjustment); it was sent to a second administrator.",
   "stockMovements.validation.attachmentRequired": "This reason needs a supporting file (report, commission decision, destruction / police report).",
-  "stockMovements.approvedBy": "Approved by {user}"
+  "stockMovements.approvedBy": "Approved by {user}",
+  "stockMovements.approvals.countRequest": "Count difference {count}",
+  "stockMovements.approvals.controlChange": "Stock control loosening",
+  "stockMovements.approvals.lockDateChange": "Stock lock date: {from} → {to}",
+  "stockMovements.approvals.thresholdChange": "Approval threshold: {from} → {to}",
+  "stockMovements.approvals.none": "off"
 }

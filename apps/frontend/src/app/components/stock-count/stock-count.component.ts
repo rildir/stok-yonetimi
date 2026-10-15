@@ -345,6 +345,9 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                         <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
                           {{ item.difference > 0 ? '+' : '' }}{{ item.difference | num }}
                         </span>
+                        @if (item.approvalRequestId) {
+                          <span class="badge badge-warning" [title]="'stockCount.sentForApprovalHint' | t">{{ 'stockCount.sentForApproval' | t }}</span>
+                        }
                       </td>
                     </tr>
                   }
@@ -554,8 +557,10 @@ export class StockCountComponent implements OnInit {
       next: () => {
         // Complete the count session
         this.inventoryService.completeStockCount(active.id).subscribe({
-          next: () => {
-            this.ui.showToast(this.i18n.t('stockCount.toast.completed'), 'success');
+          next: (res) => {
+            const pending = res?.pendingApprovals?.length || 0;
+            if (pending) this.ui.showToast(this.i18n.t('stockCount.toast.completedPending', { count: pending }), 'info');
+            else this.ui.showToast(this.i18n.t('stockCount.toast.completed'), 'success');
             this.showCompleteModal.set(false);
             this.isActionLoading.set(false);
             this.activeCount.set(null);

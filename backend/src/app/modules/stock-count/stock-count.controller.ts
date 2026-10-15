@@ -1,6 +1,7 @@
 import { ApiSecurity } from '@nestjs/swagger';
 import { err } from '../../shared/i18n/app-error';
-import { Controller, Get, Post, Put, Body, Param, BadRequestException, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, BadRequestException, Req, Res, HttpStatus } from '@nestjs/common';
+import { resolveLang, translate } from '../../shared/i18n/messages';
 import { StockCountService } from './stock-count.service';
 import { Roles } from '../../guards/roles.decorator';
 
@@ -42,9 +43,18 @@ export class StockCountController {
   @Post(':id/complete')
   async completeStockCount(
     @Param('id') id: string,
-    @Req() req?: any
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any
   ) {
     const user = req?.user?.username || 'System';
-    return this.stockCountService.completeStockCount(id, user);
+    const done = await this.stockCountService.completeStockCount(id, user);
+    // Lines above the approval threshold were not booked: 202 + the pending requests.
+    if (done?.pendingApprovals?.length) {
+      res.status(HttpStatus.ACCEPTED);
+      const lang = resolveLang(req.headers?.['accept-language']);
+      const params = { count: done.pendingApprovals.length };
+      return { ...done, code: 'COUNT_LINES_PENDING_APPROVAL', params, message: translate('COUNT_LINES_PENDING_APPROVAL', lang, params) };
+    }
+    return done;
   }
 }

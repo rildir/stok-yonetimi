@@ -29,6 +29,8 @@ export interface EffectiveLocale {
 import { UnitEntity } from '../../entities/unit.entity';
 import { STANDARD_UNITS } from '../../shared/inventory/units';
 import { isDateKey, todayKey } from '../../shared/tr';
+import { StockAdjustmentRequestEntity } from '../../entities/stock-adjustment-request.entity';
+import type { ControlChange } from '../stock-movement/stock-movement.service';
 @Injectable()
 export class CompanyService {
   constructor(
@@ -49,7 +51,7 @@ export class CompanyService {
     return company;
   }
 
-  async updateCurrentCompany(dto: UpdateCompanyDto): Promise<CompanyEntity> {
+  async updateCurrentCompany(dto: UpdateCompanyDto): Promise<CompanyEntity & { pendingApproval?: { code: string; request: StockAdjustmentRequestEntity } }> {
     const company = await this.getCurrentCompany();
     if (dto.name !== undefined) company.name = dto.name.trim();
     if (dto.country !== undefined) company.country = dto.country;
@@ -68,15 +70,58 @@ export class CompanyService {
       }
       company.enabledComplianceModules = next;
     }
+    // Stock controls: tightening applies at once; loosening (lock date moved back or cleared,
+    // threshold raised or switched off) is a maker-checker request for a second administrator.
+    const loosen: ControlChange = {};
     if (dto.adjustmentApprovalThreshold !== undefined) {
-      company.adjustmentApprovalThreshold = dto.adjustmentApprovalThreshold === null ? null : Number(dto.adjustmentApprovalThreshold);
+      const next = dto.adjustmentApprovalThreshold === null ? null : Number(dto.adjustmentApprovalThreshold);
+      const cur = company.adjustmentApprovalThreshold === null || company.adjustmentApprovalThreshold === undefined ? null : Number(company.adjustmentApprovalThreshold);
+      if (cur !== null && (next === null || next > cur)) loosen.adjustmentApprovalThreshold = next;
+      else company.adjustmentApprovalThreshold = next;
     }
     if (dto.stockLockDate !== undefined) {
       const d = dto.stockLockDate || null;
       if (d && (!isDateKey(d) || d > todayKey(company.timezone))) throw new BadRequestException(err('STOCK_LOCK_DATE_INVALID'));
-      company.stockLockDate = d;
+      const cur = company.stockLockDate ? String(company.stockLockDate).slice(0, 10) : null;
+      if (cur && (d === null || d < cur)) loosen.stockLockDate = d;
+      else company.stockLockDate = d;
     }
-    return this.companyRepo.save(company);
+    if (!Object.keys(loosen).length) return this.companyRepo.save(company);
+
+    const reason = String(dto.controlChangeReason || '').trim();
+    if (!reason) throw new BadRequestException(err('CONTROL_CHANGE_REASON_REQUIRED'));
+    return this.dataSource.transaction(async (manager) => {
+      const open = await manager
+        .createQueryBuilder(StockAdjustmentRequestEntity, 'r')
+        .where('r.companyId = :c AND r.status = :s AND r.payload LIKE :p', { c: company.id, s: 'PENDING', p: '%"kind":"COMPANY_CONTROL"%' })
+        .getCount();
+      if (open) throw new BadRequestException(err('CONTROL_CHANGE_ALREADY_PENDING'));
+      const saved = await manager.save(CompanyEntity, company);
+      const actor = this.tenant.actor;
+      const request = await manager.save(
+        StockAdjustmentRequestEntity,
+        manager.create(StockAdjustmentRequestEntity, {
+          companyId: company.id,
+          status: 'PENDING',
+          productId: null,
+          productName: null,
+          warehouseId: null,
+          quantityDelta: 0,
+          estimatedValue: 0,
+          currency: company.baseCurrency,
+          threshold: Number(company.adjustmentApprovalThreshold) || 0,
+          payload: {
+            kind: 'COMPANY_CONTROL',
+            change: loosen,
+            current: { stockLockDate: company.stockLockDate ? String(company.stockLockDate).slice(0, 10) : null, adjustmentApprovalThreshold: company.adjustmentApprovalThreshold ?? null },
+            note: reason,
+          },
+          requestedBy: String(actor.username || 'System').slice(0, 100),
+          requestedByUserId: actor.userId ?? null,
+        }),
+      );
+      return Object.assign(saved, { pendingApproval: { code: 'CONTROL_CHANGE_PENDING_APPROVAL', request } });
+    });
   }
 
   /** User overrides win; company settings are the fallback. */

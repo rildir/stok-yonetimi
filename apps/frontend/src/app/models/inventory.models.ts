@@ -349,6 +349,10 @@ export interface CompanyInfo {
   adjustmentApprovalThreshold?: number | null;
   /** YYYY-MM-DD: no stock movement may be dated on or before it */
   stockLockDate?: string | null;
+  /** PUT only: reason for loosening a stock control (lock date back / threshold up) */
+  controlChangeReason?: string;
+  /** PUT response (HTTP 202): the loosened control waits for a second administrator */
+  pendingApproval?: { code: string; message?: string; request: StockAdjustmentRequest };
 }
 
 export interface GrossSales { year: number; amount: number; }
@@ -515,14 +519,23 @@ export interface ReasonRule { code: string; direction: 'in' | 'out' | 'both'; ma
 export interface StockAdjustmentRequest {
   id: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  productId: string;
-  productName: string;
+  /** Null for COMPANY_CONTROL requests */
+  productId: string | null;
+  productName: string | null;
   warehouseId?: string | null;
   quantityDelta: number;
   estimatedValue: number;
   currency: string;
   threshold: number;
-  payload: Partial<StockAdjustmentInput> & { kind?: 'ADJUSTMENT' | 'REVERSAL'; reversesMovementId?: string };
+  payload: Partial<StockAdjustmentInput> & {
+    kind?: 'ADJUSTMENT' | 'REVERSAL' | 'COUNT' | 'COMPANY_CONTROL';
+    reversesMovementId?: string;
+    /** COUNT: the stock count the line belongs to */
+    document?: { countId?: string; countNumber?: string; countDate?: string };
+    /** COMPANY_CONTROL: requested and current values */
+    change?: { stockLockDate?: string | null; adjustmentApprovalThreshold?: number | null };
+    current?: { stockLockDate?: string | null; adjustmentApprovalThreshold?: number | null };
+  };
   requestedBy: string;
   decidedBy?: string | null;
   decisionNote?: string | null;
@@ -557,6 +570,8 @@ export interface StockCountItem {
   lots?: { lotId: string; lotNumber: string; expiryDate?: string | null; warehouseId: string; warehouseName?: string; systemQuantity: number; countedQuantity: number }[];
   /** Serial-tracked: present=false marks a missing serial; countedQuantity = present count */
   serials?: { serial: string; warehouseId: string; warehouseName?: string; present: boolean }[];
+  /** Completed counts: the line exceeded the approval threshold and waits for (or got) a second approval */
+  approvalRequestId?: string;
 }
 
 export interface StockCount {

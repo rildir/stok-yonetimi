@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { COMPLIANCE_MODULES, CATEGORY_RULES } from '@stok/tr-compliance';
 import { ComplianceService } from '../../services/compliance.service';
@@ -78,8 +78,18 @@ import { QuantityInputDirective } from '../shared/quantity-input.directive';
         <p class="field-hint">{{ 'settings.stockLock.hint' | t }}</p>
       </div>
 
+      @if (loosening()) {
+        <div class="icm-section">
+          <p class="text-sm">{{ 'settings.controlChange.hint' | t }}</p>
+          <div class="form-field">
+            <textarea id="icmReason" class="form-input has-value" rows="2" maxlength="500" [ngModel]="reason()" (ngModelChange)="reason.set($event)"></textarea>
+            <label for="icmReason" class="form-label">{{ 'settings.controlChange.reason' | t }}</label>
+          </div>
+        </div>
+      }
+
       <div class="icm-actions">
-        <button type="button" class="btn btn-primary" [disabled]="saving() || (thresholdOn() && (threshold() === null || threshold()! < 0))" (click)="save()">
+        <button type="button" class="btn btn-primary" [disabled]="saving() || (thresholdOn() && (threshold() === null || threshold()! < 0)) || (loosening() && !reason().trim())" (click)="save()">
           {{ (saving() ? 'settings.saving' : 'common.save') | t }}
         </button>
       </div>
@@ -99,6 +109,16 @@ export class InventoryComplianceSettingsComponent implements OnInit {
   currency = signal('TRY');
   saving = signal(false);
   lockDate = signal('');
+  reason = signal('');
+  /** Saved values: loosening them (lock date back / cleared, threshold up / off) needs a reason and a second admin */
+  private saved = signal<{ lockDate: string; threshold: number | null }>({ lockDate: '', threshold: null });
+  loosening = computed(() => {
+    const s = this.saved();
+    const lockBack = !!s.lockDate && (!this.lockDate() || this.lockDate() < s.lockDate);
+    const next = this.thresholdOn() ? Number(this.threshold()) : null;
+    const thresholdUp = s.threshold !== null && (next === null || next > s.threshold);
+    return lockBack || thresholdUp;
+  });
   readonly today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   ngOnInit() {
@@ -112,6 +132,8 @@ export class InventoryComplianceSettingsComponent implements OnInit {
     this.thresholdOn.set(t !== null && t !== undefined);
     this.threshold.set(t ?? null);
     this.lockDate.set(c.stockLockDate || '');
+    this.saved.set({ lockDate: c.stockLockDate || '', threshold: t ?? null });
+    this.reason.set('');
   }
 
   toggle(m: string) {
@@ -126,12 +148,14 @@ export class InventoryComplianceSettingsComponent implements OnInit {
         enabledComplianceModules: this.enabled(),
         adjustmentApprovalThreshold: this.thresholdOn() ? Number(this.threshold()) : null,
         stockLockDate: this.lockDate() || null,
+        ...(this.loosening() ? { controlChangeReason: this.reason().trim() } : {}),
       })
       .subscribe({
         next: (c) => {
           this.saving.set(false);
           this.fill(c);
-          this.ui.showToast(this.i18n.t('settings.complianceModules.saved'), 'success');
+          if (c.pendingApproval) this.ui.showToast(this.i18n.t('settings.controlChange.pending'), 'info');
+          else this.ui.showToast(this.i18n.t('settings.complianceModules.saved'), 'success');
         },
         error: (err) => {
           this.saving.set(false);

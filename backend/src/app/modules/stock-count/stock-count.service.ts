@@ -1,7 +1,7 @@
 import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In } from 'typeorm';
+import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { StockCountEntity, StockCountItem } from '../../entities/stock-count.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
@@ -17,6 +17,8 @@ import { MoreThan } from 'typeorm';
 import { CompanyEntity } from '../../entities/company.entity';
 import { dateKeyInZone, DEFAULT_TIMEZONE, fitsDecimals, roundQty, sumQty, timeKeyInZone } from '../../shared/tr';
 import { UnitEntity } from '../../entities/unit.entity';
+import { StockAdjustmentRequestEntity } from '../../entities/stock-adjustment-request.entity';
+import { CountLine, StockMovementService } from '../stock-movement/stock-movement.service';
 
 /** Counted quantity: >= 0, at most 4 decimals. */
 const countQty = (v: unknown) => Math.max(0, roundQty(Number(v) || 0));
@@ -31,6 +33,7 @@ export class StockCountService {
     private readonly productRepo: Repository<ProductEntity>,
     private readonly stockHelper: StockHelperService,
     private readonly warehouseStock: WarehouseStockService,
+    private readonly movements: StockMovementService,
     private readonly appGateway: AppGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -173,84 +176,119 @@ export class StockCountService {
     return saved;
   }
 
-  async completeStockCount(id: string, performedBy?: string): Promise<StockCountEntity | null> {
+  /**
+   * Completes the count and books the differences (COUNT_SURPLUS / COUNT_SHORTAGE).
+   * Maker-checker (R65): a line whose value (|difference| x unit price, base currency) exceeds
+   * the company threshold is not booked; it becomes a pending request (kind COUNT) that a
+   * different administrator approves in Stock movements > Pending approvals.
+   */
+  async completeStockCount(id: string, performedBy?: string): Promise<(StockCountEntity & { pendingApprovals: StockAdjustmentRequestEntity[] }) | null> {
     const count = await this.stockCountRepo.findOne({ where: { companyId: this.companyId, id, status: 'InProgress' } });
     if (!count) return null;
+    const actor = performedBy || 'System';
+    const touched: ProductEntity[] = [];
 
-    const completedCount = await this.dataSource.transaction(async (manager) => {
+    const done = await this.dataSource.transaction(async (manager) => {
       await this.warehouseStock.begin(manager, this.companyId);
       const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
-      const countDay = dateKeyInZone(new Date(), company.timezone || DEFAULT_TIMEZONE);
+      const countedAt = new Date();
+      const countDay = dateKeyInZone(countedAt, company.timezone || DEFAULT_TIMEZONE);
+      const pending: StockAdjustmentRequestEntity[] = [];
       for (const item of count.items) {
+        delete item.approvalRequestId;
         const product = await manager.findOne(ProductEntity, {
           where: { companyId: this.companyId, id: item.productId, isDeleted: false },
           lock: { mode: 'pessimistic_write' }
         });
-        
-        if (product) {
-          const oldQty = product.quantity;
-          const difference = roundQty(Number(item.countedQuantity) - oldQty);
-          
-          item.systemQuantity = oldQty;
-          item.difference = difference;
+        if (!product) continue;
+        const oldQty = product.quantity;
+        item.systemQuantity = oldQty;
+        const { line, net, gross } = await this.countLine(manager, product, item);
+        item.difference = net;
+        if (!gross) continue;
+        const note = `Sayım Düzeltmesi (Fark: ${net > 0 ? '+' : ''}${net})`;
 
-          const info = {
-            type: 'ADJUSTMENT',
-            reasonCode: (delta: number) => (delta > 0 ? 'COUNT_SURPLUS' : 'COUNT_SHORTAGE'),
-            documentType: 'STOCK_COUNT',
-            documentNo: count.countNumber,
-            documentDate: countDay,
-            referenceId: count.id,
-            referenceType: 'stock_count',
-            note: `Sayım Düzeltmesi (Fark: ${difference > 0 ? '+' : ''}${difference})`,
-            performedBy: performedBy || 'System',
-          };
-          if (product.trackingType === TrackingType.LOT && item.lots) {
-            // Each counted lot is set to its count (lots received after the count started stay untouched).
-            for (const l of item.lots) {
-              const before = product.quantity;
-              const allocs = await this.warehouseStock.setLotQuantity(manager, product, l.lotId, l.countedQuantity);
-              await this.warehouseStock.recordMovements(manager, product, before, allocs, info);
-            }
-            item.difference = roundQty(product.quantity - oldQty);
-            if (item.difference) this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product });
-          } else if (product.trackingType === TrackingType.SERIAL && item.serials) {
-            const missing = item.serials.filter((x) => !x.present).map((x) => x.serial);
-            const stillIn = missing.length
-              ? await manager.count(SerialNumberEntity, {
-                  where: { companyId: this.companyId, productId: product.id, status: SerialStatus.IN_STOCK, serial: In(missing) },
-                })
-              : 0;
-            if (stillIn) {
-              const rows = await manager.find(SerialNumberEntity, {
-                where: { companyId: this.companyId, productId: product.id, status: SerialStatus.IN_STOCK, serial: In(missing) },
-              });
-              const allocs = await this.warehouseStock.issue(manager, product, rows.length, null, { serials: rows.map((r) => r.serial) }, { serialStatus: SerialStatus.LOST });
-              await this.warehouseStock.recordMovements(manager, product, oldQty, allocs, info);
-              this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product });
-            }
-            item.difference = roundQty(product.quantity - oldQty);
-          } else if (difference !== 0 && (product.trackingType || TrackingType.NONE) === TrackingType.NONE) {
-            const allocations = await this.warehouseStock.setTotal(manager, product, Number(item.countedQuantity));
-            await this.warehouseStock.recordMovements(manager, product, oldQty, allocations, info);
-            const savedProd = product;
-
-            this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: savedProd });
-          }
+        const check = await this.movements.approvalCheck(manager, product, gross);
+        if (check.exceeds) {
+          const { request } = await this.movements.createApprovalRequest(
+            manager,
+            product,
+            net,
+            check,
+            {
+              kind: 'COUNT',
+              reasonCode: net >= 0 ? 'COUNT_SURPLUS' : 'COUNT_SHORTAGE',
+              note,
+              line,
+              document: { countId: count.id, countNumber: count.countNumber, countDate: countDay, countedAt: countedAt.toISOString() },
+            },
+            null,
+            actor,
+          );
+          item.approvalRequestId = request.id;
+          pending.push(request);
+          continue;
         }
+        await this.movements.bookCountLine(manager, product, line, {
+          type: 'ADJUSTMENT',
+          reasonCode: (delta: number) => (delta > 0 ? 'COUNT_SURPLUS' : 'COUNT_SHORTAGE'),
+          transactionDate: countedAt,
+          documentType: 'STOCK_COUNT',
+          documentNo: count.countNumber,
+          documentDate: countDay,
+          referenceId: count.id,
+          referenceType: 'stock_count',
+          note,
+          performedBy: actor,
+        });
+        item.difference = roundQty(product.quantity - oldQty);
+        touched.push(product);
       }
 
       count.status = 'Completed';
-      count.completedAt = new Date();
-      if (performedBy) {
-        count.performedBy = performedBy;
-      }
-      return await manager.save(StockCountEntity, count);
+      count.completedAt = countedAt;
+      count.performedBy = actor;
+      const saved = await manager.save(StockCountEntity, count);
+      return Object.assign(saved, { pendingApprovals: pending });
     });
 
-    if (completedCount) {
-      this.appGateway.emitToCompany(this.companyId, 'stock_count_mutated', { type: 'complete', stockCount: completedCount });
+    for (const product of touched) this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product });
+    this.appGateway.emitToCompany(this.companyId, 'stock_count_mutated', { type: 'complete', stockCount: done });
+    return done;
+  }
+
+  /**
+   * Difference of one count item against the current stock: the line to book, its net
+   * change and its gross change (sum of |lot deltas|, missing serials or |total delta|),
+   * which is what the approval threshold is measured on.
+   */
+  private async countLine(manager: EntityManager, product: ProductEntity, item: StockCountItem): Promise<{ line: CountLine; net: number; gross: number }> {
+    if (product.trackingType === TrackingType.LOT && item.lots) {
+      const lots = item.lots.length
+        ? await manager.find(StockLotEntity, { where: { companyId: this.companyId, productId: product.id, id: In(item.lots.map((l) => l.lotId)) } })
+        : [];
+      const deltas: { lotId: string; delta: number }[] = [];
+      for (const l of item.lots) {
+        // Lots received after the count started stay untouched; a vanished lot cannot be counted.
+        const cur = lots.find((x) => x.id === l.lotId);
+        if (!cur) continue;
+        const delta = roundQty(countQty(l.countedQuantity) - cur.quantity);
+        if (delta) deltas.push({ lotId: l.lotId, delta });
+      }
+      return { line: { lots: deltas }, net: sumQty(deltas.map((d) => d.delta)), gross: sumQty(deltas.map((d) => Math.abs(d.delta))) };
     }
-    return completedCount;
+    if (product.trackingType === TrackingType.SERIAL && item.serials) {
+      const missing = item.serials.filter((x) => !x.present).map((x) => x.serial);
+      const stillIn = missing.length
+        ? await manager.find(SerialNumberEntity, {
+            where: { companyId: this.companyId, productId: product.id, status: SerialStatus.IN_STOCK, serial: In(missing) },
+            select: ['id', 'serial'],
+          })
+        : [];
+      return { line: { lostSerials: stillIn.map((r) => r.serial) }, net: -stillIn.length, gross: stillIn.length };
+    }
+    if ((product.trackingType || TrackingType.NONE) !== TrackingType.NONE) return { line: {}, net: 0, gross: 0 };
+    const delta = roundQty(countQty(item.countedQuantity) - product.quantity);
+    return { line: { delta }, net: delta, gross: Math.abs(delta) };
   }
 }

@@ -13,6 +13,9 @@ import { StockMovementType } from '../../entities/enums';
 import { TrackingType } from '../../entities/tracking';
 import { WarehouseStockService } from './warehouse-stock.service';
 import { makeEan13 } from '../inventory/barcode';
+import { attachmentsDigest } from '../inventory/movement-hash';
+import { StockMovementAttachmentEntity } from '../../entities/stock-movement-attachment.entity';
+import { createHash } from 'crypto';
 import { addDays, todayKey, vknCheckDigit, zonedDayStart } from '../tr';
 
 /**
@@ -23,7 +26,8 @@ import { addDays, todayKey, vknCheckDigit, zonedDayStart } from '../tr';
  *    recognisably fictitious VKN (1234567890-style);
  *  - decimal-quantity products (kg, l, m) incl. lot + expiry food products;
  *  - movements with reason codes, document references and back-dated transaction dates:
- *    opening stock, an expired-lot transfer to quarantine and its destruction (DISPOSAL).
+ *    opening stock, an expired-lot transfer to quarantine and its destruction (DISPOSAL,
+ *    with the destruction report attached as evidence).
  * All stock goes through WarehouseStockService, so balances, lots and the hash chain agree.
  */
 async function addr(m: EntityManager, line1: string, provinceCode: string, districtId: number, postalCode: string): Promise<AddressColumns> {
@@ -177,10 +181,31 @@ export async function seedDemoInventoryCore(dataSource: DataSource, companyId: s
     before = fistik.quantity;
     const quarantineLot = lot.in[0];
     const out = await stock.issue(manager, fistik, 6.4, quarantine.id, { lots: [{ lotId: quarantineLot.lotId as string, quantity: 6.4 }] }, { allowExpired: true });
-    await stock.recordMovements(manager, fistik, before, out, {
+    // Disposals need the destruction report as evidence (legal parameter MOVEMENT_REASON_EVIDENCE):
+    // the report file is sealed into the movement hash (attachmentsSha256) and linked to it.
+    const report = Buffer.from(
+      [
+        'İMHA TUTANAĞI — IMHA-2026-014 (örnek / demo)',
+        `Tarih: ${addDays(today, -1)}`,
+        'Ürün: Antep fıstığı (GD-FISTIK), parti FST-2609-B, 6,4 kg',
+        'Gerekçe: Tavsiye edilen tüketim tarihi (TETT) geçmiş; karantina deposundan imha edildi.',
+        'Komisyon: Depo sorumlusu, kalite sorumlusu, muhasebe (demo kişiler).',
+      ].join('\n'),
+      'utf8',
+    );
+    const reportSha = createHash('sha256').update(report).digest('hex');
+    const destroyed = await stock.recordMovements(manager, fistik, before, out, {
       type: StockMovementType.DISPOSAL, reasonCode: 'EXPIRED_DESTROYED', transactionDate: at(-1, 16),
       documentType: 'DESTRUCTION_REPORT', documentNo: 'IMHA-2026-014', documentDate: addDays(today, -1),
       referenceType: 'manual', note: 'TETT geçen ürün imha tutanağı ile imha edildi', performedBy: 'SeedSystem',
+      attachmentsSha256: attachmentsDigest([reportSha]),
     });
+    await manager.save(
+      StockMovementAttachmentEntity,
+      manager.create(StockMovementAttachmentEntity, {
+        companyId, movementId: destroyed[0].id, adjustmentRequestId: null, fileName: 'IMHA-2026-014-imha-tutanagi.txt',
+        mimeType: 'text/plain', size: report.length, sha256: reportSha, content: report, uploadedBy: 'SeedSystem',
+      }),
+    );
   });
 }

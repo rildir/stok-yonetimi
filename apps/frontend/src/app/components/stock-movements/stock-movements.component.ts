@@ -65,11 +65,22 @@ const TYPE_PILLS: { type: string; key: string }[] = [
           @for (r of pendingRequests(); track r.id) {
             <li class="sm-approval">
               <div class="sm-approval-main">
-                <strong>{{ r.productName }}</strong>
-                <span class="num" [class.text-success]="r.quantityDelta > 0" [class.text-danger]="r.quantityDelta < 0">{{ r.quantityDelta > 0 ? '+' : '' }}{{ r.quantityDelta | num }}</span>
-                @if (r.payload.kind === 'REVERSAL') { <span class="badge badge-info">{{ 'stockMovements.approvals.reversalRequest' | t }}</span> }
-                <span class="badge badge-neutral">{{ reasonLabel(r.payload.reasonCode) }}</span>
-                <span class="text-sm text-muted">{{ 'stockMovements.approvals.value' | t: { value: (r.estimatedValue | money: r.currency), threshold: (r.threshold | money: r.currency) } }}</span>
+                @if (r.payload.kind === 'COMPANY_CONTROL') {
+                  <strong>{{ 'stockMovements.approvals.controlChange' | t }}</strong>
+                  @if (r.payload.change?.stockLockDate !== undefined) {
+                    <span class="text-sm">{{ 'stockMovements.approvals.lockDateChange' | t: { from: r.payload.current?.stockLockDate || '—', to: r.payload.change?.stockLockDate || ('stockMovements.approvals.none' | t) } }}</span>
+                  }
+                  @if (r.payload.change?.adjustmentApprovalThreshold !== undefined) {
+                    <span class="text-sm">{{ 'stockMovements.approvals.thresholdChange' | t: { from: r.payload.current?.adjustmentApprovalThreshold != null ? (r.payload.current!.adjustmentApprovalThreshold! | money: r.currency) : '—', to: r.payload.change?.adjustmentApprovalThreshold != null ? (r.payload.change!.adjustmentApprovalThreshold! | money: r.currency) : ('stockMovements.approvals.none' | t) } }}</span>
+                  }
+                } @else {
+                  <strong>{{ r.productName }}</strong>
+                  <span class="num" [class.text-success]="r.quantityDelta > 0" [class.text-danger]="r.quantityDelta < 0">{{ r.quantityDelta > 0 ? '+' : '' }}{{ r.quantityDelta | num }}</span>
+                  @if (r.payload.kind === 'REVERSAL') { <span class="badge badge-info">{{ 'stockMovements.approvals.reversalRequest' | t }}</span> }
+                  @if (r.payload.kind === 'COUNT') { <span class="badge badge-info">{{ 'stockMovements.approvals.countRequest' | t: { count: r.payload.document?.countNumber || '' } }}</span> }
+                  <span class="badge badge-neutral">{{ reasonLabel(r.payload.reasonCode) }}</span>
+                  <span class="text-sm text-muted">{{ 'stockMovements.approvals.value' | t: { value: (r.estimatedValue | money: r.currency), threshold: (r.threshold | money: r.currency) } }}</span>
+                }
               </div>
               <div class="sm-approval-meta text-xs text-muted">
                 {{ 'stockMovements.approvals.requestedBy' | t: { user: r.requestedBy } }} · {{ r.createdAt | appDate: 'datetime' }}

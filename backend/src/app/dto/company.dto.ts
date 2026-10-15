@@ -96,6 +96,12 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'STOCK_LOCK_DATE_INVALID' })
   stockLockDate?: string | null;
+
+  @ApiPropertyOptional({ description: 'Kilit tarihini geri alma / onay eşiğini yükseltme gerekçesi (zorunlu; ikinci yönetici onayına gider)', example: 'Ekim sayım farkı düzeltmesi' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  controlChangeReason?: string;
 }
 
 export class RegisterCompanyDto extends CompanySettingsDto {

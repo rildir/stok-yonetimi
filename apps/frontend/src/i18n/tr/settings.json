@@ -383,5 +383,8 @@
   "settings.stockLock.subtitle": "Bu tarih ve öncesine hiçbir stok hareketi (geriye tarihli alış, satış, düzeltme, ters kayıt) girilemez. Kapanmış dönemleri ve teslim edilmiş sayımları korur.",
   "settings.stockLock.date": "Kilit tarihi",
   "settings.stockLock.clear": "Kilidi kaldır",
-  "settings.stockLock.hint": "Kilit yokken de bir önceki yılın 1 Ocak tarihinden eski hareket girilemez; geriye tarihli çıkışlar o tarihteki stokla karşılaştırılır."
+  "settings.stockLock.hint": "Kilit yokken de bir önceki yılın 1 Ocak tarihinden eski hareket girilemez; geriye tarihli çıkışlar o tarihteki stokla karşılaştırılır.",
+  "settings.controlChange.hint": "Stok kilit tarihini geri almak veya onay eşiğini gevşetmek ikinci bir yöneticinin onayını gerektirir. Değişiklik, onaylanana kadar uygulanmaz.",
+  "settings.controlChange.reason": "Gerekçe (zorunlu)",
+  "settings.controlChange.pending": "Diğer ayarlar kaydedildi. Stok kontrolü değişikliği ikinci bir yöneticinin onayına gönderildi (Stok Hareketleri > Onay bekleyen talepler)."
 }

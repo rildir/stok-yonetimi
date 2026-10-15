@@ -1,4 +1,5 @@
-import { Controller, Get, Put, Post, Patch, Body, Query, Req } from '@nestjs/common';
+import { Controller, Get, Put, Post, Patch, Body, Query, Req, Res, HttpStatus } from '@nestjs/common';
+import { resolveLang, translate } from '../../shared/i18n/messages';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { CompanyService } from './company.service';
@@ -82,7 +83,14 @@ export class CompanyController {
   @Roles('admin')
   @Put('company')
   @ApiOperation({ summary: 'Şirket ayarlarını güncelle (Admin)' })
-  async updateCompany(@Body() dto: UpdateCompanyDto) {
-    return this.companyService.updateCurrentCompany(dto);
+  async updateCompany(@Body() dto: UpdateCompanyDto, @Req() req: any, @Res({ passthrough: true }) res: any) {
+    const company = await this.companyService.updateCurrentCompany(dto);
+    // Loosening a stock control waits for a second administrator: 202 + the pending request.
+    if (company.pendingApproval) {
+      res.status(HttpStatus.ACCEPTED);
+      const code = company.pendingApproval.code;
+      return { ...company, pendingApproval: { ...company.pendingApproval, message: translate(code, resolveLang(req.headers?.['accept-language'])) } };
+    }
+    return company;
   }
 }

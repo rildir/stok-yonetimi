@@ -6,8 +6,10 @@ import { qtyColumn } from '../utils/quantity-transformer';
 export type AdjustmentRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 /**
- * Maker-checker (R65): a manual adjustment whose estimated value exceeds the
- * company threshold waits here until a different administrator approves it.
+ * Maker-checker (R65): a manual adjustment, reversal or stock-count line whose estimated
+ * value exceeds the company threshold, or a loosening of the company's stock controls
+ * (lock date / threshold), waits here until a different administrator approves it.
+ * `payload.kind`: ADJUSTMENT | REVERSAL | COUNT | COMPANY_CONTROL.
  */
 @Entity('stock_adjustment_requests')
 @Index('IDX_stock_adjustment_requests_company_status', ['companyId', 'status'])
@@ -25,11 +27,12 @@ export class StockAdjustmentRequestEntity {
   @Column({ type: 'varchar', length: 20, default: 'PENDING' })
   status: AdjustmentRequestStatus;
 
-  @Column({ type: 'varchar', length: 36 })
-  productId: string;
+  /** Null for COMPANY_CONTROL requests (payload.kind), which concern no product */
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  productId: string | null;
 
-  @Column({ type: 'varchar', length: 255 })
-  productName: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  productName: string | null;
 
   @Column({ type: 'varchar', length: 36, nullable: true })
   warehouseId?: string | null;

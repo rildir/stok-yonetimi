@@ -183,5 +183,10 @@
   "stockMovements.approvals.reversalRequest": "Ters kayıt talebi",
   "stockMovements.toast.reversalPending": "Ters kayıt tutarı onay eşiğini aşıyor (veya hareket onaylı bir düzeltme); ikinci bir yöneticinin onayına gönderildi.",
   "stockMovements.validation.attachmentRequired": "Bu neden için dayanak belge eklenmelidir (tutanak, komisyon kararı, imha / emniyet tutanağı).",
-  "stockMovements.approvedBy": "Onaylayan: {user}"
+  "stockMovements.approvedBy": "Onaylayan: {user}",
+  "stockMovements.approvals.countRequest": "Sayım farkı {count}",
+  "stockMovements.approvals.controlChange": "Stok kontrolü gevşetme",
+  "stockMovements.approvals.lockDateChange": "Stok kilit tarihi: {from} → {to}",
+  "stockMovements.approvals.thresholdChange": "Onay eşiği: {from} → {to}",
+  "stockMovements.approvals.none": "kapalı"
 }

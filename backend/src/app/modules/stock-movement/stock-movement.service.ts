@@ -12,6 +12,7 @@ import { StockMovementAttachmentEntity } from '../../entities/stock-movement-att
 import { StockAdjustmentRequestEntity } from '../../entities/stock-adjustment-request.entity';
 import { UnitEntity } from '../../entities/unit.entity';
 import { CompanyEntity } from '../../entities/company.entity';
+import { SerialNumberEntity, SerialStatus } from '../../entities/serial-number.entity';
 import { StockMovementType } from '../../entities/enums';
 import { TrackingType } from '../../entities/tracking';
 import { WarehouseStockService, StockAllocation, MovementInfo } from '../../shared/services/warehouse-stock.service';
@@ -56,6 +57,23 @@ export interface AdjustmentInput {
   documentDate?: string | null;
   counterpartyTaxId?: string | null;
   attachment?: AttachmentInput | null;
+}
+
+/**
+ * One stock-count line (product) to book: per-lot deltas, serials found missing, or the
+ * product total delta. Used when a count is completed and when a count line that needed
+ * a second approval is approved.
+ */
+export interface CountLine {
+  delta?: number;
+  lots?: { lotId: string; delta: number }[];
+  lostSerials?: string[];
+}
+
+/** Company stock controls whose loosening needs a second administrator (payload of COMPANY_CONTROL). */
+export interface ControlChange {
+  stockLockDate?: string | null;
+  adjustmentApprovalThreshold?: number | null;
 }
 
 export interface MovementQuery {
@@ -279,7 +297,7 @@ export class StockMovementService {
    * Maker-checker valuation (R65): |delta| x unit price in the company base currency
    * against the company threshold. `exceeds` = a second administrator must approve.
    */
-  private async approvalCheck(manager: EntityManager, prod: ProductEntity, delta: number) {
+  async approvalCheck(manager: EntityManager, prod: ProductEntity, delta: number) {
     const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
     const threshold = company.adjustmentApprovalThreshold;
     if (threshold === null || threshold === undefined) return { exceeds: false, value: 0, threshold: null as number | null, currency: company.baseCurrency };
@@ -289,7 +307,7 @@ export class StockMovementService {
     return { exceeds: value > Number(threshold), value, threshold: Number(threshold), currency: company.baseCurrency };
   }
 
-  private async createApprovalRequest(
+  async createApprovalRequest(
     manager: EntityManager,
     prod: ProductEntity,
     delta: number,
@@ -403,6 +421,39 @@ export class StockMovementService {
     });
   }
 
+  /**
+   * Books a stock-count line (see CountLine): lots are set by their delta, missing serials
+   * leave as LOST, untracked products move by the total delta. `info` carries the count
+   * document and the actors. Returns the movements written.
+   */
+  async bookCountLine(manager: EntityManager, product: ProductEntity, line: CountLine, info: MovementInfo): Promise<StockMovementEntity[]> {
+    const out: StockMovementEntity[] = [];
+    if (line.lots?.length) {
+      for (const l of line.lots) {
+        if (!roundQty(l.delta)) continue;
+        const lot = await manager.findOne(StockLotEntity, { where: { id: l.lotId, companyId: product.companyId, productId: product.id } });
+        if (!lot) throw new BadRequestException(err('LOT_NOT_FOUND', { lot: l.lotId }));
+        const before = product.quantity;
+        const allocs = await this.warehouseStock.setLotQuantity(manager, product, lot.id, roundQty(lot.quantity + l.delta));
+        out.push(...(await this.warehouseStock.recordMovements(manager, product, before, allocs, info)));
+      }
+    } else if (line.lostSerials?.length) {
+      const rows = await manager.find(SerialNumberEntity, {
+        where: { companyId: product.companyId, productId: product.id, status: SerialStatus.IN_STOCK, serial: In(line.lostSerials) },
+      });
+      if (rows.length) {
+        const before = product.quantity;
+        const allocs = await this.warehouseStock.issue(manager, product, rows.length, null, { serials: rows.map((r) => r.serial) }, { serialStatus: SerialStatus.LOST });
+        out.push(...(await this.warehouseStock.recordMovements(manager, product, before, allocs, info)));
+      }
+    } else if (roundQty(Number(line.delta) || 0)) {
+      const before = product.quantity;
+      const allocs = await this.warehouseStock.setTotal(manager, product, Math.max(0, roundQty(product.quantity + Number(line.delta))));
+      out.push(...(await this.warehouseStock.recordMovements(manager, product, before, allocs, info)));
+    }
+    return out;
+  }
+
   /** Response body for booked movements: first movement + all movements + VUK 219 warnings. */
   private async withWarnings(manager: EntityManager, movements: StockMovementEntity[]) {
     const last = movements[movements.length - 1];
@@ -449,13 +500,43 @@ export class StockMovementService {
         req.status = 'REJECTED';
         return { req: await manager.save(StockAdjustmentRequestEntity, req), movements: [] as StockMovementEntity[], warnings: [] as unknown[] };
       }
-      const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: req.productId }, lock: { mode: 'pessimistic_write' } });
+      const payload = req.payload as Record<string, unknown>;
+      if (payload['kind'] === 'COMPANY_CONTROL') {
+        // Loosened stock control (lock date moved back / threshold raised): applied as requested.
+        const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
+        const change = (payload['change'] || {}) as ControlChange;
+        if (change.stockLockDate !== undefined) company.stockLockDate = change.stockLockDate || null;
+        if (change.adjustmentApprovalThreshold !== undefined) {
+          company.adjustmentApprovalThreshold = change.adjustmentApprovalThreshold === null ? null : Number(change.adjustmentApprovalThreshold);
+        }
+        await manager.save(CompanyEntity, company);
+        req.status = 'APPROVED';
+        return { req: await manager.save(StockAdjustmentRequestEntity, req), movements: [] as StockMovementEntity[], warnings: [] as unknown[] };
+      }
+      const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: req.productId as string }, lock: { mode: 'pessimistic_write' } });
       if (!prod) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
       // The ledger keeps maker and checker apart: performedBy* = requester, approvedBy* = approver.
       const actors = { performedByUserId: req.requestedByUserId ?? null, approvedBy: approver, approvedByUserId: actor.userId ?? null };
-      const payload = req.payload as Record<string, unknown>;
       let movements: StockMovementEntity[];
-      if (payload['kind'] === 'REVERSAL') {
+      if (payload['kind'] === 'COUNT') {
+        // Stock-count line above the threshold: the counted difference (as requested) is booked now.
+        if (prod.isDeleted) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
+        const doc = (payload['document'] || {}) as Record<string, string | null>;
+        movements = await this.bookCountLine(manager, prod, (payload['line'] || {}) as CountLine, {
+          type: StockMovementType.ADJUSTMENT,
+          reasonCode: (d: number) => (d > 0 ? 'COUNT_SURPLUS' : 'COUNT_SHORTAGE'),
+          // The goods were counted when the count was completed, not when it was approved.
+          transactionDate: doc['countedAt'] ?? null,
+          documentType: 'STOCK_COUNT',
+          documentNo: doc['countNumber'] ?? null,
+          documentDate: doc['countDate'] ?? null,
+          referenceId: doc['countId'] ?? undefined,
+          referenceType: 'stock_count',
+          note: String(payload['note'] || ''),
+          performedBy: req.requestedBy,
+          ...actors,
+        });
+      } else if (payload['kind'] === 'REVERSAL') {
         const original = await manager.findOne(StockMovementEntity, { where: { id: String(payload['reversesMovementId']), companyId: this.companyId } });
         if (!original) throw new NotFoundException(err('MOVEMENT_NOT_FOUND'));
         await this.assertReversible(manager, original);
@@ -477,7 +558,7 @@ export class StockMovementService {
       req.movementIds = movements.map((m) => m.id);
       return { req: await manager.save(StockAdjustmentRequestEntity, req), movements, warnings: await this.lateWarnings(manager, movements) };
     });
-    if (out.movements.length) this.emitProduct(out.req.productId);
+    if (out.movements.length && out.req.productId) this.emitProduct(out.req.productId);
     return { request: out.req, movements: out.movements, warnings: out.warnings };
   }
 

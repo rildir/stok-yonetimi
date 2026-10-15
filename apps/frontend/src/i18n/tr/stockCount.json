@@ -59,5 +59,8 @@
   "stockCount.toast.scanLotHint": "Parti takipli ürün: miktarı ilgili partiye girin",
   "stockCount.toast.scanAdded": "{name}: +{qty}",
   "stockCount.toast.scanNotFound": "Barkod bulunamadı: {code}",
-  "stockCount.col.sku": "SKU"
+  "stockCount.col.sku": "SKU",
+  "stockCount.toast.completedPending": "Sayım tamamlandı. Değeri onay eşiğini aşan {count} satırın farkı ikinci bir yöneticinin onayına gönderildi; diğer farklar stoklara uygulandı.",
+  "stockCount.sentForApproval": "İkinci onayda",
+  "stockCount.sentForApprovalHint": "Bu farkın değeri onay eşiğini aştığı için stoğa uygulanmadı; Stok Hareketleri > Onay bekleyen talepler bölümünde ikinci bir yönetici onaylayınca kaydedilir."
 }

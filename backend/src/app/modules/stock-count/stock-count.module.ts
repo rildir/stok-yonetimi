@@ -8,12 +8,14 @@ import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { SharedModule } from '../../shared/shared.module';
 import { GatewayModule } from '../../shared/gateway.module';
+import { StockMovementModule } from '../stock-movement/stock-movement.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([StockCountEntity, ProductEntity, StockMovementEntity, WarehouseEntity]),
     SharedModule,
     GatewayModule,
+    StockMovementModule,
   ],
   controllers: [StockCountController],
   providers: [StockCountService],

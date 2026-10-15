@@ -14,6 +14,8 @@ export interface StockCountItem {
   lots?: { lotId: string; lotNumber: string; expiryDate?: string | null; warehouseId: string; warehouseName?: string; systemQuantity: number; countedQuantity: number }[];
   /** Serial-tracked: in-stock serials at count start; present=false => missing (countedQuantity = present count) */
   serials?: { serial: string; warehouseId: string; warehouseName?: string; present: boolean }[];
+  /** Set on completion when the line's value exceeded the approval threshold: the pending maker-checker request */
+  approvalRequestId?: string;
 }
 
 @Entity('stock_counts')

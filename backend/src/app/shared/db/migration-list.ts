@@ -8,6 +8,7 @@ import { AddFiscalIdentityAddressLegalParams1784274127000 } from '../../migratio
 import { FixLegalParamsDemoIdentities1784274128000 } from '../../migrations/1784274128000-FixLegalParamsDemoIdentities';
 import { InventoryCoreDecimalImmutable1784274129000 } from '../../migrations/1784274129000-InventoryCoreDecimalImmutable';
 import { InventoryCoreReviewFixes1784274130000 } from '../../migrations/1784274130000-InventoryCoreReviewFixes';
+import { MakerCheckerControlRequests1784274131000 } from '../../migrations/1784274131000-MakerCheckerControlRequests';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -26,4 +27,5 @@ export const MIGRATIONS = [
   FixLegalParamsDemoIdentities1784274128000,
   InventoryCoreDecimalImmutable1784274129000,
   InventoryCoreReviewFixes1784274130000,
+  MakerCheckerControlRequests1784274131000,
 ];

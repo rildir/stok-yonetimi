@@ -59,5 +59,8 @@
   "stockCount.toast.scanLotHint": "Lot-tracked product: enter the quantity on the matching lot",
   "stockCount.toast.scanAdded": "{name}: +{qty}",
   "stockCount.toast.scanNotFound": "Barcode not found: {code}",
-  "stockCount.col.sku": "SKU"
+  "stockCount.col.sku": "SKU",
+  "stockCount.toast.completedPending": "Count completed. The differences of {count} line(s) whose value exceeds the approval threshold were sent to a second administrator; the other differences were applied to stock.",
+  "stockCount.sentForApproval": "Awaiting approval",
+  "stockCount.sentForApprovalHint": "This difference exceeded the approval threshold, so it was not applied; it is booked once a second administrator approves it under Stock movements > Pending approvals."
 }
