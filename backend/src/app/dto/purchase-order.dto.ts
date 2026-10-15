@@ -1,8 +1,8 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, IsPositive, MaxLength, Matches, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, IsPositive, MaxLength, IsIn } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, ArrayMinSize } from 'class-validator';
-import { DocumentChargeDto, LineTaxFieldsDto, TAX_POINT_PATTERN } from './tax.dto';
+import { DocumentChargeDto, LineTaxFieldsDto, IsDateKey } from './tax.dto';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 
@@ -53,7 +53,7 @@ export class PurchaseOrderTaxFieldsDto {
 
   /** Vergiyi doğuran olay (YYYY-MM-DD) */
   @IsOptional()
-  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  @IsDateKey()
   taxPointDate?: string;
 
   @IsOptional()
@@ -62,7 +62,7 @@ export class PurchaseOrderTaxFieldsDto {
   customsDeclarationNo?: string | null;
 
   @IsOptional()
-  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  @IsDateKey()
   customsDeclarationDate?: string | null;
 
   /** Import VAT paid on the customs declaration (TRY) */
@@ -196,7 +196,7 @@ export class UpdatePurchaseOrderStatusDto {
   documentNo?: string | null;
 
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'DOCUMENT_DATE_INVALID' })
+  @IsDateKey({ message: 'DOCUMENT_DATE_INVALID' })
   documentDate?: string | null;
 
   @IsOptional()

@@ -12,7 +12,7 @@ import { FinanceService } from '../../shared/services/finance.service';
 import { resolvePartyIdentity, touchesIdentity } from '../../shared/identity/party-identity';
 import { CreateSupplierDto, SupplierFieldsDto, UpdateSupplierDto } from '../../dto/supplier.dto';
 
-const SIMPLE_FIELDS = ['name', 'type', 'contactPerson', 'email', 'phone', 'notes', 'rating', 'leadTimeDays', 'isTaxpayer', 'isRealTaxationFarmer', 'isForeign', 'isVatTaxpayer'] as const;
+const SIMPLE_FIELDS = ['name', 'type', 'contactPerson', 'email', 'phone', 'notes', 'rating', 'leadTimeDays', 'isTaxpayer', 'isRealTaxationFarmer', 'isForeign', 'isVatTaxpayer', 'isImporterOrOreProducer'] as const;
 
 @Injectable()
 export class SupplierService {

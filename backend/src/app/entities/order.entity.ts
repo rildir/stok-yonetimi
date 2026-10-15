@@ -120,6 +120,10 @@ export class OrderEntity {
   @Column({ type: 'date', nullable: true })
   taxPointDate?: string | null;
 
+  /** taxPointDate was entered by the user (e.g. invoice issued before delivery); otherwise it follows shipment / receipt */
+  @Column({ default: false })
+  taxPointExplicit: boolean;
+
   /** SATIS / ISTISNA / TEVKIFAT / IHRACKAYITLI / IADE (UBL-TR InvoiceTypeCode hint) */
   @Column({ type: 'varchar', length: 20, nullable: true })
   invoiceTypeHint?: string | null;

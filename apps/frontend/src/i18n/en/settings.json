@@ -409,5 +409,7 @@
   "settings.exchangeRates.tcmbFetch": "Fetch from TCMB",
   "settings.exchangeRates.autoFetch": "Fetch automatically every business day (15:45)",
   "settings.exchangeRates.tcmbFetched": "TCMB bulletin {no} ({date}) fetched: {count} rates.",
-  "settings.exchangeRates.source": "Source"
+  "settings.exchangeRates.source": "Source",
+  "settings.taxRates.designatedBuyer": "The company is a designated buyer (public administration etc.)",
+  "settings.taxRates.designatedBuyerHint": "When set, withholding codes limited to designated buyers also apply to purchases (KDVGUT I/C-2.1.2.1)."
 }

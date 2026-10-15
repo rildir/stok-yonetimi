@@ -76,5 +76,9 @@
   "finance.warning.withholdingBuyer": "Withholding {code} not applied: the buyer is not VAT-registered / a designated buyer.",
   "finance.warning.withholdingSellerExempt": "Withholding {code} not applied: the company is flagged as importer / ore producer.",
   "finance.warning.withholdingExemptLine": "Withholding {code} does not apply to an exempt line.",
-  "finance.warning.importVat": "Import: VAT is paid on the customs declaration; enter the declaration data."
+  "finance.warning.importVat": "Import: VAT is paid on the customs declaration; enter the declaration data.",
+  "finance.warning.withholdingPurchase": "Withholding {code} not applied: the supplier is not VAT-registered, or the code is limited to designated buyers (Settings > Tax rates).",
+  "finance.warning.withholdingSupplierExempt": "Withholding {code} not applied: the supplier is flagged as importer / ore producer.",
+  "finance.warning.fxStale": "The {currency} rate is dated {rateDate}; the tax point calls for the {expected} bulletin, which could not be confirmed with TCMB. Fetch or enter the rate before the document is finalised.",
+  "finance.warning.fxProvisional": "The tax point calls for a bulletin not published yet; the latest {currency} rate ({rateDate}) is used as an estimate and re-read at the tax point."
 }

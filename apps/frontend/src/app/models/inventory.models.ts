@@ -219,6 +219,7 @@ export interface Supplier {
   isRealTaxationFarmer?: boolean;
   isForeign?: boolean;
   isVatTaxpayer?: boolean;
+  isImporterOrOreProducer?: boolean;
   needsReview?: boolean;
   contactPerson?: string;
   email?: string;

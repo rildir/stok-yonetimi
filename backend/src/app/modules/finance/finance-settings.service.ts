@@ -241,8 +241,11 @@ export class FinanceSettingsService {
     return { amount, from: from.toUpperCase(), to: target, rate, result: Math.round(amount * rate * 100) / 100 };
   }
 
-  /** Fetches a TCMB bulletin (default today's) into the company's rates. */
+  /** Fetches a TCMB bulletin (default today's) into the company's rates (TR companies with TRY base only: the rows are X/TRY). */
   async fetchTcmb(date?: string) {
+    const company = await this.finance.getCompany();
+    if (!isTrCompany(company) || (company.baseCurrency || '').toUpperCase() !== 'TRY') throw new UnprocessableEntityException(err('TCMB_TR_ONLY'));
+    if (date && !isDateKey(date)) throw new BadRequestException(err('VALIDATION_DATE'));
     return this.tcmb.fetchForCompany(this.companyId, date || null);
   }
 

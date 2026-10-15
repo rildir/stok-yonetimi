@@ -53,6 +53,7 @@ export class UserController {
         expiryAlertDays: company.expiryAlertDays,
         pricesIncludeTax: company.pricesIncludeTax,
         isImporterOrOreProducer: company.isImporterOrOreProducer,
+        isDesignatedBuyer: company.isDesignatedBuyer,
         fxAutoFetch: company.fxAutoFetch,
         legalName: company.legalName ?? null,
         bookkeepingType: company.bookkeepingType ?? null,

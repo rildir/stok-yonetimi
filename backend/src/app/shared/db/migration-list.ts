@@ -10,6 +10,7 @@ import { InventoryCoreDecimalImmutable1784274129000 } from '../../migrations/178
 import { InventoryCoreReviewFixes1784274130000 } from '../../migrations/1784274130000-InventoryCoreReviewFixes';
 import { MakerCheckerControlRequests1784274131000 } from '../../migrations/1784274131000-MakerCheckerControlRequests';
 import { TaxEngine1784274132000 } from '../../migrations/1784274132000-TaxEngine';
+import { TaxEngineReviewFixes1784274133000 } from '../../migrations/1784274133000-TaxEngineReviewFixes';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -30,4 +31,5 @@ export const MIGRATIONS = [
   InventoryCoreReviewFixes1784274130000,
   MakerCheckerControlRequests1784274131000,
   TaxEngine1784274132000,
+  TaxEngineReviewFixes1784274133000,
 ];

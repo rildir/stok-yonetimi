@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { err } from '../i18n/app-error';
 import { CompanyEntity } from '../../entities/company.entity';
-import { parseTcmbXml, tcmbBulletinPath, TcmbBulletin } from '../finance/currency';
+import { isWeekend, parseTcmbXml, tcmbBulletinPath, TcmbBulletin } from '../finance/currency';
 import { addDays, todayKey, zonedDayStart } from '../tr';
 
 const RATE_TYPES: [keyof Omit<TcmbBulletin['rates'][number], 'currency'>, string][] = [
@@ -106,27 +106,57 @@ export class TcmbService implements OnApplicationBootstrap {
     return n;
   }
 
-  /**
-   * Makes sure a TCMB bulletin dated on/before `onOrBefore` exists for the company: walks back
-   * up to 10 days through the archive (weekends / holidays have none). Used when a document's
-   * tax point has no rate yet. Returns the bulletin date found, or null.
-   */
-  async ensureBulletin(companyId: string, onOrBefore: string, manager?: EntityManager): Promise<string | null> {
-    if (this.disabled) return null;
-    const today = todayKey('Europe/Istanbul');
-    for (let i = 0; i < 10; i++) {
-      const day = addDays(onOrBefore, -i);
-      if (day > today) continue;
-      try {
-        const b = day === today ? await this.download() : await this.download(day);
-        if (b.date > onOrBefore) continue;
-        await this.store(manager || this.dataSource.manager, companyId, b);
-        return b.date;
-      } catch {
-        // no bulletin that day (weekend / holiday) or offline: try the previous day
-      }
+  /** Past days for which the TCMB archive answered 404 (holiday: no bulletin). */
+  private readonly noBulletin = new Set<string>();
+  /** `companyId|day` of past archive bulletins already stored (a past bulletin never changes). */
+  private readonly stored = new Map<string, string>();
+
+  /** One archive day: the bulletin, 'NONE' (HTTP 404 = not published) or 'ERROR' (offline / other). */
+  private async tryArchiveDay(day: string): Promise<TcmbBulletin | 'NONE' | 'ERROR'> {
+    if (isWeekend(day) || this.noBulletin.has(day)) return 'NONE';
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/${tcmbBulletinPath(day)}`, { signal: AbortSignal.timeout(15000) });
+    } catch {
+      return 'ERROR';
     }
-    return null;
+    if (res.status === 404) {
+      if (day < todayKey('Europe/Istanbul')) this.noBulletin.add(day);
+      return 'NONE';
+    }
+    if (!res.ok) return 'ERROR';
+    try {
+      return parseTcmbXml(await res.text());
+    } catch {
+      return 'ERROR';
+    }
+  }
+
+  /**
+   * Newest bulletin in (`after`, `upTo`] from the TCMB archive, stored for the company. Walks back
+   * day by day (at most 15). `confirmed` = every weekday after the bulletin found (or after `after`)
+   * up to `upTo` was answered with "no bulletin" (public holiday), so an older stored rate is the
+   * legally applicable one; false when the archive could not be reached.
+   */
+  async latestBulletin(companyId: string, after: string | null, upTo: string, manager?: EntityManager): Promise<{ date: string | null; confirmed: boolean }> {
+    if (this.disabled) return { date: null, confirmed: false };
+    let confirmed = true;
+    for (let i = 0; i < 15; i++) {
+      const day = addDays(upTo, -i);
+      if (after && day <= after) break;
+      const known = this.stored.get(`${companyId}|${day}`);
+      if (known) return { date: known, confirmed };
+      const r = await this.tryArchiveDay(day);
+      if (r === 'NONE') continue;
+      if (r === 'ERROR') {
+        confirmed = false;
+        continue;
+      }
+      await this.store(manager || this.dataSource.manager, companyId, r);
+      // Only rows committed right away are remembered (a document transaction may still roll back).
+      if (day < todayKey('Europe/Istanbul') && !manager?.queryRunner?.isTransactionActive) this.stored.set(`${companyId}|${day}`, r.date);
+      return { date: r.date, confirmed };
+    }
+    return { date: null, confirmed: confirmed && !!after };
   }
 }
-

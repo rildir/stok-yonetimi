@@ -10,7 +10,7 @@ import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { CustomerEntity } from '../../entities/customer.entity';
 import { CompanyEntity } from '../../entities/company.entity';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
-import { DocPricingResult, DocWarning, FinanceService } from '../../shared/services/finance.service';
+import { DocLineInput, DocPricingResult, DocWarning, FinanceService, storedLineInput } from '../../shared/services/finance.service';
 import { AppGateway } from '../../app.gateway';
 import { OrderStatus, StockMovementType } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -159,13 +159,21 @@ export class OrderService {
     return out;
   }
 
-  /** Tax point (KDVK 10): explicit date, else the shipment date, else the order date. */
+  /**
+   * Tax point (KDVK 10): explicit date (an invoice issued before delivery), else the shipment
+   * date, else the order date. An explicit date after the shipment is refused: the earlier of the
+   * two is the tax point (400 TAX_POINT_AFTER_SHIPMENT).
+   */
   private taxPoint(company: CompanyEntity, explicit: string | null | undefined, shippedAt: Date | null, orderDate: Date): string {
-    if (explicit) return explicit;
-    return dateKeyInZone(shippedAt || orderDate, company.timezone);
+    const shippedDay = shippedAt ? dateKeyInZone(shippedAt, company.timezone) : null;
+    if (explicit) {
+      if (shippedDay && explicit > shippedDay) throw new BadRequestException(err('TAX_POINT_AFTER_SHIPMENT', { date: explicit, shipped: shippedDay }));
+      return explicit;
+    }
+    return shippedDay || dateKeyInZone(orderDate, company.timezone);
   }
 
-  private price(manager: EntityManager, lines: PreparedLine[], data: OrderPricingInput, currency: string, taxPointDate: string, customer: CustomerEntity | null, documentId?: string | null) {
+  private price(manager: EntityManager, lines: PreparedLine[], data: OrderPricingInput, currency: string, taxPointDate: string, customer: CustomerEntity | null, documentId?: string | null, freeze = false) {
     return this.finance.priceDocumentFor(
       {
         kind: 'SALE',
@@ -185,6 +193,7 @@ export class OrderService {
         taxPointDate,
         customer,
         documentId: documentId ?? null,
+        freeze,
       },
       manager,
     );
@@ -203,12 +212,68 @@ export class OrderService {
     return this.price(manager, lines, data, currency, this.taxPoint(company, data.taxPointDate, shippedAt, orderDate), customer, data.orderId);
   }
 
+  /** Tax / amount fields of line `i` of a pricing result. */
+  private lineFields(pr: DocPricingResult, i: number): Partial<OrderItemEntity> {
+    const l = pr.doc.lines[i];
+    const m = pr.lineMeta[i];
+    return {
+      price: l.unitPrice,
+      unitPrice: l.unitPrice,
+      enteredUnitPrice: m.enteredUnitPrice,
+      grossAmount: l.grossAmount,
+      discountRate: l.discountRate,
+      discountAmount: l.discountAmount,
+      discountAmountEntered: m.discountAmountEntered,
+      documentDiscountShare: l.documentDiscountShare,
+      netAmount: l.netAmount,
+      taxRateId: m.taxRateId,
+      taxCode: m.taxCode,
+      taxRate: l.taxRate,
+      taxAmount: l.taxAmount,
+      exemptionCode: l.exemptionCode,
+      vatNotCollected: l.vatNotCollected,
+      withholdingCode: l.withholdingCode,
+      withholdingCodeEntered: m.withholdingCodeEntered,
+      withholdingRate: l.withholdingRate || null,
+      withheldTaxAmount: l.withheldTaxAmount,
+      otvCode: m.otvCode,
+      otvRate: l.otvRate || null,
+      otvAmount: l.otvAmount,
+      lineTotal: l.lineTotal,
+    };
+  }
+
+  /** Document-level fields of a pricing result. */
+  private totalFields(pr: DocPricingResult, documentDiscountEntered: number | null | undefined): Partial<OrderEntity> {
+    return {
+      currency: pr.currency,
+      exchangeRate: pr.exchangeRate,
+      exchangeRateSource: pr.exchangeRateSource,
+      exchangeRateDate: pr.exchangeRateDate,
+      taxPointDate: pr.taxPointDate,
+      subtotal: pr.doc.subtotal,
+      taxTotal: pr.doc.taxTotal,
+      grandTotal: pr.doc.grandTotal,
+      totalAmount: pr.doc.grandTotal,
+      documentDiscountAmount: pr.doc.documentDiscountAmount,
+      documentDiscountEntered: round2(Number(documentDiscountEntered || 0)),
+      chargesTotal: pr.doc.chargesTotal,
+      otvTotal: pr.doc.otvTotal,
+      withheldTaxTotal: pr.doc.withheldTaxTotal,
+      notCollectedTaxTotal: pr.doc.notCollectedTaxTotal,
+      payableTotal: pr.doc.payableTotal,
+      taxBreakdown: pr.doc.breakdown,
+      subtotalTry: pr.subtotalTry,
+      taxTotalTry: pr.taxTotalTry,
+      grandTotalTry: pr.grandTotalTry,
+      invoiceTypeHint: pr.invoiceTypeHint,
+    };
+  }
+
   /** Applies a pricing result to the order and its lines (new entities). */
   private applyPricing(manager: EntityManager, order: OrderEntity, lines: PreparedLine[], pr: DocPricingResult, tracking: (TrackingEntry[] | null)[], data: OrderPricingInput) {
-    order.items = lines.map((p, i) => {
-      const l = pr.doc.lines[i];
-      const m = pr.lineMeta[i];
-      return manager.create(OrderItemEntity, {
+    order.items = lines.map((p, i) =>
+      manager.create(OrderItemEntity, {
         productId: p.product.id,
         productName: p.product.name,
         quantity: p.baseQty,
@@ -217,29 +282,9 @@ export class OrderService {
         unitFactor: p.lu.factor,
         unitQuantity: p.item.quantity,
         tracking: tracking[i] ?? null,
-        price: l.unitPrice,
-        unitPrice: l.unitPrice,
-        enteredUnitPrice: m.enteredUnitPrice,
-        grossAmount: l.grossAmount,
-        discountRate: l.discountRate,
-        discountAmount: l.discountAmount,
-        documentDiscountShare: l.documentDiscountShare,
-        netAmount: l.netAmount,
-        taxRateId: m.taxRateId,
-        taxCode: m.taxCode,
-        taxRate: l.taxRate,
-        taxAmount: l.taxAmount,
-        exemptionCode: l.exemptionCode,
-        vatNotCollected: l.vatNotCollected,
-        withholdingCode: l.withholdingCode,
-        withholdingRate: l.withholdingRate || null,
-        withheldTaxAmount: l.withheldTaxAmount,
-        otvCode: m.otvCode,
-        otvRate: l.otvRate || null,
-        otvAmount: l.otvAmount,
-        lineTotal: l.lineTotal,
-      });
-    });
+        ...this.lineFields(pr, i),
+      }),
+    );
     order.charges = pr.doc.charges.map((c, i) =>
       manager.create(OrderChargeEntity, {
         companyId: this.companyId,
@@ -253,29 +298,47 @@ export class OrderService {
         allocations: c.allocations,
       }),
     );
-    Object.assign(order, {
-      currency: pr.currency,
-      exchangeRate: pr.exchangeRate,
-      exchangeRateSource: pr.exchangeRateSource,
-      exchangeRateDate: pr.exchangeRateDate,
-      taxPointDate: pr.taxPointDate,
-      subtotal: pr.doc.subtotal,
-      taxTotal: pr.doc.taxTotal,
-      grandTotal: pr.doc.grandTotal,
-      totalAmount: pr.doc.grandTotal,
-      documentDiscountAmount: pr.doc.documentDiscountAmount,
-      documentDiscountEntered: round2(Number(data.documentDiscountAmount || 0)),
-      chargesTotal: pr.doc.chargesTotal,
-      otvTotal: pr.doc.otvTotal,
-      withheldTaxTotal: pr.doc.withheldTaxTotal,
-      notCollectedTaxTotal: pr.doc.notCollectedTaxTotal,
-      payableTotal: pr.doc.payableTotal,
-      taxBreakdown: pr.doc.breakdown,
-      subtotalTry: pr.subtotalTry,
-      taxTotalTry: pr.taxTotalTry,
-      grandTotalTry: pr.grandTotalTry,
-      invoiceTypeHint: pr.invoiceTypeHint,
+    Object.assign(order, this.totalFields(pr, data.documentDiscountAmount));
+  }
+
+  /**
+   * Re-prices a stored, unfrozen order at its (new) tax point from what was entered (prices,
+   * discounts, charges, codes): the rate version, exemption / withholding decisions, the VUK 232
+   * threshold and the TCMB rate all follow the tax point. Lines and charges are updated in place
+   * (ids and stock tracking kept). `freeze`: an unconfirmed older exchange rate is refused.
+   */
+  private async repriceStored(manager: EntityManager, order: OrderEntity, freeze: boolean): Promise<DocWarning[]> {
+    const company = await this.finance.getCompany(manager);
+    const items = order.items || [];
+    const lines: DocLineInput[] = [];
+    for (const it of items) {
+      const product = it.productId ? await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: it.productId } }) : null;
+      if (!product) throw new BadRequestException(err('PRODUCT_NOT_FOUND_NAME', { name: it.productName || it.productId || '' }));
+      lines.push(storedLineInput(it, product, company.pricesIncludeTax));
+    }
+    const customer = order.customerId ? await manager.findOne(CustomerEntity, { where: { companyId: this.companyId, id: order.customerId } }) : null;
+    const charges = (order.charges || []).map((c) => ({ type: c.type, amount: Number(c.enteredAmount) || Number(c.lineTotal) || 0, description: c.description }));
+    const pr = await this.finance.priceDocumentFor(
+      {
+        kind: 'SALE',
+        lines,
+        charges,
+        documentDiscountAmount: Number(order.documentDiscountEntered) || 0,
+        currency: order.currency,
+        taxPointDate: order.taxPointDate || dateKeyInZone(order.date, company.timezone),
+        customer,
+        documentId: order.id,
+        freeze,
+      },
+      manager,
+    );
+    items.forEach((it, i) => Object.assign(it, this.lineFields(pr, i)));
+    pr.doc.charges.forEach((c, i) => {
+      const row = (order.charges || [])[i];
+      if (row) Object.assign(row, { amount: c.amount, taxAmount: c.taxAmount, withheldTaxAmount: c.withheldTaxAmount, lineTotal: c.lineTotal, allocations: c.allocations });
     });
+    Object.assign(order, this.totalFields(pr, order.documentDiscountEntered));
+    return pr.warnings;
   }
 
   async createOrder(data: CreateOrderInput, performedBy = 'System'): Promise<WithWarnings<OrderEntity>> {
@@ -322,7 +385,16 @@ export class OrderService {
 
       const lines = await this.prepareLines(manager, this.mergeItems(data.items, data.warehouseId), true, true);
       // Price (and validate the tax data) before any stock moves.
-      const pricing = await this.price(manager, lines, data, currency, this.taxPoint(company, data.taxPointDate, shippedAt, orderDate), customer);
+      const pricing = await this.price(
+        manager,
+        lines,
+        data,
+        currency,
+        this.taxPoint(company, data.taxPointDate, shippedAt, orderDate),
+        customer,
+        null,
+        data.status === OrderStatus.COMPLETED,
+      );
 
       const tracking: (TrackingEntry[] | null)[] = [];
       for (const { item, product: prod, baseQty } of lines) {
@@ -369,6 +441,7 @@ export class OrderService {
         isDistanceSale: !!data.isDistanceSale,
         channelOrderRef: data.channelOrderRef || null,
         taxFrozenAt: data.status === OrderStatus.COMPLETED ? new Date() : null,
+        taxPointExplicit: !!data.taxPointDate,
       });
       this.applyPricing(manager, newOrder, lines, pricing, tracking, data);
 
@@ -392,23 +465,10 @@ export class OrderService {
   }
 
   /**
-   * Re-reads the tax-point exchange rate of an unfrozen order and refreshes its TRY equivalents
-   * (document-currency amounts and the rate snapshot of the lines stay as priced).
+   * Sets the shipment time / tax point of a pending order (409 DOCUMENT_TAX_FROZEN once completed)
+   * and re-prices it at the new tax point (rate version, withholding threshold, TCMB rate).
    */
-  private async refreshFx(manager: EntityManager, order: OrderEntity): Promise<void> {
-    const company = await this.finance.getCompany(manager);
-    if ((company.baseCurrency || '').toUpperCase() !== 'TRY' || !order.taxPointDate) return;
-    const fx = await this.finance.taxFxRate(order.currency, order.taxPointDate, manager);
-    order.exchangeRate = fx.rate;
-    order.exchangeRateSource = fx.source;
-    order.exchangeRateDate = fx.source === 'BASE' ? null : fx.date;
-    order.subtotalTry = round2(Number(order.subtotal) * fx.rate);
-    order.taxTotalTry = round2(Number(order.taxTotal) * fx.rate);
-    order.grandTotalTry = round2(Number(order.grandTotal) * fx.rate);
-  }
-
-  /** Sets the shipment time / tax point of a pending order (409 DOCUMENT_TAX_FROZEN once completed). */
-  async setTaxPoint(id: string, dto: { taxPointDate?: string; shippedAt?: string }): Promise<OrderEntity> {
+  async setTaxPoint(id: string, dto: { taxPointDate?: string; shippedAt?: string }): Promise<WithWarnings<OrderEntity>> {
     const saved = await this.dataSource.transaction(async (manager) => {
       const order = await manager.findOne(OrderEntity, { where: { companyId: this.companyId, id }, relations: { items: true, charges: true }, lock: { mode: 'pessimistic_write' } });
       if (!order) throw new NotFoundException(err('ORDER_NOT_FOUND'));
@@ -419,9 +479,13 @@ export class OrderService {
         if (!at || Number.isNaN(at.getTime())) throw new BadRequestException(err('TRANSACTION_DATE_INVALID'));
         order.shippedAt = at;
       }
-      order.taxPointDate = dto.taxPointDate || (order.shippedAt ? dateKeyInZone(order.shippedAt, company.timezone) : order.taxPointDate);
-      await this.refreshFx(manager, order);
-      return manager.save(OrderEntity, order);
+      if (dto.taxPointDate) order.taxPointExplicit = true;
+      const explicit = dto.taxPointDate || (order.taxPointExplicit ? order.taxPointDate : null);
+      order.taxPointDate = this.taxPoint(company, explicit, order.shippedAt || null, order.date);
+      const warnings = await this.repriceStored(manager, order, false);
+      const out = (await manager.save(OrderEntity, order)) as WithWarnings<OrderEntity>;
+      if (warnings.length) out.warnings = warnings;
+      return out;
     });
     this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'update', order: saved });
     return saved;
@@ -450,13 +514,13 @@ export class OrderService {
       }
 
       if (status === OrderStatus.COMPLETED && !order.taxFrozenAt) {
-        // Delivery = tax point (KDVK 10); the TRY equivalents use its rate, then the tax data is frozen.
-        if (!order.shippedAt) {
-          const company = await this.finance.getCompany(manager);
-          order.shippedAt = new Date();
-          order.taxPointDate = dateKeyInZone(order.shippedAt, company.timezone);
-        }
-        await this.refreshFx(manager, order);
+        // Delivery = tax point (KDVK 10) unless an earlier explicit tax point (invoice) was set; the
+        // order is re-priced at it (rate version, withholding threshold, TCMB rate), then frozen.
+        const company = await this.finance.getCompany(manager);
+        if (!order.shippedAt) order.shippedAt = new Date();
+        const shippedDay = dateKeyInZone(order.shippedAt, company.timezone);
+        order.taxPointDate = order.taxPointExplicit && order.taxPointDate && order.taxPointDate <= shippedDay ? order.taxPointDate : shippedDay;
+        await this.repriceStored(manager, order, true);
         order.taxFrozenAt = new Date();
       }
 

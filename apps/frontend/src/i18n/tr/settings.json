@@ -409,5 +409,7 @@
   "settings.exchangeRates.tcmbFetch": "TCMB'den çek",
   "settings.exchangeRates.autoFetch": "Her iş günü otomatik çek (15:45)",
   "settings.exchangeRates.tcmbFetched": "TCMB bülteni {no} ({date}) alındı: {count} kur.",
-  "settings.exchangeRates.source": "Kaynak"
+  "settings.exchangeRates.source": "Kaynak",
+  "settings.taxRates.designatedBuyer": "Şirket belirlenmiş alıcıdır (kamu idaresi vb.)",
+  "settings.taxRates.designatedBuyerHint": "İşaretliyse alışlarda yalnız belirlenmiş alıcılara özgü tevkifat kodları da uygulanır (KDVGUT I/C-2.1.2.1)."
 }

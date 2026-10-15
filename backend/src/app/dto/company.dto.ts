@@ -72,6 +72,11 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @IsBoolean()
   isImporterOrOreProducer?: boolean;
 
+  @ApiPropertyOptional({ description: 'Şirket belirlenmiş alıcıdır (KDVGUT I/C-2.1.2.1): alışlarda yalnız belirlenmiş alıcılara özgü tevkifat kodları uygulanır' })
+  @IsOptional()
+  @IsBoolean()
+  isDesignatedBuyer?: boolean;
+
   @ApiPropertyOptional({ description: 'TCMB kurlarını her iş günü otomatik çek' })
   @IsOptional()
   @IsBoolean()

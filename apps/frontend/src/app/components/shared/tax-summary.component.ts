@@ -10,6 +10,10 @@ export const TAX_WARNING_KEYS: Record<string, string> = {
   WITHHOLDING_SELLER_EXEMPT: 'finance.warning.withholdingSellerExempt',
   WITHHOLDING_EXEMPT_LINE: 'finance.warning.withholdingExemptLine',
   IMPORT_VAT_AT_CUSTOMS: 'finance.warning.importVat',
+  WITHHOLDING_NOT_APPLICABLE_PURCHASE: 'finance.warning.withholdingPurchase',
+  WITHHOLDING_SUPPLIER_EXEMPT: 'finance.warning.withholdingSupplierExempt',
+  FX_RATE_STALE_WARNING: 'finance.warning.fxStale',
+  FX_RATE_PROVISIONAL: 'finance.warning.fxProvisional',
   LATE_ENTRY_WARNING: 'stockMovements.warning.lateEntry',
 };
 

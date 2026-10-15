@@ -145,6 +145,7 @@ import { IdentityFieldsComponent, taxIdValidator } from '../shared/identity-fiel
               <div class="sup-check-row">
                 <label><input type="checkbox" formControlName="isTaxpayer" /> {{ 'suppliers.form.isTaxpayer' | t }}</label>
                 <label><input type="checkbox" formControlName="isVatTaxpayer" /> {{ 'customers.form.isVatTaxpayer' | t }}</label>
+                <label [title]="'suppliers.form.isImporterOrOreProducerHint' | t"><input type="checkbox" formControlName="isImporterOrOreProducer" /> {{ 'suppliers.form.isImporterOrOreProducer' | t }}</label>
                 @if (supplierForm.value.type === 'farmer') {
                   <label><input type="checkbox" formControlName="isRealTaxationFarmer" /> {{ 'suppliers.form.isRealTaxationFarmer' | t }}</label>
                 }
@@ -282,6 +283,7 @@ export class SuppliersComponent implements OnInit {
     taxOfficeName: [''],
     isTaxpayer: [true],
     isVatTaxpayer: [true],
+    isImporterOrOreProducer: [false],
     isRealTaxationFarmer: [false],
     contactPerson: [''],
     email: ['', [Validators.email]],
@@ -333,7 +335,7 @@ export class SuppliersComponent implements OnInit {
     const country = this.ui.userProfile()?.company?.country || 'TR';
     const blank = {
       name: '', type: 'company', isForeign: false, identityType: 'VKN', identityNumber: '', taxOfficeCode: '', taxOfficeName: '',
-      isTaxpayer: true, isVatTaxpayer: true, isRealTaxationFarmer: false, contactPerson: '', email: '', phone: '', notes: '', rating: null, leadTimeDays: 3,
+      isTaxpayer: true, isVatTaxpayer: true, isImporterOrOreProducer: false, isRealTaxationFarmer: false, contactPerson: '', email: '', phone: '', notes: '', rating: null, leadTimeDays: 3,
     };
     if (supplier) {
       this.editId.set(supplier.id);

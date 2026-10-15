@@ -56,8 +56,13 @@ export function withDayOfMonth(key: string, day: number): string {
   return fmt(y, m, Math.min(day, +endOfMonth(key).slice(8, 10)));
 }
 
+/** A real calendar day as YYYY-MM-DD (2026-02-30 / 2026-13-45 are rejected; year 1900-2999). */
 export function isDateKey(v: unknown): v is string {
-  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const { y, m, d } = parse(v);
+  if (y < 1900 || y > 2999 || m < 1 || m > 12 || d < 1) return false;
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
 }
 
 /** Same day `months` later (clamped to the month's last day), e.g. 2026-01-31 +1 -> 2026-02-28. */

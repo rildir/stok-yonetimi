@@ -63,6 +63,10 @@ export class SupplierEntity {
   @Column({ default: true })
   isVatTaxpayer: boolean;
 
+  /** Supplier imports iron-steel / produces it from ore: no 627 withholding on its deliveries (KDVGUT I/C-2.1.3.3.8) */
+  @Column({ default: false })
+  isImporterOrOreProducer: boolean;
+
   /** Set when legacy data lacks a tax identity (WP1 migration) */
   @Column({ default: false })
   needsReview: boolean;

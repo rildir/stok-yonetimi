@@ -46,7 +46,7 @@ export class TaxService {
     return this.http.post<{ date: string; bulletinNo: string | null; count: number }>(`${this.api}/exchange-rates/tcmb/fetch`, date ? { date } : {});
   }
 
-  updateCompanyTaxSettings(body: { isImporterOrOreProducer?: boolean; fxAutoFetch?: boolean }): Observable<unknown> {
+  updateCompanyTaxSettings(body: { isImporterOrOreProducer?: boolean; isDesignatedBuyer?: boolean; fxAutoFetch?: boolean }): Observable<unknown> {
     return this.http.put(`${this.api}/company`, body);
   }
 

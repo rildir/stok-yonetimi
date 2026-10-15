@@ -61,6 +61,7 @@ export class CompanyService {
     if (dto.pricesIncludeTax !== undefined) company.pricesIncludeTax = dto.pricesIncludeTax;
     if (dto.expiryAlertDays !== undefined) company.expiryAlertDays = dto.expiryAlertDays;
     if (dto.isImporterOrOreProducer !== undefined) company.isImporterOrOreProducer = dto.isImporterOrOreProducer;
+    if (dto.isDesignatedBuyer !== undefined) company.isDesignatedBuyer = dto.isDesignatedBuyer;
     if (dto.fxAutoFetch !== undefined) company.fxAutoFetch = dto.fxAutoFetch;
     if (dto.enabledComplianceModules !== undefined) {
       const next = [...new Set(dto.enabledComplianceModules)];

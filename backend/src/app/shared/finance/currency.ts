@@ -79,6 +79,52 @@ export interface TaxFxRate {
   /** Bulletin / rate date used (YYYY-MM-DD) */
   date: string;
   source: FxSource;
+  /** Bulletin date the tax point calls for (last business day before / on it, never after the last published one) */
+  expectedDate?: string;
+  /** The rate is older than the expected bulletin and TCMB did not confirm that none was published in between */
+  stale?: boolean;
+  /** The tax point lies after the last published bulletin (future date): the rate is an estimate */
+  provisional?: boolean;
+}
+
+const DOW = (key: string) => new Date(`${key}T00:00:00Z`).getUTCDay();
+const shiftDay = (key: string, days: number) => {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Saturday / Sunday: TCMB publishes no bulletin. */
+export function isWeekend(key: string): boolean {
+  const d = DOW(key);
+  return d === 0 || d === 6;
+}
+
+/** The latest Monday-Friday day on or before `key`. */
+export function lastWeekdayOnOrBefore(key: string): string {
+  let k = key;
+  while (isWeekend(k)) k = shiftDay(k, -1);
+  return k;
+}
+
+/**
+ * Last bulletin day already announced at `now`: today after the 15:30 (Europe/Istanbul)
+ * announcement on a weekday, else the previous weekday. `todayIstanbul` / `minutesIstanbul`
+ * are the date and minutes since midnight in Europe/Istanbul.
+ */
+export function lastPublishedBulletinDay(todayIstanbul: string, minutesIstanbul: number): string {
+  if (!isWeekend(todayIstanbul) && minutesIstanbul >= 15 * 60 + 30) return todayIstanbul;
+  return lastWeekdayOnOrBefore(shiftDay(todayIstanbul, -1));
+}
+
+/**
+ * Bulletin date a tax point calls for: the last weekday before it (`previousDay`) or on it,
+ * capped at the last bulletin already published. Public holidays are not known here: a missing
+ * weekday bulletin is confirmed against the TCMB archive (404 = none published) by the caller.
+ */
+export function expectedBulletinDay(taxPointDate: string, previousDay: boolean, lastPublished: string): { expected: string; provisional: boolean } {
+  const target = lastWeekdayOnOrBefore(previousDay ? shiftDay(taxPointDate, -1) : taxPointDate);
+  return target > lastPublished ? { expected: lastPublished, provisional: true } : { expected: target, provisional: false };
 }
 
 /**

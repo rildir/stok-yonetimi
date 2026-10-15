@@ -113,6 +113,10 @@ export class CompanyEntity {
   @Column({ default: false })
   isImporterOrOreProducer: boolean;
 
+  /** Company is a designated buyer (belirlenmiş alıcı, KDVGUT I/C-2.1.2.1): withholds on purchases under codes limited to them */
+  @Column({ default: false })
+  isDesignatedBuyer: boolean;
+
   /** Fetch TCMB indicative rates every business day (TR) */
   @Column({ default: false })
   fxAutoFetch: boolean;

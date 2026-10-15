@@ -74,6 +74,10 @@ import { AppDatePipe, I18nService, NumberFormatPipe, TranslatePipe } from '../..
         <input type="checkbox" [ngModel]="importerOrOre()" (ngModelChange)="saveImporter($event)" />
         <span>{{ 'settings.taxRates.importerOrOre' | t }}<br /><span class="src">{{ 'settings.taxRates.importerOrOreHint' | t }}</span></span>
       </label>
+      <label class="check">
+        <input type="checkbox" [ngModel]="designatedBuyer()" (ngModelChange)="saveDesignated($event)" />
+        <span>{{ 'settings.taxRates.designatedBuyer' | t }}<br /><span class="src">{{ 'settings.taxRates.designatedBuyerHint' | t }}</span></span>
+      </label>
 
       <div class="codes">
         <h4>{{ 'settings.taxRates.withholdingCodes' | t }}</h4>
@@ -107,6 +111,7 @@ export class TaxSettingsComponent implements OnInit {
   private ui = inject(UiStateService);
   private i18n = inject(I18nService);
   @Input() importerInitial = false;
+  @Input() designatedInitial = false;
   @Output() changed = new EventEmitter<void>();
 
   rates = signal<TaxRate[]>([]);
@@ -114,9 +119,11 @@ export class TaxSettingsComponent implements OnInit {
   exemptions = signal<ExemptionCode[]>([]);
   withholdings = signal<WithholdingCode[]>([]);
   importerOrOre = signal(false);
+  designatedBuyer = signal(false);
 
   ngOnInit() {
     this.importerOrOre.set(this.importerInitial);
+    this.designatedBuyer.set(this.designatedInitial);
     this.load();
     this.tax.catalog().subscribe({ next: (c) => this.catalog.set(c), error: () => {} });
     this.tax.exemptions().subscribe({ next: (e) => this.exemptions.set(e), error: () => {} });
@@ -143,6 +150,14 @@ export class TaxSettingsComponent implements OnInit {
     this.tax.updateCompanyTaxSettings({ isImporterOrOreProducer: v }).subscribe({
       next: () => this.ui.showToast(this.i18n.t('settings.toast.companySaved'), 'success'),
       error: (err) => { this.importerOrOre.set(!v); this.ui.showToast(err.error?.message || this.i18n.t('settings.toast.saveFailed'), 'error'); },
+    });
+  }
+
+  saveDesignated(v: boolean) {
+    this.designatedBuyer.set(v);
+    this.tax.updateCompanyTaxSettings({ isDesignatedBuyer: v }).subscribe({
+      next: () => this.ui.showToast(this.i18n.t('settings.toast.companySaved'), 'success'),
+      error: (err) => { this.designatedBuyer.set(!v); this.ui.showToast(err.error?.message || this.i18n.t('settings.toast.saveFailed'), 'error'); },
     });
   }
 }

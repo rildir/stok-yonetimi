@@ -217,7 +217,7 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
 
         <!-- TAX RATES TAB (Admin) -->
         @if (activeTab() === 'taxRates' && isAdmin() && isTrCompany()) {
-          <app-tax-settings [importerInitial]="!!ui.userProfile()?.company?.isImporterOrOreProducer"></app-tax-settings>
+          <app-tax-settings [importerInitial]="!!ui.userProfile()?.company?.isImporterOrOreProducer" [designatedInitial]="!!ui.userProfile()?.company?.isDesignatedBuyer"></app-tax-settings>
         }
         @if (activeTab() === 'taxRates' && isAdmin() && !isTrCompany()) {
           <div class="settings-card settings-card-lg">

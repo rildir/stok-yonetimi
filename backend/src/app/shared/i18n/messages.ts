@@ -343,6 +343,10 @@ export const MESSAGES: Catalog = {
   TAX_CODE_VERSION_EXISTS: { tr: '{code} kodunun {date} tarihli sürümü zaten var.', en: 'Code {code} already has a version starting {date}.' },
   ORDER_NOT_FOUND: { tr: 'Sipariş bulunamadı.', en: 'Order not found.' },
   TAX_RATE_NOT_VALID_ON_DATE: { tr: '"{name}" ürününün %{rate} KDV oranı {date} tarihinde geçerli değil. Ürüne güncel oranı seçin.', en: 'The {rate} % VAT rate of "{name}" is not valid on {date}. Select a current rate on the product.' },
+  FX_RATE_STALE: { tr: '{currency} için {date} vergiyi doğuran olayına ait TCMB bülteni ({expected}) kayıtlı değil; en son kur {rateDate} tarihli. Kuru çekin veya o günün kurunu elle girin.', en: 'The TCMB bulletin for {currency} at the tax point {date} ({expected}) is not on file; the latest rate is dated {rateDate}. Fetch it or enter the rate of that day manually.' },
+  TAX_POINT_AFTER_SHIPMENT: { tr: 'Vergiyi doğuran olay ({date}) sevk tarihinden ({shipped}) sonra olamaz (KDVK 10: teslim veya daha önce düzenlenen fatura).', en: 'The tax point ({date}) cannot be after the shipment date ({shipped}) (VAT Law art. 10: delivery or an earlier invoice).' },
+  WITHHOLDING_NOT_APPLICABLE_PURCHASE: { tr: '{code} tevkifatı bu alışta uygulanamaz: tedarikçi KDV mükellefi değil veya kod yalnızca belirlenmiş alıcılara özgü ve şirket belirlenmiş alıcı olarak işaretli değil.', en: 'Withholding {code} does not apply to this purchase: the supplier is not VAT-registered, or the code is limited to designated buyers and the company is not flagged as one.' },
+  TCMB_TR_ONLY: { tr: "TCMB kurları yalnızca Türkiye'deki ve ana para birimi TRY olan şirketler için çekilebilir.", en: 'TCMB rates can only be fetched for companies in Türkiye with TRY as base currency.' },
   VALIDATION_DISCOUNT_RANGE: { tr: 'İskonto oranı 0 ile 100 arasında olmalıdır.', en: 'Discount rate must be between 0 and 100.' },
 };
 

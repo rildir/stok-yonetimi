@@ -7,7 +7,7 @@ import { PurchaseOrderItemEntity } from '../../entities/purchase-order-item.enti
 import { ProductEntity } from '../../entities/product.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
-import { DocPricingResult, FinanceService } from '../../shared/services/finance.service';
+import { DocPricingResult, FinanceService, storedLineEntry } from '../../shared/services/finance.service';
 import { OrderChargeEntity } from '../../entities/order-charge.entity';
 import { TaxEngineCharge, round2 } from '../../shared/finance/tax';
 import { AppGateway } from '../../app.gateway';
@@ -112,6 +112,7 @@ export class PurchaseOrderService {
     taxPointDate: string,
     supplier: SupplierEntity | null,
     tax: PurchaseOrderTaxInput = {},
+    freeze = false,
   ): Promise<Built> {
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
@@ -149,6 +150,7 @@ export class PurchaseOrderService {
         currency,
         taxPointDate,
         supplier,
+        freeze,
       },
       manager,
     );
@@ -169,6 +171,7 @@ export class PurchaseOrderService {
         grossAmount: l.grossAmount,
         discountRate: l.discountRate,
         discountAmount: l.discountAmount,
+        discountAmountEntered: m.discountAmountEntered,
         documentDiscountShare: l.documentDiscountShare,
         netAmount: l.netAmount,
         taxRateId: m.taxRateId,
@@ -178,6 +181,7 @@ export class PurchaseOrderService {
         exemptionCode: l.exemptionCode,
         vatNotCollected: l.vatNotCollected,
         withholdingCode: l.withholdingCode,
+        withholdingCodeEntered: m.withholdingCodeEntered,
         withholdingRate: l.withholdingRate || null,
         withheldTaxAmount: l.withheldTaxAmount,
         otvCode: m.otvCode,
@@ -203,6 +207,34 @@ export class PurchaseOrderService {
       }),
     );
     return { items: items2, charges, pricing };
+  }
+
+  /** Item inputs that re-create the stored lines as entered (price, unit, discount, codes). */
+  private storedItems(po: PurchaseOrderEntity, pricesIncludeTax: boolean, keepPrice = true): PurchaseOrderItemInput[] {
+    return (po.items || []).map((i) => {
+      const e = storedLineEntry(i, pricesIncludeTax);
+      return {
+        productId: i.productId as string,
+        productName: i.productName,
+        quantity: e.quantity,
+        unitId: i.unitId,
+        // keep the entered price unless the currency changes (then: product price in the new currency)
+        unitPrice: keepPrice ? e.unitPrice ?? undefined : undefined,
+        discountRate: e.discountRate,
+        discountAmount: e.discountAmount,
+        exemptionCode: e.exemptionCode,
+        withholdingCode: e.withholdingCode,
+        reverseCharge: e.reverseCharge,
+      };
+    });
+  }
+
+  private storedTax(po: PurchaseOrderEntity): PurchaseOrderTaxInput {
+    return {
+      charges: (po.charges || []).map((c) => ({ type: c.type, amount: Number(c.enteredAmount) || Number(c.lineTotal) || 0, description: c.description })),
+      documentDiscountAmount: po.documentDiscountEntered,
+      taxPointDate: po.taxPointDate,
+    };
   }
 
   /** Copies the pricing result onto the document. */
@@ -304,6 +336,7 @@ export class PurchaseOrderService {
         notes: data.notes,
         poNumber,
         status: PurchaseOrderStatus.DRAFT,
+        taxPointExplicit: !!data.taxPointDate,
       });
       this.applyTotals(newPo, built, data);
       this.applyCustoms(newPo, data);
@@ -382,18 +415,22 @@ export class PurchaseOrderService {
           productsToEmit.push(prod);
         }
         if (targetWarehouse) po.warehouseId = targetWarehouse;
-        // Receipt = tax point of the purchase (supplier document date when given); TRY equivalents
-        // at its rate, then the tax data is frozen.
-        po.taxPointDate = meta.documentDate || dateKeyInZone(receivedAt, company.timezone);
-        if ((company.baseCurrency || '').toUpperCase() === 'TRY') {
-          const fx = await this.finance.taxFxRate(po.currency, po.taxPointDate, manager);
-          po.exchangeRate = fx.rate;
-          po.exchangeRateSource = fx.source;
-          po.exchangeRateDate = fx.source === 'BASE' ? null : fx.date;
-          po.subtotalTry = round2(Number(po.subtotal) * fx.rate);
-          po.taxTotalTry = round2(Number(po.taxTotal) * fx.rate);
-          po.grandTotalTry = round2(Number(po.grandTotal) * fx.rate);
-        }
+        // Receipt = tax point of the purchase (supplier document date when given, else an explicit
+        // tax point, else the receipt day). The PO is re-priced at it (rate version, withholding
+        // threshold, TCMB rate; lines updated in place) and the tax data is frozen.
+        po.taxPointDate = meta.documentDate || (po.taxPointExplicit && po.taxPointDate ? po.taxPointDate : dateKeyInZone(receivedAt, company.timezone));
+        const rebuilt = await this.buildItems(manager, this.storedItems(po, company.pricesIncludeTax), po.currency, po.taxPointDate, supplier, this.storedTax(po), true);
+        po.items.forEach((item, i) => {
+          const { productId: _p, productName: _n, quantity: _q, unitId: _u, unitCode: _c, unitFactor: _f, unitQuantity: _uq, ...fields } = rebuilt.items[i];
+          Object.assign(item, fields);
+        });
+        rebuilt.pricing.doc.charges.forEach((c, i) => {
+          const row = (po.charges || [])[i];
+          if (row) Object.assign(row, { amount: c.amount, taxAmount: c.taxAmount, withheldTaxAmount: c.withheldTaxAmount, lineTotal: c.lineTotal, allocations: c.allocations });
+        });
+        const keep = { items: po.items, charges: po.charges };
+        this.applyTotals(po, rebuilt, this.storedTax(po));
+        Object.assign(po, keep);
         po.taxFrozenAt = new Date();
       }
 
@@ -456,30 +493,22 @@ export class PurchaseOrderService {
 
       const repriceKeys = ['supplierId', 'items', 'charges', 'documentDiscountAmount', 'taxPointDate'];
       if (currencyChanged || repriceKeys.some((k) => updates[k] !== undefined)) {
-        const source: PurchaseOrderItemInput[] =
-          updates.items ||
-          po.items.map((i) => ({
-            productId: i.productId,
-            quantity: i.unitId && i.unitFactor !== 1 ? Number(i.unitQuantity) : i.quantity,
-            unitId: i.unitId,
-            // keep the entered price unless the currency changes (then: product price in the new currency)
-            unitPrice: currencyChanged ? undefined : i.enteredUnitPrice ?? undefined,
-            discountRate: i.discountRate,
-            exemptionCode: i.exemptionCode,
-            withholdingCode: i.withholdingCode ?? '',
-            reverseCharge: i.reverseCharge,
-          }));
+        const company = await this.finance.getCompany(manager);
+        const source: PurchaseOrderItemInput[] = updates.items || this.storedItems(po, company.pricesIncludeTax, !currencyChanged);
+        const stored = this.storedTax(po);
         const tax: PurchaseOrderTaxInput = {
-          charges: updates.charges ?? (po.charges || []).map((c) => ({ type: c.type, amount: Number(c.enteredAmount), description: c.description })),
-          documentDiscountAmount: updates.documentDiscountAmount ?? po.documentDiscountEntered,
+          charges: updates.charges ?? stored.charges,
+          documentDiscountAmount: updates.documentDiscountAmount ?? stored.documentDiscountAmount,
           taxPointDate: updates.taxPointDate ?? po.taxPointDate,
         };
-        const company = await this.finance.getCompany(manager);
+        // A tax point the user typed in (not the one derived at creation) follows the document to receipt.
+        if (updates.taxPointDate && updates.taxPointDate !== po.taxPointDate) po.taxPointExplicit = true;
         const built = await this.buildItems(manager, source, po.currency, tax.taxPointDate || dateKeyInZone(new Date(), company.timezone), supplier, tax);
         // Only draft lines are replaced; received lines are never deleted (DB trigger enforces it too).
         if (po.items.some((i) => i.tracking && i.tracking.length)) throw new BadRequestException(err('RECEIVED_LINE_UNDELETABLE'));
-        await manager.delete(PurchaseOrderItemEntity, { purchaseOrderId: po.id });
-        await manager.delete(OrderChargeEntity, { purchaseOrderId: po.id });
+        // remove() (not delete()) so the entity subscribers audit the removed lines and charges.
+        if (po.items?.length) await manager.remove(PurchaseOrderItemEntity, po.items);
+        if (po.charges?.length) await manager.remove(OrderChargeEntity, po.charges);
         this.applyTotals(po, built, tax);
       }
       this.applyCustoms(po, updates);

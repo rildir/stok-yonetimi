@@ -70,6 +70,10 @@ export class SupplierFieldsDto {
   @IsBoolean()
   isVatTaxpayer?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  isImporterOrOreProducer?: boolean;
+
   @IsString()
   @IsOptional()
   contactPerson?: string;

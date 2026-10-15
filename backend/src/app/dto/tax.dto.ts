@@ -1,10 +1,16 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsNumber, Min, Max, IsOptional, IsIn, MaxLength, Matches, ValidateIf, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, Max, IsOptional, IsIn, MaxLength, Matches, ValidateIf, IsBoolean, ValidateBy, ValidationOptions } from 'class-validator';
 import { CHARGE_TYPES } from '../shared/finance/tax';
+import { isDateKey } from '../shared/tr';
 
 const present = (_: unknown, v: unknown) => v !== undefined && v !== null && v !== '';
 
 export const TAX_POINT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A real calendar day as YYYY-MM-DD (rejects 2026-02-30, 2026-13-45); message VALIDATION_DATE. */
+export function IsDateKey(options?: ValidationOptions): PropertyDecorator {
+  return ValidateBy({ name: 'isDateKey', validator: { validate: (v: unknown) => isDateKey(v), defaultMessage: () => 'VALIDATION_DATE' } }, { message: 'VALIDATION_DATE', ...options });
+}
 export const SALES_CHANNELS = ['STORE', 'WEB', 'MARKETPLACE', 'PHONE', 'B2B', 'OTHER'];
 
 /** Additional charge of a document (KDVK 24/b). Amount as entered (gross when tax-inclusive prices). */
@@ -53,7 +59,7 @@ export class LineTaxFieldsDto {
 /** PUT /orders/:id/tax-point */
 export class TaxPointDto {
   @IsOptional()
-  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  @IsDateKey()
   taxPointDate?: string;
 
   /** Actual shipment time (ISO / 'YYYY-MM-DDTHH:mm' company time) */
@@ -79,11 +85,11 @@ export class AddTaxCodeDto {
   @MaxLength(500)
   nameEn: string;
 
-  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  @IsDateKey()
   validFrom: string;
 
   @IsOptional()
-  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  @IsDateKey()
   validTo?: string | null;
 
   @IsString()

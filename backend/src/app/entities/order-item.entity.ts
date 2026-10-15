@@ -63,6 +63,10 @@ export class OrderItemEntity {
   @Column('decimal', { precision: 14, scale: 2, default: 0, transformer: new ColumnNumericTransformer() })
   discountAmount: number;
 
+  /** Line discount amount as entered (gross when tax-inclusive prices); NULL = percentage / none */
+  @Column('decimal', { precision: 14, scale: 2, nullable: true, transformer: new ColumnNumericTransformer() })
+  discountAmountEntered?: number | null;
+
   /** Share of the document discount (net) */
   @Column('decimal', { precision: 14, scale: 2, default: 0, transformer: new ColumnNumericTransformer() })
   documentDiscountShare: number;
@@ -98,6 +102,10 @@ export class OrderItemEntity {
   /** KDV withholding code (6xx / 8xx) */
   @Column({ type: 'varchar', length: 10, nullable: true })
   withholdingCode?: string | null;
+
+  /** Withholding code as entered: NULL = product default, '' = switched off, else explicit (re-pricing keeps the intent) */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  withholdingCodeEntered?: string | null;
 
   /** Withheld share of the VAT in % (5/10 -> 50) */
   @Column('decimal', { precision: 5, scale: 2, nullable: true, transformer: new ColumnNumericTransformer() })

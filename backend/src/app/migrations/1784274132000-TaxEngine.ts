@@ -13,7 +13,7 @@ import { dateKeyInZone, DEFAULT_TIMEZONE } from '../shared/tr';
  *     TR rows become catalog rows (KDV20 / KDV10 / KDV1, system) and each TR company gets the
  *     KDV0 EXEMPT row (0 % is an exemption, not a rate).
  *  C. Global, versioned code tables tax_exemption_codes / withholding_codes / otv_codes, seeded
- *     from GİB UBL-TR Kod Listeleri v1.31 (rows needing confirmation carry confidence / note).
+ *     from the GİB UBL-TR Kod Listeleri seeds (v1.31 at first; brought to v1.43 by migration 1784274133000).
  *  D. products: exemptionCode, withholdingCode, otvCode, otvRate; TR products without a rate
  *     get the company default explicitly (no silent fallback at pricing time any more).
  *     companies: isImporterOrOreProducer, fxAutoFetch (on for TR).
@@ -278,8 +278,19 @@ export class TaxEngine1784274132000 implements MigrationInterface {
     await q.query('DROP TABLE `otv_codes`');
     await q.query('DROP TABLE `withholding_codes`');
     await q.query('DROP TABLE `tax_exemption_codes`');
-    // Superseded versions fold back into one row per rate; the KDV0 rows created here are removed.
-    await q.query("DELETE FROM `tax_rates` WHERE `code` = 'KDV0' AND `kind` = 'EXEMPT' AND `id` NOT IN (SELECT `taxRateId` FROM (SELECT DISTINCT `taxRateId` FROM `products` WHERE `taxRateId` IS NOT NULL) x)");
+    // Products that up() (or later sign-ups) pinned to the company default go back to the legacy
+    // implicit default (same rate: the old code fell back to the default row). Lossy only for
+    // products explicitly set to the default, which price the same way.
+    await q.query(
+      'UPDATE `products` p JOIN `companies` c ON c.`id` = p.`companyId` AND c.`country` = ? ' +
+        'JOIN `tax_rates` t ON t.`id` = p.`taxRateId` AND t.`isDefault` = 1 SET p.`taxRateId` = NULL',
+      ['TR'],
+    );
+    // Closed historical catalog versions (e.g. KDV18 created for back-dated tax points) would look
+    // like active rates once validity is dropped; nothing can reference them after this rollback.
+    await q.query('UPDATE `products` p JOIN `tax_rates` t ON t.`id` = p.`taxRateId` AND t.`validTo` IS NOT NULL SET p.`taxRateId` = NULL');
+    await q.query('DELETE FROM `tax_rates` WHERE `validTo` IS NOT NULL');
+    // KDV0 rows stay: a 0 % rate is valid in the legacy schema and products / lines may use it.
     await q.query(
       'ALTER TABLE `tax_rates` DROP COLUMN `code`, DROP COLUMN `taxTypeCode`, DROP COLUMN `kind`, DROP COLUMN `validFrom`, DROP COLUMN `validTo`, DROP COLUMN `isSystem`, DROP COLUMN `supersedesId`',
     );

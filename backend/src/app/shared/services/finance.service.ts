@@ -9,7 +9,7 @@ import { CustomerEntity } from '../../entities/customer.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { OrderEntity } from '../../entities/order.entity';
 import { TenantContext } from '../tenant/tenant-context.service';
-import { RateRow, TaxFxRate, convertAmount, findRate, selectTaxFxRate } from '../finance/currency';
+import { RateRow, TaxFxRate, convertAmount, expectedBulletinDay, findRate, lastPublishedBulletinDay, selectTaxFxRate } from '../finance/currency';
 import {
   InvoiceTypeHint,
   PricedDocument,
@@ -19,10 +19,10 @@ import {
   priceWithWithholdingThreshold,
   round2,
 } from '../finance/tax';
-import { LegalParameterService } from './legal-parameter.service';
+import { LegalParameterService, pickParameter } from './legal-parameter.service';
 import { TaxCodeService } from './tax-code.service';
 import { TcmbService } from './tcmb.service';
-import { dateKeyInZone, todayKey } from '../tr';
+import { daysBetween, dateKeyInZone, isDateKey, timeKeyInZone, todayKey } from '../tr';
 
 /** Exchange-rate day of a document: instants (stored in UTC) count in the company time zone. */
 export function rateDay(date: Date | string | null | undefined, tz?: string | null): string {
@@ -67,6 +67,8 @@ export interface DocPricingInput {
   supplier?: SupplierEntity | null;
   /** Order being priced (excluded from the split-order check) */
   documentId?: string | null;
+  /** Pricing that freezes the document: an unconfirmed older exchange rate is refused (FX_RATE_STALE) */
+  freeze?: boolean;
 }
 
 export interface DocLineMeta {
@@ -75,6 +77,10 @@ export interface DocLineMeta {
   taxCode: string;
   exemptionCode: string | null;
   withholdingCode: string | null;
+  /** Withholding code as entered: null = product default, '' = switched off, else the explicit code */
+  withholdingCodeEntered: string | null;
+  /** Line discount amount as entered (null = percentage / none) */
+  discountAmountEntered: number | null;
   otvCode: string | null;
   reverseCharge: boolean;
   /** PO: VAT deductible on KDV-1 */
@@ -173,24 +179,47 @@ export class FinanceService {
   /**
    * Rate used to convert a document to TRY for VAT (TR): direct FOREX_BUYING `currency -> TRY`
    * on the tax point (legal parameter KDV_FX_RATE_DAY decides whether the bulletin of the
-   * previous day is used). Missing rate: tries the TCMB archive when the company fetches rates
-   * automatically, otherwise 422 FX_RATE_NOT_FOUND. Never a cross or inverse rate.
+   * previous day is used). Never a cross or inverse rate.
+   *
+   * Staleness: the tax point calls for one bulletin day (expectedBulletinDay). When the newest
+   * stored rate is older, the TCMB archive is asked for the missing days (company fetches rates
+   * automatically); days the archive answers "no bulletin" (public holidays) confirm the older
+   * rate. An unconfirmed older rate is flagged `stale` (warning on quotes) and refused with 422
+   * FX_RATE_STALE when `strict` (freezing a document) or when it is more than
+   * KDV_FX_MAX_STALE_DAYS calendar days older than the expected bulletin. A tax point after the
+   * last published bulletin gets the latest rate flagged `provisional`. No rate: 422 FX_RATE_NOT_FOUND.
    */
-  async taxFxRate(currency: string, taxPointDate: string, manager?: EntityManager): Promise<TaxFxRate> {
+  async taxFxRate(currency: string, taxPointDate: string, manager?: EntityManager, opts: { strict?: boolean } = {}): Promise<TaxFxRate> {
     const company = await this.getCompany(manager);
     const cur = currency.toUpperCase();
     if (cur === 'TRY') return { rate: 1, date: taxPointDate, source: 'BASE' };
-    const policy = await this.legalParams.paramOrNull<string>('KDV_FX_RATE_DAY', taxPointDate, company.country || 'TR');
+    const country = company.country || 'TR';
+    const policy = await this.legalParams.paramOrNull<string>('KDV_FX_RATE_DAY', taxPointDate, country);
     const previousDay = policy !== 'SAME_DAY';
+    const now = new Date();
+    const [hh, mm] = timeKeyInZone(now, 'Europe/Istanbul').split(':').map(Number);
+    const { expected, provisional } = expectedBulletinDay(taxPointDate, previousDay, lastPublishedBulletinDay(todayKey('Europe/Istanbul', now), hh * 60 + mm));
     let hit = selectTaxFxRate(await this.getRates(manager), cur, taxPointDate, previousDay);
-    if (!hit && company.fxAutoFetch && this.tcmb) {
-      const target = previousDay ? addDaysKey(taxPointDate, -1) : taxPointDate;
-      if (await this.tcmb.ensureBulletin(company.id, target, manager)) {
-        hit = selectTaxFxRate(await this.getRates(manager), cur, taxPointDate, previousDay);
-      }
+    let confirmed = !!hit && hit.date >= expected;
+    if (!confirmed && company.fxAutoFetch && this.tcmb) {
+      const r = await this.tcmb.latestBulletin(company.id, hit?.date ?? null, expected, manager);
+      if (r.date) hit = selectTaxFxRate(await this.getRates(manager), cur, taxPointDate, previousDay);
+      // Confirmed: no bulletin was published after the rate used (holidays). A newer bulletin that
+      // does not quote this currency does not confirm an older manual rate.
+      confirmed = !!hit && (hit.date >= expected || (r.confirmed && (!r.date || r.date <= hit.date)));
     }
     if (!hit) throw new UnprocessableEntityException(err('FX_RATE_NOT_FOUND', { currency: cur, date: taxPointDate }));
-    return hit;
+    const out: TaxFxRate = { ...hit, expectedDate: expected };
+    if (provisional) out.provisional = true;
+    if (!confirmed) {
+      const maxDays = await this.legalParams.paramOrNull<number>('KDV_FX_MAX_STALE_DAYS', taxPointDate, country);
+      const tooOld = maxDays !== null && maxDays !== undefined && daysBetween(hit.date, expected) > Number(maxDays);
+      if (opts.strict || tooOld) {
+        throw new UnprocessableEntityException(err('FX_RATE_STALE', { currency: cur, date: taxPointDate, rateDate: hit.date, expected }));
+      }
+      out.stale = true;
+    }
+    return out;
   }
 
   async getDefaultTaxRate(manager?: EntityManager): Promise<TaxRateEntity | null> {
@@ -202,8 +231,11 @@ export class FinanceService {
   /**
    * Tax rate version of a product on `date`. TR: the product must have a rate
    * (PRODUCT_TAX_RATE_MISSING, no silent default); a version that only starts after
-   * `date` is walked back to the version it superseded. Other countries keep the
-   * legacy fallback (company default, else none = 0 %).
+   * `date` is walked back to the version it superseded. When no earlier version is on file
+   * (e.g. the KDV20 catalog row of a company created after 10.07.2023), a TR catalog row is
+   * resolved to the catalog rate in the same position on `date` (KDV20 -> KDV18), whose closed
+   * system version is created on first use; otherwise 422 TAX_RATE_NOT_VALID_ON_DATE.
+   * Other countries keep the legacy fallback (company default, else none = 0 %).
    */
   async resolveProductRate(product: Pick<ProductEntity, 'taxRateId' | 'name'>, date: string, manager?: EntityManager): Promise<TaxRateEntity | null> {
     const company = await this.getCompany(manager);
@@ -217,12 +249,64 @@ export class FinanceService {
       }
     }
     if (row) {
+      const from = row.validFrom ? String(row.validFrom).slice(0, 10) : null;
+      if (from && from > date) {
+        // The rate did not exist yet on the tax point (e.g. 20 % before 10.07.2023).
+        const older = isTrCompany(company) ? await this.catalogVersionOn(row, date, manager) : null;
+        if (!older) throw new UnprocessableEntityException(err('TAX_RATE_NOT_VALID_ON_DATE', { name: product.name, rate: row.rate, date }));
+        row = older;
+      }
       // A rate whose legal period ended (e.g. 18 % before 10.07.2023) cannot price a later tax point.
       if (row.validTo && String(row.validTo).slice(0, 10) < date) throw new UnprocessableEntityException(err('TAX_RATE_NOT_VALID_ON_DATE', { name: product.name, rate: row.rate, date }));
       return row;
     }
     if (isTrCompany(company)) throw new UnprocessableEntityException(err('PRODUCT_TAX_RATE_MISSING', { name: product.name }));
     return this.getDefaultTaxRate(manager);
+  }
+
+  /**
+   * TR: the company's catalog row valid on `date` that corresponds to `row` (same position in
+   * legal_parameters KDV_RATE_CATALOG: general / reduced / super-reduced). Creates the closed
+   * system version (validFrom / validTo = that catalog period) when the company has none and links
+   * the newer row to it (supersedesId). Null when the catalog has no entry for `date`.
+   */
+  private async catalogVersionOn(row: TaxRateEntity, date: string, manager?: EntityManager): Promise<TaxRateEntity | null> {
+    if (row.kind !== 'STANDARD' || !row.code || !row.validFrom) return null;
+    const company = await this.getCompany(manager);
+    const catalogs = await this.legalParams.list(company.country || 'TR', 'KDV_RATE_CATALOG');
+    const current = pickParameter(catalogs, String(row.validFrom).slice(0, 10));
+    const then = pickParameter(catalogs, date);
+    if (!current || !then || current === then) return null;
+    const idx = (current.value as { code: string }[]).findIndex((r) => r.code === row.code);
+    const target = idx >= 0 ? (then.value as { rate: number; code: string }[])[idx] : undefined;
+    if (!target) return null;
+    const m = this.m(manager);
+    const candidates = await m.find(TaxRateEntity, { where: { companyId: this.tenant.companyId, code: target.code, kind: 'STANDARD', isDeleted: false } });
+    const covers = (r: TaxRateEntity) =>
+      (!r.validFrom || String(r.validFrom).slice(0, 10) <= date) && (!r.validTo || String(r.validTo).slice(0, 10) >= date) && Number(r.rate) === Number(target.rate);
+    let older = candidates.find(covers) || null;
+    if (!older) {
+      older = await m.save(
+        TaxRateEntity,
+        m.create(TaxRateEntity, {
+          companyId: this.tenant.companyId,
+          name: `KDV %${target.rate}`,
+          rate: target.rate,
+          country: 'TR',
+          isDefault: false,
+          kind: 'STANDARD',
+          code: target.code,
+          isSystem: true,
+          validFrom: String(then.validFrom).slice(0, 10),
+          validTo: then.validTo ? String(then.validTo).slice(0, 10) : null,
+          taxTypeCode: row.taxTypeCode || '0015',
+        }),
+      );
+    }
+    if (!row.supersedesId && older.validTo && String(older.validTo).slice(0, 10) < String(row.validFrom).slice(0, 10)) {
+      await m.update(TaxRateEntity, { id: row.id, companyId: this.tenant.companyId }, { supersedesId: older.id });
+    }
+    return older;
   }
 
   /** Legacy: tax % for a product (see resolveProductRate). */
@@ -246,6 +330,7 @@ export class FinanceService {
     const company = await this.getCompany(manager);
     const tr = isTrCompany(company);
     const date = input.taxPointDate;
+    if (!isDateKey(date)) throw new BadRequestException(err('VALIDATION_DATE'));
     const currency = input.currency.toUpperCase();
     const warnings: DocWarning[] = [];
     const warn = (code: string, params?: Record<string, string | number>) => {
@@ -261,8 +346,11 @@ export class FinanceService {
 
     // Exchange rate of the document: TR -> the VAT rate (TCMB forex buying at the tax point).
     let fx: TaxFxRate;
-    if (tr && company.baseCurrency.toUpperCase() === 'TRY') fx = await this.taxFxRate(currency, date, manager);
+    if (tr && company.baseCurrency.toUpperCase() === 'TRY') fx = await this.taxFxRate(currency, date, manager, { strict: !!input.freeze });
     else fx = currency === company.baseCurrency ? { rate: 1, date, source: 'BASE' } : { rate: rateOrThrow(currency, company.baseCurrency), date, source: 'MANUAL' };
+
+    if (fx.stale) warn('FX_RATE_STALE_WARNING', { currency, rateDate: fx.date, expected: fx.expectedDate || date });
+    if (fx.provisional) warn('FX_RATE_PROVISIONAL', { currency, rateDate: fx.date });
 
     const foreignSupplier = input.kind === 'PURCHASE' && isForeignSupplier(input.supplier);
     const customer = input.customer || null;
@@ -321,16 +409,23 @@ export class FinanceService {
       let thresholdExempt = false;
       if (wCode && taxRate > 0 && !vatNotCollected && !foreignSupplier) {
         const w = await this.taxCodes.withholding(wCode, date, manager);
+        // KDVGUT I/C-2.1.3.1: partial withholding is applied by VAT taxpayers and by the designated
+        // buyers of I/C-2.1.2.1 (public administrations etc., VAT-registered or not); codes limited to
+        // designated buyers need that status. Sale: the customer is the buyer. Purchase: the company is
+        // the buyer (TR company = VAT taxpayer) and the supplier must be a VAT-registered seller.
+        const qualifies = (vatTaxpayer: boolean, designated: boolean) => (w.requiresDesignatedBuyer ? designated : vatTaxpayer || designated);
         const buyerOk =
           input.kind === 'SALE'
-            ? !!customer && customer.isVatTaxpayer && (!w.requiresDesignatedBuyer || customer.isDesignatedBuyer)
-            : !!input.supplier && input.supplier.isVatTaxpayer !== false;
-        const sellerExempt = input.kind === 'SALE' && w.exemptForImporterOrOreProducer && company.isImporterOrOreProducer;
+            ? !!customer && qualifies(!!customer.isVatTaxpayer, !!customer.isDesignatedBuyer)
+            : !!input.supplier && input.supplier.isVatTaxpayer !== false && qualifies(tr, !!company.isDesignatedBuyer);
+        // 627: deliveries by importers / producers from ore are outside the withholding (the seller's status).
+        const sellerExempt =
+          !!w.exemptForImporterOrOreProducer && (input.kind === 'SALE' ? !!company.isImporterOrOreProducer : !!input.supplier?.isImporterOrOreProducer);
         if (!buyerOk) {
-          if (explicitW) throw new BadRequestException(err('WITHHOLDING_REQUIRES_TAXPAYER_BUYER', { code: w.code }));
-          warn('WITHHOLDING_NOT_APPLICABLE_BUYER', { code: w.code });
+          if (explicitW) throw new BadRequestException(err(input.kind === 'SALE' ? 'WITHHOLDING_REQUIRES_TAXPAYER_BUYER' : 'WITHHOLDING_NOT_APPLICABLE_PURCHASE', { code: w.code }));
+          warn(input.kind === 'SALE' ? 'WITHHOLDING_NOT_APPLICABLE_BUYER' : 'WITHHOLDING_NOT_APPLICABLE_PURCHASE', { code: w.code });
         } else if (sellerExempt) {
-          warn('WITHHOLDING_SELLER_EXEMPT', { code: w.code });
+          warn(input.kind === 'SALE' ? 'WITHHOLDING_SELLER_EXEMPT' : 'WITHHOLDING_SUPPLIER_EXEMPT', { code: w.code });
         } else {
           withholdingRate = round2((Number(w.numerator) / (w.denominator || 10)) * 100);
           thresholdExempt = w.scope === 'FULL';
@@ -363,6 +458,8 @@ export class FinanceService {
         taxCode: rateRow?.taxTypeCode || '0015',
         exemptionCode,
         withholdingCode: null,
+        withholdingCodeEntered: explicitW ? String(it.withholdingCode) : null,
+        discountAmountEntered: Number(it.discountAmount) > 0 ? round2(Number(it.discountAmount)) : null,
         otvCode: otvRate ? p.otvCode || null : null,
         reverseCharge,
         deductibleVat: 0,
@@ -447,6 +544,8 @@ export class FinanceService {
     if (target.taxRateId) {
       const row = await this.m(manager).findOne(TaxRateEntity, { where: { id: target.taxRateId, companyId: this.tenant.companyId, isDeleted: false } });
       if (!row) throw new BadRequestException(err('TAX_RATE_NOT_FOUND'));
+      // A closed historical version (e.g. KDV18) cannot be a product's current rate.
+      if (row.validTo && String(row.validTo).slice(0, 10) < today) throw new UnprocessableEntityException(err('TAX_RATE_NOT_VALID_ON_DATE', { name: target.name, rate: row.rate, date: today }));
       if (isTrCompany(company) && (row.kind === 'EXEMPT' || Number(row.rate) === 0) && !target.exemptionCode) {
         throw new BadRequestException(err('EXEMPTION_CODE_REQUIRED', { name: target.name }));
       }
@@ -462,8 +561,56 @@ export class FinanceService {
   }
 }
 
-function addDaysKey(key: string, days: number): string {
-  const d = new Date(`${key}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+/** Stored document line (order / purchase order item) as needed for re-pricing. */
+export interface StoredDocLine {
+  quantity: number;
+  unitQuantity?: number | null;
+  unitFactor?: number | null;
+  unitPrice: number;
+  enteredUnitPrice?: number | null;
+  taxRate: number;
+  otvRate?: number | null;
+  vatNotCollected?: boolean;
+  discountRate?: number | null;
+  discountAmount?: number | null;
+  discountAmountEntered?: number | null;
+  exemptionCode?: string | null;
+  withholdingCodeEntered?: string | null;
+  reverseCharge?: boolean;
+}
+
+/**
+ * Re-pricing input of a stored line: what the user entered (price, discount, codes), so a new
+ * tax point re-resolves the rate version, exemption / withholding and threshold. Lines saved
+ * before the entered values were kept fall back to the stored amounts (grossed up when prices
+ * are tax-inclusive).
+ */
+export function storedLineInput(it: StoredDocLine, product: ProductEntity, pricesIncludeTax: boolean): DocLineInput {
+  return { product, ...storedLineEntry(it, pricesIncludeTax) };
+}
+
+/** The entered values of a stored line (see storedLineInput). */
+export function storedLineEntry(it: StoredDocLine, pricesIncludeTax: boolean): Omit<DocLineInput, 'product'> {
+  const factor = Number(it.unitFactor) || 1;
+  const qty = Number(it.unitQuantity) > 0 ? Number(it.unitQuantity) : Number(it.quantity);
+  const gross = pricesIncludeTax ? (1 + (Number(it.otvRate) || 0) / 100) * (1 + (it.vatNotCollected ? 0 : Number(it.taxRate) || 0) / 100) : 1;
+  const unitPrice = it.enteredUnitPrice !== null && it.enteredUnitPrice !== undefined ? Number(it.enteredUnitPrice) : Math.round(Number(it.unitPrice) * gross * 1e6) / 1e6;
+  const rate = Number(it.discountRate) || 0;
+  const discountAmount =
+    it.discountAmountEntered !== null && it.discountAmountEntered !== undefined
+      ? Number(it.discountAmountEntered)
+      : !rate && Number(it.discountAmount) > 0
+        ? round2(Number(it.discountAmount) * gross)
+        : null;
+  return {
+    quantity: qty,
+    unitPrice,
+    factor,
+    discountRate: rate || null,
+    discountAmount,
+    // A stored line without a code: switched off ('') unless it is a legacy 0 % line (then the product default applies).
+    exemptionCode: it.exemptionCode ?? (Number(it.taxRate) === 0 ? null : ''),
+    withholdingCode: it.withholdingCodeEntered ?? null,
+    reverseCharge: !!it.reverseCharge,
+  };
 }

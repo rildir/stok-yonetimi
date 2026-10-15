@@ -186,8 +186,21 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     confidence: 'medium',
     note: 'Europe/Istanbul; hafta sonu ve resmî tatillerde bülten yayımlanmaz, son kur geçerli kalır.',
   },
+  {
+    country: TR,
+    key: 'KDV_FX_MAX_STALE_DAYS',
+    validFrom: '2018-01-01',
+    validTo: null,
+    value: 10,
+    sourceRef: 'KDVK md. 26; VUK md. 280 (son ilan edilen TCMB döviz alış kuru). Sınır teknik bir güvenlik değeridir: en uzun bayram tatili + hafta sonu ≈ 9 takvim günü bülten yayımlanmaz.',
+    confidence: 'low',
+    note: 'Vergiyi doğuran olayın gerektirdiği bülten kayıtlı değilse ve TCMB arşivi aradaki günlerde bülten olmadığını (tatil) doğrulayamazsa, bu kadar günden eski kur kullanılmaz (FX_RATE_STALE). Belge kesinleşirken doğrulanamayan eski kur hiç kullanılmaz.',
+  },
 ];
 
 
 /** Keys added by migration 1784274132000 (WP3). */
 export const WP3_PARAMETER_KEYS = ['KDV_RATE_CATALOG', 'KDV_FX_RATE_DAY', 'TCMB_FETCH_TIME'];
+
+/** Keys added by migration 1784274133000 (WP3 review fixes). */
+export const WP3_FIX_PARAMETER_KEYS = ['KDV_FX_MAX_STALE_DAYS'];

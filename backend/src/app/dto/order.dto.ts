@@ -1,8 +1,8 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, ArrayMinSize, IsPositive } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsIn, Matches, MaxLength } from 'class-validator';
-import { DocumentChargeDto, LineTaxFieldsDto, SALES_CHANNELS, TAX_POINT_PATTERN } from './tax.dto';
+import { IsBoolean, IsIn, MaxLength } from 'class-validator';
+import { DocumentChargeDto, LineTaxFieldsDto, SALES_CHANNELS, IsDateKey } from './tax.dto';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 
@@ -109,7 +109,7 @@ export class CreateOrderDto {
 
   /** Vergiyi doğuran olay (YYYY-MM-DD) */
   @IsOptional()
-  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  @IsDateKey()
   taxPointDate?: string;
 
   /** Actual shipment time (ISO / 'YYYY-MM-DDTHH:mm' company time) */
@@ -162,7 +162,7 @@ export class QuoteOrderDto {
 
   /** Vergiyi doğuran olay (YYYY-MM-DD) */
   @IsOptional()
-  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  @IsDateKey()
   taxPointDate?: string;
 
   @IsOptional()

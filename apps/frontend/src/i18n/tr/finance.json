@@ -76,5 +76,9 @@
   "finance.warning.withholdingBuyer": "{code} tevkifatı uygulanmadı: alıcı KDV mükellefi / belirlenmiş alıcı değil.",
   "finance.warning.withholdingSellerExempt": "{code} tevkifatı uygulanmadı: şirket ithalatçı / cevherden üretici olarak işaretli.",
   "finance.warning.withholdingExemptLine": "{code} tevkifatı istisna satırında uygulanmaz.",
-  "finance.warning.importVat": "İthalat: KDV gümrük beyannamesinde ödenir; beyanname bilgilerini girin."
+  "finance.warning.importVat": "İthalat: KDV gümrük beyannamesinde ödenir; beyanname bilgilerini girin.",
+  "finance.warning.withholdingPurchase": "{code} tevkifatı uygulanmadı: tedarikçi KDV mükellefi değil veya kod yalnız belirlenmiş alıcılara özgü (Ayarlar > Vergi oranları).",
+  "finance.warning.withholdingSupplierExempt": "{code} tevkifatı uygulanmadı: tedarikçi ithalatçı / cevherden üretici olarak işaretli.",
+  "finance.warning.fxStale": "{currency} kuru {rateDate} tarihli; vergiyi doğuran olay {expected} tarihli bülteni gerektiriyor ve TCMB'den doğrulanamadı. Belge kesinleşmeden önce kuru çekin veya elle girin.",
+  "finance.warning.fxProvisional": "Vergiyi doğuran olay henüz yayımlanmamış bir bülten gerektiriyor; {currency} için son kur ({rateDate}) tahmini olarak kullanıldı ve olay tarihinde yeniden okunur."
 }

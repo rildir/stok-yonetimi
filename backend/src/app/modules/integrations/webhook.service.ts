@@ -204,12 +204,12 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Orders / POs are re-read after commit so the payload includes items and totals. */
+  /** Orders / POs are re-read after commit so the payload includes items, charges and totals. */
   private async buildData(e: PendingEvent): Promise<Record<string, unknown>> {
     if (e.entityId && (e.event.startsWith('order.') || e.event.startsWith('purchase_order.'))) {
       const repo: Repository<any> = e.event.startsWith('order.') ? this.orders : this.purchaseOrders;
-      const row = await repo.findOne({ where: { id: e.entityId, companyId: e.companyId }, relations: ['items'], withDeleted: true });
-      if (row) return { ...redact(row), items: (row.items || []).map((i: any) => redact(i)) };
+      const row = await repo.findOne({ where: { id: e.entityId, companyId: e.companyId }, relations: ['items', 'charges'], withDeleted: true });
+      if (row) return { ...redact(row), items: (row.items || []).map((i: any) => redact(i)), charges: (row.charges || []).map((c: any) => redact(c)) };
     }
     return redact(e.data) || {};
   }
