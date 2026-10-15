@@ -63,3 +63,103 @@ export function convertAmount(
   if (rate === null) return null;
   return Math.round((Number(amount) || 0) * rate * 100) / 100;
 }
+
+// ─── Tax-point exchange rates (TR: KDVK 26 / VUK 215, 280) ───
+
+export type FxSource = 'TCMB' | 'MANUAL' | 'BASE';
+export type FxRateType = 'FOREX_BUYING' | 'FOREX_SELLING' | 'BANKNOTE_BUYING' | 'BANKNOTE_SELLING';
+
+export interface TaxRateRow extends RateRow {
+  source?: string | null;
+  rateType?: string | null;
+}
+
+export interface TaxFxRate {
+  rate: number;
+  /** Bulletin / rate date used (YYYY-MM-DD) */
+  date: string;
+  source: FxSource;
+}
+
+/**
+ * Exchange rate for converting a foreign-currency document to TRY for VAT purposes:
+ *  - only the direct `currency -> TRY` FOREX_BUYING rate (no inverse, no cross rate);
+ *  - the latest rate dated before the tax point when `previousDay` (TCMB bulletin of the
+ *    previous business day, announced 15:30 - the policy comes from legal_parameters
+ *    KDV_FX_RATE_DAY, confidence low), otherwise on or before it;
+ *  - TCMB rows win over manual rows of the same date.
+ * Returns null when no such rate exists (caller raises FX_RATE_NOT_FOUND).
+ */
+export function selectTaxFxRate(rates: TaxRateRow[], currency: string, taxPointDate: string, previousDay: boolean, target = 'TRY'): TaxFxRate | null {
+  const cur = (currency || '').toUpperCase();
+  if (cur === target) return { rate: 1, date: taxPointDate, source: 'BASE' };
+  let best: TaxRateRow | null = null;
+  for (const r of rates) {
+    if (r.baseCurrency !== cur || r.quoteCurrency !== target) continue;
+    if ((r.rateType || 'FOREX_BUYING') !== 'FOREX_BUYING') continue;
+    const d = toIsoDate(r.date);
+    if (previousDay ? d >= taxPointDate : d > taxPointDate) continue;
+    if (!(Number(r.rate) > 0)) continue;
+    if (!best) { best = r; continue; }
+    const bd = toIsoDate(best.date);
+    if (d > bd || (d === bd && r.source === 'TCMB' && best.source !== 'TCMB')) best = r;
+  }
+  if (!best) return null;
+  return { rate: Number(best.rate), date: toIsoDate(best.date), source: best.source === 'TCMB' ? 'TCMB' : 'MANUAL' };
+}
+
+export interface TcmbRate {
+  currency: string;
+  /** Per 1 unit of the currency (TCMB quotes some per 100) */
+  forexBuying: number | null;
+  forexSelling: number | null;
+  banknoteBuying: number | null;
+  banknoteSelling: number | null;
+}
+
+export interface TcmbBulletin {
+  /** YYYY-MM-DD */
+  date: string;
+  bulletinNo: string | null;
+  rates: TcmbRate[];
+}
+
+/** Parses a TCMB `today.xml` / `YYYYMM/DDMMYYYY.xml` indicative-rates bulletin. */
+export function parseTcmbXml(xml: string): TcmbBulletin {
+  const head = /<Tarih_Date\b([^>]*)>/i.exec(xml || '');
+  if (!head) throw new Error('TCMB_XML_INVALID');
+  const attr = (s: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`, 'i').exec(s)?.[1] ?? null;
+  const tr = attr(head[1], 'Tarih');
+  const m = tr ? /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(tr) : null;
+  if (!m) throw new Error('TCMB_XML_INVALID');
+  const date = `${m[3]}-${m[2]}-${m[1]}`;
+  const rates: TcmbRate[] = [];
+  const re = /<Currency\b([^>]*)>([\s\S]*?)<\/Currency>/gi;
+  let c: RegExpExecArray | null;
+  while ((c = re.exec(xml))) {
+    const code = (attr(c[1], 'CurrencyCode') || attr(c[1], 'Kod') || '').toUpperCase();
+    if (!/^[A-Z]{3}$/.test(code)) continue;
+    const tag = (name: string) => {
+      const v = new RegExp(`<${name}>\\s*([0-9.,]+)\\s*</${name}>`, 'i').exec(c![2])?.[1];
+      if (!v) return null;
+      const n = Number(v.replace(',', '.'));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const unit = tag('Unit') || 1;
+    const per = (n: number | null) => (n === null ? null : Math.round((n / unit) * 1e6) / 1e6);
+    rates.push({
+      currency: code,
+      forexBuying: per(tag('ForexBuying')),
+      forexSelling: per(tag('ForexSelling')),
+      banknoteBuying: per(tag('BanknoteBuying')),
+      banknoteSelling: per(tag('BanknoteSelling')),
+    });
+  }
+  return { date, bulletinNo: attr(head[1], 'Bulten_No'), rates };
+}
+
+/** TCMB archive URL of the bulletin dated `date` (YYYY-MM-DD). */
+export function tcmbBulletinPath(date: string): string {
+  const [y, mo, d] = date.split('-');
+  return `${y}${mo}/${d}${mo}${y}.xml`;
+}

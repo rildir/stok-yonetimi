@@ -1,3 +1,4 @@
+import { DocumentTaxFields, LineTaxFields } from './tax.models';
 export interface Product {
   id: string;
   name: string;
@@ -15,6 +16,12 @@ export interface Product {
   /** ISO 4217 currency of price */
   currency?: string;
   taxRateId?: string | null;
+  /** Default KDV exemption code (required when the rate is the EXEMPT row) */
+  exemptionCode?: string | null;
+  /** Default KDV withholding code (e.g. 627 demir-çelik) */
+  withholdingCode?: string | null;
+  otvCode?: string | null;
+  otvRate?: number | null;
   /** Read-only per-warehouse stock (name -> qty), derived from product_warehouse_stocks */
   warehouses?: Record<string, number> | null;
   /** Primary barcode (unique per company) */
@@ -134,7 +141,7 @@ export interface ExpiringLot {
   daysLeft: number;
 }
 
-export interface OrderItem extends LineUnitInfo {
+export interface OrderItem extends LineUnitInfo, LineTaxFields {
   productId: string;
   productName: string;
   quantity: number;
@@ -150,7 +157,7 @@ export interface OrderItem extends LineUnitInfo {
 }
 
 /** Fields shared by orders and purchase orders. */
-export interface DocumentAmounts {
+export interface DocumentAmounts extends DocumentTaxFields {
   currency?: string;
   /** 1 unit of currency in company base currency at document time */
   exchangeRate?: number;
@@ -170,6 +177,12 @@ export interface Order extends DocumentAmounts {
   items: OrderItem[];
   carrier?: string;
   trackingNumber?: string;
+  shippedAt?: string | null;
+  salesChannel?: string | null;
+  isDistanceSale?: boolean;
+  channelOrderRef?: string | null;
+  /** Response-only: tax engine / VUK 219 warnings */
+  warnings?: { code: string; params?: Record<string, unknown> }[];
 }
 
 /** Structured address (UBL-TR PostalAddress); TR: provinceCode + districtId from /refdata. */
@@ -215,7 +228,7 @@ export interface Supplier {
   leadTimeDays?: number;
 }
 
-export interface PurchaseOrderItem extends LineUnitInfo {
+export interface PurchaseOrderItem extends LineUnitInfo, LineTaxFields {
   id?: string;
   productId: string;
   productName: string;
@@ -239,6 +252,13 @@ export interface PurchaseOrder extends DocumentAmounts {
   supplierName: string;
   status: 'Draft' | 'Sent' | 'Partially Received' | 'Received' | 'Cancelled';
   items: PurchaseOrderItem[];
+  isImport?: boolean;
+  customsDeclarationNo?: string | null;
+  customsDeclarationDate?: string | null;
+  importVatAmount?: number | null;
+  nonDeductibleImportVat?: number | null;
+  expectedDate?: string | null;
+  notes?: string | null;
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
@@ -422,6 +442,16 @@ export interface TaxRate {
   rate: number;
   country?: string | null;
   isDefault: boolean;
+  /** Catalog code: KDV20 / KDV10 / KDV1 / KDV0 */
+  code?: string | null;
+  /** STANDARD | EXEMPT (0 %, needs an exemption code) */
+  kind?: string;
+  taxTypeCode?: string;
+  validFrom?: string | null;
+  validTo?: string | null;
+  /** TR legal catalog row: the rate is locked */
+  isSystem?: boolean;
+  supersedesId?: string | null;
 }
 
 /** 1 baseCurrency = rate quoteCurrency, valid from date (YYYY-MM-DD) */
@@ -431,6 +461,11 @@ export interface ExchangeRate {
   quoteCurrency: string;
   rate: number;
   date: string;
+  /** TCMB | MANUAL */
+  source?: string;
+  /** FOREX_BUYING (used for VAT) | FOREX_SELLING ... */
+  rateType?: string;
+  bulletinNo?: string | null;
 }
 
 export interface DashboardSummary {

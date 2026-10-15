@@ -3,7 +3,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/co
 import { PurchaseOrderService } from './purchase-order.service';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { Roles } from '../../guards/roles.decorator';
-import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, UpdatePurchaseOrderStatusDto } from '../../dto/purchase-order.dto';
+import { CreatePurchaseOrderDto, QuotePurchaseOrderDto, UpdatePurchaseOrderDto, UpdatePurchaseOrderStatusDto } from '../../dto/purchase-order.dto';
 
 @ApiSecurity('api-key')
 @Controller('purchase-orders')
@@ -24,6 +24,13 @@ export class PurchaseOrderController {
   @Post()
   async createPurchaseOrder(@Body() dto: CreatePurchaseOrderDto): Promise<PurchaseOrderEntity> {
     return this.poService.createPurchaseOrder(dto);
+  }
+
+  /** Prices a purchase order without saving it */
+  @Roles('admin', 'manager')
+  @Post('quote')
+  async quote(@Body() dto: QuotePurchaseOrderDto) {
+    return this.poService.quote(dto);
   }
 
   @Roles('admin', 'manager')

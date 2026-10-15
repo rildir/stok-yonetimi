@@ -96,5 +96,21 @@
   "orders.scan.serialAlready": "{serial} zaten eklendi",
   "orders.create.warehouse": "Çıkış deposu",
   "orders.create.warehouseAuto": "Otomatik (tüm depolar)",
-  "orders.create.precision": "En fazla {decimals} ondalık"
+  "orders.create.precision": "En fazla {decimals} ondalık",
+  "orders.withheldVat": "Tevkif edilen KDV",
+  "orders.payable": "Ödenecek tutar",
+  "orders.discount": "İskonto",
+  "orders.charges.SHIPPING": "Nakliye",
+  "orders.charges.PACKAGING": "Ambalaj",
+  "orders.charges.INSURANCE": "Sigorta",
+  "orders.charges.OTHER": "Diğer masraf",
+  "orders.salesChannel": "Satış kanalı",
+  "orders.channelOrderRef": "Kanal sipariş no",
+  "orders.channel.none": "Belirtilmedi",
+  "orders.channel.STORE": "Mağaza",
+  "orders.channel.WEB": "Web sitesi",
+  "orders.channel.MARKETPLACE": "Pazaryeri",
+  "orders.channel.PHONE": "Telefon",
+  "orders.channel.B2B": "Kurumsal (B2B)",
+  "orders.channel.OTHER": "Diğer"
 }

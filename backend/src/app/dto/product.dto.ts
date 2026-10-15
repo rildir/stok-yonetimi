@@ -1,5 +1,5 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize, IsIn, IsBoolean, MaxLength, IsPositive } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, Min, Max, IsOptional, IsArray, ValidateNested, ArrayMinSize, IsIn, IsBoolean, MaxLength, IsPositive, Matches, ValidateIf } from 'class-validator';
 import { BARCODE_TYPES } from '../shared/inventory/barcode';
 import { INVENTORY_CLASSES, REGULATORY_CATEGORIES } from '../shared/tr';
 import { Transform, Type } from 'class-transformer';
@@ -157,6 +157,32 @@ export class CreateProductDto extends ProductTrackingFieldsDto {
   @IsOptional()
   taxRateId?: string;
 
+  @ApiPropertyOptional({ description: 'Varsayılan KDV istisna kodu (oranı istisna olan ürünlerde zorunlu)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{3}$/, { message: 'EXEMPTION_CODE_INVALID' })
+  exemptionCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'Varsayılan KDV tevkifat kodu (örn. 627 demir-çelik)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{3}$/, { message: 'WITHHOLDING_CODE_INVALID' })
+  withholdingCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'ÖTV vergi kodu (0071, 0073...)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{4}$/, { message: 'OTV_CODE_INVALID' })
+  otvCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'ÖTV oranı (%)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1000)
+  otvRate?: number | null;
+
   @ApiPropertyOptional({ description: 'Stok girişinin yapılacağı depo ID (varsayılan: ilk depo)' })
   @IsString()
   @IsOptional()
@@ -238,6 +264,32 @@ export class UpdateProductDto extends ProductTrackingFieldsDto {
   @IsString()
   @IsOptional()
   taxRateId?: string;
+
+  @ApiPropertyOptional({ description: 'Varsayılan KDV istisna kodu (oranı istisna olan ürünlerde zorunlu)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{3}$/, { message: 'EXEMPTION_CODE_INVALID' })
+  exemptionCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'Varsayılan KDV tevkifat kodu (örn. 627 demir-çelik)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{3}$/, { message: 'WITHHOLDING_CODE_INVALID' })
+  withholdingCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'ÖTV vergi kodu (0071, 0073...)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @Matches(/^\d{4}$/, { message: 'OTV_CODE_INVALID' })
+  otvCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'ÖTV oranı (%)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1000)
+  otvRate?: number | null;
 
   @ApiPropertyOptional({ description: 'Stok girişinin yapılacağı depo ID (varsayılan: ilk depo)' })
   @IsString()

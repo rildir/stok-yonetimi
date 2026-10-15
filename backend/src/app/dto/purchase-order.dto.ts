@@ -1,10 +1,12 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, IsPositive, MaxLength, Matches, IsIn } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { IsBoolean, ArrayMinSize } from 'class-validator';
+import { DocumentChargeDto, LineTaxFieldsDto, TAX_POINT_PATTERN } from './tax.dto';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 
-export class PurchaseOrderItemDto {
+export class PurchaseOrderItemDto extends LineTaxFieldsDto {
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_PRODUCT_ID_REQUIRED' })
   productId: string;
@@ -28,9 +30,54 @@ export class PurchaseOrderItemDto {
   @IsString()
   @IsOptional()
   unitId?: string;
+
+  /** Service bought from a foreign supplier: VAT declared on KDV-2 (sorumlu sıfatıyla) */
+  @IsOptional()
+  @IsBoolean()
+  reverseCharge?: boolean;
 }
 
-export class CreatePurchaseOrderDto {
+/** Discounts, charges, tax point and import (customs declaration) fields of a purchase order. */
+export class PurchaseOrderTaxFieldsDto {
+  /** Document discount as entered (gross when tax-inclusive prices) */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
+  documentDiscountAmount?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DocumentChargeDto)
+  charges?: DocumentChargeDto[];
+
+  /** Vergiyi doğuran olay (YYYY-MM-DD) */
+  @IsOptional()
+  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  taxPointDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  customsDeclarationNo?: string | null;
+
+  @IsOptional()
+  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  customsDeclarationDate?: string | null;
+
+  /** Import VAT paid on the customs declaration (TRY) */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
+  importVatAmount?: number | null;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
+  nonDeductibleImportVat?: number | null;
+}
+
+export class CreatePurchaseOrderDto extends PurchaseOrderTaxFieldsDto {
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_SUPPLIER_ID_REQUIRED' })
   supplierId: string;
@@ -59,7 +106,7 @@ export class CreatePurchaseOrderDto {
   expectedDate?: string;
 }
 
-export class UpdatePurchaseOrderDto {
+export class UpdatePurchaseOrderDto extends PurchaseOrderTaxFieldsDto {
   @IsString()
   @IsOptional()
   supplierId?: string;
@@ -155,4 +202,27 @@ export class UpdatePurchaseOrderStatusDto {
   @IsOptional()
   @IsIn(['DESPATCH', 'INVOICE', 'GOODS_RECEIPT', 'OTHER', null, ''], { message: 'DOCUMENT_TYPE_INVALID' })
   documentType?: string | null;
+}
+
+/** POST /purchase-orders/quote */
+export class QuotePurchaseOrderDto extends PurchaseOrderTaxFieldsDto {
+  @IsString()
+  @IsNotEmpty({ message: 'VALIDATION_SUPPLIER_ID_REQUIRED' })
+  supplierId: string;
+
+  @IsOptional()
+  @Transform(upper)
+  @IsISO4217CurrencyCode({ message: 'VALIDATION_CURRENCY_CODE' })
+  currency?: string;
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'PO_ITEMS_REQUIRED' })
+  @ValidateNested({ each: true })
+  @Type(() => PurchaseOrderItemDto)
+  items: PurchaseOrderItemDto[];
+
+  /** Purchase order being edited (default: new) */
+  @IsOptional()
+  @IsString()
+  purchaseOrderId?: string;
 }

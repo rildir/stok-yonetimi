@@ -34,6 +34,8 @@ import { CustomerAddressEntity } from './app/entities/customer-address.entity';
 import { StockMovementChainEntity } from './app/entities/stock-movement-chain.entity';
 import { StockMovementAttachmentEntity } from './app/entities/stock-movement-attachment.entity';
 import { StockAdjustmentRequestEntity } from './app/entities/stock-adjustment-request.entity';
+import { TaxExemptionCodeEntity, WithholdingCodeEntity, OtvCodeEntity } from './app/entities/tax-code.entity';
+import { OrderChargeEntity } from './app/entities/order-charge.entity';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -80,6 +82,10 @@ export const AppDataSource = new DataSource({
     StockMovementChainEntity,
     StockMovementAttachmentEntity,
     StockAdjustmentRequestEntity,
+    TaxExemptionCodeEntity,
+    WithholdingCodeEntity,
+    OtvCodeEntity,
+    OrderChargeEntity,
   ],
   timezone: 'Z',
   dateStrings: ['DATE'],

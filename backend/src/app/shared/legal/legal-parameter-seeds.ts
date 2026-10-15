@@ -145,4 +145,49 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     confidence: 'medium',
     note: 'Neden kodu -> zorunlu belge no/tarih ve ek (tutanak, takdir komisyonu kararı, imha tutanağı, emniyet / afet tutanağı). Mali müşavir teyidi ile daraltılıp genişletilebilir.',
   },
+  // WP3: tax engine
+  {
+    country: TR,
+    key: 'KDV_RATE_CATALOG',
+    validFrom: '2008-01-01',
+    validTo: '2023-07-09',
+    value: [{ rate: 18, code: 'KDV18' }, { rate: 8, code: 'KDV8' }, { rate: 1, code: 'KDV1' }],
+    sourceRef: 'KDVK md. 28; 2007/13033 s. BKK',
+    confidence: 'high',
+    note: 'Yasal KDV oranları (genel / indirimli). %0 oran değil istisnadır (KDV0, istisna kodu zorunlu).',
+  },
+  {
+    country: TR,
+    key: 'KDV_RATE_CATALOG',
+    validFrom: '2023-07-10',
+    validTo: null,
+    value: [{ rate: 20, code: 'KDV20', isDefault: true }, { rate: 10, code: 'KDV10' }, { rate: 1, code: 'KDV1' }],
+    sourceRef: 'KDVK md. 28; 7346 s. CBK (RG 07/07/2023-32241, yürürlük 10/07/2023)',
+    confidence: 'high',
+    note: 'TR şirketlerinde yalnızca bu oranlar tanımlanabilir; %0 için KDV0 (istisna) satırı kullanılır.',
+  },
+  {
+    country: TR,
+    key: 'KDV_FX_RATE_DAY',
+    validFrom: '2018-01-01',
+    validTo: null,
+    value: 'PREVIOUS_BULLETIN',
+    sourceRef: 'KDVK md. 26; VUK md. 215/2-a, 280 (uygulama: vergiyi doğuran olay gününden önceki günün TCMB döviz alış kuru)',
+    confidence: 'low',
+    note: 'PREVIOUS_BULLETIN = vergiyi doğuran olaydan önceki son TCMB bülteni (D-1 15:30); SAME_DAY = aynı gün dahil son kur. Plan bölüm 4: mali müşavir onayıyla değiştirilir, koda gömülmez.',
+  },
+  {
+    country: TR,
+    key: 'TCMB_FETCH_TIME',
+    validFrom: '2018-01-01',
+    validTo: null,
+    value: '15:45',
+    sourceRef: 'TCMB gösterge niteliğindeki kurlar her iş günü 15:30 itibarıyla ilan edilir',
+    confidence: 'medium',
+    note: 'Europe/Istanbul; hafta sonu ve resmî tatillerde bülten yayımlanmaz, son kur geçerli kalır.',
+  },
 ];
+
+
+/** Keys added by migration 1784274132000 (WP3). */
+export const WP3_PARAMETER_KEYS = ['KDV_RATE_CATALOG', 'KDV_FX_RATE_DAY', 'TCMB_FETCH_TIME'];

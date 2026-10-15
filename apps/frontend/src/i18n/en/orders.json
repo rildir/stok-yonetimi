@@ -96,5 +96,21 @@
   "orders.scan.serialAlready": "{serial} already added",
   "orders.create.warehouse": "Ship from warehouse",
   "orders.create.warehouseAuto": "Automatic (all warehouses)",
-  "orders.create.precision": "At most {decimals} decimals"
+  "orders.create.precision": "At most {decimals} decimals",
+  "orders.withheldVat": "Withheld VAT",
+  "orders.payable": "Amount payable",
+  "orders.discount": "Discount",
+  "orders.charges.SHIPPING": "Shipping",
+  "orders.charges.PACKAGING": "Packaging",
+  "orders.charges.INSURANCE": "Insurance",
+  "orders.charges.OTHER": "Other charge",
+  "orders.salesChannel": "Sales channel",
+  "orders.channelOrderRef": "Channel order ref",
+  "orders.channel.none": "Not specified",
+  "orders.channel.STORE": "Store",
+  "orders.channel.WEB": "Web shop",
+  "orders.channel.MARKETPLACE": "Marketplace",
+  "orders.channel.PHONE": "Phone",
+  "orders.channel.B2B": "Business (B2B)",
+  "orders.channel.OTHER": "Other"
 }

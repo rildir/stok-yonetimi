@@ -9,7 +9,7 @@ import { ProductEntity } from '../../entities/product.entity';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { FinanceService } from '../../shared/services/finance.service';
 import { UnitService } from '../../shared/services/unit.service';
-import { calculateLine, calculateTotals } from '../../shared/finance/tax';
+import { priceDocument } from '../../shared/finance/tax';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 
@@ -52,9 +52,29 @@ describe('OrderService', () => {
     };
     financeMock = {
       getCompany: jest.fn().mockResolvedValue({ id: COMPANY_ID, baseCurrency: 'TRY', pricesIncludeTax: true }),
-      priceLines: jest.fn().mockImplementation(async (items: any[]) => {
-        const lines = items.map((i) => calculateLine({ quantity: i.quantity, unitPrice: i.unitPrice ?? i.product.price, taxRate: 20 }, true));
-        return { lines, totals: calculateTotals(lines), exchangeRate: 1, pricesIncludeTax: true };
+      param: jest.fn().mockResolvedValue(10),
+      priceDocumentFor: jest.fn().mockImplementation(async (input: any) => {
+        const doc = priceDocument({
+          lines: input.lines.map((i: any) => ({ quantity: i.quantity, unitPrice: i.unitPrice ?? i.product.price, taxRate: 20 })),
+          pricesIncludeTax: true,
+        });
+        return {
+          doc,
+          lineMeta: doc.lines.map(() => ({ enteredUnitPrice: 0, taxRateId: 'kdv20', taxCode: '0015', exemptionCode: null, withholdingCode: null, otvCode: null, reverseCharge: false, deductibleVat: 0, label: null })),
+          currency: input.currency,
+          exchangeRate: 1,
+          exchangeRateSource: 'BASE',
+          exchangeRateDate: null,
+          taxPointDate: input.taxPointDate,
+          subtotalTry: doc.subtotal,
+          taxTotalTry: doc.taxTotal,
+          grandTotalTry: doc.grandTotal,
+          invoiceTypeHint: 'SATIS',
+          withholdingApplied: false,
+          isImport: false,
+          pricesIncludeTax: true,
+          warnings: [],
+        };
       }),
     };
 
@@ -113,7 +133,7 @@ describe('OrderService', () => {
       expect(result).toEqual(mockOrders);
       expect(orderRepoMock.find).toHaveBeenCalledWith({
         where: { companyId: COMPANY_ID },
-        relations: { items: true },
+        relations: { items: true, charges: true },
         order: { date: 'DESC' },
       });
     });
@@ -147,6 +167,11 @@ describe('OrderService', () => {
       expect(result.taxTotal).toBe(333.33);
       expect(result.subtotal).toBe(1666.67);
       expect(result.currency).toBe('TRY');
+      // completed order: shipped at the order date, tax data frozen, TRY equivalents stored
+      expect(result.taxFrozenAt).toBeInstanceOf(Date);
+      expect(result.payableTotal).toBe(2000);
+      expect(result.taxPointDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(result.items[0].taxRateId).toBe('kdv20');
       expect(stockHelperMock.issue).toHaveBeenCalled();
       expect(dataSourceMock.transaction).toHaveBeenCalled();
       expect(appGatewayMock.emitToCompany).toHaveBeenCalledWith(COMPANY_ID, 'order_mutated', expect.any(Object));

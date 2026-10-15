@@ -322,6 +322,28 @@ export const MESSAGES: Catalog = {
   VALIDATION_FIELD_FORMAT: { tr: '"{property}" alanının biçimi geçersiz.', en: 'Field "{property}" has an invalid format.' },
   VALIDATION_FIELD_NOT_ALLOWED: { tr: '"{property}" alanı bu istekte kullanılamaz.', en: 'Field "{property}" is not allowed.' },
   VALIDATION_FIELD_INVALID: { tr: '"{property}" alanı geçersiz.', en: 'Field "{property}" is invalid.' },
+
+  // WP3 - tax engine
+  EXEMPTION_CODE_REQUIRED: { tr: '"{name}" için KDV %0: istisna kodu seçilmeden kaydedilemez.', en: '"{name}" has 0 % VAT: an exemption code is required.' },
+  EXEMPTION_CODE_INVALID: { tr: 'Geçersiz veya bu tarihte geçerli olmayan KDV istisna kodu: {code}', en: 'Invalid VAT exemption code (or not valid on this date): {code}' },
+  WITHHOLDING_CODE_INVALID: { tr: 'Geçersiz veya bu tarihte geçerli olmayan KDV tevkifat kodu: {code}', en: 'Invalid VAT withholding code (or not valid on this date): {code}' },
+  OTV_CODE_INVALID: { tr: 'Geçersiz ÖTV kodu: {code}', en: 'Invalid SCT (ÖTV) code: {code}' },
+  TAX_RATE_LOCKED_TR: { tr: 'Türkiye\'de KDV oranı yasal katalogdan seçilir; %{rate} tanımlanamaz veya değiştirilemez. Geçerli oranlar: {allowed}', en: 'In Türkiye VAT rates come from the legal catalog; {rate} % cannot be defined or changed. Allowed: {allowed}' },
+  TAX_RATE_IN_USE: { tr: 'Bu vergi oranı {count} kayıtta kullanılıyor ve silinemez.', en: 'This tax rate is used by {count} records and cannot be deleted.' },
+  TAX_RATE_EXISTS: { tr: '%{rate} oranı zaten tanımlı.', en: 'The {rate} % rate already exists.' },
+  TAX_RATE_EXEMPT_DEFAULT: { tr: 'İstisna (%0) satırı varsayılan oran yapılamaz.', en: 'The exemption (0 %) row cannot be the default rate.' },
+  TAX_RATE_VERSION_DATE: { tr: 'Yeni oran sürümü mevcut sürümün başlangıcından ({date}) sonra başlamalıdır.', en: 'A new rate version must start after the current version ({date}).' },
+  PRODUCT_TAX_RATE_MISSING: { tr: '"{name}" ürününün KDV oranı tanımlı değil. Ürün kartından oran seçin.', en: 'Product "{name}" has no VAT rate. Select one on the product.' },
+  WITHHOLDING_REQUIRES_TAXPAYER_BUYER: { tr: '{code} tevkifatı yalnızca KDV mükellefi (gerekiyorsa belirlenmiş alıcı) müşteriye uygulanabilir.', en: 'Withholding {code} only applies to a VAT-registered (where required, designated) buyer.' },
+  EXPORT_REQUIRES_FOREIGN_BUYER: { tr: '{code} ihracat istisnası yalnızca yurt dışı (yabancı) alıcıya uygulanabilir.', en: 'Export exemption {code} requires a foreign buyer.' },
+  REVERSE_CHARGE_REQUIRES_FOREIGN_SUPPLIER: { tr: 'Sorumlu sıfatıyla KDV (KDV-2) yalnızca yurt dışı tedarikçiden alınan hizmette kullanılır.', en: 'Reverse-charge VAT (KDV-2) only applies to services from a foreign supplier.' },
+  FX_RATE_NOT_FOUND: { tr: '{currency} için {date} vergiyi doğuran olay tarihine ait TCMB döviz alış kuru bulunamadı. Kuru çekin veya elle girin.', en: 'No TCMB forex buying rate for {currency} at the tax point {date}. Fetch it or enter it manually.' },
+  DOCUMENT_TAX_FROZEN: { tr: '{number} belgesinin vergi bilgileri kesinleşti ve değiştirilemez.', en: 'The tax data of document {number} is final and cannot be changed.' },
+  TCMB_FETCH_FAILED: { tr: 'TCMB kurları alınamadı ({reason}). Hafta sonu / tatilde bülten yayımlanmaz.', en: 'Could not fetch TCMB rates ({reason}). No bulletin is published on weekends / holidays.' },
+  TAX_CODE_VERSION_EXISTS: { tr: '{code} kodunun {date} tarihli sürümü zaten var.', en: 'Code {code} already has a version starting {date}.' },
+  ORDER_NOT_FOUND: { tr: 'Sipariş bulunamadı.', en: 'Order not found.' },
+  TAX_RATE_NOT_VALID_ON_DATE: { tr: '"{name}" ürününün %{rate} KDV oranı {date} tarihinde geçerli değil. Ürüne güncel oranı seçin.', en: 'The {rate} % VAT rate of "{name}" is not valid on {date}. Select a current rate on the product.' },
+  VALIDATION_DISCOUNT_RANGE: { tr: 'İskonto oranı 0 ile 100 arasında olmalıdır.', en: 'Discount rate must be between 0 and 100.' },
 };
 
 export type MessageParams = Record<string, string | number | undefined | null>;

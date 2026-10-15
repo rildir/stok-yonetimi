@@ -337,6 +337,7 @@ export class ProductService {
       status: this.stockHelper.calculateStatus(0, rest.minQuantity ?? 5),
     }) as unknown as ProductEntity;
     await this.applyCatalogFields(manager, draft, data, true);
+    await this.finance.normalizeProductTax(draft, true, manager);
     if (draft.trackingType !== TrackingType.LOT) draft.hasExpiry = false;
     const warnings = await this.checkCategory(manager, draft);
     await this.assertPrecision(manager, draft, [Number(quantity) || 0, draft.minQuantity]);
@@ -432,6 +433,7 @@ export class ProductService {
       throw new BadRequestException(err('PRODUCT_TRACKING_CHANGE_STOCK', { name: current.name }));
     }
     await this.applyCatalogFields(manager, current, updates, false);
+    await this.finance.normalizeProductTax(current, false, manager);
     if (trackingType !== undefined) await this.changeTracking(manager, current, trackingType);
     if (current.trackingType !== TrackingType.LOT) current.hasExpiry = false;
     const warnings = await this.checkCategory(manager, current);

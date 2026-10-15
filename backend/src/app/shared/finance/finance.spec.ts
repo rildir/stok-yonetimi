@@ -13,7 +13,7 @@ describe('tax calculation', () => {
     expect(l.netAmount).toBe(49.98);
     expect(l.taxAmount).toBe(10);
     expect(round2(l.netAmount + l.taxAmount)).toBe(l.lineTotal);
-    expect(l.unitPrice).toBe(24.99);
+    expect(l.unitPrice).toBe(24.991667); // net unit price kept to 6 decimals (R14)
   });
 
   it('handles zero tax', () => {

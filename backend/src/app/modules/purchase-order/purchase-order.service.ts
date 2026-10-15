@@ -1,5 +1,5 @@
 import { err } from '../../shared/i18n/app-error';
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager } from 'typeorm';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
@@ -7,7 +7,9 @@ import { PurchaseOrderItemEntity } from '../../entities/purchase-order-item.enti
 import { ProductEntity } from '../../entities/product.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
-import { FinanceService } from '../../shared/services/finance.service';
+import { DocPricingResult, FinanceService } from '../../shared/services/finance.service';
+import { OrderChargeEntity } from '../../entities/order-charge.entity';
+import { TaxEngineCharge, round2 } from '../../shared/finance/tax';
 import { AppGateway } from '../../app.gateway';
 import { PurchaseOrderStatus, StockMovementType } from '../../entities/enums';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -41,7 +43,30 @@ export interface PurchaseOrderItemInput {
   unitPrice?: number;
   /** Unit quantity/unitPrice refer to (default: base unit) */
   unitId?: string | null;
+  discountRate?: number | null;
+  discountAmount?: number | null;
+  exemptionCode?: string | null;
+  withholdingCode?: string | null;
+  /** Service from a foreign supplier: VAT declared on KDV-2 */
+  reverseCharge?: boolean;
 }
+
+/** Discounts, charges, tax point and customs fields of a purchase order. */
+export interface PurchaseOrderTaxInput {
+  documentDiscountAmount?: number | null;
+  charges?: TaxEngineCharge[];
+  taxPointDate?: string | null;
+  customsDeclarationNo?: string | null;
+  customsDeclarationDate?: string | null;
+  importVatAmount?: number | null;
+  nonDeductibleImportVat?: number | null;
+}
+
+type Built = {
+  items: PurchaseOrderItemEntity[];
+  charges: OrderChargeEntity[];
+  pricing: DocPricingResult;
+};
 
 @Injectable()
 export class PurchaseOrderService {
@@ -67,7 +92,7 @@ export class PurchaseOrderService {
   async getPurchaseOrders(): Promise<PurchaseOrderEntity[]> {
     return this.poRepo.find({
       where: { companyId: this.companyId },
-      relations: { items: true },
+      relations: { items: true, charges: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -75,21 +100,23 @@ export class PurchaseOrderService {
   async getPurchaseOrderById(id: string): Promise<PurchaseOrderEntity | null> {
     return this.poRepo.findOne({
       where: { companyId: this.companyId, id },
-      relations: { items: true },
+      relations: { items: true, charges: true },
     });
   }
 
-  /** Validates products and prices PO lines in `currency` (tax per product). */
+  /** Validates products and prices PO lines in `currency` through the tax engine. */
   private async buildItems(
     manager: EntityManager,
     items: PurchaseOrderItemInput[],
     currency: string,
-    date: Date,
-  ): Promise<{ items: PurchaseOrderItemEntity[]; subtotal: number; taxTotal: number; grandTotal: number; exchangeRate: number }> {
+    taxPointDate: string,
+    supplier: SupplierEntity | null,
+    tax: PurchaseOrderTaxInput = {},
+  ): Promise<Built> {
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new BadRequestException(err('PO_ITEMS_REQUIRED'));
     }
-    const priced: { product: ProductEntity; quantity: number; unitPrice?: number | null; factor: number; unitId: string | null; unitCode: string; baseQty: number }[] = [];
+    const priced: { item: PurchaseOrderItemInput; product: ProductEntity; quantity: number; factor: number; unitId: string | null; unitCode: string; baseQty: number }[] = [];
     for (const item of items) {
       if (!item.productId) {
         throw new BadRequestException(err('PO_ITEM_PRODUCT_REQUIRED'));
@@ -101,31 +128,131 @@ export class PurchaseOrderService {
       const lu = await this.unitService.resolveLineUnit(manager, product, item.unitId);
       const qty = item.quantity || 0;
       const baseQty = qty > 0 ? this.unitService.toBase(product, qty, lu) : 0;
-      priced.push({ product, quantity: qty, unitPrice: item.unitPrice ?? item.price, factor: lu.factor, unitId: lu.unitId, unitCode: lu.unitCode, baseQty });
+      priced.push({ item, product, quantity: qty, factor: lu.factor, unitId: lu.unitId, unitCode: lu.unitCode, baseQty });
     }
-    const { lines, totals, exchangeRate } = await this.finance.priceLines(priced, currency, date, manager);
-    return {
-      items: priced.map((p, i) =>
-        manager.create(PurchaseOrderItemEntity, {
-          productId: p.product.id,
-          productName: p.product.name,
-          quantity: p.baseQty,
-          unitId: p.unitId,
-          unitCode: p.unitCode,
-          unitFactor: p.factor,
-          unitQuantity: p.quantity,
-          price: lines[i].unitPrice,
-          unitPrice: lines[i].unitPrice,
-          taxRate: lines[i].taxRate,
-          taxAmount: lines[i].taxAmount,
-          lineTotal: lines[i].lineTotal,
-        })
-      ),
-      subtotal: totals.subtotal,
-      taxTotal: totals.taxTotal,
-      grandTotal: totals.grandTotal,
-      exchangeRate,
-    };
+    const pricing = await this.finance.priceDocumentFor(
+      {
+        kind: 'PURCHASE',
+        lines: priced.map((p) => ({
+          product: p.product,
+          quantity: p.quantity,
+          unitPrice: p.item.unitPrice ?? p.item.price,
+          factor: p.factor,
+          discountRate: p.item.discountRate,
+          discountAmount: p.item.discountAmount,
+          exemptionCode: p.item.exemptionCode,
+          withholdingCode: p.item.withholdingCode,
+          reverseCharge: p.item.reverseCharge,
+        })),
+        charges: tax.charges || [],
+        documentDiscountAmount: tax.documentDiscountAmount ?? 0,
+        currency,
+        taxPointDate,
+        supplier,
+      },
+      manager,
+    );
+    const items2 = priced.map((p, i) => {
+      const l = pricing.doc.lines[i];
+      const m = pricing.lineMeta[i];
+      return manager.create(PurchaseOrderItemEntity, {
+        productId: p.product.id,
+        productName: p.product.name,
+        quantity: p.baseQty,
+        unitId: p.unitId,
+        unitCode: p.unitCode,
+        unitFactor: p.factor,
+        unitQuantity: p.quantity,
+        price: l.unitPrice,
+        unitPrice: l.unitPrice,
+        enteredUnitPrice: m.enteredUnitPrice,
+        grossAmount: l.grossAmount,
+        discountRate: l.discountRate,
+        discountAmount: l.discountAmount,
+        documentDiscountShare: l.documentDiscountShare,
+        netAmount: l.netAmount,
+        taxRateId: m.taxRateId,
+        taxCode: m.taxCode,
+        taxRate: l.taxRate,
+        taxAmount: l.taxAmount,
+        exemptionCode: l.exemptionCode,
+        vatNotCollected: l.vatNotCollected,
+        withholdingCode: l.withholdingCode,
+        withholdingRate: l.withholdingRate || null,
+        withheldTaxAmount: l.withheldTaxAmount,
+        otvCode: m.otvCode,
+        otvRate: l.otvRate || null,
+        otvAmount: l.otvAmount,
+        deductibleVat: m.deductibleVat,
+        reverseCharge: m.reverseCharge,
+        lineTotal: l.lineTotal,
+      });
+    });
+    const entered = (tax.charges || []).filter((c) => Number(c.amount) > 0);
+    const charges = pricing.doc.charges.map((c, i) =>
+      manager.create(OrderChargeEntity, {
+        companyId: this.companyId,
+        type: c.type,
+        description: c.description,
+        enteredAmount: round2(Number(entered[i]?.amount || 0)),
+        amount: c.amount,
+        taxAmount: c.taxAmount,
+        withheldTaxAmount: c.withheldTaxAmount,
+        lineTotal: c.lineTotal,
+        allocations: c.allocations,
+      }),
+    );
+    return { items: items2, charges, pricing };
+  }
+
+  /** Copies the pricing result onto the document. */
+  private applyTotals(po: PurchaseOrderEntity, b: Built, tax: PurchaseOrderTaxInput) {
+    const pr = b.pricing;
+    po.items = b.items;
+    po.charges = b.charges;
+    Object.assign(po, {
+      currency: pr.currency,
+      exchangeRate: pr.exchangeRate,
+      exchangeRateSource: pr.exchangeRateSource,
+      exchangeRateDate: pr.exchangeRateDate,
+      taxPointDate: pr.taxPointDate,
+      subtotal: pr.doc.subtotal,
+      taxTotal: pr.doc.taxTotal,
+      grandTotal: pr.doc.grandTotal,
+      totalAmount: pr.doc.grandTotal,
+      documentDiscountAmount: pr.doc.documentDiscountAmount,
+      documentDiscountEntered: round2(Number(tax.documentDiscountAmount || 0)),
+      chargesTotal: pr.doc.chargesTotal,
+      otvTotal: pr.doc.otvTotal,
+      withheldTaxTotal: pr.doc.withheldTaxTotal,
+      notCollectedTaxTotal: pr.doc.notCollectedTaxTotal,
+      payableTotal: pr.doc.payableTotal,
+      taxBreakdown: pr.doc.breakdown,
+      subtotalTry: pr.subtotalTry,
+      taxTotalTry: pr.taxTotalTry,
+      grandTotalTry: pr.grandTotalTry,
+      invoiceTypeHint: pr.invoiceTypeHint,
+      isImport: pr.isImport,
+    });
+  }
+
+  /** Customs declaration data of an import (may be added after receipt; not part of the frozen tax data). */
+  private applyCustoms(po: PurchaseOrderEntity, tax: PurchaseOrderTaxInput) {
+    if (tax.customsDeclarationNo !== undefined) po.customsDeclarationNo = tax.customsDeclarationNo || null;
+    if (tax.customsDeclarationDate !== undefined) po.customsDeclarationDate = tax.customsDeclarationDate || null;
+    if (tax.importVatAmount !== undefined) po.importVatAmount = tax.importVatAmount ?? null;
+    if (tax.nonDeductibleImportVat !== undefined) po.nonDeductibleImportVat = tax.nonDeductibleImportVat ?? null;
+  }
+
+  /** Prices a purchase order without saving it (form preview). */
+  async quote(data: { supplierId: string; currency?: string; items: PurchaseOrderItemInput[] } & PurchaseOrderTaxInput): Promise<DocPricingResult> {
+    const manager = this.dataSource.manager;
+    const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: data.supplierId, isDeleted: false } });
+    if (!supplier) throw new BadRequestException(err('PO_SUPPLIER_NOT_FOUND', { id: data.supplierId }));
+    const company = await this.finance.getCompany(manager);
+    const currency = (data.currency || company.baseCurrency).toUpperCase();
+    const built = await this.buildItems(manager, data.items, currency, data.taxPointDate || dateKeyInZone(new Date(), company.timezone), supplier, data);
+    return built.pricing;
   }
 
   async createPurchaseOrder(data: {
@@ -137,7 +264,7 @@ export class PurchaseOrderService {
     expectedDate?: string;
     notes?: string;
     totalAmount?: number;
-  }): Promise<PurchaseOrderEntity> {
+  } & PurchaseOrderTaxInput): Promise<PurchaseOrderEntity> {
     return await this.dataSource.transaction(async (manager) => {
       let poNumber = '';
       let attempts = 0;
@@ -165,7 +292,8 @@ export class PurchaseOrderService {
 
       const company = await this.finance.getCompany(manager);
       const currency = (data.currency || company.baseCurrency).toUpperCase();
-      const built = await this.buildItems(manager, data.items, currency, new Date());
+      const taxPoint = data.taxPointDate || dateKeyInZone(new Date(), company.timezone);
+      const built = await this.buildItems(manager, data.items, currency, taxPoint, supplier, data);
 
       const newPo = manager.create(PurchaseOrderEntity, {
         companyId: this.companyId,
@@ -176,16 +304,12 @@ export class PurchaseOrderService {
         notes: data.notes,
         poNumber,
         status: PurchaseOrderStatus.DRAFT,
-        currency,
-        exchangeRate: built.exchangeRate,
-        subtotal: built.subtotal,
-        taxTotal: built.taxTotal,
-        grandTotal: built.grandTotal,
-        totalAmount: built.grandTotal,
-        items: built.items,
       });
+      this.applyTotals(newPo, built, data);
+      this.applyCustoms(newPo, data);
 
-      const saved = await manager.save(PurchaseOrderEntity, newPo);
+      const saved = (await manager.save(PurchaseOrderEntity, newPo)) as PurchaseOrderEntity & { warnings?: unknown[] };
+      if (built.pricing.warnings.length) saved.warnings = built.pricing.warnings;
       this.appGateway.emitToCompany(this.companyId, 'purchase_order_mutated', { type: 'create', purchaseOrder: saved });
       return saved;
     });
@@ -205,7 +329,7 @@ export class PurchaseOrderService {
       await this.warehouseStock.begin(manager, this.companyId);
       const po = await manager.findOne(PurchaseOrderEntity, {
         where: { companyId: this.companyId, id },
-        relations: { items: true },
+        relations: { items: true, charges: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!po) return null;
@@ -258,6 +382,19 @@ export class PurchaseOrderService {
           productsToEmit.push(prod);
         }
         if (targetWarehouse) po.warehouseId = targetWarehouse;
+        // Receipt = tax point of the purchase (supplier document date when given); TRY equivalents
+        // at its rate, then the tax data is frozen.
+        po.taxPointDate = meta.documentDate || dateKeyInZone(receivedAt, company.timezone);
+        if ((company.baseCurrency || '').toUpperCase() === 'TRY') {
+          const fx = await this.finance.taxFxRate(po.currency, po.taxPointDate, manager);
+          po.exchangeRate = fx.rate;
+          po.exchangeRateSource = fx.source;
+          po.exchangeRateDate = fx.source === 'BASE' ? null : fx.date;
+          po.subtotalTry = round2(Number(po.subtotal) * fx.rate);
+          po.taxTotalTry = round2(Number(po.taxTotal) * fx.rate);
+          po.grandTotalTry = round2(Number(po.grandTotal) * fx.rate);
+        }
+        po.taxFrozenAt = new Date();
       }
 
       po.status = status;
@@ -284,14 +421,25 @@ export class PurchaseOrderService {
 
   async updatePurchaseOrder(id: string, updates: any): Promise<PurchaseOrderEntity | null> {
     const saved = await this.dataSource.transaction(async (manager) => {
-      const po = await manager.findOne(PurchaseOrderEntity, { where: { companyId: this.companyId, id }, relations: { items: true } });
+      const po = await manager.findOne(PurchaseOrderEntity, { where: { companyId: this.companyId, id }, relations: { items: true, charges: true } });
       if (!po) return null;
+      const pricingKeys = ['supplierId', 'currency', 'items', 'charges', 'documentDiscountAmount', 'taxPointDate', 'warehouseId'];
+      const touchesPricing = pricingKeys.some((k) => updates[k] !== undefined);
       if (po.status !== PurchaseOrderStatus.DRAFT) {
-        throw new BadRequestException(err('PO_UPDATE_ONLY_DRAFT'));
+        // Customs declaration / notes may follow the receipt; the priced tax data may not.
+        if (po.status === PurchaseOrderStatus.CANCELLED) throw new BadRequestException(err('PO_UPDATE_ONLY_DRAFT'));
+        if (touchesPricing) {
+          if (po.taxFrozenAt) throw new ConflictException(err('DOCUMENT_TAX_FROZEN', { number: po.poNumber }));
+          throw new BadRequestException(err('PO_UPDATE_ONLY_DRAFT'));
+        }
+        this.applyCustoms(po, updates);
+        if (updates.notes !== undefined) po.notes = updates.notes;
+        return manager.save(PurchaseOrderEntity, po);
       }
 
+      let supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: po.supplierId } });
       if (updates.supplierId && updates.supplierId !== po.supplierId) {
-        const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: updates.supplierId, isDeleted: false } });
+        supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: updates.supplierId, isDeleted: false } });
         if (!supplier) {
           throw new BadRequestException(err('PO_SUPPLIER_NOT_FOUND', { id: updates.supplierId }));
         }
@@ -306,21 +454,35 @@ export class PurchaseOrderService {
       const currencyChanged = !!updates.currency && updates.currency !== po.currency;
       if (currencyChanged) po.currency = updates.currency;
 
-      if (updates.items || currencyChanged) {
+      const repriceKeys = ['supplierId', 'items', 'charges', 'documentDiscountAmount', 'taxPointDate'];
+      if (currencyChanged || repriceKeys.some((k) => updates[k] !== undefined)) {
         const source: PurchaseOrderItemInput[] =
           updates.items ||
-          po.items.map((i) => ({ productId: i.productId, quantity: i.unitId && i.unitFactor !== 1 ? Number(i.unitQuantity) : i.quantity, unitId: i.unitId })); // re-price in the new currency
-        const built = await this.buildItems(manager, source, po.currency, new Date());
+          po.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.unitId && i.unitFactor !== 1 ? Number(i.unitQuantity) : i.quantity,
+            unitId: i.unitId,
+            // keep the entered price unless the currency changes (then: product price in the new currency)
+            unitPrice: currencyChanged ? undefined : i.enteredUnitPrice ?? undefined,
+            discountRate: i.discountRate,
+            exemptionCode: i.exemptionCode,
+            withholdingCode: i.withholdingCode ?? '',
+            reverseCharge: i.reverseCharge,
+          }));
+        const tax: PurchaseOrderTaxInput = {
+          charges: updates.charges ?? (po.charges || []).map((c) => ({ type: c.type, amount: Number(c.enteredAmount), description: c.description })),
+          documentDiscountAmount: updates.documentDiscountAmount ?? po.documentDiscountEntered,
+          taxPointDate: updates.taxPointDate ?? po.taxPointDate,
+        };
+        const company = await this.finance.getCompany(manager);
+        const built = await this.buildItems(manager, source, po.currency, tax.taxPointDate || dateKeyInZone(new Date(), company.timezone), supplier, tax);
         // Only draft lines are replaced; received lines are never deleted (DB trigger enforces it too).
         if (po.items.some((i) => i.tracking && i.tracking.length)) throw new BadRequestException(err('RECEIVED_LINE_UNDELETABLE'));
         await manager.delete(PurchaseOrderItemEntity, { purchaseOrderId: po.id });
-        po.items = built.items;
-        po.exchangeRate = built.exchangeRate;
-        po.subtotal = built.subtotal;
-        po.taxTotal = built.taxTotal;
-        po.grandTotal = built.grandTotal;
-        po.totalAmount = built.grandTotal;
+        await manager.delete(OrderChargeEntity, { purchaseOrderId: po.id });
+        this.applyTotals(po, built, tax);
       }
+      this.applyCustoms(po, updates);
 
       if (updates.notes !== undefined) {
         po.notes = updates.notes;
@@ -373,25 +535,18 @@ export class PurchaseOrderService {
       const saved = await this.dataSource.transaction(async (manager) => {
         const poNumber = `PO-AUTO-${now.getTime().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
         const company = await this.finance.getCompany(manager);
-        const built = await this.buildItems(manager, group.items, company.baseCurrency, now);
-        return manager.save(
-          PurchaseOrderEntity,
-          manager.create(PurchaseOrderEntity, {
-            companyId: this.companyId,
-            poNumber,
-            supplierId: group.supplierId,
-            supplierName: group.supplierName,
-            status: PurchaseOrderStatus.DRAFT,
-            currency: company.baseCurrency,
-            exchangeRate: built.exchangeRate,
-            items: built.items,
-            subtotal: built.subtotal,
-            taxTotal: built.taxTotal,
-            grandTotal: built.grandTotal,
-            totalAmount: built.grandTotal,
-            notes: 'Otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
-          })
-        );
+        const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: group.supplierId } });
+        const built = await this.buildItems(manager, group.items, company.baseCurrency, dateKeyInZone(now, company.timezone), supplier);
+        const po = manager.create(PurchaseOrderEntity, {
+          companyId: this.companyId,
+          poNumber,
+          supplierId: group.supplierId,
+          supplierName: group.supplierName,
+          status: PurchaseOrderStatus.DRAFT,
+          notes: 'Otomatik sipariş taslağı. Stok kritik seviyenin altındaki ürünler için oluşturuldu.',
+        });
+        this.applyTotals(po, built, {});
+        return manager.save(PurchaseOrderEntity, po);
       });
       createdPOs.push(saved);
     }

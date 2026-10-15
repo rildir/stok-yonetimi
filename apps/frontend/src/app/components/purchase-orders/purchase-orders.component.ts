@@ -8,7 +8,12 @@ import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
-import { tap } from 'rxjs/operators';
+import { tap, debounceTime, switchMap, catchError } from 'rxjs/operators';
+import { of, Subscription } from 'rxjs';
+import { TaxService } from '../../services/tax.service';
+import { ExemptionCode, TaxQuote, TaxSummaryView, WithholdingCode, summaryFromDocument, summaryFromQuote } from '../../models/tax.models';
+import { TaxSummaryComponent } from '../shared/tax-summary.component';
+import { DocumentTaxFieldsComponent, LineTaxFieldsComponent, documentTaxGroup, documentTaxPayload, lineNeedsExemption, lineTaxControls, lineTaxPayload } from '../shared/tax-fields.component';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
 import { fitsDecimals, roundQty, sumQty } from '@stok/tr-compliance';
@@ -17,7 +22,7 @@ import { toastMovementResult } from '../shared/movement-warnings';
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -252,12 +257,20 @@ import { toastMovementResult } from '../shared/movement-warnings';
                       <button type="button" class="delete-btn" (click)="removeItem(i)" [title]="'common.delete' | t">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                       </button>
+                      @if (item.get('productId')?.value) {
+                        <app-line-tax-fields [group]="$any(item)" [product]="productById(item.get('productId')?.value)" [rates]="taxRates()" [exemptions]="exemptions()" [withholdings]="withholdings()" [importLine]="foreignSupplier()" [showReverseCharge]="foreignSupplier()"></app-line-tax-fields>
+                      }
                       @if (preview().lines[i]; as ln) {
                         <div class="po-line-meta">
                           @if (factorFor(item.get('productId')?.value, item.get('unitId')?.value) !== 1) {
                             <span>{{ 'purchaseOrders.baseQtyHint' | t: { qty: ((item.get('quantity')?.value || 0) * factorFor(item.get('productId')?.value, item.get('unitId')?.value) | num), unit: (baseUnitOf(item.get('productId')?.value) | unitLabel) } }}</span>
                           }
-                          @if (ln.hasPrice) {
+                          @if (quoteLine(i); as ql) {
+                            <span>{{ 'finance.taxRate' | t }}: {{ ql.taxRate | num }}%</span>
+                            <span>{{ 'finance.taxAmount' | t }}: {{ ql.taxAmount | money: formCurrency() }}</span>
+                            @if (ql.withheldTaxAmount > 0) { <span>{{ 'orders.withheldVat' | t }}: {{ ql.withheldTaxAmount | money: formCurrency() }}</span> }
+                            <span>{{ 'finance.lineTotal' | t }}: <strong>{{ ql.lineTotal | money: formCurrency() }}</strong></span>
+                          } @else if (ln.hasPrice) {
                             <span>{{ 'finance.taxRate' | t }}: {{ ln.rate | num }}%</span>
                             <span>{{ 'finance.taxAmount' | t }}: {{ ln.tax | money: formCurrency() }}</span>
                             <span>{{ 'finance.lineTotal' | t }}: <strong>{{ ln.gross | money: formCurrency() }}</strong></span>
@@ -269,14 +282,29 @@ import { toastMovementResult } from '../shared/movement-warnings';
                     </div>
                   }
                   @if (itemsArray.length > 0) {
-                    <div class="po-totals">
-                      <div class="po-trow"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ preview().subtotal | money: formCurrency() }}</span></div>
-                      @for (b of preview().breakdown; track b.rate) {
-                        <div class="po-trow text-muted"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: formCurrency()) } }}</span><span class="num">{{ b.tax | money: formCurrency() }}</span></div>
-                      }
-                      <div class="po-trow po-grand"><span>{{ 'finance.grandTotal' | t }}</span><span class="num">{{ preview().total | money: formCurrency() }}</span></div>
-                      @if (preview().incomplete) { <div class="field-hint">{{ 'purchaseOrders.previewIncomplete' | t }}</div> }
-                    </div>
+                    <app-document-tax-fields [group]="taxGroup"></app-document-tax-fields>
+                    @if (foreignSupplier()) {
+                      <div class="form-row" [formGroup]="poForm">
+                        <div class="form-field">
+                          <input id="cdNo" type="text" formControlName="customsDeclarationNo" class="form-input has-value mono" maxlength="30" />
+                          <label for="cdNo" class="form-label">{{ 'purchaseOrders.customsDeclarationNo' | t }}</label>
+                        </div>
+                        <div class="form-field">
+                          <input id="cdDate" type="date" formControlName="customsDeclarationDate" class="form-input has-value" />
+                          <label for="cdDate" class="form-label">{{ 'purchaseOrders.customsDeclarationDate' | t }}</label>
+                        </div>
+                      </div>
+                    }
+                    @if (quote()) {
+                      <app-tax-summary [view]="quoteView()" [error]="quoteError()" [baseCurrency]="i18n.currency()"></app-tax-summary>
+                    } @else {
+                      @if (quoteError()) { <app-tax-summary [view]="null" [error]="quoteError()"></app-tax-summary> }
+                      <div class="po-totals">
+                        <div class="po-trow"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ preview().subtotal | money: formCurrency() }}</span></div>
+                        <div class="po-trow po-grand"><span>{{ 'finance.grandTotal' | t }}</span><span class="num">{{ preview().total | money: formCurrency() }}</span></div>
+                        @if (preview().incomplete) { <div class="field-hint">{{ 'purchaseOrders.previewIncomplete' | t }}</div> }
+                      </div>
+                    }
                   }
                   @if (itemsArray.length === 0) {
                     <div class="po-empty-lines text-muted">{{ 'purchaseOrders.noItems' | t }}</div>
@@ -287,7 +315,7 @@ import { toastMovementResult } from '../shared/movement-warnings';
 
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeDrawer()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="poForm.invalid || itemsArray.length === 0 || isSaving()">
+              <button type="submit" class="btn btn-primary" [disabled]="poForm.invalid || itemsArray.length === 0 || isSaving() || exemptionMissing()">
                 @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'purchaseOrders.saving' | t }} } @else { {{ (editingPoId() ? 'purchaseOrders.update' : 'purchaseOrders.createBtn') | t }} }
               </button>
             </div>
@@ -341,6 +369,14 @@ import { toastMovementResult } from '../shared/movement-warnings';
                     · {{ 'finance.taxRate' | t }} {{ item.taxRate | num }}% · {{ 'finance.tax' | t }} {{ item.taxAmount | money: detailOrder().currency }}
                     = <strong>{{ item.lineTotal | money: detailOrder().currency }}</strong>
                   </span>
+                  @if ((item.discountAmount || 0) > 0 || item.exemptionCode || item.withholdingCode || item.reverseCharge) {
+                    <span class="detail-item-qty">
+                      @if ((item.discountAmount || 0) > 0) { {{ 'orders.discount' | t }}: −{{ item.discountAmount | money: detailOrder().currency }} }
+                      @if (item.exemptionCode) { · {{ 'finance.exemptionShort' | t: { code: item.exemptionCode } }} }
+                      @if (item.withholdingCode) { · {{ 'finance.withholdingCodeShort' | t: { code: item.withholdingCode } }}: {{ (item.withheldTaxAmount || 0) | money: detailOrder().currency }} }
+                      @if (item.reverseCharge) { · {{ 'finance.reverseCharge' | t }} }
+                    </span>
+                  }
                   @if (item.tracking.length) {
                     <div class="po-tracking">
                       @for (tr of item.tracking; track $index) {
@@ -361,14 +397,36 @@ import { toastMovementResult } from '../shared/movement-warnings';
             </div>
 
             <div class="po-totals po-mt-3">
-              <div class="po-trow"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ detailTotals().subtotal | money: detailOrder().currency }}</span></div>
-              @for (b of detailTotals().breakdown; track b.rate) {
-                <div class="po-trow text-muted"><span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: detailOrder().currency) } }}</span><span class="num">{{ b.tax | money: detailOrder().currency }}</span></div>
+              @for (c of detailOrder().charges || []; track $index) {
+                <div class="po-trow"><span>{{ 'orders.charges.' + c.type | t }}@if (c.description) { · {{ c.description }} }</span><span class="num">{{ (c.lineTotal ?? c.amount) | money: detailOrder().currency }}</span></div>
               }
-              <div class="po-trow po-grand"><span>{{ 'finance.grandTotal' | t }}</span><span class="num">{{ detailTotals().total | money: detailOrder().currency }}</span></div>
-              @if (detailOrder().currency && detailOrder().currency !== i18n.currency()) {
-                <div class="po-trow text-muted"><span>{{ 'finance.inBaseCurrency' | t: { currency: i18n.currency() } }}</span><span class="num">{{ (detailTotals().total * (detailOrder().exchangeRate ?? 1)) | money }}</span></div>
-                <div class="field-hint">{{ 'finance.exchangeRateNote' | t: { from: detailOrder().currency, rate: ((detailOrder().exchangeRate ?? 1) | num), to: i18n.currency() } }}</div>
+              <app-tax-summary [view]="detailView()" [flat]="true" [baseCurrency]="i18n.currency()"></app-tax-summary>
+              @if (detailOrder().isImport) {
+                <div class="po-import">
+                  <span class="badge badge-info">{{ 'purchaseOrders.import' | t }}</span>
+                  <span class="field-hint">{{ 'finance.importVatHint' | t }}</span>
+                  <div class="form-row">
+                    <div class="form-field">
+                      <input id="dCdNo" type="text" class="form-input has-value mono" [(ngModel)]="customsNo" maxlength="30" />
+                      <label for="dCdNo" class="form-label">{{ 'purchaseOrders.customsDeclarationNo' | t }}</label>
+                    </div>
+                    <div class="form-field">
+                      <input id="dCdDate" type="date" class="form-input has-value" [(ngModel)]="customsDate" />
+                      <label for="dCdDate" class="form-label">{{ 'purchaseOrders.customsDeclarationDate' | t }}</label>
+                    </div>
+                    <div class="form-field">
+                      <input id="dIv" type="number" min="0" step="0.01" class="form-input has-value num" [(ngModel)]="importVat" />
+                      <label for="dIv" class="form-label">{{ 'purchaseOrders.importVatAmount' | t }}</label>
+                    </div>
+                    <div class="form-field">
+                      <input id="dNd" type="number" min="0" step="0.01" class="form-input has-value num" [(ngModel)]="nonDeductibleVat" />
+                      <label for="dNd" class="form-label">{{ 'purchaseOrders.nonDeductibleImportVat' | t }}</label>
+                    </div>
+                  </div>
+                  @if (detailOrder().status !== 'Cancelled') {
+                    <button type="button" class="btn btn-sm btn-secondary" (click)="saveCustoms()" [disabled]="isSaving()">{{ 'purchaseOrders.saveCustoms' | t }}</button>
+                  }
+                </div>
               }
               @if (warehouseName(detailOrder().warehouseId); as wn) {
                 <div class="field-hint">{{ 'purchaseOrders.receivingWarehouse' | t }}: {{ wn }}</div>
@@ -499,6 +557,7 @@ import { toastMovementResult } from '../shared/movement-warnings';
     <app-toast></app-toast>
   `,
   styles: [`
+    .po-import { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) dashed var(--color-border); }
     .po-receipt-doc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
     @media (max-width: 640px) { .po-receipt-doc { grid-template-columns: 1fr; } }
     .po-dates { display: flex; align-items: center; gap: var(--space-2); }
@@ -655,6 +714,93 @@ export class PurchaseOrdersComponent implements OnInit {
   });
 
   private round(n: number) { return Math.round(n * 100) / 100; }
+
+  // ─── Tax engine (WP3) ───
+  taxService = inject(TaxService);
+  exemptions = signal<ExemptionCode[]>([]);
+  withholdings = signal<WithholdingCode[]>([]);
+  quote = signal<TaxQuote | null>(null);
+  quoteError = signal<string | null>(null);
+  private quoteIndex: number[] = [];
+  private quoteSub?: Subscription;
+  customsNo = '';
+  customsDate = '';
+  importVat: number | null = null;
+  nonDeductibleVat: number | null = null;
+
+  get taxGroup(): FormGroup {
+    return this.poForm.get('tax') as FormGroup;
+  }
+
+  foreignSupplier = computed(() => {
+    const id = this.formValue()?.supplierId;
+    const s = this.suppliers().find((x: any) => x.id === id);
+    return !!s && (s.isForeign || s.identityType === 'FOREIGN');
+  });
+
+  quoteView(): TaxSummaryView | null {
+    const q = this.quote();
+    return q ? summaryFromQuote(q) : null;
+  }
+
+  quoteLine(i: number) {
+    const q = this.quote();
+    const k = this.quoteIndex[i];
+    return q && k !== undefined && k >= 0 ? q.doc.lines[k] ?? null : null;
+  }
+
+  detailView(): TaxSummaryView | null {
+    const o = this.detailOrder();
+    return o ? summaryFromDocument(o, this.i18n.currency()) : null;
+  }
+
+  exemptionMissing(): boolean {
+    if (this.foreignSupplier()) return false;
+    return this.itemsArray.controls.some(l => lineNeedsExemption(l, this.productById(l.get('productId')?.value), this.taxRates()));
+  }
+
+  private lineItems(v: any, collectIndex = false): any[] {
+    const out: any[] = [];
+    if (collectIndex) this.quoteIndex = [];
+    (v.items || []).forEach((it: any) => {
+      const qty = Number(it.quantity);
+      if (!it.productId || !(qty > 0)) { if (collectIndex) this.quoteIndex.push(-1); return; }
+      if (collectIndex) this.quoteIndex.push(out.length);
+      const hasPrice = it.unitPrice !== null && it.unitPrice !== '' && it.unitPrice !== undefined;
+      out.push({ productId: it.productId, quantity: qty, ...(it.unitId ? { unitId: it.unitId } : {}), ...(hasPrice ? { unitPrice: Number(it.unitPrice) } : {}), ...lineTaxPayload(it, true) });
+    });
+    return out;
+  }
+
+  private startQuotes() {
+    this.quoteSub?.unsubscribe();
+    this.quoteSub = this.poForm.valueChanges.pipe(
+      debounceTime(400),
+      switchMap(() => {
+        const v = this.poForm.getRawValue();
+        const items = this.lineItems(v, true);
+        if (!v.supplierId || !items.length || this.exemptionMissing()) { this.quote.set(null); return of(null); }
+        return this.taxService.quotePurchaseOrder({ supplierId: v.supplierId, currency: v.currency || undefined, items, ...documentTaxPayload(v.tax || {}) }).pipe(
+          catchError((err) => { this.quoteError.set(err.error?.message || this.i18n.t('finance.quoteFailed')); this.quote.set(null); return of(null); }),
+        );
+      }),
+    ).subscribe((q) => { if (q) { this.quote.set(q); this.quoteError.set(null); } });
+  }
+
+  saveCustoms() {
+    const o = this.detailOrder();
+    if (!o) return;
+    this.isSaving.set(true);
+    this.taxService.updatePurchaseOrderCustoms(o.id, {
+      customsDeclarationNo: this.customsNo || null,
+      customsDeclarationDate: this.customsDate || null,
+      importVatAmount: this.importVat === null || (this.importVat as any) === '' ? null : Number(this.importVat),
+      nonDeductibleImportVat: this.nonDeductibleVat === null || (this.nonDeductibleVat as any) === '' ? null : Number(this.nonDeductibleVat),
+    }).subscribe({
+      next: (po) => { this.isSaving.set(false); this.detailOrder.set(po); this.loadData(); this.ui.showToast(this.i18n.t('purchaseOrders.customsSaved'), 'success'); },
+      error: (err) => { this.isSaving.set(false); this.ui.showToast(err.error?.message || this.i18n.t('purchaseOrders.actionFailed'), 'error'); },
+    });
+  }
 
   private taxRateFor(productId: string): number {
     const p: any = this.state.products().find(x => x.id === productId);
@@ -863,6 +1009,9 @@ export class PurchaseOrdersComponent implements OnInit {
     warehouseId: [''],
     expectedDate: [''],
     notes: [''],
+    customsDeclarationNo: [''],
+    customsDeclarationDate: [''],
+    tax: documentTaxGroup(this.fb),
     items: this.fb.array([])
   });
 
@@ -919,6 +1068,8 @@ export class PurchaseOrdersComponent implements OnInit {
       lastCurrency = c;
     });
     this.inventory.getTaxRates().subscribe({ next: r => this.taxRates.set(r), error: () => {} });
+    this.taxService.exemptions().subscribe({ next: e => this.exemptions.set(e), error: () => {} });
+    this.taxService.withholdings().subscribe({ next: w => this.withholdings.set(w), error: () => {} });
     this.inventory.getWarehouses().subscribe({ next: w => this.warehouses.set(w), error: () => {} });
     this.loadData();
     if (this.state.products().length === 0) {
@@ -962,8 +1113,14 @@ export class PurchaseOrdersComponent implements OnInit {
       currency: this.i18n.currency(),
       warehouseId: this.defaultWarehouseId(),
       expectedDate: '',
-      notes: ''
+      notes: '',
+      customsDeclarationNo: '',
+      customsDeclarationDate: ''
     });
+    this.poForm.setControl('tax', documentTaxGroup(this.fb));
+    this.quote.set(null);
+    this.quoteError.set(null);
+    this.startQuotes();
     this.itemsArray.clear();
     this.addItem();
     this.formValue.set(this.poForm.getRawValue());
@@ -971,11 +1128,16 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   closeDrawer() {
+    this.quoteSub?.unsubscribe();
     this.isDrawerOpen.set(false);
     this.editingPoId.set(null);
   }
 
   openDetailDrawer(order: any) {
+    this.customsNo = order.customsDeclarationNo || '';
+    this.customsDate = order.customsDeclarationDate || '';
+    this.importVat = order.importVatAmount ?? null;
+    this.nonDeductibleVat = order.nonDeductibleImportVat ?? null;
     this.detailOrder.set(order);
   }
 
@@ -996,7 +1158,8 @@ export class PurchaseOrdersComponent implements OnInit {
       productId: ['', Validators.required],
       unitId: [''],
       quantity: [1, [Validators.required, Validators.min(0.0001)]],
-      unitPrice: [null as number | null, [Validators.min(0)]]
+      unitPrice: [null as number | null, [Validators.min(0)]],
+      ...lineTaxControls(this.fb),
     }));
   }
 
@@ -1013,25 +1176,15 @@ export class PurchaseOrdersComponent implements OnInit {
     this.isSaving.set(true);
     const data = this.poForm.value;
     
-    // Merge duplicate items by summing their quantities
-    type Line = { productId: string; quantity: number; unitId?: string; unitPrice?: number };
-    const mergedMap = new Map<string, Line>();
-    data.items.forEach((it: any) => {
-      const unitId: string = it.unitId || '';
-      const key = `${it.productId}|${unitId}`;
-      const e: Line = mergedMap.get(key) || { productId: it.productId, quantity: 0, ...(unitId ? { unitId } : {}) };
-      e.quantity += Number(it.quantity);
-      const hasPrice = it.unitPrice !== null && it.unitPrice !== '' && it.unitPrice !== undefined;
-      if (hasPrice && e.unitPrice === undefined) e.unitPrice = Number(it.unitPrice);
-      mergedMap.set(key, e);
-    });
-
     const payload: PurchaseOrderPayload & { expectedDate?: string } = {
       supplierId: data.supplierId,
       currency: data.currency || undefined,
       warehouseId: data.warehouseId || undefined,
       notes: data.notes || undefined,
-      items: Array.from(mergedMap.values())
+      items: this.lineItems(data),
+      ...documentTaxPayload(data.tax || {}),
+      ...(data.customsDeclarationNo ? { customsDeclarationNo: data.customsDeclarationNo } : {}),
+      ...(data.customsDeclarationDate ? { customsDeclarationDate: data.customsDeclarationDate } : {}),
     };
     if (data.expectedDate) payload.expectedDate = data.expectedDate;
 
@@ -1063,8 +1216,17 @@ export class PurchaseOrdersComponent implements OnInit {
       currency: order.currency || this.i18n.currency(),
       warehouseId: order.warehouseId || '',
       expectedDate: order.expectedDate ? order.expectedDate.slice(0, 10) : '',
-      notes: order.notes || ''
+      notes: order.notes || '',
+      customsDeclarationNo: order.customsDeclarationNo || '',
+      customsDeclarationDate: order.customsDeclarationDate || ''
     });
+    this.poForm.setControl('tax', documentTaxGroup(this.fb, {
+      documentDiscountAmount: order.documentDiscountEntered || null,
+      taxPointDate: order.taxPointDate || '',
+      charges: (order.charges || []).map((c: any) => ({ type: c.type, amount: Number(c.enteredAmount ?? c.amount), description: c.description })),
+    }));
+    this.quote.set(null);
+    this.startQuotes();
     this.itemsArray.clear();
     order.items.forEach((it: any) => {
       const inUnit = !!it.unitId && it.unitQuantity != null;
@@ -1072,7 +1234,8 @@ export class PurchaseOrdersComponent implements OnInit {
         productId: [it.productId, Validators.required],
         unitId: [it.unitId || ''],
         quantity: [inUnit ? it.unitQuantity : it.quantity, [Validators.required, Validators.min(0.0001)]],
-        unitPrice: [it.unitPrice ?? it.price ?? null, [Validators.min(0)]]
+        unitPrice: [it.enteredUnitPrice ?? it.unitPrice ?? it.price ?? null, [Validators.min(0)]],
+        ...lineTaxControls(this.fb, { discountRate: it.discountRate || null, exemptionCode: it.exemptionCode || '', reverseCharge: it.reverseCharge }),
       }));
     });
     this.formValue.set(this.poForm.getRawValue());

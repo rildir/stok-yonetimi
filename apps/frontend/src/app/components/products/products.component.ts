@@ -13,6 +13,8 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import JsBarcode from 'jsbarcode';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { tap } from 'rxjs';
+import { TaxService } from '../../services/tax.service';
+import { ExemptionCode, OtvCode, WithholdingCode } from '../../models/tax.models';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 
 @Component({
@@ -594,7 +596,39 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   }
                 </select>
                 <label for="productTaxRate" class="form-label">{{ 'finance.taxRate' | t }}</label>
+                @if (productRateIsExempt() && !productForm.get('exemptionCode')?.value) { <div class="form-error">⚠ {{ 'finance.exemptionRequired' | t }}</div> }
               </div>
+
+              <div class="form-field">
+                <select id="productExemption" formControlName="exemptionCode" class="form-input form-select has-value">
+                  <option [ngValue]="null">{{ 'finance.noExemption' | t }}</option>
+                  @for (e of exemptionCodes(); track e.code) { <option [ngValue]="e.code">{{ e.code }} · {{ codeName(e) }}</option> }
+                </select>
+                <label for="productExemption" class="form-label">{{ 'finance.defaultExemptionCode' | t }}</label>
+              </div>
+
+              <div class="form-field">
+                <select id="productWithholding" formControlName="withholdingCode" class="form-input form-select has-value">
+                  <option [ngValue]="null">{{ 'finance.noWithholding' | t }}</option>
+                  @for (w of withholdingCodes(); track w.code) { <option [ngValue]="w.code">{{ w.code }} · {{ w.numerator }}/{{ w.denominator }} · {{ codeName(w) }}</option> }
+                </select>
+                <label for="productWithholding" class="form-label">{{ 'finance.defaultWithholdingCode' | t }}</label>
+                <div class="field-hint">ⓘ {{ 'finance.withholdingProductHint' | t }}</div>
+              </div>
+
+              <div class="form-field">
+                <select id="productOtv" formControlName="otvCode" class="form-input form-select has-value">
+                  <option [ngValue]="null">{{ 'finance.noOtv' | t }}</option>
+                  @for (o of otvCodes(); track o.code) { <option [ngValue]="o.code">{{ o.code }} · {{ o.list }} · {{ codeName(o) }}</option> }
+                </select>
+                <label for="productOtv" class="form-label">{{ 'finance.otvCode' | t }}</label>
+              </div>
+              @if (productForm.get('otvCode')?.value) {
+                <div class="form-field">
+                  <input id="productOtvRate" type="number" min="0" step="0.01" formControlName="otvRate" class="form-input has-value num" />
+                  <label for="productOtvRate" class="form-label">{{ 'finance.otvRate' | t }}</label>
+                </div>
+              }
 
               <div class="form-field">
                 <input id="productQuantity" type="text" appQty [qtyDecimals]="formDecimals()" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" />
@@ -1155,6 +1189,9 @@ export class ProductsComponent implements OnInit {
     this.inventoryService.getTaxRates().subscribe({
       next: (data) => this.taxRates.set(data)
     });
+    this.taxService.exemptions().subscribe({ next: (d) => this.exemptionCodes.set(d), error: () => {} });
+    this.taxService.withholdings().subscribe({ next: (d) => this.withholdingCodes.set(d), error: () => {} });
+    this.taxService.otvCodes().subscribe({ next: (d) => this.otvCodes.set(d), error: () => {} });
   }
 
   private warehouseQty(prod: Product, wh: Warehouse): number {
@@ -1773,8 +1810,29 @@ export class ProductsComponent implements OnInit {
     imageUrl: [''],
     currency: ['TRY', Validators.required],
     taxRateId: [null as string | null],
+    exemptionCode: [null as string | null],
+    withholdingCode: [null as string | null],
+    otvCode: [null as string | null],
+    otvRate: [null as number | null],
     warehouseId: [null as string | null]
   });
+
+  // WP3: default exemption / withholding / ÖTV codes
+  private taxService = inject(TaxService);
+  exemptionCodes = signal<ExemptionCode[]>([]);
+  withholdingCodes = signal<WithholdingCode[]>([]);
+  otvCodes = signal<OtvCode[]>([]);
+
+  codeName(c: { nameTr: string; nameEn: string }): string {
+    const t = this.i18n.lang() === 'en' ? c.nameEn : c.nameTr;
+    return t.length > 60 ? t.slice(0, 58) + '…' : t;
+  }
+
+  productRateIsExempt(): boolean {
+    const id = this.formState()?.['taxRateId'];
+    const r = this.taxRates().find(t => t.id === id);
+    return !!r && (r.kind === 'EXEMPT' || Number(r.rate) === 0);
+  }
 
 
 
@@ -1894,7 +1952,7 @@ export class ProductsComponent implements OnInit {
     const defaultCat = this.categories().length > 0 ? this.categories()[0].slug : '';
     this.productForm.reset({
       name: '', sku: '', category: defaultCat, price: 0, quantity: 0, minQuantity: 5, unit: 'Adet', supplierId: null, imageUrl: '',
-      currency: this.i18n.currency(), taxRateId: null, warehouseId: this.defaultWarehouseId(),
+      currency: this.i18n.currency(), taxRateId: null, exemptionCode: null, withholdingCode: null, otvCode: null, otvRate: null, warehouseId: this.defaultWarehouseId(),
       baseUnitId: this.defaultUnitId(), barcode: '', barcodeType: '', trackingType: 'none', hasExpiry: false,
       regulatoryCategory: 'none', inventoryClass: 'TICARI_MAL_153', gtin14: ''
     });
@@ -1919,6 +1977,10 @@ export class ProductsComponent implements OnInit {
       imageUrl: p.imageUrl || '',
       currency: p.currency || this.i18n.currency(),
       taxRateId: p.taxRateId ?? null,
+      exemptionCode: p.exemptionCode ?? null,
+      withholdingCode: p.withholdingCode ?? null,
+      otvCode: p.otvCode ?? null,
+      otvRate: p.otvRate ?? null,
       warehouseId: null,
       baseUnitId: p.baseUnitId ?? p.baseUnit?.id ?? null,
       barcode: p.barcode || '',

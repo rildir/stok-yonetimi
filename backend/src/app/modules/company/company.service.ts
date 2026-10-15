@@ -60,6 +60,8 @@ export class CompanyService {
     if (dto.timezone !== undefined) company.timezone = dto.timezone;
     if (dto.pricesIncludeTax !== undefined) company.pricesIncludeTax = dto.pricesIncludeTax;
     if (dto.expiryAlertDays !== undefined) company.expiryAlertDays = dto.expiryAlertDays;
+    if (dto.isImporterOrOreProducer !== undefined) company.isImporterOrOreProducer = dto.isImporterOrOreProducer;
+    if (dto.fxAutoFetch !== undefined) company.fxAutoFetch = dto.fxAutoFetch;
     if (dto.enabledComplianceModules !== undefined) {
       const next = [...new Set(dto.enabledComplianceModules)];
       // A module can only be switched off when no active product uses it.
@@ -165,6 +167,7 @@ export class CompanyService {
           defaultLanguage: dto.defaultLanguage || COMPANY_DEFAULTS.defaultLanguage,
           baseCurrency: dto.baseCurrency || COMPANY_DEFAULTS.baseCurrency,
           timezone: dto.timezone || COMPANY_DEFAULTS.timezone,
+          fxAutoFetch: (dto.country || COMPANY_DEFAULTS.country).toUpperCase() === 'TR',
         })
       );
 

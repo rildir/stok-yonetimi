@@ -13,6 +13,7 @@ import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 import { AbstractControl, ValidationErrors } from '@angular/forms';
 import { isStrongPassword, maxDecimalsForUnece, UNECE_UNIT_CODES } from '@stok/tr-compliance';
 import { FiscalSettingsComponent } from './fiscal-settings.component';
+import { TaxSettingsComponent, TcmbPanelComponent } from './tax-settings.component';
 import { InventoryComplianceSettingsComponent } from './inventory-compliance-settings.component';
 import { EBelgeSettingsComponent } from './ebelge-settings.component';
 import { LegalParametersComponent } from './legal-parameters.component';
@@ -25,7 +26,7 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, TaxSettingsComponent, TcmbPanelComponent],
   template: `
     <header class="page-header">
       <div>
@@ -215,7 +216,10 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
         @if (activeTab() === 'legalParams' && ui.userProfile()?.isSuperAdmin) { <app-legal-parameters></app-legal-parameters> }
 
         <!-- TAX RATES TAB (Admin) -->
-        @if (activeTab() === 'taxRates' && isAdmin()) {
+        @if (activeTab() === 'taxRates' && isAdmin() && isTrCompany()) {
+          <app-tax-settings [importerInitial]="!!ui.userProfile()?.company?.isImporterOrOreProducer"></app-tax-settings>
+        }
+        @if (activeTab() === 'taxRates' && isAdmin() && !isTrCompany()) {
           <div class="settings-card settings-card-lg">
             <h3 class="card-title">{{ 'settings.taxRates.title' | t }}</h3>
             <p class="card-subtitle settings-card-sub">{{ 'settings.taxRates.subtitle' | t }}</p>
@@ -386,6 +390,9 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
           <div class="settings-card settings-card-lg">
             <h3 class="card-title">{{ 'settings.exchangeRates.title' | t }}</h3>
             <p class="card-subtitle settings-card-sub">{{ 'settings.exchangeRates.subtitle' | t }}</p>
+            @if (isTrCompany()) {
+              <app-tcmb-panel [autoInitial]="!!ui.userProfile()?.company?.fxAutoFetch" (fetched)="loadExchangeRates()"></app-tcmb-panel>
+            }
             <form [formGroup]="fxForm" (ngSubmit)="saveExchangeRate()">
               <div class="settings-form-grid">
                 <div class="form-group">
@@ -433,6 +440,7 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
                       <th>{{ 'settings.exchangeRates.date' | t }}</th>
                       <th>{{ 'settings.exchangeRates.pair' | t }}</th>
                       <th class="num">{{ 'settings.exchangeRates.rate' | t }}</th>
+                      <th>{{ 'settings.exchangeRates.source' | t }}</th>
                       <th class="th-actions">{{ 'common.actions' | t }}</th>
                     </tr>
                   </thead>
@@ -442,6 +450,10 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
                         <td [attr.data-label]="'settings.exchangeRates.date' | t">{{ fx.date | appDate }}</td>
                         <td class="mono" [attr.data-label]="'settings.exchangeRates.pair' | t">{{ fx.baseCurrency }}/{{ fx.quoteCurrency }}</td>
                         <td class="num" [attr.data-label]="'settings.exchangeRates.rate' | t">{{ 'settings.exchangeRates.preview' | t: { base: fx.baseCurrency, rate: (fx.rate | num: 4), quote: fx.quoteCurrency } }}</td>
+                        <td [attr.data-label]="'settings.exchangeRates.source' | t">
+                          <span class="badge" [class.badge-info]="fx.source === 'TCMB'" [class.badge-warning]="fx.source !== 'TCMB'">{{ 'finance.fxSource.' + (fx.source || 'MANUAL') | t }}</span>
+                          <span class="text-muted"> {{ 'finance.rateType.' + (fx.rateType || 'FOREX_BUYING') | t }}@if (fx.bulletinNo) { · {{ fx.bulletinNo }} }</span>
+                        </td>
                         <td class="td-actions">
                           <button class="edit-btn" [title]="'common.edit' | t" (click)="editFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                           <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
@@ -1081,6 +1093,11 @@ export class SettingsComponent implements OnInit {
   private errMsg(err: any, fallbackKey: string): string {
     const msg = err?.error?.message;
     return this.i18n.t('settings.error', { msg: (Array.isArray(msg) ? msg[0] : msg) || this.i18n.t(fallbackKey) });
+  }
+
+  /** TR: tax rates come from the locked legal catalog; TCMB rates available */
+  isTrCompany(): boolean {
+    return (this.ui.userProfile()?.company?.country || '').toUpperCase() === 'TR';
   }
 
   // Tax rates (admin)

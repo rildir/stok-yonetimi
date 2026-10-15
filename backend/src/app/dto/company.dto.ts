@@ -67,6 +67,16 @@ export class UpdateCompanyDto extends CompanySettingsDto {
   @IsBoolean()
   pricesIncludeTax?: boolean;
 
+  @ApiPropertyOptional({ description: 'Satıcı ithalatçı veya cevherden üretici: 627 demir-çelik tevkifatı uygulanmaz' })
+  @IsOptional()
+  @IsBoolean()
+  isImporterOrOreProducer?: boolean;
+
+  @ApiPropertyOptional({ description: 'TCMB kurlarını her iş günü otomatik çek' })
+  @IsOptional()
+  @IsBoolean()
+  fxAutoFetch?: boolean;
+
   @ApiPropertyOptional({ description: 'SKT uyarısı gün sayısı', example: 30 })
   @IsOptional()
   @IsInt()

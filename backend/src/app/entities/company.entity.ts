@@ -109,6 +109,14 @@ export class CompanyEntity {
   @Column({ type: 'date', nullable: true })
   stockLockDate?: string | null;
 
+  /** Seller is an importer / produces iron-steel from ore: 627 withholding does not apply (KDVGUT I/C-2.1.3.3.8) */
+  @Column({ default: false })
+  isImporterOrOreProducer: boolean;
+
+  /** Fetch TCMB indicative rates every business day (TR) */
+  @Column({ default: false })
+  fxAutoFetch: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

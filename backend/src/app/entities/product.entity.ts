@@ -132,6 +132,21 @@ export class ProductEntity {
   @JoinColumn({ name: 'taxRateId', foreignKeyConstraintName: 'FK_products_tax_rate' })
   taxRate?: TaxRateEntity | null;
 
+  /** Default KDV exemption code for sales of this product (required when its rate is EXEMPT) */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  exemptionCode?: string | null;
+
+  /** Default KDV withholding code (e.g. 627 demir-çelik); applied above the VUK 232 limit to taxpayer buyers */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  withholdingCode?: string | null;
+
+  /** ÖTV code and rate (first delivery by manufacturer / importer, KDVK 24/b) */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  otvCode?: string | null;
+
+  @Column('decimal', { precision: 5, scale: 2, nullable: true, transformer: new ColumnNumericTransformer() })
+  otvRate?: number | null;
+
   @OneToMany(() => ProductWarehouseStockEntity, (pws) => pws.product)
   warehouseStocks?: ProductWarehouseStockEntity[];
 

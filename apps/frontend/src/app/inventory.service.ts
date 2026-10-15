@@ -75,6 +75,13 @@ export interface CreateOrderPayload {
   warehouseId?: string;
   carrier?: string;
   trackingNumber?: string;
+  documentDiscountAmount?: number;
+  charges?: { type: string; amount: number; description?: string | null }[];
+  taxPointDate?: string;
+  shippedAt?: string;
+  salesChannel?: string;
+  isDistanceSale?: boolean;
+  channelOrderRef?: string;
   /** quantity is in unitId (base unit when omitted); unitPrice is per that unit.
    *  lots (base-unit quantities) / serials are optional: omitted => FEFO/FIFO auto allocation. */
   items: {
@@ -84,6 +91,10 @@ export interface CreateOrderPayload {
     unitId?: string;
     unitPrice?: number;
     warehouseId?: string;
+    discountRate?: number;
+    discountAmount?: number;
+    exemptionCode?: string | null;
+    withholdingCode?: string | null;
     lots?: { lotId: string; quantity: number }[];
     serials?: string[];
   }[];
@@ -103,7 +114,24 @@ export interface PurchaseOrderPayload {
   warehouseId?: string;
   notes?: string;
   /** quantity in unitId (base unit when omitted); unitPrice per that unit */
-  items?: { productId: string; quantity: number; unitId?: string; unitPrice?: number }[];
+  items?: {
+    productId: string;
+    quantity: number;
+    unitId?: string;
+    unitPrice?: number;
+    discountRate?: number;
+    discountAmount?: number;
+    exemptionCode?: string | null;
+    withholdingCode?: string | null;
+    reverseCharge?: boolean;
+  }[];
+  documentDiscountAmount?: number;
+  charges?: { type: string; amount: number; description?: string | null }[];
+  taxPointDate?: string;
+  customsDeclarationNo?: string | null;
+  customsDeclarationDate?: string | null;
+  importVatAmount?: number | null;
+  nonDeductibleImportVat?: number | null;
 }
 
 @Injectable({

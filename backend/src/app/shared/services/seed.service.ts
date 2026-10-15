@@ -33,6 +33,10 @@ import { LEGAL_PARAMETER_SEEDS } from '../legal/legal-parameter-seeds';
 import { seedDemoFiscalData } from './demo-fiscal.seed';
 import { isStrongPassword, NON_SI_STANDARD_UNIT_CODES, STANDARD_UNIT_DECIMALS } from '../tr';
 import { seedDemoInventoryCore } from './demo-inventory.seed';
+import { seedDemoTaxData } from './demo-tax.seed';
+import { taxCodeSeedStatements } from '../finance/tax-code-seeds';
+import { WP3_PARAMETER_KEYS } from '../legal/legal-parameter-seeds';
+import { randomUUID } from 'crypto';
 import { ensureImmutabilityTriggers } from '../inventory/immutability-triggers';
 import { pickParameter } from './legal-parameter.service';
 
@@ -64,6 +68,41 @@ export class SeedService implements OnModuleInit {
     await seedDemoFiscalData(this.dataSource.manager, DEFAULT_COMPANY.id, this.logger);
     await this.ensureInventoryCore();
     await seedDemoInventoryCore(this.dataSource, DEFAULT_COMPANY.id, this.warehouseStock, this.logger);
+    await this.ensureTaxEngine();
+    await seedDemoTaxData(this.dataSource, DEFAULT_COMPANY.id, this.warehouseStock, this.logger);
+  }
+
+  /**
+   * WP3 safety net for databases built by schema sync (migration 1784274132000 does the same
+   * otherwise): code tables, WP3 legal parameters, the KDV0 exemption row of TR companies and
+   * an explicit rate on TR products (no silent default at pricing time). Idempotent.
+   */
+  private async ensureTaxEngine() {
+    const m = this.dataSource.manager;
+    const [ex] = await m.query('SELECT COUNT(*) AS n FROM `tax_exemption_codes`');
+    if (!Number(ex?.n)) {
+      this.logger.log('Seeding UBL-TR tax code lists...');
+      for (const st of taxCodeSeedStatements(randomUUID)) await m.query(st.sql, st.params);
+    }
+    for (const p of LEGAL_PARAMETER_SEEDS.filter((x) => WP3_PARAMETER_KEYS.includes(x.key))) {
+      await m.query(
+        'INSERT IGNORE INTO `legal_parameters` (`id`, `country`, `key`, `validFrom`, `validTo`, `value`, `sourceRef`, `confidence`, `note`, `createdBy`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [randomUUID(), p.country, p.key, p.validFrom, p.validTo, JSON.stringify(p.value), p.sourceRef, p.confidence, p.note || null, 'seed'],
+      );
+    }
+    const trCompanies: { id: string }[] = await m.query("SELECT `id` FROM `companies` WHERE `country` = 'TR'");
+    for (const c of trCompanies) {
+      const has = await m.exists(TaxRateEntity, { where: { companyId: c.id, kind: 'EXEMPT', isDeleted: false } });
+      if (!has) {
+        const row = defaultTaxRatesFor('TR').find((r) => r.kind === 'EXEMPT')!;
+        await m.save(TaxRateEntity, m.create(TaxRateEntity, { ...row, companyId: c.id }));
+      }
+      await m.query(
+        'UPDATE `products` p JOIN `tax_rates` t ON t.`companyId` = p.`companyId` AND t.`isDefault` = 1 AND t.`isDeleted` = 0 ' +
+          'SET p.`taxRateId` = t.`id` WHERE p.`companyId` = ? AND p.`taxRateId` IS NULL',
+        [c.id],
+      );
+    }
   }
 
   /**

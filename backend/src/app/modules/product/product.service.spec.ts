@@ -14,7 +14,7 @@ import { WarehouseStockService } from '../../shared/services/warehouse-stock.ser
 import { FinanceService } from '../../shared/services/finance.service';
 import { UnitService } from '../../shared/services/unit.service';
 
-const financeStub = { getCompany: jest.fn().mockResolvedValue({ baseCurrency: 'TRY' }), assertTaxRate: jest.fn() };
+const financeStub = { getCompany: jest.fn().mockResolvedValue({ baseCurrency: 'TRY' }), assertTaxRate: jest.fn(), normalizeProductTax: jest.fn().mockResolvedValue(undefined) };
 const unitStub = {
   attachUnits: jest.fn().mockImplementation(async (_m: any, _c: string, ps: any[]) => ps),
   defaultUnit: jest.fn().mockResolvedValue({ id: 'u-pcs', code: 'pcs' }),

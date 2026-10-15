@@ -102,5 +102,12 @@
   "purchaseOrders.receiveDialog.documentNo": "Supplier despatch / invoice no",
   "purchaseOrders.receiveDialog.documentNoPh": "e.g. GKY2026000004127",
   "purchaseOrders.receiveDialog.documentDate": "Document date",
-  "purchaseOrders.receiveDialog.dateHint": "The stock movement is dated with the receipt time; a late entry falls into its own period."
+  "purchaseOrders.receiveDialog.dateHint": "The stock movement is dated with the receipt time; a late entry falls into its own period.",
+  "purchaseOrders.customsDeclarationNo": "Customs declaration no",
+  "purchaseOrders.customsDeclarationDate": "Declaration date",
+  "purchaseOrders.import": "Import",
+  "purchaseOrders.importVatAmount": "Import VAT paid (TRY)",
+  "purchaseOrders.nonDeductibleImportVat": "Non-deductible VAT (TRY)",
+  "purchaseOrders.saveCustoms": "Save customs data",
+  "purchaseOrders.customsSaved": "Customs declaration data saved."
 }

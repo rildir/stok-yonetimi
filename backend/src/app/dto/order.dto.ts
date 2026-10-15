@@ -1,6 +1,8 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsArray, ValidateNested, IsInt, Min, IsNumber, IsOptional, IsISO4217CurrencyCode, ArrayMinSize, IsPositive } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, Matches, MaxLength } from 'class-validator';
+import { DocumentChargeDto, LineTaxFieldsDto, SALES_CHANNELS, TAX_POINT_PATTERN } from './tax.dto';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
 
@@ -14,7 +16,7 @@ export class OrderLotPickDto {
   quantity: number;
 }
 
-export class OrderItemDto {
+export class OrderItemDto extends LineTaxFieldsDto {
   @IsString()
   @IsNotEmpty({ message: 'VALIDATION_PRODUCT_ID_REQUIRED' })
   productId: string;
@@ -93,4 +95,87 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   trackingNumber?: string;
+  /** Document discount as entered (gross when tax-inclusive prices) */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
+  documentDiscountAmount?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DocumentChargeDto)
+  charges?: DocumentChargeDto[];
+
+  /** Vergiyi doğuran olay (YYYY-MM-DD) */
+  @IsOptional()
+  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  taxPointDate?: string;
+
+  /** Actual shipment time (ISO / 'YYYY-MM-DDTHH:mm' company time) */
+  @IsOptional()
+  @IsString()
+  shippedAt?: string;
+
+  @IsOptional()
+  @IsIn(SALES_CHANNELS)
+  salesChannel?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isDistanceSale?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  channelOrderRef?: string;
+}
+
+/** POST /orders/quote: prices an order without saving it or moving stock. */
+export class QuoteOrderDto {
+  @IsString()
+  @IsOptional()
+  customerId?: string;
+
+  @IsOptional()
+  @Transform(upper)
+  @IsISO4217CurrencyCode({ message: 'VALIDATION_CURRENCY_CODE' })
+  currency?: string;
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'ORDER_ITEMS_REQUIRED' })
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items: OrderItemDto[];
+
+  /** Document discount as entered (gross when tax-inclusive prices) */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'VALIDATION_PRICE_NUMBER' })
+  @Min(0, { message: vmsg('VALIDATION_PRICE_MIN', 'min') })
+  documentDiscountAmount?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DocumentChargeDto)
+  charges?: DocumentChargeDto[];
+
+  /** Vergiyi doğuran olay (YYYY-MM-DD) */
+  @IsOptional()
+  @Matches(TAX_POINT_PATTERN, { message: 'VALIDATION_DATE' })
+  taxPointDate?: string;
+
+  @IsOptional()
+  @IsString()
+  shippedAt?: string;
+
+  /** Order date (default now) */
+  @IsOptional()
+  @IsString()
+  date?: string;
+
+  /** Order being edited / re-priced (excluded from the split-order check) */
+  @IsOptional()
+  @IsString()
+  orderId?: string;
 }

@@ -1,5 +1,5 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsBoolean, IsISO31661Alpha2, IsISO4217CurrencyCode, IsDateString, MaxLength, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsBoolean, IsISO31661Alpha2, IsISO4217CurrencyCode, IsDateString, MaxLength, ValidateIf, IsIn, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 const upper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() || null : value);
@@ -24,6 +24,15 @@ export class CreateTaxRateDto {
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+  /** STANDARD (taxable) or EXEMPT (0 %, needs an exemption code on use) */
+  @IsOptional()
+  @IsIn(['STANDARD', 'EXEMPT'])
+  kind?: string;
+
+  /** First day the rate (version) applies, YYYY-MM-DD; default today */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  validFrom?: string;
 }
 
 export class UpdateTaxRateDto {
@@ -47,6 +56,15 @@ export class UpdateTaxRateDto {
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+  /** STANDARD (taxable) or EXEMPT (0 %, needs an exemption code on use) */
+  @IsOptional()
+  @IsIn(['STANDARD', 'EXEMPT'])
+  kind?: string;
+
+  /** First day the rate (version) applies, YYYY-MM-DD; default today */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
+  validFrom?: string;
 }
 
 export class CreateExchangeRateDto {
@@ -76,5 +94,12 @@ export class UpdateExchangeRateDto {
 
   @IsOptional()
   @IsDateString({}, { message: 'VALIDATION_DATE' })
+  date?: string;
+}
+
+export class FetchTcmbDto {
+  /** Bulletin date (YYYY-MM-DD); default today's bulletin */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })
   date?: string;
 }

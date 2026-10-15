@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ApiKeyThrottlerGuard, throttleLimit } from './guards/api-key-throttler.guard';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { I18nExceptionFilter } from './shared/i18n/i18n-exception.filter';
@@ -43,6 +44,8 @@ import { CustomerAddressEntity } from './entities/customer-address.entity';
 import { StockMovementChainEntity } from './entities/stock-movement-chain.entity';
 import { StockMovementAttachmentEntity } from './entities/stock-movement-attachment.entity';
 import { StockAdjustmentRequestEntity } from './entities/stock-adjustment-request.entity';
+import { TaxExemptionCodeEntity, WithholdingCodeEntity, OtvCodeEntity } from './entities/tax-code.entity';
+import { OrderChargeEntity } from './entities/order-charge.entity';
 
 // Guards
 import { RolesGuard } from './guards/roles.guard';
@@ -113,6 +116,10 @@ import { RefdataModule } from './modules/refdata/refdata.module';
         StockMovementChainEntity,
         StockMovementAttachmentEntity,
         StockAdjustmentRequestEntity,
+        TaxExemptionCodeEntity,
+        WithholdingCodeEntity,
+        OtvCodeEntity,
+        OrderChargeEntity,
       ],
       // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
       timezone: 'Z',
@@ -141,6 +148,7 @@ import { RefdataModule } from './modules/refdata/refdata.module';
       // per IP for browser/JWT traffic, per key for API-key traffic (API_KEY_RATE_LIMIT)
       limit: throttleLimit,
     }]),
+    ScheduleModule.forRoot(),
     TenantModule,
     SharedModule,
     GatewayModule,

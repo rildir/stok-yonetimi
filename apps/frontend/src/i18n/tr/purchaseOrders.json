@@ -102,5 +102,12 @@
   "purchaseOrders.receiveDialog.documentNo": "Tedarikçi irsaliye / fatura no",
   "purchaseOrders.receiveDialog.documentNoPh": "ör. GKY2026000004127",
   "purchaseOrders.receiveDialog.documentDate": "Belge tarihi",
-  "purchaseOrders.receiveDialog.dateHint": "Stok hareketi teslim alınma zamanıyla kaydedilir; geç girilen alış kendi dönemine düşer."
+  "purchaseOrders.receiveDialog.dateHint": "Stok hareketi teslim alınma zamanıyla kaydedilir; geç girilen alış kendi dönemine düşer.",
+  "purchaseOrders.customsDeclarationNo": "Gümrük beyannamesi no",
+  "purchaseOrders.customsDeclarationDate": "Beyanname tarihi",
+  "purchaseOrders.import": "İthalat",
+  "purchaseOrders.importVatAmount": "Gümrükte ödenen KDV (TL)",
+  "purchaseOrders.nonDeductibleImportVat": "İndirilemeyen KDV (TL)",
+  "purchaseOrders.saveCustoms": "Beyanname bilgilerini kaydet",
+  "purchaseOrders.customsSaved": "Gümrük beyannamesi bilgileri kaydedildi."
 }

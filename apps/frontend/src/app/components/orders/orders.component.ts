@@ -7,7 +7,11 @@ import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Order, CreateOrderPayload } from '../../inventory.service';
 import { Customer, TaxRate, OrderItem, Product, StockLot, SerialNumber, BarcodeLookupResult, Warehouse } from '../../models/inventory.models';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
-import { tap } from 'rxjs';
+import { tap, debounceTime, switchMap, of, catchError, Subscription } from 'rxjs';
+import { TaxService } from '../../services/tax.service';
+import { ExemptionCode, SALES_CHANNELS, TaxQuote, TaxSummaryView, WithholdingCode, summaryFromDocument, summaryFromQuote } from '../../models/tax.models';
+import { TaxSummaryComponent, TAX_WARNING_KEYS } from '../shared/tax-summary.component';
+import { DocumentTaxFieldsComponent, LineTaxFieldsComponent, documentTaxGroup, documentTaxPayload, lineNeedsExemption, lineTaxControls, lineTaxPayload } from '../shared/tax-fields.component';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective, parseLocalizedQuantity, productDecimals } from '../shared/quantity-input.directive';
 import { roundQty, sumQty } from '@stok/tr-compliance';
@@ -15,7 +19,7 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective],
+  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
     .z-top { z-index: 3000; }
@@ -82,6 +86,9 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
     .ol-input { height: 38px; padding: 0 var(--space-3); font-size: var(--text-sm); }
     .ol-total { flex: 1.3 1 110px; text-align: right; font-size: var(--text-sm); line-height: 1.35; }
     .ol-sub { font-size: var(--text-2xs); color: var(--color-text-muted); }
+    .tax-section { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+    .tp-edit { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; margin-top: var(--space-2); }
+    .tp-edit input { height: 34px; }
     .ol-remove { flex-shrink: 0; }
     .ol-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 220px; overflow-y: auto; }
     .ol-dropdown .custom-option { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
@@ -320,6 +327,20 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                 </div>
               </div>
               
+              <div class="form-row">
+                <div class="form-field">
+                  <select id="salesChannel" formControlName="salesChannel" class="form-input form-select has-value">
+                    <option value="">{{ 'orders.channel.none' | t }}</option>
+                    @for (c of salesChannels; track c) { <option [value]="c">{{ 'orders.channel.' + c | t }}</option> }
+                  </select>
+                  <label for="salesChannel" class="form-label">{{ 'orders.salesChannel' | t }}</label>
+                </div>
+                <div class="form-field">
+                  <input id="channelOrderRef" type="text" formControlName="channelOrderRef" class="form-input" [class.has-value]="hasValue('channelOrderRef')" maxlength="100" />
+                  <label for="channelOrderRef" class="form-label">{{ 'orders.channelOrderRef' | t }}</label>
+                </div>
+              </div>
+
               <div class="ol-section">
                 <div class="ol-section-head">
                   <h3 class="ol-title">{{ 'orders.items' | t }}</h3>
@@ -388,7 +409,14 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                         <input type="number" formControlName="unitPrice" class="form-input ol-input num" min="0" step="0.01" [placeholder]="productPricePlaceholder(line)" [title]="'orders.create.unitPriceOverride' | t"/>
                       </div>
                       <div class="ol-total">
-                        @if (linePreview(line); as lp) {
+                        @if (quoteLine(i); as ql) {
+                          <div class="num strong">{{ ql.lineTotal | money: orderCurrency() }}</div>
+                          <div class="ol-sub">
+                            {{ 'finance.tax' | t }} %{{ ql.taxRate | num }}: {{ ql.taxAmount | money: orderCurrency() }}
+                            @if (ql.discountAmount > 0) { · {{ 'orders.discount' | t }} −{{ ql.discountAmount | money: orderCurrency() }} }
+                            @if (ql.withheldTaxAmount > 0) { · {{ 'orders.withheldVat' | t }} {{ ql.withheldTaxAmount | money: orderCurrency() }} }
+                          </div>
+                        } @else if (linePreview(line); as lp) {
                           <div class="num strong">{{ lp.total | money: orderCurrency() }}</div>
                           <div class="ol-sub">{{ 'finance.tax' | t }} %{{ lp.rate | num }}: {{ lp.tax | money: orderCurrency() }}</div>
                         } @else if (line.get('productId')?.value) {
@@ -398,6 +426,9 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                       <button type="button" class="icon-btn delete-btn ol-remove" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()" [attr.aria-label]="'common.delete' | t">
                         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                       </button>
+                      @if (line.get('productId')?.value) {
+                        <app-line-tax-fields [group]="$any(line)" [product]="lineProduct(line) || undefined" [rates]="taxRates()" [exemptions]="exemptions()" [withholdings]="withholdings()"></app-line-tax-fields>
+                      }
                       @if (lineProduct(line); as lp) {
                         <div class="ol-tracking">
                           @if (lineFactor(line) !== 1) {
@@ -474,32 +505,26 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                 }
               </div>
 
-              @if (previewTotals(); as tot) {
-                <div class="totals-box">
-                  <div class="tot-row">
-                    <span>{{ 'finance.subtotal' | t }}</span>
-                    <span class="num">{{ tot.subtotal | money: orderCurrency() }}</span>
-                  </div>
-                  @for (b of tot.breakdown; track b.rate) {
-                    <div class="tot-row text-muted">
-                      <span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: orderCurrency()) } }}</span>
-                      <span class="num">{{ b.tax | money: orderCurrency() }}</span>
+              <div class="tax-section">
+                <app-document-tax-fields [group]="taxGroup"></app-document-tax-fields>
+                @if (quote(); as q) {
+                  <app-tax-summary [view]="quoteView()" [error]="quoteError()" [baseCurrency]="i18n.currency()"></app-tax-summary>
+                } @else {
+                  @if (quoteError()) { <app-tax-summary [view]="null" [error]="quoteError()"></app-tax-summary> }
+                  @if (previewTotals(); as tot) {
+                    <div class="totals-box">
+                      <div class="tot-row"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ tot.subtotal | money: orderCurrency() }}</span></div>
+                      <div class="tot-row tot-grand"><span>{{ 'finance.grandTotal' | t }}</span><strong class="num">{{ tot.grandTotal | money: orderCurrency() }}</strong></div>
+                      @if (quoting()) { <div class="field-hint">{{ 'finance.quoting' | t }}</div> }
                     </div>
                   }
-                  <div class="tot-row tot-grand">
-                    <span>{{ 'finance.grandTotal' | t }}</span>
-                    <strong class="num">{{ tot.grandTotal | money: orderCurrency() }}</strong>
-                  </div>
-                  @if (tot.incomplete) {
-                    <div class="field-hint">{{ 'orders.create.totalsIncomplete' | t }}</div>
-                  }
-                </div>
-              }
+                }
+              </div>
             </div>
-            
+
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeCreateOrder()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="orderForm.invalid || isOrderSaving() || trackingInvalid()">
+              <button type="submit" class="btn btn-primary" [disabled]="orderForm.invalid || isOrderSaving() || trackingInvalid() || exemptionMissing()">
                 @if (isOrderSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'orders.create.creating' | t }} } @else { {{ 'orders.create.submit' | t }} }
               </button>
             </div>
@@ -580,6 +605,13 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                             · {{ 'finance.taxRate' | t }}: %{{ (item.taxRate ?? 0) | num }}
                             · {{ 'finance.taxAmount' | t }}: {{ (item.taxAmount ?? 0) | money: order.currency }}
                           </span>
+                          @if ((item.discountAmount || 0) > 0 || item.exemptionCode || item.withholdingCode) {
+                            <span class="detail-item-calc">
+                              @if ((item.discountAmount || 0) > 0) { {{ 'orders.discount' | t }}: −{{ item.discountAmount! | money: order.currency }} }
+                              @if (item.exemptionCode) { · {{ 'finance.exemptionShort' | t: { code: item.exemptionCode } }} }
+                              @if (item.withholdingCode) { · {{ 'finance.withholdingCodeShort' | t: { code: item.withholdingCode } }}: {{ (item.withheldTaxAmount || 0) | money: order.currency }} }
+                            </span>
+                          }
                           @for (tr of item.tracking || []; track $index) {
                             <span class="detail-item-calc">
                               @if (tr.lotNumber) {
@@ -595,28 +627,22 @@ import { roundQty, sumQty } from '@stok/tr-compliance';
                         <span class="detail-item-total num">{{ itemLineTotal(item) | money: order.currency }}</span>
                       </div>
                     }
-                    <div class="totals-box flat">
-                      <div class="tot-row">
-                        <span>{{ 'finance.subtotal' | t }}</span>
-                        <span class="num">{{ orderSubtotal(order) | money: order.currency }}</span>
-                      </div>
-                      @for (b of orderTaxBreakdown(order); track b.rate) {
-                        <div class="tot-row text-muted">
-                          <span>{{ 'finance.taxLine' | t: { rate: (b.rate | num), base: (b.base | money: order.currency) } }}</span>
-                          <span class="num">{{ b.tax | money: order.currency }}</span>
+                    @for (c of order.charges || []; track $index) {
+                      <div class="detail-item-row">
+                        <div class="detail-item-info">
+                          <span class="detail-item-name">{{ 'orders.charges.' + c.type | t }}</span>
+                          @if (c.description) { <span class="detail-item-calc">{{ c.description }}</span> }
                         </div>
-                      }
-                    </div>
-                    <div class="tot-row tot-grand">
-                      <span>{{ 'finance.grandTotal' | t }}</span>
-                      <strong class="num">{{ (order.grandTotal ?? order.totalAmount) | money: order.currency }}</strong>
+                        <span class="detail-item-total num">{{ (c.lineTotal ?? c.amount) | money: order.currency }}</span>
                       </div>
-                    @if (order.currency && order.currency !== i18n.currency() && order.exchangeRate) {
-                      <div class="tot-row text-muted tot-small">
-                        <span>{{ 'finance.inBaseCurrency' | t: { currency: i18n.currency() } }}</span>
-                        <span class="num">{{ ((order.grandTotal ?? order.totalAmount) * order.exchangeRate) | money: i18n.currency() }}</span>
+                    }
+                    <app-tax-summary [view]="detailView(order)" [flat]="true" [baseCurrency]="i18n.currency()"></app-tax-summary>
+                    @if (order.status === 'Pending' && !order.taxFrozenAt) {
+                      <div class="tp-edit">
+                        <label for="tpDate" class="field-hint">{{ 'finance.taxPointDate' | t }}</label>
+                        <input id="tpDate" type="date" class="form-input" [value]="order.taxPointDate || ''" #tpInput />
+                        <button type="button" class="btn btn-sm btn-secondary" (click)="saveTaxPoint(order, tpInput.value)" [disabled]="savingTaxPoint()">{{ 'finance.updateTaxPoint' | t }}</button>
                       </div>
-                      <div class="field-hint tot-note">{{ 'finance.exchangeRateNote' | t: { from: order.currency, rate: (order.exchangeRate | num: 4), to: i18n.currency() } }}</div>
                     }
                   </div>
                 </div>
@@ -746,8 +772,94 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     warehouseId: [''],
     carrier: [''],
     trackingNumber: [''],
+    salesChannel: [''],
+    channelOrderRef: [''],
+    tax: documentTaxGroup(this.fb),
     lines: this.fb.array([])
   });
+
+  get taxGroup(): FormGroup {
+    return this.orderForm.get('tax') as FormGroup;
+  }
+
+  // ─── Tax engine (WP3): live quote from the server ───
+  taxService = inject(TaxService);
+  readonly salesChannels = SALES_CHANNELS;
+  exemptions = signal<ExemptionCode[]>([]);
+  withholdings = signal<WithholdingCode[]>([]);
+  quote = signal<TaxQuote | null>(null);
+  quoteError = signal<string | null>(null);
+  quoting = signal(false);
+  savingTaxPoint = signal(false);
+  /** form line index -> quote line index */
+  private quoteIndex: number[] = [];
+  private quoteSub?: Subscription;
+
+  quoteView(): TaxSummaryView | null {
+    const q = this.quote();
+    return q ? summaryFromQuote(q) : null;
+  }
+
+  quoteLine(i: number) {
+    const q = this.quote();
+    const k = this.quoteIndex[i];
+    return q && k !== undefined && k >= 0 ? q.doc.lines[k] ?? null : null;
+  }
+
+  detailView(order: Order): TaxSummaryView {
+    return summaryFromDocument(order, this.i18n.currency());
+  }
+
+  exemptionMissing(): boolean {
+    return this.linesArray.controls.some(l => lineNeedsExemption(l, this.lineProduct(l) || undefined, this.taxRates()));
+  }
+
+  private buildQuotePayload(): Record<string, unknown> | null {
+    const v = this.orderForm.getRawValue();
+    const items: Record<string, unknown>[] = [];
+    this.quoteIndex = [];
+    (v.lines || []).forEach((l: any) => {
+      const qty = Number(l.quantity);
+      if (!l.productId || !(qty > 0)) { this.quoteIndex.push(-1); return; }
+      this.quoteIndex.push(items.length);
+      const price = this.parsePrice(l.unitPrice);
+      items.push({ productId: l.productId, quantity: qty, ...(l.unitId ? { unitId: l.unitId } : {}), ...(price !== null ? { unitPrice: price } : {}), ...lineTaxPayload(l) });
+    });
+    if (!items.length) return null;
+    return { ...(v.customerId ? { customerId: v.customerId } : {}), currency: v.currency || undefined, items, ...documentTaxPayload(v.tax || {}) };
+  }
+
+  private startQuotes() {
+    this.quoteSub?.unsubscribe();
+    this.quoteSub = this.orderForm.valueChanges.pipe(
+      debounceTime(400),
+      switchMap(() => {
+        const payload = this.buildQuotePayload();
+        if (!payload || this.exemptionMissing()) { this.quote.set(null); return of(null); }
+        this.quoting.set(true);
+        return this.taxService.quoteOrder(payload).pipe(
+          catchError((err) => { this.quoteError.set(err.error?.message || this.i18n.t('finance.quoteFailed')); this.quote.set(null); this.quoting.set(false); return of(null); }),
+        );
+      }),
+    ).subscribe((q) => {
+      if (q) { this.quote.set(q); this.quoteError.set(null); }
+      this.quoting.set(false);
+    });
+  }
+
+  saveTaxPoint(order: Order, date: string) {
+    if (!date) return;
+    this.savingTaxPoint.set(true);
+    this.taxService.setOrderTaxPoint(order.id, { taxPointDate: date }).subscribe({
+      next: (o) => {
+        this.savingTaxPoint.set(false);
+        this.selectedOrder.set(o);
+        this.state.orders.update(list => list.map(x => (x.id === o.id ? o : x)));
+        this.ui.showToast(this.i18n.t('finance.taxPointSaved'), 'success');
+      },
+      error: (err) => { this.savingTaxPoint.set(false); this.ui.showToast(err.error?.message || this.i18n.t('orders.toast.updateError'), 'error'); },
+    });
+  }
 
   get linesArray() {
     return this.orderForm.get('lines') as FormArray;
@@ -806,6 +918,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.quoteSub?.unsubscribe();
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
@@ -904,7 +1017,11 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Create Order
   openCreateOrder() {
-    this.orderForm.reset({ customerId: '', customerName: '', currency: this.i18n.currency(), warehouseId: '', carrier: '', trackingNumber: '' });
+    this.orderForm.reset({ customerId: '', customerName: '', currency: this.i18n.currency(), warehouseId: '', carrier: '', trackingNumber: '', salesChannel: '', channelOrderRef: '' });
+    this.orderForm.setControl('tax', documentTaxGroup(this.fb));
+    this.quote.set(null);
+    this.quoteError.set(null);
+    this.startQuotes();
     this.onCustomerChange();
     this.loadLookups();
     this.linesArray.clear();
@@ -915,6 +1032,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
 
   closeCreateOrder() {
     this.showCreateOrderModal.set(false);
+    this.quoteSub?.unsubscribe();
   }
 
   createLineFormGroup(): FormGroup {
@@ -928,7 +1046,8 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
       unitId: [''],
       trackMode: ['auto'],
       lots: this.fb.control([] as { lotId: string; quantity: number }[]),
-      serials: this.fb.control([] as string[])
+      serials: this.fb.control([] as string[]),
+      ...lineTaxControls(this.fb),
     });
   }
 
@@ -1230,6 +1349,8 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     this.lookupsLoaded = true;
     this.inventoryService.getCustomers().subscribe({ next: c => this.customers.set(c), error: () => (this.lookupsLoaded = false) });
     this.inventoryService.getTaxRates().subscribe({ next: r => this.taxRates.set(r) });
+    this.taxService.exemptions().subscribe({ next: e => this.exemptions.set(e), error: () => {} });
+    this.taxService.withholdings().subscribe({ next: w => this.withholdings.set(w), error: () => {} });
   }
 
   onCustomerChange() {
@@ -1372,7 +1493,8 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     const mergedMap = new Map<string, Item>();
     formValue.lines.forEach((l: any) => {
       const unitId: string = l.unitId || '';
-      const key = `${l.productId}|${unitId}`;
+      const tax = lineTaxPayload(l);
+      const key = `${l.productId}|${unitId}|${JSON.stringify(tax)}`;
       const override = this.parsePrice(l.unitPrice);
       const manual = l.trackMode === 'manual';
       const lots: { lotId: string; quantity: number }[] = manual ? (l.lots || []) : [];
@@ -1390,6 +1512,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
           quantity: Number(l.quantity),
           ...(unitId ? { unitId } : {}),
           ...(override !== null ? { unitPrice: override } : {}),
+          ...tax,
           ...(lots.length ? { lots } : {}),
           ...(serials.length ? { serials } : {}),
         });
@@ -1406,6 +1529,9 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
       ...(formValue.warehouseId ? { warehouseId: formValue.warehouseId } : {}),
       carrier: formValue.carrier ? formValue.carrier.trim() : undefined,
       trackingNumber: formValue.trackingNumber ? formValue.trackingNumber.trim() : undefined,
+      ...(formValue.salesChannel ? { salesChannel: formValue.salesChannel } : {}),
+      ...(formValue.channelOrderRef ? { channelOrderRef: String(formValue.channelOrderRef).trim() } : {}),
+      ...documentTaxPayload(formValue.tax || {}),
       items,
     };
 
@@ -1421,7 +1547,8 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
         });
         this.isOrderSaving.set(false);
         this.closeCreateOrder();
-        this.ui.showToast(this.i18n.t('orders.toast.created'), 'success');
+        const warn = (order.warnings || []).filter(w => TAX_WARNING_KEYS[w.code]).map(w => this.i18n.t(TAX_WARNING_KEYS[w.code], (w.params || {}) as Record<string, any>));
+        this.ui.showToast([this.i18n.t('orders.toast.created'), ...warn].join(' '), warn.length ? 'info' : 'success');
       },
       error: (err) => {
         this.isOrderSaving.set(false);
