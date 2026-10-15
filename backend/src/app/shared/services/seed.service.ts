@@ -448,8 +448,10 @@ export class SeedService implements OnModuleInit {
           .map((qty, i) => ({ warehouseId: warehouses[i]?.id ?? warehouses[0]?.id, delta: qty }))
           .filter((a) => a.warehouseId && a.delta > 0);
         await this.warehouseStock.apply(manager, prod, allocations);
+        // Dated before the demo orders: a sale may not precede the stock it is taken from.
+        const openingDate = new Date(today.getTime() - 30 * 86400000);
         await this.warehouseStock.recordMovements(manager, prod, 0, allocations, {
-          type: StockMovementType.IN, reasonCode: 'OPENING', referenceType: 'manual', note: 'Initial seed stock', performedBy: 'SeedSystem',
+          type: StockMovementType.IN, reasonCode: 'OPENING', transactionDate: openingDate, referenceType: 'manual', note: 'Initial seed stock', performedBy: 'SeedSystem',
         });
         savedProducts.push(prod);
       }

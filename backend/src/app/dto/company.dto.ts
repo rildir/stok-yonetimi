@@ -88,9 +88,14 @@ export class UpdateCompanyDto extends CompanySettingsDto {
 
   @ApiPropertyOptional({ description: 'Bu tutarı (ana para birimi) aşan elle düzeltmeler ikinci onay ister; null = kapalı', example: 25000 })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'VALIDATION_AMOUNT_INVALID' })
+  @Min(0, { message: 'VALIDATION_AMOUNT_INVALID' })
   adjustmentApprovalThreshold?: number | null;
+
+  @ApiPropertyOptional({ description: 'Stok kilit tarihi (YYYY-MM-DD): bu tarih ve öncesine stok hareketi girilemez; null = kapalı', example: '2025-12-31' })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'STOCK_LOCK_DATE_INVALID' })
+  stockLockDate?: string | null;
 }
 
 export class RegisterCompanyDto extends CompanySettingsDto {

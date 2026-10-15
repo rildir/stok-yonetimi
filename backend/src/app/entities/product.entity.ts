@@ -50,6 +50,13 @@ export class ProductEntity {
   @Column(qtyColumn({ default: 0 }))
   quantity: number;
 
+  /**
+   * Denormalized sellable stock: the part of `quantity` held in sellable warehouses
+   * (not QUARANTINE / IN_TRANSIT, isSellable). `status` (low / out of stock) follows it.
+   */
+  @Column(qtyColumn({ default: 0 }))
+  availableQuantity: number;
+
   @Column(qtyColumn())
   minQuantity: number;
 

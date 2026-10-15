@@ -128,4 +128,21 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     note: 'Standart birim -> UN/ECE kodu. pack = PA veya PK, pallet = PF karşılıkları teyit edilmeli; diğerleri Rec. 20 ile birebir.',
   },
   { country: TR, key: 'VUK219_RECORD_DAYS', validFrom: '2018-01-01', validTo: null, value: 10, sourceRef: 'VUK md. 219/a (kayıtlar 10 günden fazla geciktirilemez)', confidence: 'high', note: 'Stok hareketi işlem tarihinden bu kadar gün sonra girilirse uyarı verilir.' },
+  // WP2 review: evidence required for stock exits that change the tax base (zayi / imha / afet / hırsızlık)
+  {
+    country: TR,
+    key: 'MOVEMENT_REASON_EVIDENCE',
+    validFrom: '2018-01-01',
+    validTo: null,
+    value: {
+      LOSS_ZAYI: { document: true, attachment: true },
+      DISASTER_LOSS: { document: true, attachment: true },
+      THEFT_LOSS: { document: true, attachment: true },
+      EXPIRED_DESTROYED: { document: true, attachment: true },
+      DESTRUCTION_IMHA: { document: true, attachment: true },
+    },
+    sourceRef: 'VUK md. 274, 278, 278/A; KDVK md. 30/c; KDVGUT III/C-2.4 (zayi / imha tevsiki)',
+    confidence: 'medium',
+    note: 'Neden kodu -> zorunlu belge no/tarih ve ek (tutanak, takdir komisyonu kararı, imha tutanağı, emniyet / afet tutanağı). Mali müşavir teyidi ile daraltılıp genişletilebilir.',
+  },
 ];

@@ -10,7 +10,7 @@ import {
   ValidationError,
 } from '@nestjs/common';
 import { isCodedErrorBody } from './app-error';
-import { Lang, MessageParams, resolveLang, translate } from './messages';
+import { hasMessage, Lang, MessageParams, resolveLang, translate } from './messages';
 import { TRIGGER_ERROR_CODES } from '../inventory/immutability-triggers';
 
 /**
@@ -30,17 +30,59 @@ interface ValidationIssue {
   params: MessageParams;
 }
 
+/** Generic coded messages for class-validator rules declared without a message code. */
+const GENERIC_CONSTRAINT_CODES: Record<string, { code: string; param?: string }> = {
+  isString: { code: 'VALIDATION_FIELD_STRING' },
+  isNotEmpty: { code: 'VALIDATION_FIELD_REQUIRED' },
+  isDefined: { code: 'VALIDATION_FIELD_REQUIRED' },
+  maxLength: { code: 'VALIDATION_FIELD_MAX_LENGTH', param: 'max' },
+  minLength: { code: 'VALIDATION_FIELD_MIN_LENGTH', param: 'min' },
+  isNumber: { code: 'VALIDATION_FIELD_NUMBER' },
+  isInt: { code: 'VALIDATION_FIELD_NUMBER' },
+  min: { code: 'VALIDATION_FIELD_MIN', param: 'min' },
+  max: { code: 'VALIDATION_FIELD_MAX', param: 'max' },
+  isBoolean: { code: 'VALIDATION_FIELD_BOOLEAN' },
+  isIn: { code: 'VALIDATION_FIELD_IN' },
+  isEnum: { code: 'VALIDATION_FIELD_IN' },
+  isArray: { code: 'VALIDATION_FIELD_ARRAY' },
+  isDateString: { code: 'VALIDATION_FIELD_DATE' },
+  isISO8601: { code: 'VALIDATION_FIELD_DATE' },
+  matches: { code: 'VALIDATION_FIELD_FORMAT' },
+  whitelistValidation: { code: 'VALIDATION_FIELD_NOT_ALLOWED' },
+};
+
+/**
+ * class-validator's default English text (no message code given) becomes a generic
+ * coded issue, so users never see untranslated messages.
+ */
+function codedIssue(constraint: string, message: string): ValidationIssue {
+  const parsed = parseValidationMessage(message);
+  if (hasMessage(parsed.code)) return parsed;
+  const generic = GENERIC_CONSTRAINT_CODES[constraint] ?? { code: 'VALIDATION_FIELD_INVALID' };
+  const params: MessageParams = {};
+  if (generic.param) {
+    const n = /(-?\d+(?:\.\d+)?)/.exec(message);
+    if (n) params[generic.param] = n[1];
+  }
+  return { code: generic.code, params };
+}
+
 /** Collect (code, params) per failed constraint, recursing into nested DTOs. */
 function flattenValidationErrors(errors: ValidationError[], parent = ''): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const e of errors) {
     const property = parent ? `${parent}.${e.property}` : e.property;
-    for (const message of Object.values(e.constraints || {})) {
-      const { code, params } = parseValidationMessage(message);
+    const own: (ValidationIssue & { generic: boolean })[] = [];
+    for (const [constraint, message] of Object.entries(e.constraints || {})) {
+      const generic = !hasMessage(parseValidationMessage(message).code);
+      const { code, params } = codedIssue(constraint, message);
       // A rule may report on another property than the one it is attached to (`field=`).
       const field = params['field'] ? (parent ? `${parent}.${params['field']}` : String(params['field'])) : property;
-      issues.push({ code, params: { ...params, property: field, value: e.value as any } });
+      own.push({ code, params: { ...params, property: field, value: e.value as any }, generic });
     }
+    // A specific (coded) message for the property makes the generic ones redundant.
+    const specific = own.some((i) => !i.generic);
+    issues.push(...own.filter((i) => !specific || !i.generic).map(({ code, params }) => ({ code, params })));
     if (e.children?.length) issues.push(...flattenValidationErrors(e.children, property));
   }
   return issues;

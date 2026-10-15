@@ -57,8 +57,24 @@ describe('error body building', () => {
     ];
     const body = buildErrorBody(validationExceptionFactory(errors), 400, 'en');
     expect(body.code).toBe('VALIDATION_FAILED');
-    expect(body.errors).toEqual(['Password must be at least 6 characters.', 'Username is required.', 'property extra should not exist']);
+    expect(body.errors).toEqual(['Password must be at least 6 characters.', 'Username is required.', 'Field "extra" is not allowed.']);
     expect(typeof body.message).toBe('string');
+  });
+
+  it('never shows class-validator English text: generic codes, dropped when a specific code exists', () => {
+    const errors: ValidationError[] = [
+      {
+        property: 'note',
+        value: undefined,
+        constraints: { isNotEmpty: 'REVERSAL_NOTE_REQUIRED', isString: 'note must be a string', maxLength: 'note must be shorter than or equal to 255 characters' },
+        children: [],
+      } as ValidationError,
+      { property: 'memo', value: 'x'.repeat(300), constraints: { maxLength: 'memo must be shorter than or equal to 255 characters' }, children: [] } as ValidationError,
+      { property: 'documentType', value: 'ZZZ', constraints: { isIn: 'DOCUMENT_TYPE_INVALID' }, children: [] } as ValidationError,
+    ];
+    const tr = buildErrorBody(validationExceptionFactory(errors), 400, 'tr');
+    expect(tr.errors).toEqual(['Ters kayıt için açıklama zorunludur.', '"memo" alanı en fazla 255 karakter olabilir.', 'Geçersiz belge türü: ZZZ']);
+    expect(tr.code).toBe('REVERSAL_NOTE_REQUIRED');
   });
 
   it('filter writes localized JSON using Accept-Language', () => {

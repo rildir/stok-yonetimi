@@ -146,8 +146,16 @@ export class WarehouseService {
     }
 
     // Stock is keyed by warehouseId, so a rename needs no stock rewrite.
+    const wasSellable = this.warehouseStock.isSellable(warehouse);
     await this.apply(warehouse, updates, false);
-    await this.warehouseRepo.save(warehouse);
+    const products = await this.dataSource.transaction(async (manager) => {
+      await manager.save(WarehouseEntity, warehouse);
+      // Sellable stock (availableQuantity / status) of the products held here follows the warehouse type.
+      return wasSellable !== this.warehouseStock.isSellable(warehouse)
+        ? this.warehouseStock.recomputeAvailability(manager, this.companyId, warehouse.id)
+        : [];
+    });
+    for (const product of products) this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product });
 
     this.appGateway.emitToCompany(this.companyId, 'warehouse_mutated', { type: 'update', warehouse });
     return warehouse;

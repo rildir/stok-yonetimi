@@ -136,19 +136,24 @@ export class AuditSubscriber implements EntitySubscriberInterface {
       if (!before || !after) return ev('product.updated', after), out;
       if (after.isDeleted === true && before.isDeleted === false) return ev('product.deleted', after), out;
       const diff = computeDiff(before, after);
-      const stockFields = new Set(['quantity', 'status', 'updatedAt']);
+      const stockFields = new Set(['quantity', 'availableQuantity', 'status', 'updatedAt']);
       if (diff.changed.some((k) => !stockFields.has(k))) ev('product.updated', after);
-      if (diff.changed.includes('quantity')) {
+      if (diff.changed.includes('quantity') || diff.changed.includes('availableQuantity')) {
         const min = Number(after.minQuantity ?? 0);
-        const prev = level(Number(before.quantity), min);
-        const next = level(Number(after.quantity), min);
+        // Stock level follows sellable stock (quarantine / in-transit excluded).
+        const avail = (r: Row) => Number(r.availableQuantity ?? r.quantity);
+        const prev = level(avail(before), min);
+        const next = level(avail(after), min);
         if (next !== 'ok' || prev !== next) {
           out.push({
             companyId,
             event: 'stock.changed',
             entityType: table,
             entityId: id ?? null,
-            data: { productId: id, sku: after.sku, name: after.name, previousQuantity: Number(before.quantity), quantity: Number(after.quantity), minQuantity: min, level: next, previousLevel: prev },
+            data: {
+              productId: id, sku: after.sku, name: after.name, previousQuantity: Number(before.quantity), quantity: Number(after.quantity),
+              availableQuantity: avail(after), minQuantity: min, level: next, previousLevel: prev,
+            },
           });
         }
       }

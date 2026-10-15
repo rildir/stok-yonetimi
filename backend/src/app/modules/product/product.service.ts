@@ -25,7 +25,7 @@ import { NotFoundException } from '@nestjs/common';
 import { UnitEntity } from '../../entities/unit.entity';
 import { CompanyEntity } from '../../entities/company.entity';
 import { checkCategoryRules } from '../../shared/compliance/category-rules';
-import { fitsDecimals, INVENTORY_CLASSES, toGtin14 } from '../../shared/tr';
+import { fitsDecimals, INVENTORY_CLASSES, roundQty, toGtin14 } from '../../shared/tr';
 
 /** Input accepted for create/update; `quantity` is applied through warehouse stock. */
 export type ProductInput = Partial<Omit<ProductEntity, 'warehouses' | 'units'>> & {
@@ -34,8 +34,6 @@ export type ProductInput = Partial<Omit<ProductEntity, 'warehouses' | 'units'>> 
   /** Opening stock details for tracked products */
   lots?: LotReceiptInput[];
   serials?: string[];
-  /** Required when an update changes the stock quantity */
-  reasonCode?: string;
 };
 
 @Injectable()
@@ -407,9 +405,14 @@ export class ProductService {
   }
 
   /** Applies field updates; a quantity change goes through warehouse stock + ADJUSTMENT movement(s). */
-  private async applyUpdate(manager: EntityManager, current: ProductEntity, updates: ProductInput, performedBy: string, note: string) {
+  private async applyUpdate(manager: EntityManager, current: ProductEntity, updates: ProductInput) {
     await this.validateRefs(manager, updates);
-    const { warehouseId, quantity, id: _id, companyId: _c, status: _s, units, lots: _l, serials: _sr, trackingType, reasonCode, ...fields } = updates as any;
+    const { warehouseId: _w, quantity, id: _id, companyId: _c, status: _s, units, lots: _l, serials: _sr, trackingType, availableQuantity: _a, ...fields } = updates as any;
+    // Stock is never changed by a product update: it would bypass the reason evidence, document
+    // dates, VUK 219 warning and maker-checker threshold of POST /stock-movements/adjust (R65).
+    if (quantity !== undefined && quantity !== null && quantity !== '' && roundQty(Number(quantity)) !== roundQty(current.quantity)) {
+      throw new BadRequestException(err('PRODUCT_QUANTITY_USE_ADJUSTMENT', { name: current.name }));
+    }
     delete fields.warehouses;
     delete fields.warehouseStocks;
     delete fields.baseUnit;
@@ -432,27 +435,13 @@ export class ProductService {
     if (trackingType !== undefined) await this.changeTracking(manager, current, trackingType);
     if (current.trackingType !== TrackingType.LOT) current.hasExpiry = false;
     const warnings = await this.checkCategory(manager, current);
-    await this.assertPrecision(manager, current, [current.minQuantity, quantity]);
+    await this.assertPrecision(manager, current, [current.minQuantity]);
     await this.saveUnits(manager, current, units);
-    current.status = this.stockHelper.calculateStatus(current.quantity, current.minQuantity);
-    let saved = await manager.save(ProductEntity, current);
+    current.status = this.stockHelper.calculateStatus(current.availableQuantity, current.minQuantity);
+    const saved = await manager.save(ProductEntity, current);
 
     (saved as any).complianceWarnings = warnings;
 
-    if (quantity !== undefined && quantity !== null && Number(quantity) !== saved.quantity) {
-      // A stock change needs a reason (corrections normally go through POST /stock-movements/adjust).
-      if (!reasonCode) throw new BadRequestException(err('REASON_CODE_REQUIRED'));
-      const oldQty = saved.quantity;
-      const allocations = await this.warehouseStock.setTotal(manager, saved, Number(quantity), warehouseId);
-      await this.warehouseStock.recordMovements(manager, saved, oldQty, allocations, {
-        type: StockMovementType.ADJUSTMENT,
-        reasonCode,
-        referenceType: 'manual',
-        note,
-        performedBy,
-      });
-      saved = current;
-    }
     return saved;
   }
 
@@ -464,7 +453,7 @@ export class ProductService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!current) return null;
-      const p = await this.applyUpdate(manager, current, updates, performedBy, 'Stock update');
+      const p = await this.applyUpdate(manager, current, updates);
       return this.decorate(manager, p);
     });
 
@@ -515,7 +504,7 @@ export class ProductService {
         if (!current) {
           throw new BadRequestException(err('PRODUCT_NOT_FOUND_ID', { id }));
         }
-        out.push(await this.applyUpdate(manager, current, updates, 'System', 'Stok güncelleme (Toplu)'));
+        out.push(await this.applyUpdate(manager, current, updates));
       }
       return out;
     });

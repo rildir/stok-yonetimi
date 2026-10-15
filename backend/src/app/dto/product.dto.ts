@@ -1,7 +1,7 @@
 import { vmsg } from '../shared/i18n/i18n-exception.filter';
 import { IsString, IsNotEmpty, IsNumber, IsInt, Min, IsOptional, IsArray, ValidateNested, ArrayMinSize, IsIn, IsBoolean, MaxLength, IsPositive } from 'class-validator';
 import { BARCODE_TYPES } from '../shared/inventory/barcode';
-import { INVENTORY_CLASSES, MOVEMENT_REASON_CODES, REGULATORY_CATEGORIES } from '../shared/tr';
+import { INVENTORY_CLASSES, REGULATORY_CATEGORIES } from '../shared/tr';
 import { Transform, Type } from 'class-transformer';
 import { IsISO4217CurrencyCode } from 'class-validator';
 
@@ -98,10 +98,6 @@ class ProductTrackingFieldsDto {
   @MaxLength(14)
   gtin14?: string | null;
 
-  @ApiPropertyOptional({ description: 'Stok miktarı değişirse zorunlu hareket nedeni (MOVEMENT_REASONS)' })
-  @IsOptional()
-  @IsIn(MOVEMENT_REASON_CODES, { message: 'REASON_CODE_INVALID' })
-  reasonCode?: string;
 }
 
 export class CreateProductDto extends ProductTrackingFieldsDto {
@@ -205,9 +201,9 @@ export class UpdateProductDto extends ProductTrackingFieldsDto {
   @IsOptional()
   price?: number;
 
-  @ApiPropertyOptional({ description: 'Stok miktarı' })
+  @ApiPropertyOptional({ description: 'Salt okunur: stok yalnızca POST /stock-movements/adjust ile değişir; farklı bir değer PRODUCT_QUANTITY_USE_ADJUSTMENT döner' })
   @IsNumber({ maxDecimalPlaces: 4 }, { message: 'VALIDATION_QUANTITY_DECIMAL' })
-  @Min(0)
+  @Min(0, { message: 'QUANTITY_INVALID' })
   @IsOptional()
   quantity?: number;
 

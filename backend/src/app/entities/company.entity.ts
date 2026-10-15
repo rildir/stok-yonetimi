@@ -102,6 +102,13 @@ export class CompanyEntity {
   @Column('decimal', { precision: 18, scale: 2, nullable: true, transformer: new ColumnNumericTransformer() })
   adjustmentApprovalThreshold?: number | null;
 
+  /**
+   * Stock lock date (YYYY-MM-DD): no stock movement may be dated on or before it
+   * (closed period / delivered count). null = only the default floor applies.
+   */
+  @Column({ type: 'date', nullable: true })
+  stockLockDate?: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

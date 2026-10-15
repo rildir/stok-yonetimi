@@ -9,6 +9,8 @@ import { ModalComponent } from '../modal.component';
 import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
 import { MOVEMENT_REASONS, MOVEMENT_DOCUMENT_TYPES, reasonAllowsDirection } from '@stok/tr-compliance';
+import { ReasonRule } from '../../models/inventory.models';
+import { toastMovementResult } from '../shared/movement-warnings';
 
 const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
 const ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'text/plain', 'text/csv'];
@@ -65,6 +67,7 @@ const TYPE_PILLS: { type: string; key: string }[] = [
               <div class="sm-approval-main">
                 <strong>{{ r.productName }}</strong>
                 <span class="num" [class.text-success]="r.quantityDelta > 0" [class.text-danger]="r.quantityDelta < 0">{{ r.quantityDelta > 0 ? '+' : '' }}{{ r.quantityDelta | num }}</span>
+                @if (r.payload.kind === 'REVERSAL') { <span class="badge badge-info">{{ 'stockMovements.approvals.reversalRequest' | t }}</span> }
                 <span class="badge badge-neutral">{{ reasonLabel(r.payload.reasonCode) }}</span>
                 <span class="text-sm text-muted">{{ 'stockMovements.approvals.value' | t: { value: (r.estimatedValue | money: r.currency), threshold: (r.threshold | money: r.currency) } }}</span>
               </div>
@@ -182,7 +185,7 @@ const TYPE_PILLS: { type: string; key: string }[] = [
                   </td>
                   <td class="num nowrap" [attr.data-label]="'stockMovements.col.quantity' | t">
                     <span [class.text-success]="m.quantity > 0" [class.text-danger]="m.quantity < 0">{{ m.quantity > 0 ? '+' : '' }}{{ m.quantity | num }}</span>
-                    @if (m.unitCode) { <span class="text-xs text-muted"> {{ m.unitCode | unitLabel }}</span> }
+                    @if (m.unitCode) { <span class="text-xs text-muted" [title]="m.unitCode"> {{ ledgerUnit(m.unitCode) }}</span> }
                   </td>
                   <td class="num nowrap" [attr.data-label]="'stockMovements.col.newStock' | t">
                     <span class="text-xs text-muted">{{ m.previousQuantity | num }}&nbsp;→&nbsp;</span>
@@ -216,6 +219,7 @@ const TYPE_PILLS: { type: string; key: string }[] = [
                     <span class="performed-badge" [class.performed-system]="isSystem(m.performedBy)" [class.performed-admin]="!isSystem(m.performedBy)">
                       {{ isSystem(m.performedBy) ? ('stockMovements.system' | t) : m.performedBy }}
                     </span>
+                    @if (m.approvedBy) { <div class="text-2xs text-muted">{{ 'stockMovements.approvedBy' | t: { user: m.approvedBy } }}</div> }
                   </td>
                   <td class="sm-actions">
                     @if (canEdit() && m.reversible) {
@@ -336,7 +340,7 @@ const TYPE_PILLS: { type: string; key: string }[] = [
               </div>
 
               <fieldset class="sm-fieldset">
-                <legend>{{ 'stockMovements.adjust.document' | t }}@if (needsDocument()) { <span class="text-danger"> *</span> }</legend>
+                <legend>{{ 'stockMovements.adjust.document' | t }}@if (needsDocument() || needsAttachment()) { <span class="text-danger"> *</span> }</legend>
                 <div class="sm-grid-2">
                   <div class="form-field">
                     <select id="adjDocType" formControlName="documentType" class="form-input form-select has-value">
@@ -364,6 +368,8 @@ const TYPE_PILLS: { type: string; key: string }[] = [
                   @if (attachment(); as a) {
                     <span class="text-sm truncate">{{ a.fileName }}</span>
                     <button type="button" class="btn btn-sm btn-ghost" (click)="attachment.set(null)">{{ 'stockMovements.adjust.attachmentRemove' | t }}</button>
+                  } @else if (needsAttachment()) {
+                    <span class="text-xs text-danger">{{ 'stockMovements.validation.attachmentRequired' | t }}</span>
                   } @else {
                     <span class="text-xs text-muted">{{ 'stockMovements.adjust.attachHint' | t }}</span>
                   }
@@ -379,7 +385,7 @@ const TYPE_PILLS: { type: string; key: string }[] = [
 
             <div class="drawer-footer">
               <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="adjustForm.invalid || isSaving() || !delta() || documentMissing()">
+              <button type="submit" class="btn btn-primary" [disabled]="adjustForm.invalid || isSaving() || !delta() || documentMissing() || attachmentMissing()">
                 @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'stockMovements.saving' | t }} } @else { {{ 'common.save' | t }} }
               </button>
             </div>
@@ -531,6 +537,9 @@ export class StockMovementsComponent implements OnInit {
   attachmentTarget = signal<StockMovement | null>(null);
   attachments = signal<MovementAttachment[]>([]);
 
+  /** Effective evidence rules from the server (legal parameter); library defaults until loaded. */
+  reasonRules = signal<ReasonRule[]>([]);
+
   isAdmin = computed(() => this.ui.userProfile()?.role === 'admin');
   canEdit = computed(() => ['admin', 'manager'].includes(this.ui.userProfile()?.role));
 
@@ -555,8 +564,13 @@ export class StockMovementsComponent implements OnInit {
   });
   /** Manual reasons that fit the direction of the change. */
   reasonOptions = computed(() => MOVEMENT_REASONS.filter((r) => r.manual && reasonAllowsDirection(r.code, this.delta())));
-  needsDocument = computed(() => !!MOVEMENT_REASONS.find((r) => r.code === this.formValue()['reasonCode'])?.needsDocument);
+  private rule(code: string | null | undefined): { needsDocument: boolean; needsAttachment: boolean } | undefined {
+    return this.reasonRules().find((r) => r.code === code) || MOVEMENT_REASONS.find((r) => r.code === code);
+  }
+  needsDocument = computed(() => !!this.rule(this.formValue()['reasonCode'])?.needsDocument);
+  needsAttachment = computed(() => !!this.rule(this.formValue()['reasonCode'])?.needsAttachment);
   documentMissing = computed(() => this.needsDocument() && (!this.formValue()['documentNo'] || !this.formValue()['documentDate']));
+  attachmentMissing = computed(() => this.needsAttachment() && !this.attachment());
   reasonHint = computed(() => {
     const code = this.formValue()['reasonCode'];
     if (!code) return '';
@@ -577,6 +591,7 @@ export class StockMovementsComponent implements OnInit {
     this.loadProducts();
     this.inventory.getWarehouses().subscribe({ next: (data) => this.warehouses.set(data || []) });
     this.loadPending();
+    this.inventory.getReasonRules().subscribe({ next: (rules) => this.reasonRules.set(rules || []), error: () => this.reasonRules.set([]) });
     this.route.queryParams.subscribe(params => {
       this.searchQuery.set(params['q'] || '');
       this.loadMovements(1);
@@ -804,7 +819,7 @@ export class StockMovementsComponent implements OnInit {
   }
 
   saveAdjustment() {
-    if (this.adjustForm.invalid || this.documentMissing()) {
+    if (this.adjustForm.invalid || this.documentMissing() || this.attachmentMissing()) {
       this.adjustForm.markAllAsTouched();
       return;
     }
@@ -832,8 +847,7 @@ export class StockMovementsComponent implements OnInit {
           this.ui.showToast(this.i18n.t('stockMovements.toast.pendingApproval'), 'info');
           this.loadPending();
         } else {
-          const late = body?.warnings?.find((w) => w.code === 'LATE_ENTRY_WARNING');
-          this.ui.showToast(late ? this.i18n.t('stockMovements.warning.lateEntry', late.params || {}) : this.i18n.t('stockMovements.toast.adjusted'), late ? 'info' : 'success');
+          toastMovementResult(this.ui, this.i18n, body?.warnings, 'stockMovements.toast.adjusted');
         }
         this.loadMovements(1);
         this.loadProducts();
@@ -857,10 +871,15 @@ export class StockMovementsComponent implements OnInit {
     if (!m || !this.reverseNote().trim()) return;
     this.isReversing.set(true);
     this.inventory.reverseMovement(m.id, this.reverseNote().trim()).subscribe({
-      next: () => {
+      next: (res) => {
         this.isReversing.set(false);
         this.reverseTarget.set(null);
-        this.ui.showToast(this.i18n.t('stockMovements.toast.reversed'), 'success');
+        if (res.status === 202 || res.body?.status === 'PENDING_APPROVAL') {
+          this.ui.showToast(this.i18n.t('stockMovements.toast.reversalPending'), 'info');
+          this.loadPending();
+        } else {
+          toastMovementResult(this.ui, this.i18n, res.body?.warnings, 'stockMovements.toast.reversed');
+        }
         this.loadMovements(1);
         this.loadProducts();
       },
@@ -876,9 +895,9 @@ export class StockMovementsComponent implements OnInit {
   decide(r: StockAdjustmentRequest, approve: boolean) {
     this.decidingId.set(r.id);
     this.inventory.decideAdjustmentRequest(r.id, approve).subscribe({
-      next: () => {
+      next: (res) => {
         this.decidingId.set(null);
-        this.ui.showToast(this.i18n.t(approve ? 'stockMovements.approvals.approved' : 'stockMovements.approvals.rejected'), 'success');
+        toastMovementResult(this.ui, this.i18n, res?.warnings, approve ? 'stockMovements.approvals.approved' : 'stockMovements.approvals.rejected');
         this.loadPending();
         this.loadMovements(1);
         this.loadProducts();
@@ -915,6 +934,17 @@ export class StockMovementsComponent implements OnInit {
   }
 
   // ─── Labels ───
+
+  /** Unit snapshot of a movement: UN/ECE code (current rows) or the internal unit code (legacy rows). */
+  ledgerUnit(code: string | null | undefined): string {
+    if (!code) return '';
+    const key = `units.unece.${code}`;
+    const t = this.i18n.t(key);
+    if (t !== key) return code;
+    const internal = `units.${code}`;
+    const u = this.i18n.t(internal);
+    return u === internal ? code : u;
+  }
 
   reasonLabel(code: string | null | undefined): string {
     if (!code) return '';

@@ -41,18 +41,28 @@ const MOVEMENT_COLUMNS: [string, string][] = [
   ['unitCode', 'varchar(20) NULL'],
 ];
 
-/** Legacy movement -> reason code. */
-function legacyReason(type: string, referenceType: string | null, qty: number): string {
+/**
+ * Legacy movement -> reason code.
+ *  - RETURN rows from an order cancellation put a not-yet-delivered sale back: CORRECTION
+ *    (the live cancellation flow books the same); customer returns keep RETURN.
+ *  - Manual IN rows: only the initial stock entered when a product was created (or seeded)
+ *    is an opening balance; any other undocumented stock-in is UNCLASSIFIED_197_397.
+ */
+const OPENING_NOTE = /(oluşturma|initial|demo lot|açılış|devir|toplu|bulk)/i;
+const CANCEL_NOTE = /(iptal|cancel)/i;
+
+function legacyReason(type: string, referenceType: string | null, qty: number, note: string | null): string {
   switch (type) {
     case 'ORDER':
       return 'SALE';
     case 'RETURN':
-      return 'CORRECTION'; // order cancellation put stock back
+      return CANCEL_NOTE.test(note || '') ? 'CORRECTION' : 'RETURN';
     case 'TRANSFER_IN':
     case 'TRANSFER_OUT':
       return 'TRANSFER';
     case 'IN':
-      return referenceType === 'purchase_order' ? 'PURCHASE' : 'OPENING';
+      if (referenceType === 'purchase_order') return 'PURCHASE';
+      return OPENING_NOTE.test(note || '') ? 'OPENING' : 'UNCLASSIFIED_197_397';
     case 'ADJUSTMENT':
       if (referenceType === 'stock_count') return qty >= 0 ? 'COUNT_SURPLUS' : 'COUNT_SHORTAGE';
       return 'UNCLASSIFIED_197_397';
@@ -196,8 +206,8 @@ export class InventoryCoreDecimalImmutable1784274129000 implements MigrationInte
         (await q.query('SELECT `id`, `countNumber`, `completedAt` FROM `stock_counts` WHERE `companyId` = ?', [c.id])).map((s: any) => [s.id, s]),
       );
       const rows: any[] = await q.query(
-        'SELECT sm.*, p.`sku` AS _sku, p.`unit` AS _unit, w.`name` AS _wh FROM `stock_movements` sm ' +
-          'LEFT JOIN `products` p ON p.`id` = sm.`productId` LEFT JOIN `warehouses` w ON w.`id` = sm.`warehouseId` ' +
+        'SELECT sm.*, p.`sku` AS _sku, COALESCE(u.`uneceCode`, p.`unit`) AS _unit, w.`name` AS _wh FROM `stock_movements` sm ' +
+          'LEFT JOIN `products` p ON p.`id` = sm.`productId` LEFT JOIN `units` u ON u.`id` = p.`baseUnitId` LEFT JOIN `warehouses` w ON w.`id` = sm.`warehouseId` ' +
           'WHERE sm.`companyId` = ? ORDER BY sm.`createdAt` ASC, sm.`id` ASC',
         [c.id],
       );
@@ -243,7 +253,7 @@ export class InventoryCoreDecimalImmutable1784274129000 implements MigrationInte
           documentNo,
           documentDate,
           counterpartyTaxId,
-          reasonCode: legacyReason(r.type, r.referenceType, qty),
+          reasonCode: legacyReason(r.type, r.referenceType, qty, r.note),
           reversesMovementId: null,
           performedByUserId: users.get(r.performedBy) ?? null,
           performedViaApiKeyId: null,

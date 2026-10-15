@@ -13,8 +13,9 @@ import { allocateLots, todayKey } from '../inventory/lot-allocation';
 import { CompanyEntity } from '../../entities/company.entity';
 import { randomUUID } from 'crypto';
 import { StockMovementChainEntity } from '../../entities/stock-movement-chain.entity';
-import { GENESIS_HASH, movementHash, toSecond } from '../inventory/movement-hash';
+import { CURRENT_HASH_VERSION, GENESIS_HASH, movementHash, toSecond } from '../inventory/movement-hash';
 import { addQty, isDateKey, isReasonCode, reasonAllowsDirection, roundQty, sumQty, warehouseTypeAllowsSale, daysBetween, dateKeyInZone, DEFAULT_TIMEZONE } from '../tr';
+import { UnitEntity } from '../../entities/unit.entity';
 import { TenantContext } from '../tenant/tenant-context.service';
 
 export interface StockAllocation {
@@ -47,13 +48,25 @@ export interface MovementInfo {
   referenceType?: string;
   note?: string;
   performedBy?: string;
+  /** Actor user id when it is not the current request's user (approved maker-checker request: the requester) */
+  performedByUserId?: string | null;
+  /** Maker-checker: the second administrator who approved the movement */
+  approvedBy?: string | null;
+  approvedByUserId?: string | null;
+  /** Digest of the evidence files attached when the movement is booked (attachmentsDigest) */
+  attachmentsSha256?: string | null;
   /** Transfers: every row keeps the (unchanged) product total as previous/new quantity */
   totalsUnchanged?: boolean;
 }
 
+/** Movement types that only move stock between warehouses (product total unchanged). */
+const TRANSFER_TYPES = ['TRANSFER_OUT', 'TRANSFER_IN', 'QUARANTINE_IN', 'QUARANTINE_OUT'];
+
 /** Allowed clock skew for "future" transaction dates. */
 const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
 const CHAIN_LOCK_KEY = '__stockChainLocked';
+/** Movements dated more than this before now are checked against the balance on their date. */
+const BACKDATE_CHECK_MS = 60 * 1000;
 
 /** Lots captured when stock comes in (quantities in base units). */
 export interface LotReceiptInput {
@@ -179,7 +192,36 @@ export class WarehouseStockService {
     if (isTracked(product)) throw new BadRequestException(err('PRODUCT_TRACKED_QTY_LOCKED', { name: product.name }));
   }
 
-  /** Apply signed per-warehouse deltas, then resync products.quantity/status. */
+  /**
+   * Recomputes products.quantity, availableQuantity (stock in sellable warehouses) and
+   * status from the product's (locked) warehouse rows.
+   */
+  private async syncTotals(manager: EntityManager, product: ProductEntity, rows: ProductWarehouseStockEntity[]): Promise<void> {
+    const whs = await manager.find(WarehouseEntity, { where: { companyId: product.companyId }, select: ['id', 'type', 'isSellable', 'isDeleted'] });
+    const sellable = new Set(whs.filter((w) => !w.isDeleted && this.isSellable(w)).map((w) => w.id));
+    product.quantity = sumQty(rows.map((r) => r.quantity));
+    product.availableQuantity = sumQty(rows.filter((r) => sellable.has(r.warehouseId)).map((r) => r.quantity));
+    // Low / out of stock follows what can be sold (quarantine / in-transit stock does not count).
+    product.status = this.stockHelper.calculateStatus(product.availableQuantity, product.minQuantity);
+  }
+
+  /**
+   * Re-derives availableQuantity / status of the products stocked in `warehouseId`
+   * (after the warehouse's type or sellability changed). Does not change stock.
+   */
+  async recomputeAvailability(manager: EntityManager, companyId: string, warehouseId: string): Promise<ProductEntity[]> {
+    const ids = (await manager.find(ProductWarehouseStockEntity, { where: { companyId, warehouseId }, select: ['id', 'productId'] })).map((r) => r.productId);
+    const out: ProductEntity[] = [];
+    for (const id of [...new Set(ids)]) {
+      const product = await manager.findOne(ProductEntity, { where: { companyId, id }, lock: { mode: 'pessimistic_write' } });
+      if (!product) continue;
+      await this.syncTotals(manager, product, await this.lockRows(manager, companyId, id));
+      out.push(await manager.save(ProductEntity, product));
+    }
+    return out;
+  }
+
+  /** Apply signed per-warehouse deltas, then resync products.quantity/availableQuantity/status. */
   async apply(manager: EntityManager, product: ProductEntity, allocations: StockAllocation[]): Promise<ProductEntity> {
     const rows = await this.lockRows(manager, product.companyId, product.id);
     for (const a of allocations) {
@@ -204,8 +246,7 @@ export class WarehouseStockService {
       row.quantity = next;
       await manager.save(ProductWarehouseStockEntity, row);
     }
-    product.quantity = sumQty(rows.map((r) => r.quantity));
-    product.status = this.stockHelper.calculateStatus(product.quantity, product.minQuantity);
+    await this.syncTotals(manager, product, rows);
     return manager.save(ProductEntity, product);
   }
 
@@ -687,7 +728,12 @@ export class WarehouseStockService {
     });
 
     const chain = await this.begin(manager, product.companyId);
+    await this.assertTransactionDateAllowed(manager, product, txDate, now, previousTotal, info.totalsUnchanged ? 0 : sumQty(active.map((a) => a.delta)));
     const actor = this.tenant.actor;
+    const baseUnit = product.baseUnitId ? await manager.findOne(UnitEntity, { where: { id: product.baseUnitId, companyId: product.companyId } }) : null;
+    // Snapshot the UN/ECE code (what documents carry); the internal code only when the unit has none.
+    const unitCode = baseUnit?.uneceCode || product.unit || null;
+    const createdAt = new Date(now);
     const whIds = [...new Set(active.map((a) => a.warehouseId).filter(Boolean))];
     const whs = whIds.length ? await manager.find(WarehouseEntity, { where: { companyId: product.companyId, id: In(whIds) } }) : [];
     const saved: StockMovementEntity[] = [];
@@ -702,7 +748,7 @@ export class WarehouseStockService {
         productId: product.id,
         productSku: product.sku ?? null,
         productName: product.name,
-        unitCode: product.unit ?? null,
+        unitCode,
         warehouseId: a.warehouseId,
         warehouseName: whs.find((w) => w.id === a.warehouseId)?.name ?? null,
         type: a.type || info.type,
@@ -722,9 +768,15 @@ export class WarehouseStockService {
         referenceType: info.referenceType as string,
         note: (info.note ? String(info.note).slice(0, 255) : info.note) as string,
         performedBy: info.performedBy || actor.username || 'System',
-        performedByUserId: actor.userId ?? null,
-        performedViaApiKeyId: actor.apiKeyId ?? null,
+        performedByUserId: info.performedByUserId !== undefined ? info.performedByUserId : actor.userId ?? null,
+        performedViaApiKeyId: info.performedByUserId !== undefined ? null : actor.apiKeyId ?? null,
         reversesMovementId: info.reversesMovementId ?? null,
+        approvedBy: info.approvedBy ? String(info.approvedBy).slice(0, 100) : null,
+        approvedByUserId: info.approvedByUserId ?? null,
+        // Evidence files are linked to the first movement of the booking; its row carries their digest.
+        attachmentsSha256: i === 0 ? info.attachmentsSha256 ?? null : null,
+        hashVersion: CURRENT_HASH_VERSION,
+        createdAt,
       });
       row.prevHash = chain.lastHash;
       row.hash = movementHash(chain.lastHash, row as unknown as Record<string, unknown>);
@@ -735,6 +787,59 @@ export class WarehouseStockService {
     }
     await manager.update(StockMovementChainEntity, { companyId: product.companyId }, { lastSequenceNo: chain.lastSequenceNo, lastHash: chain.lastHash });
     return saved;
+  }
+
+  /**
+   * Rejects a transaction date that falls into a locked period (company stockLockDate)
+   * or before the default floor (1 January of the previous year), and a back-dated
+   * outflow that would make the product's balance negative at its transaction date or
+   * at any later point of the ledger (balances evaluated in transaction-date order;
+   * product level, transfers excluded since they do not change the total).
+   */
+  private async assertTransactionDateAllowed(
+    manager: EntityManager,
+    product: ProductEntity,
+    txDate: Date,
+    now: number,
+    previousTotal: number,
+    netDelta: number,
+  ): Promise<void> {
+    const company = await manager.findOne(CompanyEntity, { where: { id: product.companyId }, select: ['id', 'timezone', 'stockLockDate'] });
+    const tz = company?.timezone || DEFAULT_TIMEZONE;
+    const day = dateKeyInZone(txDate, tz);
+    const lock = company?.stockLockDate ? normDate(company.stockLockDate) : null;
+    if (lock && day <= lock) throw new BadRequestException(err('TRANSACTION_DATE_LOCKED', { date: lock }));
+    const floor = `${Number(dateKeyInZone(new Date(now), tz).slice(0, 4)) - 1}-01-01`;
+    if (day < floor) throw new BadRequestException(err('TRANSACTION_DATE_TOO_OLD', { min: floor }));
+    if (netDelta >= 0 || txDate.getTime() >= now - BACKDATE_CHECK_MS) return;
+    // Running sums of the movements dated after txDate, newest first: the largest one is the
+    // amount by which the current total exceeds the lowest balance from txDate onwards.
+    const rows: { s: string | null }[] = await manager.query(
+      'SELECT MAX(x.s) AS s FROM (SELECT SUM(`quantity`) OVER (ORDER BY `transactionDate` DESC, `sequenceNo` DESC ROWS UNBOUNDED PRECEDING) AS s ' +
+        'FROM `stock_movements` WHERE `companyId` = ? AND `productId` = ? AND `transactionDate` > ? AND `type` NOT IN (?)) x',
+      [product.companyId, product.id, txDate, TRANSFER_TYPES],
+    );
+    const maxLater = Math.max(0, Number(rows?.[0]?.s ?? 0) || 0);
+    const minBalance = roundQty(roundQty(previousTotal) - maxLater);
+    if (roundQty(minBalance + netDelta) < 0) {
+      throw new BadRequestException(err('BACKDATED_BALANCE_NEGATIVE', { date: day, available: Math.max(0, minBalance), requested: roundQty(-netDelta) }));
+    }
+  }
+
+  /** VUK 219 warnings for movements just recorded (one per distinct delay). */
+  async lateEntryWarnings(
+    manager: EntityManager,
+    companyId: string,
+    movements: { transactionDate?: Date | string | null }[],
+    limitDays: number,
+  ): Promise<{ code: string; params: Record<string, number> }[]> {
+    const company = await manager.findOne(CompanyEntity, { where: { id: companyId }, select: ['id', 'timezone'] });
+    const out: { code: string; params: Record<string, number> }[] = [];
+    for (const m of movements) {
+      const w = this.lateEntryWarning(m.transactionDate, company?.timezone, limitDays);
+      if (w && !out.some((x) => x.params['days'] === w.params['days'])) out.push(w);
+    }
+    return out;
   }
 
   /**

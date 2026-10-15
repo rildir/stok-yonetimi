@@ -200,6 +200,7 @@ export class PurchaseOrderService {
     meta: PoReceiptMeta = {},
   ): Promise<PurchaseOrderEntity | null> {
     const productsToEmit: ProductEntity[] = [];
+    let receivedOn: Date | null = null;
     const saved = await this.dataSource.transaction(async (manager) => {
       await this.warehouseStock.begin(manager, this.companyId);
       const po = await manager.findOne(PurchaseOrderEntity, {
@@ -224,6 +225,8 @@ export class PurchaseOrderService {
         const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
         const supplier = await manager.findOne(SupplierEntity, { where: { companyId: this.companyId, id: po.supplierId } });
         const receivedAt = parseZonedDateTime(meta.transactionDate, company.timezone) || new Date();
+        if (Number.isNaN(receivedAt.getTime())) throw new BadRequestException(err('TRANSACTION_DATE_INVALID'));
+        receivedOn = receivedAt;
         const docNo = meta.documentNo || po.poNumber;
         for (const r of receipts || []) {
           if (!po.items.some((i) => i.id === r.itemId)) throw new BadRequestException(err('PO_RECEIPT_ITEM_NOT_FOUND', { id: r.itemId }));
@@ -261,6 +264,11 @@ export class PurchaseOrderService {
       const out = await manager.save(PurchaseOrderEntity, po);
       for (const item of po.items) {
         if (item.tracking) await manager.update(PurchaseOrderItemEntity, { id: item.id }, { tracking: item.tracking });
+      }
+      if (receivedOn) {
+        // VUK 219: a receipt booked more than VUK219_RECORD_DAYS after the goods arrived gets a warning.
+        const limit = Number(await this.finance.param<number>('VUK219_RECORD_DAYS', undefined, manager).catch(() => 10)) || 10;
+        (out as PurchaseOrderEntity & { warnings?: unknown[] }).warnings = await this.warehouseStock.lateEntryWarnings(manager, this.companyId, [{ transactionDate: receivedOn }], limit);
       }
       return out;
     });

@@ -18,10 +18,10 @@ export class StockCountController {
   @Post()
   async createStockCount(
     @Body('notes') notes?: string,
-    @Body('performedBy') performedBy?: string,
     @Req() req?: any
   ) {
-    const user = performedBy || req?.user?.username || 'System';
+    // The actor always comes from the authenticated request (it is hashed into the ledger).
+    const user = req?.user?.username || 'System';
     return this.stockCountService.createStockCount(notes, user);
   }
 
@@ -42,10 +42,9 @@ export class StockCountController {
   @Post(':id/complete')
   async completeStockCount(
     @Param('id') id: string,
-    @Body('performedBy') performedBy?: string,
     @Req() req?: any
   ) {
-    const user = performedBy || req?.user?.username || 'System';
+    const user = req?.user?.username || 'System';
     return this.stockCountService.completeStockCount(id, user);
   }
 }

@@ -60,5 +60,7 @@
   "auditLog.integrity.problem.HEAD_MISMATCH": "Zincir başı uyuşmuyor (sondan kayıt silinmiş)",
   "auditLog.entity.stock_adjustment_requests": "Stok Düzeltme Talepleri",
   "auditLog.entity.units": "Ölçü Birimleri",
-  "auditLog.entity.stock_counts": "Stok Sayımları"
+  "auditLog.entity.stock_counts": "Stok Sayımları",
+  "auditLog.integrity.attachments": "{count} ek dosya özetiyle karşılaştırıldı",
+  "auditLog.integrity.problem.ATTACHMENT_MISMATCH": "Ek dosya değiştirilmiş veya silinmiş"
 }

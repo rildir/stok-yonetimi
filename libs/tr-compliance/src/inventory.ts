@@ -105,6 +105,19 @@ export const UNECE_UNIT_CODES: { code: string; decimals: number; group: 'count' 
   { code: 'KWH', decimals: 3, group: 'energy' },
 ];
 
+/** Unit groups counted in whole units: their precision is always 0 decimals. */
+export const INTEGER_UNECE_GROUPS = ['count', 'package'] as const;
+
+export function uneceGroup(code: unknown): string | null {
+  return UNECE_UNIT_CODES.find((u) => u.code === code)?.group ?? null;
+}
+
+/** Largest precision a unit with this UN/ECE code may have (0 for count / package codes). */
+export function maxDecimalsForUnece(code: unknown): number {
+  const g = uneceGroup(code);
+  return g && (INTEGER_UNECE_GROUPS as readonly string[]).includes(g) ? 0 : UNIT_MAX_DECIMALS;
+}
+
 export function isUneceCode(code: unknown): boolean {
   return typeof code === 'string' && UNECE_UNIT_CODES.some((u) => u.code === code);
 }
@@ -125,29 +138,60 @@ export const STANDARD_UNIT_DECIMALS: Record<string, number> = {
 
 export type ReasonDirection = 'in' | 'out' | 'both';
 
+/**
+ * `needsDocument` / `needsAttachment` are the code defaults of the evidence a manual
+ * movement must carry. The effective rule comes from the legal parameter
+ * MOVEMENT_REASON_EVIDENCE (see `effectiveReasonEvidence`), so it can be tightened or
+ * relaxed per country / period without a deployment.
+ *
+ * Zayi / afet / hırsızlık / imha exits (VUK 274/278, KDVK 30/c) need a document
+ * reference (tutanak, takdir komisyonu kararı, imha tutanağı, emniyet tutanağı).
+ */
 export const MOVEMENT_REASONS = [
-  { code: 'SALE', direction: 'out', manual: true, needsDocument: true },
-  { code: 'PURCHASE', direction: 'in', manual: true, needsDocument: true },
-  { code: 'OPENING', direction: 'in', manual: true, needsDocument: false },
-  { code: 'INTERNAL_USE', direction: 'out', manual: true, needsDocument: false },
-  { code: 'GIFT_SAMPLE', direction: 'out', manual: true, needsDocument: false },
-  { code: 'PERSONNEL', direction: 'out', manual: true, needsDocument: false },
-  { code: 'WASTAGE_NORMAL', direction: 'out', manual: true, needsDocument: false },
-  { code: 'LOSS_ZAYI', direction: 'out', manual: true, needsDocument: false },
-  { code: 'DISASTER_LOSS', direction: 'out', manual: true, needsDocument: false },
-  { code: 'THEFT_LOSS', direction: 'out', manual: true, needsDocument: false },
-  { code: 'EXPIRED_DESTROYED', direction: 'out', manual: true, needsDocument: false },
-  { code: 'DESTRUCTION_IMHA', direction: 'out', manual: true, needsDocument: false },
-  { code: 'SCRAP', direction: 'out', manual: true, needsDocument: false },
-  { code: 'COUNT_SURPLUS', direction: 'in', manual: true, needsDocument: false },
-  { code: 'COUNT_SHORTAGE', direction: 'out', manual: true, needsDocument: false },
-  { code: 'TESELLUM_SURPLUS', direction: 'in', manual: true, needsDocument: false },
-  { code: 'TESELLUM_SHORTAGE', direction: 'out', manual: true, needsDocument: false },
-  { code: 'TRANSFER', direction: 'both', manual: false, needsDocument: false },
-  { code: 'RETURN', direction: 'both', manual: true, needsDocument: true },
-  { code: 'CORRECTION', direction: 'both', manual: true, needsDocument: false },
-  { code: 'UNCLASSIFIED_197_397', direction: 'both', manual: true, needsDocument: false },
-] as const satisfies readonly { code: string; direction: ReasonDirection; manual: boolean; needsDocument: boolean }[];
+  { code: 'SALE', direction: 'out', manual: true, needsDocument: true, needsAttachment: false },
+  { code: 'PURCHASE', direction: 'in', manual: true, needsDocument: true, needsAttachment: false },
+  { code: 'OPENING', direction: 'in', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'INTERNAL_USE', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'GIFT_SAMPLE', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'PERSONNEL', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'WASTAGE_NORMAL', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'LOSS_ZAYI', direction: 'out', manual: true, needsDocument: true, needsAttachment: true },
+  { code: 'DISASTER_LOSS', direction: 'out', manual: true, needsDocument: true, needsAttachment: true },
+  { code: 'THEFT_LOSS', direction: 'out', manual: true, needsDocument: true, needsAttachment: true },
+  { code: 'EXPIRED_DESTROYED', direction: 'out', manual: true, needsDocument: true, needsAttachment: true },
+  { code: 'DESTRUCTION_IMHA', direction: 'out', manual: true, needsDocument: true, needsAttachment: true },
+  { code: 'SCRAP', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'COUNT_SURPLUS', direction: 'in', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'COUNT_SHORTAGE', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'TESELLUM_SURPLUS', direction: 'in', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'TESELLUM_SHORTAGE', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'TRANSFER', direction: 'both', manual: false, needsDocument: false, needsAttachment: false },
+  { code: 'RETURN', direction: 'both', manual: true, needsDocument: true, needsAttachment: false },
+  { code: 'CORRECTION', direction: 'both', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'UNCLASSIFIED_197_397', direction: 'both', manual: true, needsDocument: false, needsAttachment: false },
+] as const satisfies readonly { code: string; direction: ReasonDirection; manual: boolean; needsDocument: boolean; needsAttachment: boolean }[];
+
+/** Evidence a reason requires: document no + date, and/or an attached file. */
+export interface ReasonEvidence {
+  document: boolean;
+  attachment: boolean;
+}
+
+/**
+ * Effective evidence rules: code defaults overridden by the legal parameter
+ * MOVEMENT_REASON_EVIDENCE (`{ [reason]: { document?, attachment? } }`).
+ */
+export function effectiveReasonEvidence(override?: Record<string, Partial<ReasonEvidence>> | null): Record<string, ReasonEvidence> {
+  const out: Record<string, ReasonEvidence> = {};
+  for (const r of MOVEMENT_REASONS) {
+    const o = override && typeof override === 'object' ? override[r.code] : undefined;
+    out[r.code] = {
+      document: typeof o?.document === 'boolean' ? o.document : r.needsDocument,
+      attachment: typeof o?.attachment === 'boolean' ? o.attachment : r.needsAttachment,
+    };
+  }
+  return out;
+}
 
 export type MovementReasonCode = (typeof MOVEMENT_REASONS)[number]['code'];
 export const MOVEMENT_REASON_CODES: MovementReasonCode[] = MOVEMENT_REASONS.map((r) => r.code);

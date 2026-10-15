@@ -378,5 +378,10 @@
   "settings.approval.subtitle": "Tahmini tutarı (fark × birim fiyat) bu eşiği aşan elle düzeltmeler, talep edenden farklı bir yönetici onaylayana kadar stoğa işlenmez.",
   "settings.approval.enable": "İkinci onayı etkinleştir",
   "settings.approval.threshold": "Eşik tutarı ({currency})",
-  "settings.approval.example": "{value} üzerindeki düzeltmeler onaya gider."
+  "settings.approval.example": "{value} üzerindeki düzeltmeler onaya gider.",
+  "settings.stockLock.title": "Stok kilit tarihi",
+  "settings.stockLock.subtitle": "Bu tarih ve öncesine hiçbir stok hareketi (geriye tarihli alış, satış, düzeltme, ters kayıt) girilemez. Kapanmış dönemleri ve teslim edilmiş sayımları korur.",
+  "settings.stockLock.date": "Kilit tarihi",
+  "settings.stockLock.clear": "Kilidi kaldır",
+  "settings.stockLock.hint": "Kilit yokken de bir önceki yılın 1 Ocak tarihinden eski hareket girilemez; geriye tarihli çıkışlar o tarihteki stokla karşılaştırılır."
 }

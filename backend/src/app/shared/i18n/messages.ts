@@ -259,7 +259,7 @@ export const MESSAGES: Catalog = {
   TRANSACTION_DATE_INVALID: { tr: 'Geçersiz işlem tarihi.', en: 'Invalid transaction date.' },
   TRANSACTION_DATE_IN_FUTURE: { tr: 'İşlem tarihi gelecekte olamaz.', en: 'The transaction date cannot be in the future.' },
   DOCUMENT_DATE_INVALID: { tr: 'Belge tarihi YYYY-AA-GG biçiminde olmalıdır.', en: 'The document date must be YYYY-MM-DD.' },
-  DOCUMENT_TYPE_INVALID: { tr: 'Geçersiz belge türü: {type}', en: 'Invalid document type: {type}' },
+  DOCUMENT_TYPE_INVALID: { tr: 'Geçersiz belge türü: {value}', en: 'Invalid document type: {value}' },
   LATE_ENTRY_WARNING: { tr: 'Kayıt işlem tarihinden {days} gün sonra giriliyor (VUK 219: en geç {limit} gün).', en: 'Recorded {days} days after the transaction (VUK 219 allows at most {limit} days).' },
   WAREHOUSE_NOT_SELLABLE: { tr: '{warehouse} deposundan satış yapılamaz (karantina / yolda / satışa kapalı).', en: 'Cannot sell from warehouse {warehouse} (quarantine / in transit / not sellable).' },
   WAREHOUSE_TYPE_INVALID: { tr: 'Geçersiz depo türü: {type}', en: 'Invalid warehouse type: {type}' },
@@ -281,6 +281,43 @@ export const MESSAGES: Catalog = {
   VALIDATION_QUANTITY_DECIMAL: { tr: 'Miktar en fazla 4 ondalık basamaklı bir sayı olmalıdır.', en: 'Quantity must be a number with at most 4 decimals.' },
   VALIDATION_QUANTITY_POSITIVE: { tr: 'Miktar sıfırdan büyük olmalıdır.', en: 'Quantity must be greater than zero.' },
   INTEGRITY_ADMIN_ONLY: { tr: 'Bütünlük doğrulaması yalnızca yöneticiler içindir.', en: 'Integrity verification is restricted to administrators.' },
+
+  // WP2 review round 1
+  ATTACHMENT_REQUIRED_FOR_REASON: {
+    tr: '"{reason}" nedeniyle yapılan çıkışa dayanak belge (tutanak, komisyon kararı, imha / emniyet tutanağı) eklenmelidir.',
+    en: 'An exit with reason "{reason}" needs a supporting file (report, commission decision, destruction / police report).',
+  },
+  PRODUCT_QUANTITY_USE_ADJUSTMENT: {
+    tr: '{name} stok miktarı ürün güncellemesiyle değiştirilemez; neden, belge ve onay kurallarıyla stok düzeltmesi (POST /stock-movements/adjust) kullanın.',
+    en: 'The stock of {name} cannot be changed by a product update; use a stock adjustment (POST /stock-movements/adjust) with reason, document and approval rules.',
+  },
+  ATTACHMENT_IMMUTABLE: { tr: 'Stok hareketi ekleri silinemez veya değiştirilemez.', en: 'Stock movement attachments cannot be deleted or changed.' },
+  ADJUSTMENT_REQUEST_IMMUTABLE: { tr: 'Sonuçlanmış bir onay talebi değiştirilemez veya silinemez.', en: 'A decided approval request cannot be changed or deleted.' },
+  REVERSAL_ALREADY_PENDING: { tr: 'Bu hareket için onay bekleyen bir ters kayıt talebi zaten var.', en: 'A reversal request for this movement is already waiting for approval.' },
+  TRANSACTION_DATE_LOCKED: { tr: 'İşlem tarihi stok kilit tarihine ({date}) veya öncesine düşüyor; kapalı döneme hareket girilemez.', en: 'The transaction date falls on or before the stock lock date ({date}); closed periods cannot take movements.' },
+  TRANSACTION_DATE_TOO_OLD: { tr: 'İşlem tarihi {min} tarihinden önce olamaz.', en: 'The transaction date cannot be earlier than {min}.' },
+  BACKDATED_BALANCE_NEGATIVE: {
+    tr: '{date} tarihli çıkış o tarihteki (veya sonraki bir andaki) stoğu eksiye düşürür: en fazla {available}, istenen {requested}.',
+    en: 'An exit dated {date} would make the stock negative on that date (or later): at most {available}, requested {requested}.',
+  },
+  STOCK_LOCK_DATE_INVALID: { tr: 'Stok kilit tarihi YYYY-AA-GG biçiminde ve bugünden ileri olmayan bir tarih olmalıdır.', en: 'The stock lock date must be YYYY-MM-DD and not in the future.' },
+  UNIT_DECIMALS_NOT_ALLOWED_FOR_CODE: { tr: '{code} adetle sayılan bir birimdir; en fazla {max} ondalık basamak olabilir.', en: '{code} is a counted unit; at most {max} decimals are allowed.' },
+  SCHEMA_SYNC_REFUSED: { tr: 'Şema senkronizasyonu reddedildi.', en: 'Schema synchronization refused.' },
+  VALIDATION_AMOUNT_INVALID: { tr: 'Tutar sıfır veya daha büyük, en fazla 2 ondalıklı bir sayı olmalıdır.', en: 'The amount must be a number of zero or more with at most 2 decimals.' },
+  VALIDATION_FIELD_STRING: { tr: '"{property}" alanı metin olmalıdır.', en: 'Field "{property}" must be text.' },
+  VALIDATION_FIELD_REQUIRED: { tr: '"{property}" alanı zorunludur.', en: 'Field "{property}" is required.' },
+  VALIDATION_FIELD_MAX_LENGTH: { tr: '"{property}" alanı en fazla {max} karakter olabilir.', en: 'Field "{property}" may have at most {max} characters.' },
+  VALIDATION_FIELD_MIN_LENGTH: { tr: '"{property}" alanı en az {min} karakter olmalıdır.', en: 'Field "{property}" must have at least {min} characters.' },
+  VALIDATION_FIELD_NUMBER: { tr: '"{property}" alanı geçerli bir sayı olmalıdır.', en: 'Field "{property}" must be a valid number.' },
+  VALIDATION_FIELD_MIN: { tr: '"{property}" alanı en az {min} olmalıdır.', en: 'Field "{property}" must be at least {min}.' },
+  VALIDATION_FIELD_MAX: { tr: '"{property}" alanı en fazla {max} olabilir.', en: 'Field "{property}" may be at most {max}.' },
+  VALIDATION_FIELD_BOOLEAN: { tr: '"{property}" alanı doğru/yanlış olmalıdır.', en: 'Field "{property}" must be true or false.' },
+  VALIDATION_FIELD_IN: { tr: '"{property}" alanı için geçersiz değer: {value}', en: 'Invalid value for field "{property}": {value}' },
+  VALIDATION_FIELD_ARRAY: { tr: '"{property}" alanı bir liste olmalıdır.', en: 'Field "{property}" must be a list.' },
+  VALIDATION_FIELD_DATE: { tr: '"{property}" alanı geçerli bir tarih olmalıdır.', en: 'Field "{property}" must be a valid date.' },
+  VALIDATION_FIELD_FORMAT: { tr: '"{property}" alanının biçimi geçersiz.', en: 'Field "{property}" has an invalid format.' },
+  VALIDATION_FIELD_NOT_ALLOWED: { tr: '"{property}" alanı bu istekte kullanılamaz.', en: 'Field "{property}" is not allowed.' },
+  VALIDATION_FIELD_INVALID: { tr: '"{property}" alanı geçersiz.', en: 'Field "{property}" is invalid.' },
 };
 
 export type MessageParams = Record<string, string | number | undefined | null>;

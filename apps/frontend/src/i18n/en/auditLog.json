@@ -60,5 +60,7 @@
   "auditLog.integrity.problem.HEAD_MISMATCH": "Chain head mismatch (rows removed at the end)",
   "auditLog.entity.stock_adjustment_requests": "Stock Adjustment Requests",
   "auditLog.entity.units": "Units of Measure",
-  "auditLog.entity.stock_counts": "Stock Counts"
+  "auditLog.entity.stock_counts": "Stock Counts",
+  "auditLog.integrity.attachments": "{count} attachments checked against their digests",
+  "auditLog.integrity.problem.ATTACHMENT_MISMATCH": "Attachment changed or removed"
 }

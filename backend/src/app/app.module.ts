@@ -7,6 +7,9 @@ import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { I18nExceptionFilter } from './shared/i18n/i18n-exception.filter';
 import { HealthModule } from './modules/health/health.module';
 import { resolveJwtSecret } from './shared/security/security-config';
+import { DataSource, DataSourceOptions } from 'typeorm';
+import { MIGRATIONS } from './shared/db/migration-list';
+import { guardedSynchronize } from './shared/db/schema-sync-guard';
 
 // Entities
 import { ProductEntity } from './entities/product.entity';
@@ -68,8 +71,9 @@ import { RefdataModule } from './modules/refdata/refdata.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'mysql',
+    TypeOrmModule.forRootAsync({
+      useFactory: () => ({
+      type: 'mysql' as const,
       host: process.env.DB_HOST || '127.0.0.1',
       port: parseInt(process.env.DB_PORT || '3306', 10),
       username: process.env.DB_USERNAME || 'root',
@@ -113,10 +117,18 @@ import { RefdataModule } from './modules/refdata/refdata.module';
       // Store and read DATETIME as UTC; DATE columns stay 'YYYY-MM-DD' strings (no TZ shift).
       timezone: 'Z',
       dateStrings: ['DATE'],
-      // Dev only; DB_SYNCHRONIZE=false pauses it (e.g. while a migration is pending).
-      synchronize: process.env.NODE_ENV !== 'production' && process.env.DB_SYNCHRONIZE !== 'false',
-      migrations: [__dirname + '/migrations/*{.ts,.js}'],
+      // Never TypeORM's own sync: dev sync runs through guardedSynchronize (see dataSourceFactory).
+      synchronize: false,
+      migrations: MIGRATIONS,
       migrationsRun: false,
+      }),
+      // Dev only (DB_SYNCHRONIZE=false or production: off). Refuses to start on pending /
+      // unknown migrations or a destructive sync (DROP COLUMN / TABLE would bypass the ledger triggers).
+      dataSourceFactory: async (options) => {
+        const ds = await new DataSource(options as DataSourceOptions).initialize();
+        await guardedSynchronize(ds);
+        return ds;
+      },
     }),
     JwtModule.register({
       global: true,

@@ -28,6 +28,7 @@ export interface EffectiveLocale {
 
 import { UnitEntity } from '../../entities/unit.entity';
 import { STANDARD_UNITS } from '../../shared/inventory/units';
+import { isDateKey, todayKey } from '../../shared/tr';
 @Injectable()
 export class CompanyService {
   constructor(
@@ -69,6 +70,11 @@ export class CompanyService {
     }
     if (dto.adjustmentApprovalThreshold !== undefined) {
       company.adjustmentApprovalThreshold = dto.adjustmentApprovalThreshold === null ? null : Number(dto.adjustmentApprovalThreshold);
+    }
+    if (dto.stockLockDate !== undefined) {
+      const d = dto.stockLockDate || null;
+      if (d && (!isDateKey(d) || d > todayKey(company.timezone))) throw new BadRequestException(err('STOCK_LOCK_DATE_INVALID'));
+      company.stockLockDate = d;
     }
     return this.companyRepo.save(company);
   }

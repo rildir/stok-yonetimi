@@ -232,7 +232,13 @@ export class OrderService {
         items: orderItemEntities,
       });
 
-      return await manager.save(OrderEntity, newOrder);
+      const created = await manager.save(OrderEntity, newOrder);
+      if (data.date && productsToEmit.length) {
+        // VUK 219: stock issued for a sale dated more than VUK219_RECORD_DAYS ago gets a warning.
+        const limit = Number(await this.finance.param<number>('VUK219_RECORD_DAYS', undefined, manager).catch(() => 10)) || 10;
+        (created as OrderEntity & { warnings?: unknown[] }).warnings = await this.warehouseStock.lateEntryWarnings(manager, this.companyId, [{ transactionDate: txDate }], limit);
+      }
+      return created;
     });
 
     this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'create', order: savedOrder });

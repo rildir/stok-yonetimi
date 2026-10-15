@@ -60,5 +60,6 @@
   "units.unece.HUR": "Saat",
   "units.unece.DAY": "Gün",
   "units.unece.MON": "Ay",
-  "units.unece.KWH": "Kilovatsaat"
+  "units.unece.KWH": "Kilovatsaat",
+  "units.decimalsCountHint": "Adetle sayılan / ambalaj birimleri (C62, DZN, BX…) tam sayıdır."
 }

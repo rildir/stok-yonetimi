@@ -187,4 +187,71 @@ describe('WP2 inventory core (MySQL)', () => {
     expect(r.ok).toBe(false);
     expect(r.issues.map((i) => i.problem)).toContain('HASH_MISMATCH');
   }, 60000);
+
+  it('v2 rows (createdAt, approver, UN/ECE unit) verify after a database round trip', async () => {
+    if (!available) return;
+    const { company, wh, product } = await fixture(ds!.manager, 'v2');
+    const svc = stock();
+    await ds!.transaction(async (m) => {
+      await svc.begin(m, company.id);
+      const p = await m.findOneOrFail(ProductEntity, { where: { id: product.id }, lock: { mode: 'pessimistic_write' } });
+      const allocs = await svc.add(m, p, 3.25, wh.id);
+      return svc.recordMovements(m, p, 0, allocs, { type: 'ADJUSTMENT', reasonCode: 'COUNT_SURPLUS', performedBy: 'maker', performedByUserId: 'u-maker', approvedBy: 'checker', approvedByUserId: 'u-checker', attachmentsSha256: 'e'.repeat(64) });
+    });
+    const rows = await ds!.manager.find(StockMovementEntity, { where: { companyId: company.id }, order: { sequenceNo: 'ASC' } });
+    expect(rows[0]).toMatchObject({ hashVersion: 2, unitCode: 'KGM', approvedBy: 'checker', performedBy: 'maker' });
+    expect(verifyChain(rows as any).ok).toBe(true);
+    // createdAt is sealed: changing it (bypassing the trigger is impossible, so simulate on the copy) breaks the chain
+    expect(verifyChain([{ ...rows[0], createdAt: new Date(rows[0].createdAt.getTime() - 86400000) }] as any).ok).toBe(false);
+  }, 60000);
+
+  it('a back-dated exit is checked against the balance on its date', async () => {
+    if (!available) return;
+    const { company, wh, product } = await fixture(ds!.manager, 'back');
+    const svc = stock();
+    const book = (qty: number, reasonCode: string, transactionDate?: Date) =>
+      ds!.transaction(async (m) => {
+        await svc.begin(m, company.id);
+        const p = await m.findOneOrFail(ProductEntity, { where: { id: product.id }, lock: { mode: 'pessimistic_write' } });
+        const before = p.quantity;
+        const allocs = qty > 0 ? await svc.add(m, p, qty, wh.id) : await svc.deduct(m, p, -qty, wh.id);
+        return svc.recordMovements(m, p, before, allocs, { type: qty > 0 ? 'IN' : 'ADJUSTMENT', reasonCode, transactionDate });
+      });
+    const day = 86400000;
+    await book(10, 'OPENING', new Date(Date.now() - 5 * day));
+    await book(-9, 'WASTAGE_NORMAL', new Date(Date.now() - 3 * day));
+    await book(20, 'PURCHASE');
+    // 4 days ago the balance was 10, but 3 days ago it dropped to 1: an exit of 2 dated 4 days ago is impossible.
+    await expect(book(-2, 'WASTAGE_NORMAL', new Date(Date.now() - 4 * day))).rejects.toMatchObject({ response: { code: 'BACKDATED_BALANCE_NEGATIVE' } });
+    // Before the opening there was nothing at all.
+    await expect(book(-0.5, 'WASTAGE_NORMAL', new Date(Date.now() - 6 * day))).rejects.toMatchObject({ response: { code: 'BACKDATED_BALANCE_NEGATIVE' } });
+    // An exit of 1 dated 4 days ago keeps every later balance >= 0.
+    await expect(book(-1, 'WASTAGE_NORMAL', new Date(Date.now() - 4 * day))).resolves.toHaveLength(1);
+    expect((await ds!.manager.findOneByOrFail(ProductEntity, { id: product.id })).quantity).toBe(20);
+  }, 60000);
+
+  it('evidence files and decided requests are protected by the database', async () => {
+    if (!available) return;
+    const { company, wh, product } = await fixture(ds!.manager, 'att');
+    const [m] = await receive(stock(), company.id, product.id, wh.id, 1);
+    const q = (sql: string, p?: unknown[]) => ds!.query(sql, p);
+    await q(
+      "INSERT INTO `stock_movement_attachments` (`id`, `companyId`, `movementId`, `adjustmentRequestId`, `fileName`, `mimeType`, `size`, `sha256`, `content`) VALUES ('att-1', ?, NULL, 'req-1', 'tutanak.pdf', 'application/pdf', 3, ?, 'abc')",
+      [company.id, 'f'.repeat(64)],
+    );
+    // linking a pending request's file to its movement once is allowed ...
+    await q('UPDATE `stock_movement_attachments` SET `movementId` = ? WHERE `id` = ?', [m.id, 'att-1']);
+    // ... anything else is not
+    expect(triggerErrorCode(await q("UPDATE `stock_movement_attachments` SET `content` = 'xyz' WHERE `id` = 'att-1'").catch((e) => e))).toBe('ATTACHMENT_IMMUTABLE');
+    expect(triggerErrorCode(await q('UPDATE `stock_movement_attachments` SET `movementId` = NULL WHERE `id` = ?', ['att-1']).catch((e) => e))).toBe('ATTACHMENT_IMMUTABLE');
+    expect(triggerErrorCode(await q("DELETE FROM `stock_movement_attachments` WHERE `id` = 'att-1'").catch((e) => e))).toBe('ATTACHMENT_IMMUTABLE');
+
+    await q(
+      "INSERT INTO `stock_adjustment_requests` (`id`, `companyId`, `status`, `productId`, `productName`, `quantityDelta`, `currency`, `payload`, `requestedBy`) VALUES ('req-1', ?, 'PENDING', ?, 'F', -1, 'TRY', '{}', 'maker')",
+      [company.id, product.id],
+    );
+    await q("UPDATE `stock_adjustment_requests` SET `status` = 'APPROVED' WHERE `id` = 'req-1'");
+    expect(triggerErrorCode(await q("UPDATE `stock_adjustment_requests` SET `status` = 'PENDING' WHERE `id` = 'req-1'").catch((e) => e))).toBe('ADJUSTMENT_REQUEST_IMMUTABLE');
+    expect(triggerErrorCode(await q("DELETE FROM `stock_adjustment_requests` WHERE `id` = 'req-1'").catch((e) => e))).toBe('ADJUSTMENT_REQUEST_IMMUTABLE');
+  }, 60000);
 });

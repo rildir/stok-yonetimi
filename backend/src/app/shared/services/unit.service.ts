@@ -9,7 +9,7 @@ import { DEFAULT_UNIT_CODE, STANDARD_UNITS, toBaseQuantity } from '../inventory/
 import { CompanyEntity } from '../../entities/company.entity';
 import { LegalParameterEntity } from '../../entities/legal-parameter.entity';
 import { pickParameter } from './legal-parameter.service';
-import { fitsDecimals, isUneceCode, NON_SI_STANDARD_UNIT_CODES, NON_SI_UNECE_CODES, STANDARD_UNIT_DECIMALS, UNIT_MAX_DECIMALS } from '../tr';
+import { fitsDecimals, isUneceCode, maxDecimalsForUnece, NON_SI_STANDARD_UNIT_CODES, NON_SI_UNECE_CODES, STANDARD_UNIT_DECIMALS, UNIT_MAX_DECIMALS } from '../tr';
 
 export interface UnitInput {
   code?: string;
@@ -97,6 +97,10 @@ export class UnitService {
     }
     // e-Belge lines need a UN/ECE code: required for new units of Turkish companies.
     if (isCreate && tr && !unit.uneceCode) throw new BadRequestException(err('UNIT_CODE_MISSING', { unit: unit.code }));
+    // Count / package codes (C62, DZN, BX, ...) are whole units.
+    if (unit.uneceCode && unit.decimals > maxDecimalsForUnece(unit.uneceCode)) {
+      throw new BadRequestException(err('UNIT_DECIMALS_NOT_ALLOWED_FOR_CODE', { code: unit.uneceCode, max: maxDecimalsForUnece(unit.uneceCode) }));
+    }
   }
 
   /** Lowering a unit's precision must not strand existing fractional stock. */

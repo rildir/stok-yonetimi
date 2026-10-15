@@ -57,6 +57,12 @@ export class StockMovementController {
     return result.body;
   }
 
+  /** Reason codes with the effective evidence rules (document / attachment) for manual movements. */
+  @Get('reason-rules')
+  reasonRules() {
+    return this.stockMovementService.reasonRules();
+  }
+
   @Roles('admin', 'manager')
   @Get('adjustment-requests')
   listAdjustmentRequests(@Query('status') status?: string) {
@@ -78,11 +84,20 @@ export class StockMovementController {
     return this.stockMovementService.decideAdjustmentRequest(id, false, actorName(req), dto?.note);
   }
 
-  /** Correction of a movement: a REVERSAL row with the opposite quantity (the original stays). */
+  /**
+   * Correction of a movement: a REVERSAL row with the opposite quantity (the original stays).
+   * Above the approval threshold (or for an approved movement) it waits for a second administrator: 202.
+   */
   @Roles('admin', 'manager')
   @Post(':id/reverse')
-  reverse(@Param('id') id: string, @Body() dto: ReverseMovementDto, @Req() req: any) {
-    return this.stockMovementService.reverseMovement(id, dto, actorName(req));
+  async reverse(@Param('id') id: string, @Body() dto: ReverseMovementDto, @Req() req: any, @Res({ passthrough: true }) res: any) {
+    const result = await this.stockMovementService.reverseMovement(id, dto, actorName(req));
+    if (result.pending) {
+      res.status(HttpStatus.ACCEPTED);
+      const lang = resolveLang(req.headers?.['accept-language']);
+      return { ...result.body, message: translate(result.body.code, lang, result.body.params) };
+    }
+    return result.body;
   }
 
   @Get(':id/attachments')

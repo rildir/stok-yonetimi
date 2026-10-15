@@ -179,5 +179,9 @@
   "stockMovements.docType.DESTRUCTION_REPORT": "İmha tutanağı",
   "stockMovements.docType.EXPENSE_VOUCHER": "Gider pusulası",
   "stockMovements.docType.INTERNAL_VOUCHER": "İç belge / fiş",
-  "stockMovements.docType.OTHER": "Diğer"
+  "stockMovements.docType.OTHER": "Diğer",
+  "stockMovements.approvals.reversalRequest": "Ters kayıt talebi",
+  "stockMovements.toast.reversalPending": "Ters kayıt tutarı onay eşiğini aşıyor (veya hareket onaylı bir düzeltme); ikinci bir yöneticinin onayına gönderildi.",
+  "stockMovements.validation.attachmentRequired": "Bu neden için dayanak belge eklenmelidir (tutanak, komisyon kararı, imha / emniyet tutanağı).",
+  "stockMovements.approvedBy": "Onaylayan: {user}"
 }

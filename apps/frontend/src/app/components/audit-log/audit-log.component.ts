@@ -73,6 +73,7 @@ interface DiffRow {
         <div class="integrity-body">
           <strong>{{ (r.ok ? 'auditLog.integrity.ok' : 'auditLog.integrity.broken') | t }}</strong>
           <span>{{ 'auditLog.integrity.summary' | t: { count: (r.checked | num), seq: r.lastSequenceNo, at: (r.verifiedAt | appDate: 'datetime') } }}</span>
+          @if (r.attachmentsChecked !== undefined) { <span>{{ 'auditLog.integrity.attachments' | t: { count: (r.attachmentsChecked | num) } }}</span> }
           <span class="mono text-2xs truncate" [title]="r.lastHash">{{ 'auditLog.integrity.head' | t }}: {{ r.lastHash }}</span>
           @if (!r.ok) {
             <ul class="integrity-issues">

@@ -378,5 +378,10 @@
   "settings.approval.subtitle": "Manual adjustments whose estimated value (difference × unit price) exceeds this threshold are booked only after an administrator other than the requester approves them.",
   "settings.approval.enable": "Require a second approval",
   "settings.approval.threshold": "Threshold ({currency})",
-  "settings.approval.example": "Adjustments above {value} need approval."
+  "settings.approval.example": "Adjustments above {value} need approval.",
+  "settings.stockLock.title": "Stock lock date",
+  "settings.stockLock.subtitle": "No stock movement (back-dated purchase, sale, adjustment, reversal) can be dated on or before this date. Protects closed periods and delivered counts.",
+  "settings.stockLock.date": "Lock date",
+  "settings.stockLock.clear": "Remove lock",
+  "settings.stockLock.hint": "Even without a lock, movements cannot be dated before 1 January of the previous year; back-dated exits are checked against the stock on their date."
 }

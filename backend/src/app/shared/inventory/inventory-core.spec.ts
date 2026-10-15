@@ -1,8 +1,12 @@
 import 'reflect-metadata';
-import { GENESIS_HASH, movementHash, toSecond, verifyChain } from './movement-hash';
+import { attachmentsDigest, ChainVerifier, GENESIS_HASH, movementHash, toSecond, verifyChain } from './movement-hash';
+import { CompanyEntity } from '../../entities/company.entity';
+import { UnitEntity } from '../../entities/unit.entity';
 import { checkCategoryRules } from '../compliance/category-rules';
 import {
+  effectiveReasonEvidence,
   isReasonCode,
+  maxDecimalsForUnece,
   isValidGtin,
   MOVEMENT_REASON_CODES,
   parseZonedDateTime,
@@ -48,6 +52,61 @@ function chain(n: number) {
   return rows;
 }
 
+describe('stock movement hash chain v2', () => {
+  const v2 = (prev: string, extra: Record<string, unknown> = {}) => {
+    const row: Record<string, any> = {
+      ...chain(1)[0],
+      hashVersion: 2,
+      createdAt: new Date('2026-10-15T09:31:02.123Z'),
+      approvedBy: 'checker',
+      approvedByUserId: 'u-2',
+      attachmentsSha256: attachmentsDigest(['b'.repeat(64), 'a'.repeat(64)]),
+      prevHash: prev,
+      ...extra,
+    };
+    row['hash'] = movementHash(prev, row);
+    return row;
+  };
+
+  it('covers the recording time, the approver and the evidence digest', () => {
+    const row = v2(GENESIS_HASH);
+    expect(verifyChain([row]).ok).toBe(true);
+    for (const change of [{ createdAt: new Date('2026-10-01T09:31:02.123Z') }, { approvedBy: 'someone' }, { attachmentsSha256: null }, { hashVersion: 1 }]) {
+      expect(verifyChain([{ ...row, ...change }]).ok).toBe(false);
+    }
+  });
+
+  it('keeps v1 rows verifiable next to v2 rows and verifies in batches', () => {
+    const v1 = chain(3);
+    const next = v2(v1[2]['hash'], { id: 'm4', sequenceNo: 4 });
+    const verifier = new ChainVerifier();
+    verifier.push(v1.slice(0, 2));
+    verifier.push([v1[2], next]);
+    expect(verifier.result()).toMatchObject({ ok: true, checked: 4, lastSequenceNo: 4, lastHash: next['hash'] });
+  });
+
+  it('evidence digest does not depend on file order', () => {
+    expect(attachmentsDigest(['a'.repeat(64), 'b'.repeat(64)])).toBe(attachmentsDigest(['b'.repeat(64), 'a'.repeat(64)]));
+    expect(attachmentsDigest([])).toBeNull();
+  });
+});
+
+describe('reason evidence and unit precision rules', () => {
+  it('zayi / imha exits need a document and a file by default; the legal parameter overrides', () => {
+    const rules = effectiveReasonEvidence(null);
+    for (const r of ['LOSS_ZAYI', 'DISASTER_LOSS', 'THEFT_LOSS', 'EXPIRED_DESTROYED', 'DESTRUCTION_IMHA']) expect(rules[r]).toEqual({ document: true, attachment: true });
+    expect(rules['SCRAP']).toEqual({ document: false, attachment: false });
+    expect(effectiveReasonEvidence({ LOSS_ZAYI: { attachment: false } })['LOSS_ZAYI']).toEqual({ document: true, attachment: false });
+  });
+
+  it('count and package UN/ECE codes are whole units', () => {
+    expect(maxDecimalsForUnece('DZN')).toBe(0);
+    expect(maxDecimalsForUnece('BX')).toBe(0);
+    expect(maxDecimalsForUnece('KGM')).toBe(3);
+    expect(maxDecimalsForUnece(null)).toBe(3);
+  });
+});
+
 describe('stock movement hash chain', () => {
   it('verifies an intact chain', () => {
     const r = verifyChain(chain(5));
@@ -77,12 +136,20 @@ describe('stock movement hash chain', () => {
 });
 
 describe('WarehouseStockService.recordMovements', () => {
-  function setup() {
+  function setup(company: Record<string, unknown> = {}, laterSum: string | null = null) {
     const saved: any[] = [];
     const chainRow = { companyId: 'c1', lastSequenceNo: 7, lastHash: 'a'.repeat(64) };
     const manager: any = {
       queryRunner: { isTransactionActive: true, data: {} },
-      query: jest.fn(async () => [{ x: 1 }]),
+      // chain head exists; the balance window query returns the largest later running sum
+      query: jest.fn(async (sql: string) => (sql.includes('OVER (') ? [{ s: laterSum }] : [{ x: 1 }])),
+      findOne: jest.fn(async (e: any) =>
+        e === CompanyEntity
+          ? { id: 'c1', timezone: 'Europe/Istanbul', stockLockDate: null, ...company }
+          : e === UnitEntity
+            ? { id: 'u-kg', code: 'kg', uneceCode: 'KGM' }
+            : null,
+      ),
       findOneOrFail: jest.fn(async () => chainRow),
       find: jest.fn(async () => [{ id: 'w1', name: 'Merkez Depo' }]),
       create: jest.fn((_e: any, o: any) => ({ ...o })),
@@ -91,7 +158,7 @@ describe('WarehouseStockService.recordMovements', () => {
     };
     const tenant: any = { actor: { username: 'ayse', userId: 'u-1', apiKeyId: undefined } };
     const svc = new WarehouseStockService(new StockHelperService(), tenant);
-    const product: any = { id: 'p1', companyId: 'c1', name: 'Fıstık', sku: 'GD-FISTIK', unit: 'kg', quantity: 10 };
+    const product: any = { id: 'p1', companyId: 'c1', name: 'Fıstık', sku: 'GD-FISTIK', unit: 'kg', baseUnitId: 'u-kg', quantity: 10 };
     return { svc, manager, saved, chainRow, product };
   }
 
@@ -119,10 +186,54 @@ describe('WarehouseStockService.recordMovements', () => {
     ]);
     expect(saved[0].prevHash).toBe('a'.repeat(64));
     expect(saved[1].prevHash).toBe(saved[0].hash);
-    expect(saved[0]).toMatchObject({ productSku: 'GD-FISTIK', unitCode: 'kg', warehouseName: 'Merkez Depo', performedBy: 'ayse', performedByUserId: 'u-1' });
+    expect(saved[0]).toMatchObject({ productSku: 'GD-FISTIK', unitCode: 'KGM', warehouseName: 'Merkez Depo', performedBy: 'ayse', performedByUserId: 'u-1', hashVersion: 2 });
+    expect(saved[0].createdAt).toBeInstanceOf(Date);
     expect(saved[0].transactionDate.toISOString()).toBe('2026-10-01T10:15:30.000Z');
     expect(chainRow).toMatchObject({ lastSequenceNo: 9, lastHash: saved[1].hash });
     expect(manager.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps maker and checker apart and seals the evidence digest on the first row', async () => {
+    const { svc, manager, saved, product } = setup();
+    await svc.recordMovements(manager, product, 10, [{ warehouseId: 'w1', delta: -1 }, { warehouseId: 'w2', delta: -1 }], {
+      type: 'DISPOSAL',
+      reasonCode: 'LOSS_ZAYI',
+      performedBy: 'maker',
+      performedByUserId: 'u-maker',
+      approvedBy: 'checker',
+      approvedByUserId: 'u-checker',
+      attachmentsSha256: 'd'.repeat(64),
+    });
+    expect(saved[0]).toMatchObject({ performedBy: 'maker', performedByUserId: 'u-maker', approvedBy: 'checker', approvedByUserId: 'u-checker', attachmentsSha256: 'd'.repeat(64) });
+    expect(saved[1].attachmentsSha256).toBeNull();
+  });
+
+  it('rejects dates in a locked period or before the default floor', async () => {
+    const locked = setup({ stockLockDate: '2026-09-30' });
+    await expect(
+      locked.svc.recordMovements(locked.manager, locked.product, 10, [{ warehouseId: 'w1', delta: 1 }], { type: 'IN', reasonCode: 'PURCHASE', transactionDate: '2026-09-30T10:00:00Z' }),
+    ).rejects.toMatchObject({ response: { code: 'TRANSACTION_DATE_LOCKED' } });
+    const old = setup();
+    await expect(
+      old.svc.recordMovements(old.manager, old.product, 10, [{ warehouseId: 'w1', delta: 1 }], { type: 'IN', reasonCode: 'PURCHASE', transactionDate: '1999-01-01T10:00:00Z' }),
+    ).rejects.toMatchObject({ response: { code: 'TRANSACTION_DATE_TOO_OLD' } });
+  });
+
+  it('checks a back-dated exit against the balance from its date onwards', async () => {
+    // current total 10; the movements dated later add up to +9.5 at most -> the balance then was 0.5
+    const back = new Date(Date.now() - 5 * 86400000);
+    const tight = setup({}, '9.5');
+    await expect(
+      tight.svc.recordMovements(tight.manager, tight.product, 10, [{ warehouseId: 'w1', delta: -1 }], { type: 'ADJUSTMENT', reasonCode: 'WASTAGE_NORMAL', transactionDate: back }),
+    ).rejects.toMatchObject({ response: { code: 'BACKDATED_BALANCE_NEGATIVE' } });
+    const ok = setup({}, '9.5');
+    await expect(
+      ok.svc.recordMovements(ok.manager, ok.product, 10, [{ warehouseId: 'w1', delta: -0.5 }], { type: 'ADJUSTMENT', reasonCode: 'WASTAGE_NORMAL', transactionDate: back }),
+    ).resolves.toHaveLength(1);
+    // an exit dated now is only checked against the current balance (no window query)
+    const now = setup({}, '9.5');
+    await now.svc.recordMovements(now.manager, now.product, 10, [{ warehouseId: 'w1', delta: -5 }], { type: 'ADJUSTMENT', reasonCode: 'WASTAGE_NORMAL' });
+    expect(now.manager.query.mock.calls.some((c: any[]) => String(c[0]).includes('OVER ('))).toBe(false);
   });
 
   it('warns about entries later than the VUK 219 limit', () => {

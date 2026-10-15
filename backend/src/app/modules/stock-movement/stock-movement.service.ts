@@ -1,7 +1,7 @@
 import { err } from '../../shared/i18n/app-error';
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager, In } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, IsNull, MoreThan } from 'typeorm';
 import { createHash } from 'crypto';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { ProductEntity } from '../../entities/product.entity';
@@ -14,14 +14,15 @@ import { UnitEntity } from '../../entities/unit.entity';
 import { CompanyEntity } from '../../entities/company.entity';
 import { StockMovementType } from '../../entities/enums';
 import { TrackingType } from '../../entities/tracking';
-import { WarehouseStockService, StockAllocation } from '../../shared/services/warehouse-stock.service';
+import { WarehouseStockService, StockAllocation, MovementInfo } from '../../shared/services/warehouse-stock.service';
 import { FinanceService } from '../../shared/services/finance.service';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { applyDayRange, companyTimezone } from '../../shared/time/company-day-range';
-import { GENESIS_HASH, verifyChain, ChainVerification } from '../../shared/inventory/movement-hash';
+import { GENESIS_HASH, ChainVerifier, ChainVerification, attachmentsDigest } from '../../shared/inventory/movement-hash';
 import {
   DISPOSAL_REASONS,
+  effectiveReasonEvidence,
   fitsDecimals,
   isDateKey,
   isReasonCode,
@@ -29,6 +30,7 @@ import {
   MOVEMENT_REASONS,
   reasonAllowsDirection,
   parseZonedDateTime,
+  ReasonEvidence,
   roundQty,
 } from '../../shared/tr';
 
@@ -171,17 +173,41 @@ export class StockMovementService {
 
   // ─── Manual adjustment (reason + document + attachment + maker-checker) ───
 
-  private validateAdjustmentInput(input: AdjustmentInput): void {
+  /** Evidence rules per reason: code defaults + legal parameter MOVEMENT_REASON_EVIDENCE. */
+  async reasonEvidence(manager?: EntityManager): Promise<Record<string, ReasonEvidence>> {
+    const override = await this.finance
+      .param<Record<string, Partial<ReasonEvidence>>>('MOVEMENT_REASON_EVIDENCE', undefined, manager)
+      .catch(() => null);
+    return effectiveReasonEvidence(override);
+  }
+
+  /** Reasons offered for manual movements, with the effective evidence rules (for the UI). */
+  async reasonRules() {
+    const evidence = await this.reasonEvidence();
+    return MOVEMENT_REASONS.map((r) => ({
+      code: r.code,
+      direction: r.direction,
+      manual: r.manual,
+      needsDocument: evidence[r.code]?.document ?? r.needsDocument,
+      needsAttachment: evidence[r.code]?.attachment ?? r.needsAttachment,
+    }));
+  }
+
+  private async validateAdjustmentInput(input: AdjustmentInput): Promise<void> {
     const reason = MOVEMENT_REASONS.find((r) => r.code === input.reasonCode);
     if (!input.reasonCode) throw new BadRequestException(err('REASON_CODE_REQUIRED'));
     if (!isReasonCode(input.reasonCode) || !reason) throw new BadRequestException(err('REASON_CODE_INVALID', { reason: input.reasonCode }));
     if (!reason.manual) throw new BadRequestException(err('REASON_NOT_MANUAL', { reason: input.reasonCode }));
     if (input.documentType && !(MOVEMENT_DOCUMENT_TYPES as readonly string[]).includes(input.documentType)) {
-      throw new BadRequestException(err('DOCUMENT_TYPE_INVALID', { type: input.documentType }));
+      throw new BadRequestException(err('DOCUMENT_TYPE_INVALID', { value: input.documentType }));
     }
     if (input.documentDate && !isDateKey(input.documentDate)) throw new BadRequestException(err('DOCUMENT_DATE_INVALID'));
-    if (reason.needsDocument && (!input.documentNo || !input.documentDate)) {
+    const evidence = (await this.reasonEvidence())[input.reasonCode];
+    if (evidence?.document && (!input.documentNo || !String(input.documentNo).trim() || !input.documentDate)) {
       throw new BadRequestException(err('DOCUMENT_REQUIRED_FOR_REASON', { reason: input.reasonCode }));
+    }
+    if (evidence?.attachment && !input.attachment) {
+      throw new BadRequestException(err('ATTACHMENT_REQUIRED_FOR_REASON', { reason: input.reasonCode }));
     }
     const n = Number(input.newQuantity);
     if (input.newQuantity === null || input.newQuantity === undefined || !Number.isFinite(n) || n < 0) throw new BadRequestException(err('QUANTITY_INVALID'));
@@ -195,6 +221,10 @@ export class StockMovementService {
     if (!buf.length) throw new BadRequestException(err('ATTACHMENT_TYPE_INVALID'));
     if (buf.length > ATTACHMENT_MAX_MB * 1024 * 1024) throw new BadRequestException(err('ATTACHMENT_TOO_LARGE', { max: ATTACHMENT_MAX_MB }));
     return buf;
+  }
+
+  private sha256Of(a: AttachmentInput): string {
+    return createHash('sha256').update(this.checkAttachment(a)).digest('hex');
   }
 
   private async saveAttachment(
@@ -245,8 +275,60 @@ export class StockMovementService {
     return roundQty(target - product.quantity);
   }
 
+  /**
+   * Maker-checker valuation (R65): |delta| x unit price in the company base currency
+   * against the company threshold. `exceeds` = a second administrator must approve.
+   */
+  private async approvalCheck(manager: EntityManager, prod: ProductEntity, delta: number) {
+    const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
+    const threshold = company.adjustmentApprovalThreshold;
+    if (threshold === null || threshold === undefined) return { exceeds: false, value: 0, threshold: null as number | null, currency: company.baseCurrency };
+    const converted = await this.finance.convertToBase(Number(prod.price) || 0, prod.currency || company.baseCurrency, null, manager);
+    const priceBase = converted ?? (Number(prod.price) || 0);
+    const value = Math.round(Math.abs(delta) * priceBase * 100) / 100;
+    return { exceeds: value > Number(threshold), value, threshold: Number(threshold), currency: company.baseCurrency };
+  }
+
+  private async createApprovalRequest(
+    manager: EntityManager,
+    prod: ProductEntity,
+    delta: number,
+    check: { value: number; threshold: number | null; currency: string },
+    payload: Record<string, unknown>,
+    warehouseId: string | null,
+    performedBy: string,
+  ) {
+    const actor = this.tenant.actor;
+    const request = await manager.save(
+      StockAdjustmentRequestEntity,
+      manager.create(StockAdjustmentRequestEntity, {
+        companyId: this.companyId,
+        status: 'PENDING',
+        productId: prod.id,
+        productName: prod.name,
+        warehouseId,
+        quantityDelta: delta,
+        estimatedValue: check.value,
+        currency: check.currency,
+        threshold: Number(check.threshold),
+        payload,
+        requestedBy: performedBy.slice(0, 100),
+        requestedByUserId: actor.userId ?? null,
+      }),
+    );
+    return {
+      request,
+      body: {
+        status: 'PENDING_APPROVAL',
+        code: 'SECOND_APPROVAL_REQUIRED',
+        params: { value: check.value, threshold: Number(check.threshold), currency: check.currency },
+        request,
+      },
+    };
+  }
+
   async createManualAdjustment(input: AdjustmentInput, performedBy: string): Promise<any> {
-    this.validateAdjustmentInput(input);
+    await this.validateAdjustmentInput(input);
     const result = await this.dataSource.transaction(async (manager) => {
       await this.warehouseStock.begin(manager, this.companyId);
       const prod = await manager.findOne(ProductEntity, {
@@ -263,59 +345,33 @@ export class StockMovementService {
       if (!reasonAllowsDirection(input.reasonCode, delta)) throw new BadRequestException(err('REASON_DIRECTION_MISMATCH', { reason: input.reasonCode }));
 
       // Maker-checker: value above the company threshold waits for a second administrator.
-      const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
-      const threshold = company.adjustmentApprovalThreshold;
-      if (threshold !== null && threshold !== undefined) {
-        const converted = await this.finance.convertToBase(Number(prod.price) || 0, prod.currency || company.baseCurrency, null, manager);
-        const priceBase = converted ?? (Number(prod.price) || 0);
-        const value = Math.round(Math.abs(delta) * priceBase * 100) / 100;
-        if (value > Number(threshold)) {
-          const { attachment, ...payload } = input;
-          const actor = this.tenant.actor;
-          const request = await manager.save(
-            StockAdjustmentRequestEntity,
-            manager.create(StockAdjustmentRequestEntity, {
-              companyId: this.companyId,
-              status: 'PENDING',
-              productId: prod.id,
-              productName: prod.name,
-              warehouseId: input.warehouseId || null,
-              quantityDelta: delta,
-              estimatedValue: value,
-              currency: company.baseCurrency,
-              threshold: Number(threshold),
-              payload: payload as unknown as Record<string, unknown>,
-              requestedBy: performedBy.slice(0, 100),
-              requestedByUserId: actor.userId ?? null,
-            }),
-          );
-          if (attachment) await this.saveAttachment(manager, attachment, { adjustmentRequestId: request.id }, performedBy);
-          return {
-            pending: true,
-            body: {
-              status: 'PENDING_APPROVAL',
-              code: 'SECOND_APPROVAL_REQUIRED',
-              params: { value, threshold: Number(threshold), currency: company.baseCurrency },
-              request,
-            },
-          };
-        }
+      const check = await this.approvalCheck(manager, prod, delta);
+      if (check.exceeds) {
+        // The transaction date is checked now too, so an approval cannot fail on it later.
+        parseTransactionDate(input.transactionDate, (await manager.findOneByOrFail(CompanyEntity, { id: this.companyId })).timezone);
+        const { attachment, ...payload } = input;
+        const pending = await this.createApprovalRequest(manager, prod, delta, check, { kind: 'ADJUSTMENT', ...payload }, input.warehouseId || null, performedBy);
+        if (attachment) await this.saveAttachment(manager, attachment, { adjustmentRequestId: pending.request.id }, performedBy);
+        return { pending: true, body: pending.body };
       }
-      const movements = await this.applyAdjustment(manager, prod, input, delta, performedBy);
-      return { pending: false, body: await this.adjustmentResult(manager, movements, input.transactionDate ? movements[0]?.transactionDate : null) };
+      const movements = await this.applyAdjustment(manager, prod, input, delta, performedBy, {
+        attachmentsSha256: input.attachment ? attachmentsDigest([this.sha256Of(input.attachment)]) : null,
+      });
+      if (input.attachment && movements[0]) await this.saveAttachment(manager, input.attachment, { movementId: movements[0].id }, performedBy);
+      return { pending: false, body: await this.withWarnings(manager, movements) };
     });
     if (!result.pending) this.emitProduct(input.productId);
     return result;
   }
 
-  /** Books the adjustment `delta` (already validated) and its attachment. */
+  /** Books the adjustment `delta` (already validated). Attachments are saved by the caller. */
   private async applyAdjustment(
     manager: EntityManager,
     prod: ProductEntity,
     input: AdjustmentInput,
     delta: number,
     performedBy: string,
-    noteSuffix = '',
+    extra: Pick<MovementInfo, 'performedByUserId' | 'approvedBy' | 'approvedByUserId' | 'attachmentsSha256'> = {},
   ): Promise<StockMovementEntity[]> {
     const tz = (await manager.findOneByOrFail(CompanyEntity, { id: this.companyId })).timezone;
     const oldQty = prod.quantity;
@@ -332,7 +388,7 @@ export class StockMovementService {
       allocations = await this.warehouseStock.deduct(manager, prod, -delta, input.warehouseId);
     }
     const disposal = delta < 0 && (DISPOSAL_REASONS as string[]).includes(input.reasonCode);
-    const movements = await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
+    return this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
       type: disposal ? StockMovementType.DISPOSAL : StockMovementType.ADJUSTMENT,
       reasonCode: input.reasonCode,
       transactionDate: parseTransactionDate(input.transactionDate, tz),
@@ -341,19 +397,23 @@ export class StockMovementService {
       documentDate: input.documentDate || null,
       counterpartyTaxId: input.counterpartyTaxId || null,
       referenceType: 'manual',
-      note: `${input.note || ''}${noteSuffix}`.trim(),
+      note: String(input.note || '').trim(),
       performedBy,
+      ...extra,
     });
-    if (input.attachment && movements[0]) await this.saveAttachment(manager, input.attachment, { movementId: movements[0].id }, performedBy);
-    return movements;
   }
 
-  private async adjustmentResult(manager: EntityManager, movements: StockMovementEntity[], txDate: Date | null | undefined) {
+  /** Response body for booked movements: first movement + all movements + VUK 219 warnings. */
+  private async withWarnings(manager: EntityManager, movements: StockMovementEntity[]) {
     const last = movements[movements.length - 1];
-    const company = await manager.findOneByOrFail(CompanyEntity, { id: this.companyId });
+    return { ...last, movements, warnings: await this.lateWarnings(manager, movements) };
+  }
+
+  /** VUK 219 late-entry warnings for movements just booked (legal parameter VUK219_RECORD_DAYS). */
+  async lateWarnings(manager: EntityManager, movements: { transactionDate?: Date | string | null }[]) {
+    if (!movements.length) return [];
     const limit = Number(await this.finance.param<number>('VUK219_RECORD_DAYS', undefined, manager).catch(() => 10)) || 10;
-    const late = this.warehouseStock.lateEntryWarning(txDate, company.timezone, limit);
-    return { ...last, movements, warnings: late ? [late] : [] };
+    return this.warehouseStock.lateEntryWarnings(manager, this.companyId, movements, limit);
   }
 
   private async emitProduct(productId: string) {
@@ -387,57 +447,110 @@ export class StockMovementService {
       req.decisionNote = note ? String(note).slice(0, 500) : null;
       if (!approve) {
         req.status = 'REJECTED';
-        return { req: await manager.save(StockAdjustmentRequestEntity, req), movements: [] as StockMovementEntity[] };
+        return { req: await manager.save(StockAdjustmentRequestEntity, req), movements: [] as StockMovementEntity[], warnings: [] as unknown[] };
       }
-      const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: req.productId, isDeleted: false }, lock: { mode: 'pessimistic_write' } });
+      const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: req.productId }, lock: { mode: 'pessimistic_write' } });
       if (!prod) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
-      const input = req.payload as unknown as AdjustmentInput;
-      // The approved change is the requested delta (not a re-evaluated target).
-      const movements = await this.applyAdjustment(manager, prod, { ...input, attachment: null }, Number(req.quantityDelta), req.requestedBy, ` [onay: ${approver}]`);
-      await manager.update(StockMovementAttachmentEntity, { companyId: this.companyId, adjustmentRequestId: req.id }, { movementId: movements[0]?.id ?? null });
+      // The ledger keeps maker and checker apart: performedBy* = requester, approvedBy* = approver.
+      const actors = { performedByUserId: req.requestedByUserId ?? null, approvedBy: approver, approvedByUserId: actor.userId ?? null };
+      const payload = req.payload as Record<string, unknown>;
+      let movements: StockMovementEntity[];
+      if (payload['kind'] === 'REVERSAL') {
+        const original = await manager.findOne(StockMovementEntity, { where: { id: String(payload['reversesMovementId']), companyId: this.companyId } });
+        if (!original) throw new NotFoundException(err('MOVEMENT_NOT_FOUND'));
+        await this.assertReversible(manager, original);
+        movements = await this.bookReversal(manager, prod, original, { note: String(payload['note'] || ''), transactionDate: (payload['transactionDate'] as string) || null }, req.requestedBy, actors);
+      } else {
+        if (prod.isDeleted) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
+        const input = payload as unknown as AdjustmentInput;
+        const evidence = await manager.find(StockMovementAttachmentEntity, { where: { companyId: this.companyId, adjustmentRequestId: req.id }, select: ['id', 'sha256'] });
+        // The approved change is the requested delta (not a re-evaluated target).
+        movements = await this.applyAdjustment(manager, prod, { ...input, attachment: null }, Number(req.quantityDelta), req.requestedBy, {
+          ...actors,
+          attachmentsSha256: attachmentsDigest(evidence.map((e) => e.sha256)),
+        });
+        if (evidence.length) {
+          await manager.update(StockMovementAttachmentEntity, { companyId: this.companyId, adjustmentRequestId: req.id }, { movementId: movements[0]?.id ?? null });
+        }
+      }
       req.status = 'APPROVED';
       req.movementIds = movements.map((m) => m.id);
-      return { req: await manager.save(StockAdjustmentRequestEntity, req), movements };
+      return { req: await manager.save(StockAdjustmentRequestEntity, req), movements, warnings: await this.lateWarnings(manager, movements) };
     });
     if (out.movements.length) this.emitProduct(out.req.productId);
-    return { request: out.req, movements: out.movements };
+    return { request: out.req, movements: out.movements, warnings: out.warnings };
   }
 
   // ─── Reversal ───
 
-  async reverseMovement(id: string, input: { note: string; transactionDate?: string | null }, performedBy: string) {
+  private async assertReversible(manager: EntityManager, original: StockMovementEntity): Promise<void> {
+    if (this.reversibleReason(original)) throw new BadRequestException(err('MOVEMENT_NOT_REVERSIBLE'));
+    if (await manager.exists(StockMovementEntity, { where: { companyId: this.companyId, reversesMovementId: original.id } })) {
+      throw new BadRequestException(err('MOVEMENT_ALREADY_REVERSED'));
+    }
+  }
+
+  private async bookReversal(
+    manager: EntityManager,
+    prod: ProductEntity,
+    original: StockMovementEntity,
+    input: { note: string; transactionDate?: string | null },
+    performedBy: string,
+    extra: Pick<MovementInfo, 'performedByUserId' | 'approvedBy' | 'approvedByUserId'> = {},
+  ): Promise<StockMovementEntity[]> {
+    const tz = (await manager.findOneByOrFail(CompanyEntity, { id: this.companyId })).timezone;
+    const oldQty = prod.quantity;
+    const allocations = await this.warehouseStock.applyReversal(manager, prod, original);
+    return this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
+      type: StockMovementType.REVERSAL,
+      reasonCode: 'CORRECTION',
+      reversesMovementId: original.id,
+      transactionDate: parseTransactionDate(input.transactionDate, tz),
+      documentType: original.documentType,
+      documentNo: original.documentNo,
+      documentDate: original.documentDate,
+      counterpartyTaxId: original.counterpartyTaxId,
+      referenceType: 'reversal',
+      referenceId: original.id,
+      note: String(input.note).trim(),
+      performedBy,
+      ...extra,
+    });
+  }
+
+  /**
+   * Correction by REVERSAL. Above the company threshold, or when the original itself
+   * needed a second approval, the reversal waits for a second administrator (202).
+   */
+  async reverseMovement(id: string, input: { note: string; transactionDate?: string | null }, performedBy: string): Promise<any> {
     if (!input?.note || !String(input.note).trim()) throw new BadRequestException(err('REVERSAL_NOTE_REQUIRED'));
     const result = await this.dataSource.transaction(async (manager) => {
       await this.warehouseStock.begin(manager, this.companyId);
       const original = await manager.findOne(StockMovementEntity, { where: { id, companyId: this.companyId } });
       if (!original) throw new NotFoundException(err('MOVEMENT_NOT_FOUND'));
-      if (this.reversibleReason(original)) throw new BadRequestException(err('MOVEMENT_NOT_REVERSIBLE'));
-      if (await manager.exists(StockMovementEntity, { where: { companyId: this.companyId, reversesMovementId: original.id } })) {
-        throw new BadRequestException(err('MOVEMENT_ALREADY_REVERSED'));
-      }
+      await this.assertReversible(manager, original);
       const prod = await manager.findOne(ProductEntity, { where: { companyId: this.companyId, id: original.productId }, lock: { mode: 'pessimistic_write' } });
       if (!prod) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
       const tz = (await manager.findOneByOrFail(CompanyEntity, { id: this.companyId })).timezone;
-      const oldQty = prod.quantity;
-      const allocations = await this.warehouseStock.applyReversal(manager, prod, original);
-      const movements = await this.warehouseStock.recordMovements(manager, prod, oldQty, allocations, {
-        type: StockMovementType.REVERSAL,
-        reasonCode: 'CORRECTION',
-        reversesMovementId: original.id,
-        transactionDate: parseTransactionDate(input.transactionDate, tz),
-        documentType: original.documentType,
-        documentNo: original.documentNo,
-        documentDate: original.documentDate,
-        counterpartyTaxId: original.counterpartyTaxId,
-        referenceType: 'reversal',
-        referenceId: original.id,
-        note: String(input.note).trim(),
-        performedBy,
-      });
-      return { productId: prod.id, movements };
+      parseTransactionDate(input.transactionDate, tz);
+
+      const delta = roundQty(-Number(original.quantity));
+      const check = await this.approvalCheck(manager, prod, delta);
+      if (check.exceeds || original.approvedByUserId || original.approvedBy) {
+        const pendingFor = await manager
+          .createQueryBuilder(StockAdjustmentRequestEntity, 'r')
+          .where('r.companyId = :c AND r.status = :s AND r.payload LIKE :p', { c: this.companyId, s: 'PENDING', p: `%"reversesMovementId":"${original.id}"%` })
+          .getCount();
+        if (pendingFor) throw new BadRequestException(err('REVERSAL_ALREADY_PENDING'));
+        const payload = { kind: 'REVERSAL', reasonCode: 'CORRECTION', reversesMovementId: original.id, note: String(input.note).trim(), transactionDate: input.transactionDate || null };
+        const pending = await this.createApprovalRequest(manager, prod, delta, { ...check, threshold: check.threshold ?? 0 }, payload, original.warehouseId ?? null, performedBy);
+        return { pending: true as const, body: pending.body, productId: prod.id };
+      }
+      const movements = await this.bookReversal(manager, prod, original, input, performedBy);
+      return { pending: false as const, body: await this.withWarnings(manager, movements), productId: prod.id };
     });
-    this.emitProduct(result.productId);
-    return { ...result.movements[0], movements: result.movements };
+    if (!result.pending) this.emitProduct(result.productId);
+    return result;
   }
 
   // ─── Attachments ───
@@ -458,17 +571,58 @@ export class StockMovementService {
 
   // ─── Integrity ───
 
-  /** Recomputes the company's hash chain and compares it with the stored chain head. */
-  async verifyIntegrity(): Promise<ChainVerification & { chainHead: { lastSequenceNo: number; lastHash: string }; verifiedAt: string }> {
+  /**
+   * Recomputes the company's hash chain in batches and compares it with the stored chain
+   * head; checks every evidence file against its stored SHA-256 and every v2 movement's
+   * evidence digest against the files linked to it.
+   */
+  async verifyIntegrity(): Promise<ChainVerification & { chainHead: { lastSequenceNo: number; lastHash: string }; attachmentsChecked: number; verifiedAt: string }> {
     const m = this.dataSource.manager;
-    const rows = await m.find(StockMovementEntity, { where: { companyId: this.companyId }, order: { sequenceNo: 'ASC' } });
-    const result = verifyChain(rows as unknown as Record<string, unknown>[]);
+    const verifier = new ChainVerifier();
+    const BATCH = 1000;
+    let after = 0;
+    for (;;) {
+      const rows = await m.find(StockMovementEntity, {
+        where: { companyId: this.companyId, sequenceNo: MoreThan(after) },
+        order: { sequenceNo: 'ASC' },
+        take: BATCH,
+      });
+      verifier.push(rows as unknown as Record<string, unknown>[]);
+      if (rows.length < BATCH) break;
+      after = Number(rows[rows.length - 1].sequenceNo);
+    }
+    // Rows without a sequence number would be skipped by the paging above.
+    const unsealed = await m.find(StockMovementEntity, { where: { companyId: this.companyId, sequenceNo: IsNull() }, select: ['id'] });
+    for (const u of unsealed) verifier.addIssue({ sequenceNo: null, id: u.id, problem: 'UNSEALED' });
+
+    // Evidence files: content vs stored SHA-256 (computed in the database), digest per movement.
+    const files: { id: string; movementId: string | null; sha256: string; actual: string }[] = await m.query(
+      'SELECT `id`, `movementId`, `sha256`, SHA2(`content`, 256) AS actual FROM `stock_movement_attachments` WHERE `companyId` = ?',
+      [this.companyId],
+    );
+    const byMovement = new Map<string, string[]>();
+    for (const f of files) {
+      if (f.actual !== f.sha256) verifier.addIssue({ sequenceNo: null, id: f.id, problem: 'ATTACHMENT_MISMATCH' });
+      if (f.movementId) byMovement.set(f.movementId, [...(byMovement.get(f.movementId) || []), f.sha256]);
+    }
+    const sealed: { id: string; sequenceNo: string; hashVersion: number; attachmentsSha256: string | null }[] = await m.query(
+      'SELECT `id`, `sequenceNo`, `hashVersion`, `attachmentsSha256` FROM `stock_movements` WHERE `companyId` = ? AND (`attachmentsSha256` IS NOT NULL OR `id` IN (SELECT `movementId` FROM `stock_movement_attachments` WHERE `companyId` = ? AND `movementId` IS NOT NULL))',
+      [this.companyId, this.companyId],
+    );
+    for (const s of sealed) {
+      if (Number(s.hashVersion) < 2) continue; // v1 rows predate evidence digests
+      if ((s.attachmentsSha256 || null) !== attachmentsDigest(byMovement.get(s.id) || [])) {
+        verifier.addIssue({ sequenceNo: Number(s.sequenceNo), id: s.id, problem: 'ATTACHMENT_MISMATCH' });
+      }
+    }
+
+    const result = verifier.result();
     const head = await m.findOne(StockMovementChainEntity, { where: { companyId: this.companyId } });
     const chainHead = { lastSequenceNo: Number(head?.lastSequenceNo || 0), lastHash: head?.lastHash || GENESIS_HASH };
     if (chainHead.lastSequenceNo !== result.lastSequenceNo || chainHead.lastHash !== result.lastHash) {
       result.issues.push({ sequenceNo: chainHead.lastSequenceNo, id: '', problem: 'HEAD_MISMATCH' });
       result.ok = false;
     }
-    return { ...result, chainHead, verifiedAt: new Date().toISOString() };
+    return { ...result, chainHead, attachmentsChecked: files.length, verifiedAt: new Date().toISOString() };
   }
 }

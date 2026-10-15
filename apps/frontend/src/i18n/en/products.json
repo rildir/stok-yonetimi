@@ -206,5 +206,7 @@
   "products.inventoryClass.ILK_MADDE_150": "150 Raw materials",
   "products.inventoryClass.YARI_MAMUL_151": "151 Work in progress",
   "products.inventoryClass.MAMUL_152": "152 Finished goods",
-  "products.inventoryClass.DIGER_157": "157 Other inventories"
+  "products.inventoryClass.DIGER_157": "157 Other inventories",
+  "products.available": "Sellable: {qty}",
+  "products.availableHint": "Excludes quarantine / in-transit stock; the stock status follows this quantity."
 }

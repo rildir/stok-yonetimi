@@ -11,7 +11,7 @@ import { SocketService } from '../../services/socket.service';
 import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe } from '../../i18n';
 import { TaxRate, ExchangeRate, Unit } from '../../models/inventory.models';
 import { AbstractControl, ValidationErrors } from '@angular/forms';
-import { isStrongPassword, UNECE_UNIT_CODES } from '@stok/tr-compliance';
+import { isStrongPassword, maxDecimalsForUnece, UNECE_UNIT_CODES } from '@stok/tr-compliance';
 import { FiscalSettingsComponent } from './fiscal-settings.component';
 import { InventoryComplianceSettingsComponent } from './inventory-compliance-settings.component';
 import { EBelgeSettingsComponent } from './ebelge-settings.component';
@@ -322,9 +322,9 @@ type SettingsTab = 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | '
                   <div class="form-group">
                     <label for="unitDecimals">{{ 'units.decimals' | t }}</label>
                     <select id="unitDecimals" formControlName="decimals">
-                      @for (d of [0, 1, 2, 3]; track d) { <option [ngValue]="d">{{ ('units.decimalsOption.' + d) | t }}</option> }
+                      @for (d of [0, 1, 2, 3]; track d) { <option [ngValue]="d" [disabled]="d > maxUnitDecimals()">{{ ('units.decimalsOption.' + d) | t }}</option> }
                     </select>
-                    <span class="field-hint">{{ 'units.decimalsHint' | t }}</span>
+                    <span class="field-hint">{{ (maxUnitDecimals() === 0 ? 'units.decimalsCountHint' : 'units.decimalsHint') | t }}</span>
                   </div>
                 </div>
                 <div class="settings-form-actions">
@@ -1171,11 +1171,16 @@ export class SettingsComponent implements OnInit {
   /** UN/ECE Rec. 20 codes grouped for the unit form */
   readonly uneceGroups = Array.from(new Set(UNECE_UNIT_CODES.map((u) => u.group))).map((group) => ({ group, codes: UNECE_UNIT_CODES.filter((u) => u.group === group) }));
 
+  /** Largest precision for the selected UN/ECE code (count / package codes are whole units). */
+  maxUnitDecimals = signal(3);
+
   /** Picking a UN/ECE code proposes its usual precision (kg: 3, pcs: 0). */
   onUneceChange() {
     const code = this.unitForm.get('uneceCode')?.value;
     const hit = UNECE_UNIT_CODES.find((u) => u.code === code);
+    this.maxUnitDecimals.set(maxDecimalsForUnece(code));
     if (hit && !this.editUnitId()) this.unitForm.patchValue({ decimals: hit.decimals });
+    if (Number(this.unitForm.get('decimals')?.value) > this.maxUnitDecimals()) this.unitForm.patchValue({ decimals: this.maxUnitDecimals() });
   }
 
   canManageUnits(): boolean {
@@ -1195,12 +1200,14 @@ export class SettingsComponent implements OnInit {
     this.editUnitId.set(null);
     this.editUnitStandard.set(false);
     this.unitForm.reset({ code: '', name: '', uneceCode: '', decimals: 0 });
+    this.maxUnitDecimals.set(3);
   }
 
   editUnit(u: Unit) {
     this.editUnitId.set(u.id);
     this.editUnitStandard.set(!!u.isStandard);
     this.unitForm.reset({ code: u.code, name: u.name, uneceCode: u.uneceCode || '', decimals: u.decimals ?? 0 });
+    this.maxUnitDecimals.set(maxDecimalsForUnece(u.uneceCode));
   }
 
   saveUnit() {

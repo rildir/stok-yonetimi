@@ -25,6 +25,8 @@ import {
   StockAdjustmentRequest,
   MovementAttachment,
   ChainVerification,
+  MovementWarning,
+  ReasonRule,
 } from './models/inventory.models';
 import { HttpResponse } from '@angular/common/http';
 
@@ -191,17 +193,25 @@ export class InventoryService {
     return this.http.post<StockAdjustmentResult>(`${this.apiUrl}/stock-movements/adjust`, input, { observe: 'response' });
   }
 
-  /** Books the exact opposite of a movement (corrections never edit the original). */
-  reverseMovement(id: string, note: string, transactionDate?: string | null): Observable<StockMovement> {
-    return this.http.post<StockMovement>(`${this.apiUrl}/stock-movements/${id}/reverse`, { note, transactionDate: transactionDate || undefined });
+  /**
+   * Books the exact opposite of a movement (corrections never edit the original).
+   * HTTP 202 = above the approval threshold, waiting for a second administrator.
+   */
+  reverseMovement(id: string, note: string, transactionDate?: string | null): Observable<HttpResponse<StockAdjustmentResult>> {
+    return this.http.post<StockAdjustmentResult>(`${this.apiUrl}/stock-movements/${id}/reverse`, { note, transactionDate: transactionDate || undefined }, { observe: 'response' });
+  }
+
+  /** Reason codes with the effective evidence rules (legal parameter MOVEMENT_REASON_EVIDENCE). */
+  getReasonRules(): Observable<ReasonRule[]> {
+    return this.http.get<ReasonRule[]>(`${this.apiUrl}/stock-movements/reason-rules`);
   }
 
   getAdjustmentRequests(status = 'PENDING'): Observable<StockAdjustmentRequest[]> {
     return this.http.get<StockAdjustmentRequest[]>(`${this.apiUrl}/stock-movements/adjustment-requests?status=${status}`);
   }
 
-  decideAdjustmentRequest(id: string, approve: boolean, note?: string): Observable<{ request: StockAdjustmentRequest }> {
-    return this.http.post<{ request: StockAdjustmentRequest }>(`${this.apiUrl}/stock-movements/adjustment-requests/${id}/${approve ? 'approve' : 'reject'}`, { note });
+  decideAdjustmentRequest(id: string, approve: boolean, note?: string): Observable<{ request: StockAdjustmentRequest; warnings?: MovementWarning[] }> {
+    return this.http.post<{ request: StockAdjustmentRequest; warnings?: MovementWarning[] }>(`${this.apiUrl}/stock-movements/adjustment-requests/${id}/${approve ? 'approve' : 'reject'}`, { note });
   }
 
   getMovementAttachments(movementId: string): Observable<MovementAttachment[]> {

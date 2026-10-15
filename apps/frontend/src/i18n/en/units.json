@@ -60,5 +60,6 @@
   "units.unece.HUR": "Hour",
   "units.unece.DAY": "Day",
   "units.unece.MON": "Month",
-  "units.unece.KWH": "Kilowatt hour"
+  "units.unece.KWH": "Kilowatt hour",
+  "units.decimalsCountHint": "Counted / package units (C62, DZN, BX…) are whole units."
 }

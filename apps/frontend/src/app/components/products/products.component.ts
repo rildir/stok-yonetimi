@@ -326,13 +326,16 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                       <td class="num" [attr.data-label]="'products.col.revenue' | t">{{ getMockRevenue(p) | money: null : 0 }}</td>
                       <td class="num pr-stock-cell" [attr.data-label]="'products.col.stock' | t">
                         <span class="pr-stock" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
-                          @if (p.quantity <= p.minQuantity && p.quantity > 0) {
+                          @if (p.status === 'Low stock') {
                             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-warning);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
-                          } @else if (p.quantity === 0) {
+                          } @else if (p.status === 'Out of stock') {
                             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-danger);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
                           }
                           {{ p.quantity | num }} <span class="text-muted">{{ productUnitLabel(p) }}</span>
                         </span>
+                        @if (p.availableQuantity !== undefined && p.availableQuantity !== null && p.availableQuantity !== p.quantity) {
+                          <div class="text-2xs text-muted" [title]="'products.availableHint' | t">{{ 'products.available' | t: { qty: (p.availableQuantity | num) } }}</div>
+                        }
                         @if (p.warehouses && hoveredProductId() === p.id) {
                           <div class="warehouse-tooltip">
                             <div class="wh-tooltip-title">{{ 'products.warehouseDistribution' | t }}</div>

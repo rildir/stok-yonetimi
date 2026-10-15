@@ -143,7 +143,22 @@ export class StockMovementEntity {
   @Column({ type: 'char', length: 64 })
   hash: string;
 
-  /** When the row was recorded (DB time, UTC) */
+  /** Hash field set (1 = WP2 / migrated rows, 2 = + createdAt, approver, evidence digest) */
+  @Column({ type: 'tinyint', default: 1 })
+  hashVersion: number;
+
+  /** Maker-checker: the second administrator who approved this movement (performedBy is the requester) */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  approvedBy?: string | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  approvedByUserId?: string | null;
+
+  /** SHA-256 over the sorted SHA-256 values of the evidence files attached when the movement was booked */
+  @Column({ type: 'char', length: 64, nullable: true })
+  attachmentsSha256?: string | null;
+
+  /** When the row was recorded (UTC, set by the application so it is covered by the v2 hash) */
   @Index()
   @CreateDateColumn()
   createdAt: Date;

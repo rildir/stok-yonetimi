@@ -206,5 +206,7 @@
   "products.inventoryClass.ILK_MADDE_150": "150 İlk madde ve malzeme",
   "products.inventoryClass.YARI_MAMUL_151": "151 Yarı mamuller",
   "products.inventoryClass.MAMUL_152": "152 Mamuller",
-  "products.inventoryClass.DIGER_157": "157 Diğer stoklar"
+  "products.inventoryClass.DIGER_157": "157 Diğer stoklar",
+  "products.available": "Satılabilir: {qty}",
+  "products.availableHint": "Karantina / yoldaki stok hariç; stok durumu bu miktara göre hesaplanır."
 }

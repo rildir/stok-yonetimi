@@ -5,6 +5,8 @@ export interface Product {
   category: string;
   price: number;
   quantity: number;
+  /** Read-only: stock in sellable warehouses (quarantine / in transit excluded); status follows it */
+  availableQuantity?: number;
   minQuantity: number;
   status: 'In stock' | 'Low stock' | 'Out of stock' | string;
   supplierId?: string | null;
@@ -229,6 +231,8 @@ export interface PurchaseOrderItem extends LineUnitInfo {
 
 export interface PurchaseOrder extends DocumentAmounts {
   id: string;
+  /** Response-only: VUK 219 warnings of a back-dated receipt */
+  warnings?: MovementWarning[];
   warehouseId?: string | null;
   poNumber: string;
   supplierId: string;
@@ -343,6 +347,8 @@ export interface CompanyInfo {
   enabledComplianceModules?: string[] | null;
   /** Manual adjustments above this value (base currency) need a second approver; null = off */
   adjustmentApprovalThreshold?: number | null;
+  /** YYYY-MM-DD: no stock movement may be dated on or before it */
+  stockLockDate?: string | null;
 }
 
 export interface GrossSales { year: number; amount: number; }
@@ -453,6 +459,8 @@ export interface StockMovement {
   referenceType?: string;
   referenceId?: string;
   performedBy?: string;
+  /** Maker-checker: second administrator who approved the movement */
+  approvedBy?: string | null;
   /** When the goods moved (legal period) */
   transactionDate: string;
   documentType?: string | null;
@@ -498,6 +506,12 @@ export interface StockAdjustmentResult extends Partial<StockMovement> {
   warnings?: { code: string; params?: Record<string, unknown> }[];
 }
 
+/** VUK 219 late-entry (and similar) warnings returned with booked movements. */
+export interface MovementWarning { code: string; params?: Record<string, unknown> }
+
+/** GET /stock-movements/reason-rules: effective evidence rules per reason code. */
+export interface ReasonRule { code: string; direction: 'in' | 'out' | 'both'; manual: boolean; needsDocument: boolean; needsAttachment: boolean }
+
 export interface StockAdjustmentRequest {
   id: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -508,7 +522,7 @@ export interface StockAdjustmentRequest {
   estimatedValue: number;
   currency: string;
   threshold: number;
-  payload: Partial<StockAdjustmentInput>;
+  payload: Partial<StockAdjustmentInput> & { kind?: 'ADJUSTMENT' | 'REVERSAL'; reversesMovementId?: string };
   requestedBy: string;
   decidedBy?: string | null;
   decisionNote?: string | null;
@@ -525,6 +539,7 @@ export interface ChainVerification {
   lastHash: string;
   chainHead: { lastSequenceNo: number; lastHash: string };
   issues: { sequenceNo: number | null; id: string; problem: string }[];
+  attachmentsChecked?: number;
   verifiedAt: string;
 }
 

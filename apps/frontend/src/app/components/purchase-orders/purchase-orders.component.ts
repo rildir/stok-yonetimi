@@ -12,6 +12,7 @@ import { tap } from 'rxjs/operators';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
 import { fitsDecimals, roundQty, sumQty } from '@stok/tr-compliance';
+import { toastMovementResult } from '../shared/movement-warnings';
 
 @Component({
   selector: 'app-purchase-orders',
@@ -1161,13 +1162,14 @@ export class PurchaseOrdersComponent implements OnInit {
       documentNo: docNo || undefined,
       documentDate: docNo ? this.receiveDocDate() || undefined : undefined,
     }).subscribe({
-      next: () => {
+      next: (po) => {
         this.isSaving.set(false);
         this.receiveTarget.set(null);
         this.closeDetailDrawer();
         this.loadData();
         this.state.loadData(); // Refetch products to get updated stocks
-        this.ui.showToast(this.i18n.t('purchaseOrders.receivedToast'), 'success');
+        // A back-dated receipt (VUK 219) comes back with a late-entry warning.
+        toastMovementResult(this.ui, this.i18n, po?.warnings, 'purchaseOrders.receivedToast');
       },
       error: (err) => {
         this.isSaving.set(false);

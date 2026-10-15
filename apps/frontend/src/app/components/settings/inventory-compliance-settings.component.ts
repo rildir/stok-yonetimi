@@ -9,8 +9,8 @@ import { QuantityInputDirective } from '../shared/quantity-input.directive';
 
 /**
  * Settings > Compliance modules (admin): regulatory product categories the company
- * deals in (food lot traceability, İTS / ÜTS data model) and the maker-checker
- * threshold for manual stock adjustments.
+ * deals in (food lot traceability, İTS / ÜTS data model), the maker-checker
+ * threshold for manual stock adjustments and the stock lock date (closed period).
  */
 @Component({
   selector: 'app-inventory-compliance-settings',
@@ -63,6 +63,21 @@ import { QuantityInputDirective } from '../shared/quantity-input.directive';
         </div>
       </div>
 
+      <div class="icm-section">
+        <h4 class="card-title">{{ 'settings.stockLock.title' | t }}</h4>
+        <p class="card-subtitle settings-card-sub">{{ 'settings.stockLock.subtitle' | t }}</p>
+        <div class="icm-row">
+          <div class="form-field">
+            <input id="icmLockDate" type="date" class="form-input has-value" [max]="today" [ngModel]="lockDate()" (ngModelChange)="lockDate.set($event || '')" />
+            <label for="icmLockDate" class="form-label">{{ 'settings.stockLock.date' | t }}</label>
+          </div>
+          @if (lockDate()) {
+            <button type="button" class="btn btn-sm btn-secondary" (click)="lockDate.set('')">{{ 'settings.stockLock.clear' | t }}</button>
+          }
+        </div>
+        <p class="field-hint">{{ 'settings.stockLock.hint' | t }}</p>
+      </div>
+
       <div class="icm-actions">
         <button type="button" class="btn btn-primary" [disabled]="saving() || (thresholdOn() && (threshold() === null || threshold()! < 0))" (click)="save()">
           {{ (saving() ? 'settings.saving' : 'common.save') | t }}
@@ -83,6 +98,8 @@ export class InventoryComplianceSettingsComponent implements OnInit {
   threshold = signal<number | null>(null);
   currency = signal('TRY');
   saving = signal(false);
+  lockDate = signal('');
+  readonly today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   ngOnInit() {
     this.api.getCompany().subscribe({ next: (c) => this.fill(c), error: () => undefined });
@@ -94,6 +111,7 @@ export class InventoryComplianceSettingsComponent implements OnInit {
     const t = c.adjustmentApprovalThreshold;
     this.thresholdOn.set(t !== null && t !== undefined);
     this.threshold.set(t ?? null);
+    this.lockDate.set(c.stockLockDate || '');
   }
 
   toggle(m: string) {
@@ -104,7 +122,11 @@ export class InventoryComplianceSettingsComponent implements OnInit {
   save() {
     this.saving.set(true);
     this.api
-      .updateCompany({ enabledComplianceModules: this.enabled(), adjustmentApprovalThreshold: this.thresholdOn() ? Number(this.threshold()) : null })
+      .updateCompany({
+        enabledComplianceModules: this.enabled(),
+        adjustmentApprovalThreshold: this.thresholdOn() ? Number(this.threshold()) : null,
+        stockLockDate: this.lockDate() || null,
+      })
       .subscribe({
         next: (c) => {
           this.saving.set(false);

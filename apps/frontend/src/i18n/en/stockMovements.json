@@ -179,5 +179,9 @@
   "stockMovements.docType.DESTRUCTION_REPORT": "Destruction report",
   "stockMovements.docType.EXPENSE_VOUCHER": "Expense voucher",
   "stockMovements.docType.INTERNAL_VOUCHER": "Internal voucher",
-  "stockMovements.docType.OTHER": "Other"
+  "stockMovements.docType.OTHER": "Other",
+  "stockMovements.approvals.reversalRequest": "Reversal request",
+  "stockMovements.toast.reversalPending": "The reversal exceeds the approval threshold (or reverses an approved adjustment); it was sent to a second administrator.",
+  "stockMovements.validation.attachmentRequired": "This reason needs a supporting file (report, commission decision, destruction / police report).",
+  "stockMovements.approvedBy": "Approved by {user}"
 }
