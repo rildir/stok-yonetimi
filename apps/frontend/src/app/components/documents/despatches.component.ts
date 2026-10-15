@@ -7,6 +7,7 @@ import { DocumentsService, apiError } from '../../services/documents.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService } from '../../inventory.service';
 import { Despatch, statusBadge } from '../../models/documents.models';
+import { PAPER_REASONS } from '@stok/tr-compliance';
 import { Product, Warehouse } from '../../models/inventory.models';
 import { DespatchFormComponent } from './despatch-form.component';
 
@@ -149,6 +150,35 @@ import { DespatchFormComponent } from './despatch-form.component';
       </div>
     }
 
+    @if (approveFor(); as d) {
+      <div class="modal-backdrop z-top">
+        <div class="modal-panel">
+          <div class="modal-header"><h3>{{ 'despatches.approveConfirmTitle' | t }}</h3></div>
+          <div style="padding: var(--space-5)">
+            <p class="doc-hint">{{ 'despatches.approveConfirm' | t }}</p>
+            @if (eDocumentMode() !== 'PROVIDER') {
+              <div class="doc-field">
+                <label>{{ 'invoices.numberSource' | t }}</label>
+                <label class="doc-check"><input type="radio" name="dsrc" value="paper" [(ngModel)]="numberSource" /> {{ 'despatches.numberPaper' | t }}</label>
+                <label class="doc-check"><input type="radio" name="dsrc" value="external" [(ngModel)]="numberSource" /> {{ 'despatches.numberExternal' | t }}</label>
+              </div>
+              @if (numberSource === 'external') {
+                <div class="doc-field"><label for="dsExt">{{ 'despatches.externalDocNo' | t }}</label><input id="dsExt" class="input mono" maxlength="50" [(ngModel)]="externalDocNo" placeholder="IRS2026000000123" /></div>
+              } @else {
+                <div class="doc-field"><label for="dsReason">{{ 'documents.paperReasonIfMandatory' | t }}</label>
+                  <select id="dsReason" class="select" [(ngModel)]="paperReason"><option value="">{{ 'documents.paperReasonNone' | t }}</option>@for (r of paperReasons; track r) { <option [value]="r">{{ 'despatches.paperReasons.' + r | t }}</option> }</select></div>
+                <p class="doc-hint">{{ 'documents.paperSeriesHint' | t }}</p>
+              }
+            }
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="approveFor.set(null)" [disabled]="busy()">{{ 'common.cancel' | t }}</button>
+            <button class="btn btn-primary" (click)="doApprove(d)" [disabled]="busy() || (numberSource === 'external' && eDocumentMode() !== 'PROVIDER' && !externalDocNo.trim())">{{ 'despatches.approve' | t }}</button>
+          </div>
+        </div>
+      </div>
+    }
+
     @if (formOpen()) {
       <app-despatch-form [warehouses]="warehouses()" [products]="products()" (done)="onSaved($event)" (closed)="formOpen.set(false)"></app-despatch-form>
     }
@@ -173,6 +203,12 @@ export class DespatchesComponent implements OnInit {
   warehouses = signal<Warehouse[]>([]);
   products = signal<Product[]>([]);
   badge = statusBadge;
+  paperReasons = PAPER_REASONS as readonly string[];
+  eDocumentMode = signal('NONE');
+  approveFor = signal<Despatch | null>(null);
+  numberSource: 'paper' | 'external' = 'paper';
+  externalDocNo = '';
+  paperReason = '';
 
   visible = computed(() => {
     const f = this.filter();
@@ -182,6 +218,7 @@ export class DespatchesComponent implements OnInit {
   });
 
   ngOnInit() {
+    this.docs.company().subscribe({ next: (c) => this.eDocumentMode.set(c.eDocumentMode || 'NONE'), error: () => undefined });
     this.inventory.getWarehouses().subscribe({ next: (w) => this.warehouses.set(w || []), error: () => undefined });
     this.inventory.getProducts().subscribe({ next: (p) => this.products.set((p || []).filter((x: any) => !x.isDeleted)), error: () => undefined });
     this.load();
@@ -238,22 +275,28 @@ export class DespatchesComponent implements OnInit {
   }
 
   approve(d: Despatch) {
-    this.ui.openConfirm({
-      title: this.i18n.t('despatches.approveConfirmTitle'),
-      message: this.i18n.t('despatches.approveConfirm'),
-      confirmText: this.i18n.t('despatches.approve'),
-      onConfirm: () => {
-        this.busy.set(true);
-        this.docs.approveDespatch(d.id).subscribe({
-          next: (a) => {
-            this.busy.set(false);
-            this.ui.showToast(this.i18n.t('despatches.toast.approved', { number: a.documentNo }), 'success');
-            this.selected.set(a);
-            this.load();
-          },
-          error: (e) => this.fail(e, 'despatches.toast.approveError'),
-        });
+    this.numberSource = 'paper';
+    this.externalDocNo = '';
+    this.paperReason = '';
+    this.approveFor.set(d);
+  }
+
+  doApprove(d: Despatch) {
+    const body: Record<string, unknown> = {};
+    if (this.eDocumentMode() !== 'PROVIDER') {
+      if (this.numberSource === 'external') body['externalDocNo'] = this.externalDocNo.trim();
+      else if (this.paperReason) body['paperReason'] = this.paperReason;
+    }
+    this.busy.set(true);
+    this.docs.approveDespatch(d.id, body).subscribe({
+      next: (a) => {
+        this.busy.set(false);
+        this.approveFor.set(null);
+        this.ui.showToast(this.i18n.t('despatches.toast.approved', { number: a.documentNo }), 'success');
+        this.selected.set(a);
+        this.load();
       },
+      error: (e) => this.fail(e, 'despatches.toast.approveError'),
     });
   }
 

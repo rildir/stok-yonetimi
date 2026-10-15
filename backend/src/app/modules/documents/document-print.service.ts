@@ -6,6 +6,7 @@ import { CompanyEntity } from '../../entities/company.entity';
 import { OrderEntity } from '../../entities/order.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { WarehouseEntity } from '../../entities/warehouse.entity';
+import { UnitEntity } from '../../entities/unit.entity';
 import { PartySnapshot } from '../../entities/document-common';
 import { formatAddress } from '../../entities/address.embedded';
 import { NOT_FISCAL_DOCUMENT_TEXT, REPLACES_DESPATCH_TEXT, dateKeyInZone, timeKeyInZone } from '../../shared/tr';
@@ -30,11 +31,16 @@ const STATUS: Record<string, string> = {
 };
 const RETURN_TYPES: Record<string, string> = { SALES_RETURN: 'Satış iadesi', PURCHASE_RETURN: 'Alış iadesi', WITHDRAWAL: 'Cayma (mesafeli satış)', DEFECT: 'Ayıplı mal iadesi' };
 
+/** Turkish names of the UN/ECE codes used on document lines when the company has no unit row for them. */
+const UNECE_TR: Record<string, string> = { C62: 'Adet', KGM: 'kg', GRM: 'g', LTR: 'L', MLT: 'mL', MTR: 'm', BX: 'Kutu', PK: 'Paket', PA: 'Paket', PF: 'Palet', LBR: 'lb', SET: 'Takım' };
+
 /**
  * Printable HTML of documents and non-fiscal outputs (saved as PDF from the browser). Always Turkish
- * (VUK 215/1), whatever the UI language. Outputs that are not invoices / despatch advices carry the
- * mandatory "Mali değeri yoktur..." wording (VUK 353, 7524 s.K.); so do previews of e-documents and
- * copies of documents issued in an external system. The official e-document image is WP5.
+ * (VUK 215/1), whatever the UI language. Every output carries the mandatory "Mali değeri yoktur..."
+ * wording (VUK 353, 7524 s.K.): the app never prints a legal invoice / despatch advice itself. The
+ * legal document is the pre-printed matbu form (PAPER numbers mirror its serial number), the
+ * document issued on the GİB portal / by the integrator (EXTERNAL), or the e-document image (WP5);
+ * the app prints an information copy of it.
  */
 @Injectable()
 export class DocumentPrintService {
@@ -47,6 +53,29 @@ export class DocumentPrintService {
     private readonly receipts: GoodsReceiptService,
     private readonly vouchers: ExpenseVoucherService,
   ) {}
+
+  /** Unit code (product unit code or UN/ECE code) -> Turkish unit name for printing. */
+  private async unitNames(): Promise<(code?: string | null) => string> {
+    const rows = await this.dataSource.manager.find(UnitEntity, { where: { companyId: this.tenant.companyId }, order: { isStandard: 'DESC' } });
+    const map = new Map<string, string>(Object.entries(UNECE_TR));
+    const byUnece = new Set<string>();
+    for (const u of rows) {
+      map.set(u.code, u.name);
+      if (u.uneceCode && !byUnece.has(u.uneceCode)) {
+        map.set(u.uneceCode, u.name);
+        byUnece.add(u.uneceCode);
+      }
+    }
+    return (code) => (code ? map.get(code) ?? code : '');
+  }
+
+  /** Line under the title of an information copy: where the legal document is. */
+  private legalSource(numberMode: string | null | undefined, documentNo: string | null | undefined, kind: string, genitive: string): string {
+    if (numberMode === 'PAPER') return `${genitive} yasal nüshası ${esc(documentNo)} seri-sıra numaralı matbu formdur; bu çıktı bilgi nüshasıdır.`;
+    if (numberMode === 'EXTERNAL') return `${kind} GİB portalında / entegratörde ${esc(documentNo)} numarasıyla düzenlenmiştir; bu çıktı kayıt nüshasıdır.`;
+    if (numberMode === 'EDOCUMENT') return `${genitive} yasal görüntüsü e-Belge sağlayıcısındadır; bu çıktı önizlemedir.`;
+    return '';
+  }
 
   private async company(): Promise<CompanyEntity> {
     return this.dataSource.manager.findOneOrFail(CompanyEntity, { where: { id: this.tenant.companyId } });
@@ -75,12 +104,13 @@ export class DocumentPrintService {
   async despatch(id: string): Promise<string> {
     const d = await this.despatches.get(id);
     const company = await this.company();
-    const notFiscal = d.status === 'DRAFT' || d.numberMode === 'EDOCUMENT' || d.numberMode === 'EXTERNAL';
+    const unit = await this.unitNames();
     const drivers = (d.drivers || []).map((x) => `${esc(x.firstName)} ${esc(x.lastName)} (TCKN ${esc(x.tckn)})`).join(', ') || '-';
     const plates = (d.plates || []).map((p) => esc(p.plate)).join(', ') || '-';
-    const rows = d.lines.map((l) => `<tr><td>${l.lineNo}</td><td>${esc(l.productSku || '')}</td><td>${esc(l.productName)}${(l.tracking || []).filter((t) => t.lotNumber).map((t) => `<div class="muted">Parti: ${esc(t.lotNumber)}${t.expiryDate ? ` · SKT ${day(t.expiryDate)}` : ''}</div>`).join('')}${(l.tracking || []).flatMap((t) => t.serials || []).length ? `<div class="muted">Seri: ${esc((l.tracking || []).flatMap((t) => t.serials || []).join(', '))}</div>` : ''}</td><td class="n">${qty(l.quantity)}</td><td>${esc(l.unitCode || '')}</td></tr>`).join('');
+    const rows = d.lines.map((l) => `<tr><td>${l.lineNo}</td><td>${esc(l.productSku || '')}</td><td>${esc(l.productName)}${(l.tracking || []).filter((t) => t.lotNumber).map((t) => `<div class="muted">Parti: ${esc(t.lotNumber)}${t.expiryDate ? ` · SKT ${day(t.expiryDate)}` : ''}</div>`).join('')}${(l.tracking || []).flatMap((t) => t.serials || []).length ? `<div class="muted">Seri: ${esc((l.tracking || []).flatMap((t) => t.serials || []).join(', '))}</div>` : ''}</td><td class="n">${qty(l.quantity)}</td><td>${esc(unit(l.unitCode))}</td></tr>`).join('');
     const refs = (d.invoiceRefs || []).map((r) => `${esc(r.documentNo)} (${day(r.issueDate)})`).join(', ');
-    const body = `<h1>SEVK İRSALİYESİ</h1><div class="muted">${esc(PURPOSES[d.purpose] || d.purpose)} · ${esc(STATUS[d.status] || d.status)}${d.typeCode === 'MATBUDAN' ? ' · MATBUDAN' : ''}</div>
+    const source = d.status === 'DRAFT' ? '' : this.legalSource(d.numberMode, d.documentNo, 'İrsaliye', 'İrsaliyenin');
+    const body = `<h1>SEVK İRSALİYESİ (BİLGİ NÜSHASI)</h1><div class="muted">${esc(PURPOSES[d.purpose] || d.purpose)} · ${esc(STATUS[d.status] || d.status)}${d.typeCode === 'MATBUDAN' ? ' · MATBUDAN' : ''}</div>${source ? `<div class="muted">${source}</div>` : ''}
       <table class="meta"><tr><td>İrsaliye No:</td><td><b>${esc(d.documentNo || '(onayda verilir)')}</b></td><td>Düzenleme:</td><td>${day(d.issueDate)} ${esc(d.issueTime || '')}</td></tr>
       <tr><td>Fiili sevk:</td><td>${d.actualDespatchAt ? `${day(dateKeyInZone(new Date(d.actualDespatchAt), company.timezone))} ${timeKeyInZone(new Date(d.actualDespatchAt), company.timezone).slice(0, 5)}` : '-'}</td><td>ETTN:</td><td>${esc(d.ettn)}</td></tr>
       ${d.orderNumber ? `<tr><td>Sipariş:</td><td>${esc(d.orderNumber)}</td><td></td><td></td></tr>` : ''}${refs ? `<tr><td>Fatura:</td><td colspan="3">${refs}</td></tr>` : ''}
@@ -90,18 +120,19 @@ export class DocumentPrintService {
       <tr><td>Taşıyıcı:</td><td>${esc(d.carrierParty?.name || '-')}${d.carrierParty?.taxId ? ` (VKN ${esc(d.carrierParty.taxId)})` : ''}</td></tr><tr><td>Sürücü:</td><td>${drivers}</td></tr><tr><td>Plaka:</td><td>${plates}</td></tr></table>
       <table><thead><tr><th>#</th><th>Stok kodu</th><th>Mal / hizmet</th><th class="n">Miktar</th><th>Birim</th></tr></thead><tbody>${rows}</tbody></table>
       ${d.note ? `<p>${esc(d.note)}</p>` : ''}<div class="sign"><div>Teslim eden</div><div>Teslim alan</div></div>`;
-    return this.page(`İrsaliye ${d.documentNo || 'taslak'}`, body, { notFiscal, watermark: d.status === 'DRAFT' ? 'TASLAK' : null });
+    return this.page(`İrsaliye ${d.documentNo || 'taslak'}`, body, { notFiscal: true, watermark: d.status === 'DRAFT' ? 'TASLAK' : null });
   }
 
   async invoice(id: string): Promise<string> {
     const inv = await this.invoices.get(id);
-    const notFiscal = inv.status === 'DRAFT' || inv.numberMode !== 'PAPER';
-    const rows = inv.lines.map((l) => `<tr><td>${l.lineNo}</td><td>${esc(l.productName)}</td><td class="n">${qty(l.quantity)} ${esc(l.unitCode || '')}</td><td class="n">${money(l.unitPrice, inv.currency)}</td><td class="n">${money(l.discountAmount, inv.currency)}</td><td class="n">%${qty(l.taxRate)}${l.exemptionCode ? ` (${esc(l.exemptionCode)})` : ''}${l.withholdingCode ? `<div class="muted">Tevkifat ${esc(l.withholdingCode)}</div>` : ''}</td><td class="n">${money(l.netAmount, inv.currency)}</td></tr>`).join('');
+    const unit = await this.unitNames();
+    const rows = inv.lines.map((l) => `<tr><td>${l.lineNo}</td><td>${esc(l.productName)}</td><td class="n">${qty(l.quantity)} ${esc(unit(l.unitCode))}</td><td class="n">${money(l.unitPrice, inv.currency)}</td><td class="n">${money(l.discountAmount, inv.currency)}</td><td class="n">%${qty(l.taxRate)}${l.exemptionCode ? ` (${esc(l.exemptionCode)})` : ''}${l.withholdingCode ? `<div class="muted">Tevkifat ${esc(l.withholdingCode)}</div>` : ''}</td><td class="n">${money(l.netAmount, inv.currency)}</td></tr>`).join('');
     const breakdown = (inv.taxBreakdown || []).map((b) => `<tr><td>KDV %${qty(b.rate)}${b.exemptionCode ? ` (${esc(b.exemptionCode)})` : ''} matrah ${money(b.base, inv.currency)}</td><td class="n">${money(b.tax, inv.currency)}</td></tr>`).join('');
     const despatchRefs = (inv.despatchRefs || []).map((r) => `${esc(r.documentNo)} (${day(r.issueDate)})`).join(', ');
     const billing = (inv.billingReferences || []).map((r) => `${esc(r.documentNo)} (${day(r.issueDate)})`).join(', ');
     const isi = inv.internetSaleInfo;
-    const body = `<h1>${inv.kind === 'RETURN' ? 'İADE FATURASI' : 'FATURA'}</h1><div class="muted">${esc(inv.profileId)} · ${esc(inv.typeCode)} · ${esc(STATUS[inv.status] || inv.status)}${inv.numberMode === 'EXTERNAL' ? ' · Harici sistemde düzenlenen faturanın kaydı' : ''}</div>
+    const source = inv.status === 'DRAFT' ? '' : this.legalSource(inv.numberMode, inv.documentNo, 'Fatura', 'Faturanın');
+    const body = `<h1>${inv.kind === 'RETURN' ? 'İADE FATURASI' : 'FATURA'} (BİLGİ NÜSHASI)</h1><div class="muted">${esc(inv.profileId)} · ${esc(inv.typeCode)} · ${esc(STATUS[inv.status] || inv.status)}</div>${source ? `<div class="muted">${source}</div>` : ''}
       <table class="meta"><tr><td>Fatura No:</td><td><b>${esc(inv.documentNo || '(düzenlemede verilir)')}</b></td><td>Düzenleme tarihi / saati:</td><td>${day(inv.issueDate)} ${esc(inv.issueTime || '')}</td></tr>
       <tr><td>ETTN:</td><td>${esc(inv.ettn)}</td><td>Teslim tarihi:</td><td>${day(inv.deliveryDate)}</td></tr>
       ${despatchRefs ? `<tr><td>İrsaliye:</td><td colspan="3">${despatchRefs}</td></tr>` : ''}${billing ? `<tr><td>İade edilen fatura:</td><td colspan="3">${billing}</td></tr>` : ''}
@@ -114,16 +145,17 @@ export class DocumentPrintService {
       ${inv.currency !== 'TRY' ? `<tr><td>TL karşılığı</td><td class="n">${money(inv.grandTotalTry)}</td></tr>` : ''}</table>
       ${isi ? `<p class="muted">İnternet satışı: ${esc(isi.webAddress || '')} · Ödeme: ${esc(isi.paymentMethod || '-')} ${day(isi.paymentDate)} · Taşıyıcı: ${esc(isi.carrierName || '-')}${isi.carrierTaxId ? ` (VKN ${esc(isi.carrierTaxId)})` : ''} · Gönderim: ${day(isi.shipmentDate)}</p>` : ''}
       ${inv.replacesDespatch ? `<div class="ibare">${esc(REPLACES_DESPATCH_TEXT)}</div>` : ''}${inv.status === 'CANCELLED' ? `<p><b>İptal gerekçesi:</b> ${esc(inv.cancelReason)}</p>` : ''}`;
-    return this.page(`Fatura ${inv.documentNo || 'taslak'}`, body, { notFiscal, watermark: inv.status === 'DRAFT' ? 'TASLAK' : inv.status === 'CANCELLED' ? 'İPTAL' : null });
+    return this.page(`Fatura ${inv.documentNo || 'taslak'}`, body, { notFiscal: true, watermark: inv.status === 'DRAFT' ? 'TASLAK' : inv.status === 'CANCELLED' ? 'İPTAL' : null });
   }
 
   async returnDoc(id: string): Promise<string> {
     const r = await this.returns.get(id);
-    const rows = r.items.map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.productName)}</td><td class="n">${qty(i.quantity)} ${esc(i.unitCode || '')}</td><td class="n">%${qty(i.taxRate)}</td><td class="n">${money(i.netAmount, r.currency)}</td><td class="n">${money(i.taxAmount, r.currency)}</td><td>${esc(i.condition)}</td></tr>`).join('');
+    const unit = await this.unitNames();
+    const rows = r.items.map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.productName)}</td><td class="n">${qty(i.quantity)} ${esc(unit(i.unitCode))}</td><td class="n">%${qty(i.taxRate)}</td><td class="n">${money(i.netAmount, r.currency)}</td><td class="n">${money(i.taxAmount, r.currency)}</td><td>${esc(i.condition)}</td></tr>`).join('');
     const body = `<h1>İADE BELGESİ</h1><div class="muted">${esc(RETURN_TYPES[r.type] || r.type)} · ${esc(STATUS[r.status] || r.status)}</div>
       <table class="meta"><tr><td>İade No:</td><td><b>${esc(r.returnNo)}</b></td><td>Orijinal fatura:</td><td>${esc(r.invoiceNo || '-')} (${day(r.invoiceDate)})</td></tr>
       ${r.counterpartyDocNo ? `<tr><td>Karşı taraf iade faturası:</td><td>${esc(r.counterpartyDocNo)} (${day(r.counterpartyDocDate)})</td><td></td><td></td></tr>` : ''}
-      ${r.withdrawalDeadline ? `<tr><td>Cayma süresi sonu:</td><td>${day(r.withdrawalDeadline)}</td><td>İade ödeme son günü:</td><td>${day(r.refundDueDate)}</td></tr>` : ''}
+      ${r.withdrawalDeadline ? `<tr><td>Cayma süresi sonu:</td><td>${day(r.withdrawalDeadline)}</td><td>İade ödeme son günü:</td><td>${r.refundDueDate ? day(r.refundDueDate) : 'Malın taşıyıcıya teslimi / satıcıya ulaşmasıyla başlar'}</td></tr><tr><td>Malın geri gönderim son günü:</td><td>${day(r.goodsReturnDeadline)}</td><td>Taşıyıcıya teslim:</td><td>${day(r.goodsHandedOverDate)}</td></tr>` : ''}
       ${r.refundChannel ? `<tr><td>İade kanalı:</td><td>${esc(r.refundChannel)} ${esc(r.refundRef || '')}</td><td></td><td></td></tr>` : ''}</table>
       <div class="grid">${this.party(r.type === 'PURCHASE_RETURN' ? 'Tedarikçi' : 'Müşteri', r.partySnapshot)}</div>
       <table><thead><tr><th>#</th><th>Mal</th><th class="n">Miktar</th><th class="n">KDV</th><th class="n">Matrah</th><th class="n">KDV tutarı</th><th>Durum</th></tr></thead><tbody>${rows}</tbody></table>
@@ -149,16 +181,17 @@ export class DocumentPrintService {
     const v = await this.vouchers.get(id);
     const company = await this.company();
     const title = v.kind === 'MUSTAHSIL_MAKBUZU' ? 'MÜSTAHSİL MAKBUZU' : 'GİDER PUSULASI';
-    const notFiscal = v.status === 'DRAFT' || v.numberMode !== 'PAPER';
-    const rows = (v.lines || []).map((l, n) => `<tr><td>${n + 1}</td><td>${esc(l.description)}</td><td class="n">${qty(l.quantity)} ${esc(l.unitCode || '')}</td><td class="n">${money(l.unitPrice, v.currency)}</td><td class="n">${money(l.amount, v.currency)}</td></tr>`).join('');
-    const body = `<h1>${title}</h1><div class="muted">${esc(STATUS[v.status] || v.status)}</div>
+    const source = v.status === 'DRAFT' ? '' : this.legalSource(v.numberMode, v.documentNo, 'Belge', 'Belgenin');
+    const unit = await this.unitNames();
+    const rows = (v.lines || []).map((l, n) => `<tr><td>${n + 1}</td><td>${esc(l.description)}</td><td class="n">${qty(l.quantity)} ${esc(unit(l.unitCode))}</td><td class="n">${money(l.unitPrice, v.currency)}</td><td class="n">${money(l.amount, v.currency)}</td></tr>`).join('');
+    const body = `<h1>${title} (BİLGİ NÜSHASI)</h1><div class="muted">${esc(STATUS[v.status] || v.status)}</div>${source ? `<div class="muted">${source}</div>` : ''}
       <table class="meta"><tr><td>Seri / sıra:</td><td><b>${esc(v.documentNo || '(düzenlemede verilir)')}</b></td><td>Düzenleme:</td><td>${day(v.issueDate)}</td></tr><tr><td>Teslim:</td><td>${day(v.deliveryDate)}</td><td>Son düzenleme günü:</td><td>${day(v.dueDate)}</td></tr></table>
       <div class="grid">${this.party('Düzenleyen (alıcı)', companySnapshot(company))}${this.party('Satıcı (işi yapan)', v.sellerSnapshot)}</div>
       <table><thead><tr><th>#</th><th>Açıklama</th><th class="n">Miktar</th><th class="n">Birim fiyat</th><th class="n">Tutar</th></tr></thead><tbody>${rows}</tbody></table>
       <table class="totals"><tr><td>Brüt tutar</td><td class="n">${money(v.grossTotal, v.currency)}</td></tr><tr><td>Gelir vergisi stopajı (%${qty(v.withholdingRate)})</td><td class="n">${money(v.withholdingAmount, v.currency)}</td></tr>
       ${v.otherDeductions ? `<tr><td>Diğer kesintiler</td><td class="n">${money(v.otherDeductions, v.currency)}</td></tr>` : ''}<tr><td><b>Ödenen net tutar</b></td><td class="n"><b>${money(v.netPayable, v.currency)}</b></td></tr></table>
       <div class="sign"><div>Düzenleyen (imza)</div><div>Satıcı (imza)</div></div>`;
-    return this.page(`${title} ${v.documentNo || 'taslak'}`, body, { notFiscal, watermark: v.status === 'DRAFT' ? 'TASLAK' : v.status === 'CANCELLED' ? 'İPTAL' : null });
+    return this.page(`${title} ${v.documentNo || 'taslak'}`, body, { notFiscal: true, watermark: v.status === 'DRAFT' ? 'TASLAK' : v.status === 'CANCELLED' ? 'İPTAL' : null });
   }
 
   /** Sevk / toplama listesi of an order: never a fiscal document. */
@@ -176,7 +209,8 @@ export class DocumentPrintService {
     const po = await this.dataSource.manager.findOne(PurchaseOrderEntity, { where: { companyId: this.tenant.companyId, id }, relations: { items: true } });
     if (!po) throw new NotFoundException(err('DOCUMENT_NOT_FOUND'));
     const company = await this.company();
-    const rows = po.items.map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.productName)}</td><td class="n">${qty(i.unitQuantity || i.quantity)} ${esc(i.unitCode || '')}</td><td class="n">${money(i.unitPrice, po.currency)}</td><td class="n">%${qty(i.taxRate)}</td><td class="n">${money(i.lineTotal, po.currency)}</td></tr>`).join('');
+    const unit = await this.unitNames();
+    const rows = po.items.map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.productName)}</td><td class="n">${qty(i.unitQuantity || i.quantity)} ${esc(unit(i.unitCode))}</td><td class="n">${money(i.unitPrice, po.currency)}</td><td class="n">%${qty(i.taxRate)}</td><td class="n">${money(i.lineTotal, po.currency)}</td></tr>`).join('');
     const body = `<h1>SİPARİŞ FORMU</h1><table class="meta"><tr><td>Sipariş No:</td><td><b>${esc(po.poNumber)}</b></td><td>Beklenen teslim:</td><td>${day(po.expectedDate)}</td></tr><tr><td>Tedarikçi:</td><td>${esc(po.supplierName)}</td><td></td><td></td></tr></table>
       <div class="grid">${this.party('Sipariş veren', companySnapshot(company))}</div>
       <table><thead><tr><th>#</th><th>Mal</th><th class="n">Miktar</th><th class="n">Birim fiyat</th><th class="n">KDV</th><th class="n">Tutar</th></tr></thead><tbody>${rows}</tbody></table>

@@ -208,5 +208,7 @@
   "products.inventoryClass.MAMUL_152": "152 Finished goods",
   "products.inventoryClass.DIGER_157": "157 Other inventories",
   "products.available": "Sellable: {qty}",
-  "products.availableHint": "Excludes quarantine / in-transit stock; the stock status follows this quantity."
+  "products.availableHint": "Excludes quarantine / in-transit stock; the stock status follows this quantity.",
+  "products.reservedFree": "Reserved: {reserved} · Free: {free}",
+  "products.reservedHint": "Held by pending orders; stock leaves when the despatch advice is approved."
 }

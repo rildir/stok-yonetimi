@@ -103,15 +103,29 @@ describe('VUK 231/5: 7-day invoicing rule (boundary days)', () => {
 });
 
 describe('Withdrawal (cayma) deadlines', () => {
-  const p = { periodDays: 14, goodsReturnDays: 10, refundDays: 14 };
-  it('adds calendar days to delivery / notification', () => {
+  // Mesafeli Sözleşmeler Yön. md. 9, 12, 13 as amended by RG 23.08.2022-31932 (in force 01.10.2022).
+  const p = { periodDays: 14, goodsReturnDays: 14, refundDays: 14, refundBasis: 'GOODS_RETURNED' };
+  it('withdrawal / goods-return periods count from delivery / notification', () => {
     expect(withdrawalDates('2026-10-01', '2026-10-10', p)).toEqual({
       withdrawalDeadline: '2026-10-15',
-      goodsReturnDeadline: '2026-10-20',
-      refundDueDate: '2026-10-24',
+      goodsReturnDeadline: '2026-10-24',
+      refundDueDate: null,
+      refundBasis: 'GOODS_RETURNED',
       inTime: true,
     });
     expect(withdrawalDates('2026-10-01', '2026-10-16', p).inTime).toBe(false);
+  });
+
+  it('refund period starts when the goods are handed to the carrier / reach the seller (md. 12/1)', () => {
+    expect(withdrawalDates('2026-10-13', '2026-10-15', p, '2026-10-18').refundDueDate).toBe('2026-11-01');
+  });
+
+  it('withdrawal before delivery: refund counts from the notification (md. 12/2)', () => {
+    expect(withdrawalDates('2026-10-13', '2026-10-11', p)).toMatchObject({ refundDueDate: '2026-10-25', refundBasis: 'NOTIFICATION' });
+  });
+
+  it('basis NOTIFICATION (text before 01.10.2022) counts from the notification', () => {
+    expect(withdrawalDates('2022-03-01', '2022-03-05', { ...p, goodsReturnDays: 10, refundBasis: 'NOTIFICATION' })).toMatchObject({ goodsReturnDeadline: '2022-03-15', refundDueDate: '2022-03-19' });
   });
 
   it('uses the company time zone for the notification day', async () => {
@@ -121,8 +135,9 @@ describe('Withdrawal (cayma) deadlines', () => {
     const at = new Date('2026-10-14T22:30:00Z');
     const ist = await svc.withdrawalPlan({ country: 'TR', timezone: 'Europe/Istanbul' } as any, '2026-10-05', at);
     const ny = await svc.withdrawalPlan({ country: 'TR', timezone: 'America/New_York' } as any, '2026-10-05', at);
-    expect(ist.refundDueDate).toBe('2026-10-29');
-    expect(ny.refundDueDate).toBe('2026-10-28');
+    expect(ist.goodsReturnDeadline).toBe('2026-10-29');
+    expect(ny.goodsReturnDeadline).toBe('2026-10-28');
+    expect(ist.refundDueDate).toBeNull();
     expect(ist.withdrawalDeadline).toBe('2026-10-19');
   });
 });
@@ -143,6 +158,11 @@ describe('Transfers: despatch advice between premises (VUK 230/5)', () => {
   it('same site group skips it', () => expect(transferNeedsDespatch({ ...a, siteGroup: 'HQ' }, { ...b, siteGroup: 'hq' })).toBe(false));
   it('same street address in the same district skips it', () => expect(transferNeedsDespatch(a, { id: 'c', address: { line1: 'hadımköy yolu  no:41', districtId: 3402 } })).toBe(false));
   it('non-TR companies are not affected', () => expect(transferNeedsDespatch(a, b, 'US')).toBe(false));
+  it('address-less warehouses are logical locations of the same premises', () => {
+    expect(transferNeedsDespatch({ id: 'x', address: null }, { id: 'y', address: { line1: '' } })).toBe(false);
+    expect(transferNeedsDespatch(a, { id: 'q', type: 'QUARANTINE', address: null })).toBe(false);
+    expect(transferNeedsDespatch(a, { id: 'n', type: 'NORMAL', address: null })).toBe(true);
+  });
 });
 
 describe('Drivers, plates, invoice requirement', () => {

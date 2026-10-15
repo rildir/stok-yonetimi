@@ -159,7 +159,9 @@ export interface WarehouseSite {
 /**
  * VUK 230/5: goods moved between premises (depots, branches) travel with a despatch advice.
  * Not needed when both warehouses share a site group, or when they have the same street
- * address in the same district (same premises).
+ * address in the same district (same premises). A warehouse without an address is a logical
+ * location (quarantine area, shelf zone) of the premises it is used with: when neither side has an
+ * address, or the address-less side is a quarantine / in-transit location, no despatch is needed.
  */
 export function transferNeedsDespatch(from: WarehouseSite, to: WarehouseSite, country = 'TR'): boolean {
   if ((country || 'TR').toUpperCase() !== 'TR') return false;
@@ -170,7 +172,12 @@ export function transferNeedsDespatch(from: WarehouseSite, to: WarehouseSite, co
   const norm = (s?: string | null) => String(s || '').toLocaleUpperCase('tr').replace(/\s+/g, ' ').trim();
   const a = from.address || {};
   const b = to.address || {};
-  if (norm(a.line1) && norm(a.line1) === norm(b.line1) && (a.districtId ?? null) === (b.districtId ?? null)) return false;
+  const hasA = !!norm(a.line1);
+  const hasB = !!norm(b.line1);
+  const logical = (w: WarehouseSite) => w.type === 'QUARANTINE' || w.type === 'IN_TRANSIT';
+  if (!hasA && !hasB) return false;
+  if ((!hasA && logical(from)) || (!hasB && logical(to))) return false;
+  if (hasA && norm(a.line1) === norm(b.line1) && (a.districtId ?? null) === (b.districtId ?? null)) return false;
   return true;
 }
 
@@ -194,23 +201,36 @@ export function isLateInvoice(deliveryDay: string | null | undefined, issueDay: 
   return !!deliveryDay && daysBetween(deliveryDay, issueDay) > limitDays;
 }
 
+/** Event the seller's refund period starts from (Mesafeli Sözleşmeler Yön. md. 12; legal parameter WITHDRAWAL_REFUND_BASIS). */
+export type WithdrawalRefundBasis = 'NOTIFICATION' | 'GOODS_RETURNED';
+
 export interface WithdrawalParams {
   periodDays: number;
   goodsReturnDays: number;
   refundDays: number;
+  /** Default GOODS_RETURNED (md. 12/1 as amended by RG 23.08.2022-31932, in force 01.10.2022). */
+  refundBasis?: WithdrawalRefundBasis | string | null;
 }
 
 /**
  * Distance-sale withdrawal (6502 md. 48; Mesafeli Sözleşmeler Yön.): the consumer may withdraw
- * within `periodDays` of delivery; from the notification the consumer sends the goods back within
- * `goodsReturnDays` and the seller refunds within `refundDays`. Day keys in the company time zone.
+ * within `periodDays` of delivery and sends the goods back within `goodsReturnDays` of the
+ * notification (md. 13/1). The seller refunds within `refundDays` (md. 12):
+ *  - withdrawal before delivery (md. 12/2), or basis NOTIFICATION (text before 01.10.2022): from the notification;
+ *  - otherwise (md. 12/1): from the day the goods were handed to the carrier named in the
+ *    pre-contract information, or reached the seller (`goodsBackDay`); null until that is known.
+ * Day keys in the company time zone.
  */
-export function withdrawalDates(deliveryDay: string, notifiedDay: string | null, p: WithdrawalParams) {
+export function withdrawalDates(deliveryDay: string, notifiedDay: string | null, p: WithdrawalParams, goodsBackDay: string | null = null) {
   const withdrawalDeadline = addDays(deliveryDay, p.periodDays);
+  const beforeDelivery = !!notifiedDay && notifiedDay < deliveryDay;
+  const fromNotification = beforeDelivery || p.refundBasis === 'NOTIFICATION';
+  const refundFrom = fromNotification ? notifiedDay : goodsBackDay;
   return {
     withdrawalDeadline,
     goodsReturnDeadline: notifiedDay ? addDays(notifiedDay, p.goodsReturnDays) : null,
-    refundDueDate: notifiedDay ? addDays(notifiedDay, p.refundDays) : null,
+    refundDueDate: refundFrom ? addDays(refundFrom, p.refundDays) : null,
+    refundBasis: (fromNotification ? 'NOTIFICATION' : 'GOODS_RETURNED') as WithdrawalRefundBasis,
     inTime: notifiedDay ? notifiedDay <= withdrawalDeadline : true,
   };
 }

@@ -3,6 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 import { LEGAL_PARAMETER_SEEDS, WP4_PARAMETER_KEYS } from '../shared/legal/legal-parameter-seeds';
 import { dropDocumentTriggers, ensureDocumentTriggers } from '../shared/documents/document-triggers';
 import { DEFAULT_SERIES } from '../shared/documents/default-series';
+import { backfillPurchaseReceived } from '../shared/documents/purchase-received-backfill';
 
 /**
  * WP4: document regime (VUK 229-235; 509 Sıra No.lu VUK GT).
@@ -15,7 +16,7 @@ import { DEFAULT_SERIES } from '../shared/documents/default-series';
  *     quantities; purchase_order_items received / returned quantities; orders and purchase_orders
  *     company FK CASCADE -> RESTRICT (commercial records are not removed with the company).
  *  D. Backfill: existing orders are legacy (stock already left at order time; no documents expected),
- *     completed orders count as despatched, received purchase orders as received. Default PAPER /
+ *     completed orders count as despatched; purchase order lines get the quantity their IN movements booked. Default PAPER /
  *     INTERNAL series for every company.
  *  E. WP4 legal parameters; immutability triggers on the document tables.
  */
@@ -70,9 +71,8 @@ export class DocumentRegime1784274135000 implements MigrationInterface {
     await q.query("UPDATE `companies` SET `stockDeductOn` = 'despatch' WHERE `country` = 'TR'");
     await q.query("UPDATE `orders` SET `stockMode` = 'order', `documentsLegacy` = 1");
     await q.query("UPDATE `order_items` oi JOIN `orders` o ON o.`id` = oi.`orderId` SET oi.`despatchedQuantity` = oi.`quantity` WHERE o.`status` = 'Completed'");
-    await q.query(
-      "UPDATE `purchase_order_items` pi JOIN `purchase_orders` po ON po.`id` = pi.`purchaseOrderId` SET pi.`receivedQuantity` = pi.`quantity` WHERE po.`status` IN ('Received', 'Partially Received')",
-    );
+    // Received quantities from the IN movements of each PO (a partially received PO is not "fully received").
+    await backfillPurchaseReceived((sql, params) => q.query(sql, params));
     const companies: { id: string }[] = await q.query('SELECT `id` FROM `companies`');
     for (const c of companies) {
       for (const s of DEFAULT_SERIES) {

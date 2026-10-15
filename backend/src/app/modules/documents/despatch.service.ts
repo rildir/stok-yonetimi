@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { err } from '../../shared/i18n/app-error';
@@ -33,8 +33,11 @@ import {
   roundQty,
   sumQty,
   isDateKey,
+  dateKeyInZone,
+  timeKeyInZone,
 } from '../../shared/tr';
 import { DocumentNumberService } from './document-number.service';
+import { AuditService } from '../integrations/audit.service';
 import { assertFiscalComplete, companySnapshot, customerSnapshot, DocumentHooks, nowParts, supplierSnapshot, warehouseAddress } from './document-support';
 
 export interface DespatchLineInput {
@@ -72,7 +75,12 @@ export interface ApproveInput {
   actualDespatchAt?: string | null;
   externalDocNo?: string | null;
   seriesCode?: string | null;
+  /** e-Belge mode NONE while e-İrsaliye is mandatory: 509 V.7 reason for using the paper series. */
+  paperReason?: string | null;
 }
+
+/** Internal control: how far ahead of approval the actual despatch time may be (stock leaves on approval). */
+const MAX_DESPATCH_LEAD_HOURS = 24;
 
 /** Despatch purposes whose approval moves stock straight to the target warehouse (own goods at a third party). */
 const DIRECT_TRANSFER: string[] = ['CONSIGNMENT', 'REPAIR', 'SUBCONTRACT'];
@@ -93,6 +101,7 @@ export class DespatchService {
     private readonly numbers: DocumentNumberService,
     private readonly hooks: DocumentHooks,
     private readonly gateway: AppGateway,
+    @Optional() private readonly audit?: AuditService,
   ) {}
 
   private get companyId(): string {
@@ -100,6 +109,13 @@ export class DespatchService {
   }
 
   // ------------------------------------------------------------------ reads
+  /** 404 ORDER_NOT_FOUND unless the order belongs to the current company. */
+  async requireOrder(orderId: string): Promise<void> {
+    if (!(await this.dataSource.manager.exists(OrderEntity, { where: { companyId: this.companyId, id: orderId }, withDeleted: true }))) {
+      throw new NotFoundException(err('ORDER_NOT_FOUND'));
+    }
+  }
+
   async list(filter: { status?: string; purpose?: string; orderId?: string } = {}): Promise<DespatchEntity[]> {
     const where: Record<string, unknown> = { companyId: this.companyId };
     if (filter.status) where['status'] = filter.status;
@@ -400,6 +416,17 @@ export class DespatchService {
   async approve(id: string, input: ApproveInput = {}, user?: string): Promise<DespatchEntity> {
     const products: ProductEntity[] = [];
     const saved = await this.dataSource.transaction((m) => this.approveTx(m, id, input, user, products));
+    // 509 V.5.3: the despatch advice is issued before the goods leave; approving afterwards is logged.
+    const lateMs = saved.approvedAt && saved.actualDespatchAt ? new Date(saved.approvedAt).getTime() - new Date(saved.actualDespatchAt).getTime() : 0;
+    if (lateMs > 3600_000 && this.audit) {
+      await this.audit.record({
+        companyId: this.companyId,
+        action: 'despatch.late_approval',
+        entityType: 'despatches',
+        entityId: saved.id,
+        after: { documentNo: saved.documentNo, actualDespatchAt: new Date(saved.actualDespatchAt as Date).toISOString(), approvedAt: new Date(saved.approvedAt as Date).toISOString(), hoursLate: Math.round(lateMs / 3600_000) },
+      });
+    }
     this.emit('update', saved);
     if (saved.orderId) this.gateway.emitToCompany(this.companyId, 'order_mutated', { type: 'update', orderId: saved.orderId });
     for (const p of products) this.gateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: p });
@@ -430,13 +457,22 @@ export class DespatchService {
       // The goods left with the paper despatch: its date is the actual despatch time.
       at = parseZonedDateTime(d.paperDate, company.timezone) || at;
     }
+    if (!clock && at.getTime() > now.getTime() + MAX_DESPATCH_LEAD_HOURS * 3600_000) {
+      throw new BadRequestException(err('DESPATCH_TIME_TOO_FAR', { at: `${dateKeyInZone(at, company.timezone)} ${timeKeyInZone(at, company.timezone).slice(0, 5)}`, hours: MAX_DESPATCH_LEAD_HOURS }));
+    }
+    // e-İrsaliye content (Kılavuz §15): a driver or a carrier party is required.
+    if (company.eDocumentMode === 'PROVIDER' && d.typeCode !== 'MATBUDAN' && !(d.drivers || []).length && !d.carrierParty?.name) {
+      throw new BadRequestException(err('DESPATCH_TRANSPORT_REQUIRED'));
+    }
     const txDate = new Date(Math.min(at.getTime(), now.getTime()));
     const issue = nowParts(company.timezone, now);
+    const paperReason = input.paperReason && (PAPER_REASONS as readonly string[]).includes(input.paperReason) ? input.paperReason : null;
     const source = d.sourceWarehouseId ? await manager.findOne(WarehouseEntity, { where: { companyId: this.companyId, id: d.sourceWarehouseId } }) : null;
     const num = await this.numbers.assign(manager, company, 'DESPATCH', issue.date, {
       externalDocNo: input.externalDocNo,
       seriesCode: input.seriesCode || d.seriesCode,
       warehouseSeries: source?.defaultSeries ?? null,
+      paperReason,
       exceptId: d.id,
     });
     const order = d.orderId ? await manager.findOne(OrderEntity, { where: { companyId: this.companyId, id: d.orderId }, relations: { items: true, charges: true }, lock: { mode: 'pessimistic_write' } }) : null;
@@ -509,6 +545,7 @@ export class DespatchService {
       approvedBy: user || this.tenant.actor.username || null,
       deliveryChannel: company.eDocumentMode === 'PROVIDER' ? 'GIB' : 'PRINT',
       sellerSnapshot: companySnapshot(company),
+      ...(num.numberMode === 'PAPER' && paperReason && d.typeCode !== 'MATBUDAN' ? { paperReason } : {}),
     });
     const { lines, ...header } = d;
     await manager.save(DespatchEntity, Object.assign(new DespatchEntity(), header));

@@ -96,7 +96,9 @@ export class DocumentComplianceService {
     const m = this.dataSource.manager;
     const company = await m.findOneOrFail(CompanyEntity, { where: { id: companyId } });
     const today = todayKey(company.timezone);
-    const rows = await m.find(GoodsReceiptEntity, { where: { companyId, status: 'COMPLETED', supplierInvoiceNo: IsNull() }, order: { receivedAt: 'ASC' } });
+    // Receipts that need an expense voucher / producer receipt instead of a supplier invoice
+    // (VUK 234-235) are tracked by pendingExpenseVouchers, not here.
+    const rows = await m.find(GoodsReceiptEntity, { where: { companyId, status: 'COMPLETED', supplierInvoiceNo: IsNull(), requiresExpenseVoucher: false }, order: { receivedAt: 'ASC' } });
     return rows.map((r) => ({
       id: r.id, receiptNo: r.receiptNo, poNumber: r.poNumber, purchaseOrderId: r.purchaseOrderId, supplierName: r.supplierSnapshot?.name || '-',
       receivedAt: r.receivedAt, days: daysBetween(dateKeyInZone(new Date(r.receivedAt), company.timezone), today), acceptedNetAmount: r.acceptedNetAmount, currency: r.currency,

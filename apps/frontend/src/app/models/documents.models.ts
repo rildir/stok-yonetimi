@@ -198,6 +198,7 @@ export interface ReturnDoc {
   withdrawalDeadline?: string | null;
   goodsReturnDeadline?: string | null;
   refundDueDate?: string | null;
+  goodsHandedOverDate?: string | null;
   returnInvoiceId?: string | null;
   expenseVoucherId?: string | null;
   completedAt?: string | null;

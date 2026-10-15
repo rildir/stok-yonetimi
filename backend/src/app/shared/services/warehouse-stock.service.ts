@@ -770,7 +770,8 @@ export class WarehouseStockService {
         performedBy: info.performedBy || actor.username || 'System',
         performedByUserId: info.performedByUserId !== undefined ? info.performedByUserId : actor.userId ?? null,
         performedViaApiKeyId: info.performedByUserId !== undefined ? null : actor.apiKeyId ?? null,
-        reversesMovementId: info.reversesMovementId ?? null,
+        // A movement is reversed once (UQ_stock_movements_reverses): the link goes on the first row of the booking.
+        reversesMovementId: i === 0 ? info.reversesMovementId ?? null : null,
         approvedBy: info.approvedBy ? String(info.approvedBy).slice(0, 100) : null,
         approvedByUserId: info.approvedByUserId ?? null,
         // Evidence files are linked to the first movement of the booking; its row carries their digest.

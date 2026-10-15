@@ -41,7 +41,10 @@ export interface IssueInput {
   externalDocDate?: string | null;
   seriesCode?: string | null;
   lateConfirm?: boolean;
-  /** e-Belge mode: paper invoice during an outage (509 V.7) */
+  /**
+   * Paper invoice during an e-document outage (509 V.7): mode PROVIDER -> PAPER series instead of
+   * the e-document number; mode NONE -> allows the PAPER series although e-documents are mandatory.
+   */
   paperFallback?: boolean;
   paperReason?: string | null;
   gibNoticeRef?: string | null;
@@ -371,7 +374,7 @@ export class InvoiceService {
   // ------------------------------------------------------------------ issue
   async issue(id: string, input: IssueInput = {}, user?: string): Promise<InvoiceEntity> {
     const touched: ProductEntity[] = [];
-    let late: { days: number; deliveryDate: string } | null = null;
+    let late: { days: number; deliveryDate: string; backdated: boolean; enteredOn: string } | null = null;
     const saved = await this.dataSource.transaction(async (m) => {
       const inv = await m.findOne(InvoiceEntity, { where: { companyId: this.companyId, id }, relations: { lines: true }, lock: { mode: 'pessimistic_write' } });
       if (!inv) throw new NotFoundException(err('DOCUMENT_NOT_FOUND'));
@@ -385,23 +388,33 @@ export class InvoiceService {
       if (!isDateKey(issueDate)) throw new BadRequestException(err('DOCUMENT_DATE_INVALID'));
       if (issueDate > today.date) throw new BadRequestException(err('DOCUMENT_DATE_IN_FUTURE', { date: issueDate }));
       const issueTime = input.issueTime && /^\d{2}:\d{2}(:\d{2})?$/.test(input.issueTime) ? (input.issueTime.length === 5 ? `${input.issueTime}:00` : input.issueTime) : today.time;
-      if (input.paperFallback) {
-        if (company.eDocumentMode !== 'PROVIDER') throw new BadRequestException(err('EINVOICE_MODE_REQUIRED'));
+      const paper = !!input.paperFallback && !external;
+      if (paper) {
         if (!input.paperReason || !(PAPER_REASONS as readonly string[]).includes(input.paperReason)) throw new BadRequestException(err('PAPER_REASON_REQUIRED'));
       }
-      // VUK 231/5: more than 7 days after delivery needs an explicit, audited confirmation.
+      // VUK 231/5: more than 7 days after delivery needs an explicit, audited confirmation. The check
+      // also runs against the day of entry, so a backdated issue date cannot skip it.
       const limit = Number(await this.param('INVOICE_DEADLINE_DAYS', company.country, 7)) || 7;
-      if (inv.deliveryDate && isLateInvoice(String(inv.deliveryDate), issueDate, limit)) {
-        const days = daysBetween(String(inv.deliveryDate), issueDate);
-        if (!input.lateConfirm) throw new ConflictException(err('INVOICE_LATE_CONFIRM_REQUIRED', { days, deliveryDate: String(inv.deliveryDate) }));
-        inv.lateIssueConfirmed = true;
-        late = { days, deliveryDate: String(inv.deliveryDate) };
+      if (inv.deliveryDate) {
+        const delivery = String(inv.deliveryDate);
+        if (isLateInvoice(delivery, issueDate, limit)) {
+          const days = daysBetween(delivery, issueDate);
+          if (!input.lateConfirm) throw new ConflictException(err('INVOICE_LATE_CONFIRM_REQUIRED', { days, deliveryDate: delivery }));
+          late = { days, deliveryDate: delivery, backdated: issueDate < today.date, enteredOn: today.date };
+        } else if (issueDate < today.date && isLateInvoice(delivery, today.date, limit)) {
+          const days = daysBetween(delivery, today.date);
+          if (!input.lateConfirm) throw new ConflictException(err('INVOICE_BACKDATED_CONFIRM_REQUIRED', { days, deliveryDate: delivery, issueDate }));
+          late = { days, deliveryDate: delivery, backdated: true, enteredOn: today.date };
+        }
+        if (late) inv.lateIssueConfirmed = true;
       }
       inv.issuedBeforeDelivery = !inv.deliveryDate || issueDate < String(inv.deliveryDate);
       const num = await this.numbers.assign(m, company, 'INVOICE', issueDate, {
         externalDocNo: external ? input.externalDocNo : null,
         seriesCode: input.seriesCode || inv.seriesCode,
-        paperFallback: !!input.paperFallback,
+        paperFallback: paper,
+        paperReason: paper ? input.paperReason : null,
+        amountTry: Number(inv.grandTotalTry) || null,
         exceptId: inv.id,
       });
       if (inv.replacesDespatch && inv.kind === 'SALES') {
@@ -423,8 +436,8 @@ export class InvoiceService {
         issueTime,
         externalDocNo: num.numberMode === 'EXTERNAL' ? num.documentNo : null,
         externalDocDate: num.numberMode === 'EXTERNAL' ? input.externalDocDate || issueDate : null,
-        paperReason: input.paperFallback ? input.paperReason : null,
-        gibNoticeRef: input.paperFallback ? input.gibNoticeRef || null : null,
+        paperReason: paper ? input.paperReason : null,
+        gibNoticeRef: paper ? input.gibNoticeRef || null : null,
         sellerSnapshot: companySnapshot(company),
         buyerSnapshot: buyer ? customerSnapshot(buyer) : supplier ? supplierSnapshot(supplier) : inv.buyerSnapshot,
         issuedAt: now,
@@ -440,7 +453,14 @@ export class InvoiceService {
         action: 'invoice.late_issue_confirmed',
         entityType: 'invoices',
         entityId: saved.id,
-        after: { documentNo: saved.documentNo, deliveryDate: (late as any).deliveryDate, issueDate: saved.issueDate, days: (late as any).days },
+        after: {
+          documentNo: saved.documentNo,
+          deliveryDate: (late as any).deliveryDate,
+          issueDate: saved.issueDate,
+          days: (late as any).days,
+          backdated: (late as any).backdated,
+          enteredOn: (late as any).enteredOn,
+        },
       });
     }
     this.emit('update', saved);

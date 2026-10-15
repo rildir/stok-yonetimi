@@ -1,4 +1,5 @@
 import { err } from '../../shared/i18n/app-error';
+import { reservedQuantities } from '../../shared/inventory/reservations';
 import { Injectable, BadRequestException, ConflictException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, Not } from 'typeorm';
@@ -158,15 +159,7 @@ export class OrderService {
 
   /** Base quantities reserved by pending 'despatch'-mode orders (not yet despatched), per product. */
   async reservedQuantities(manager: EntityManager, productIds: string[]): Promise<Map<string, number>> {
-    const out = new Map<string, number>();
-    if (!productIds.length) return out;
-    const rows: { productId: string; qty: string }[] = await manager.query(
-      'SELECT oi.`productId` AS productId, SUM(oi.`quantity` - oi.`despatchedQuantity`) AS qty FROM `order_items` oi JOIN `orders` o ON o.`id` = oi.`orderId` ' +
-        "WHERE o.`companyId` = ? AND o.`status` = 'Pending' AND o.`stockMode` = 'despatch' AND o.`deletedAt` IS NULL AND oi.`productId` IN (?) GROUP BY oi.`productId`",
-      [this.companyId, productIds],
-    );
-    for (const r of rows || []) out.set(r.productId, Math.max(0, roundQty(Number(r.qty) || 0)));
-    return out;
+    return reservedQuantities(manager, this.companyId, productIds);
   }
 
   /** First shipment (despatch approval / invoice replacing a despatch): shipment time = tax point, then freeze. */

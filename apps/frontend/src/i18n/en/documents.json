@@ -422,5 +422,14 @@
   "purchaseOrders.goodsReceipts": "Goods receipts",
   "purchaseOrders.closeShort": "Close the order",
   "warehouses.transfer.despatchRequired": "The warehouses are at different premises: the transfer needs a despatch advice (VUK 230/5). Approval gives the number; the goods enter the target stock when received.",
-  "warehouses.transfer.despatchDone": "Transfer despatch advice {number} approved; goods in transit."
+  "warehouses.transfer.despatchDone": "Transfer despatch advice {number} approved; goods in transit.",
+  "documents.paperReasonIfMandatory": "Paper document reason if e-documents are mandatory (509 V.7)",
+  "documents.paperReasonNone": "Not needed (no e-document obligation)",
+  "documents.paperSeriesHint": "The printed series may only be used before the e-document obligation starts or during an e-document outage (509 V.7). Otherwise issue the document on the GİB portal / with the integrator and enter its number. The app's printout is an information copy, not the legal document.",
+  "despatches.numberPaper": "Printed despatch advice (paper series)",
+  "despatches.numberExternal": "e-Despatch issued on the GİB portal / by the integrator",
+  "despatches.externalDocNo": "e-Despatch / external despatch number",
+  "returns.refundPending": "Starts when the goods are handed to the carrier / reach you",
+  "returns.goodsHandedOverDate": "Goods handed to the carrier on",
+  "returns.goodsHandedOverHint": "If the consumer handed the goods to the carrier named in the pre-contract information, enter that day; the 14-day refund period starts then. If left empty, the day the goods reach you (completion) is used (Distance Contracts Regulation art. 12/1)."
 }

@@ -1,4 +1,5 @@
 import { err } from '../../shared/i18n/app-error';
+import { reservedQuantities } from '../../shared/inventory/reservations';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, Not, MoreThan } from 'typeorm';
@@ -65,7 +66,15 @@ export class ProductService {
   async getProducts(): Promise<ProductEntity[]> {
     const products = await this.productRepo.find({ where: { companyId: this.companyId, isDeleted: false } });
     await this.unitService.attachUnits(this.dataSource.manager, this.companyId, products);
+    await this.attachReserved(this.dataSource.manager, products);
     return this.warehouseStock.attachWarehouseMap(this.dataSource.manager, this.companyId, products);
+  }
+
+  /** reservedQuantity: held by pending despatch-mode orders (part of availableQuantity, not free to sell). */
+  private async attachReserved(manager: EntityManager, products: ProductEntity[]): Promise<void> {
+    if (!products.length) return;
+    const reserved = await reservedQuantities(manager, this.companyId, products.length > 200 ? undefined : products.map((p) => p.id));
+    for (const p of products) p.reservedQuantity = reserved.get(p.id) || 0;
   }
 
   async getProductById(id: string): Promise<ProductEntity | null> {
@@ -77,6 +86,7 @@ export class ProductService {
   /** Adds units + warehouse map for API responses. */
   private async decorate(manager: EntityManager, product: ProductEntity): Promise<ProductEntity> {
     await this.unitService.attachUnits(manager, this.companyId, [product]);
+    await this.attachReserved(manager, [product]);
     await this.warehouseStock.attachWarehouseMap(manager, this.companyId, [product]);
     return product;
   }

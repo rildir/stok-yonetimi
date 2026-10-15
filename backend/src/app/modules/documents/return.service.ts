@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 import { err } from '../../shared/i18n/app-error';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { AppGateway } from '../../app.gateway';
@@ -63,6 +63,8 @@ export interface ReturnInput {
   counterpartyDocDate?: string | null;
   counterpartyEttn?: string | null;
   notifiedAt?: string | null;
+  /** Withdrawal: day the consumer handed the goods to the carrier named in the pre-contract information. */
+  goodsHandedOverDate?: string | null;
   note?: string | null;
 }
 
@@ -105,23 +107,30 @@ export class ReturnService {
     return r;
   }
 
-  private async param(key: string, country: string, fallback: number): Promise<number> {
+  private async param<T>(key: string, country: string, day: string, fallback: T): Promise<T> {
     try {
-      return Number(await this.legalParams.param<number>(key, todayKey(), country || 'TR')) || fallback;
+      const v = await this.legalParams.param<T>(key, day, country || 'TR');
+      return v === null || v === undefined || v === '' ? fallback : v;
     } catch {
       return fallback;
     }
   }
 
-  /** Withdrawal deadlines in the company time zone (legal parameters WITHDRAWAL_*). */
-  async withdrawalPlan(company: CompanyEntity, deliveryDay: string, notifiedAt: Date | null) {
+  /**
+   * Withdrawal deadlines in the company time zone (legal parameters WITHDRAWAL_*, as valid on the
+   * notification day). `goodsBackDay`: goods handed to the designated carrier / received back.
+   */
+  async withdrawalPlan(company: CompanyEntity, deliveryDay: string, notifiedAt: Date | null, goodsBackDay: string | null = null) {
     const country = company.country || 'TR';
+    const notified = notifiedAt ? dateKeyInZone(notifiedAt, company.timezone) : null;
+    const day = notified || todayKey(company.timezone);
     const p = {
-      periodDays: await this.param('WITHDRAWAL_PERIOD_DAYS', country, 14),
-      goodsReturnDays: await this.param('WITHDRAWAL_GOODS_RETURN_DAYS', country, 10),
-      refundDays: await this.param('WITHDRAWAL_REFUND_DAYS', country, 14),
+      periodDays: Number(await this.param('WITHDRAWAL_PERIOD_DAYS', country, day, 14)) || 14,
+      goodsReturnDays: Number(await this.param('WITHDRAWAL_GOODS_RETURN_DAYS', country, day, 14)) || 14,
+      refundDays: Number(await this.param('WITHDRAWAL_REFUND_DAYS', country, day, 14)) || 14,
+      refundBasis: String(await this.param('WITHDRAWAL_REFUND_BASIS', country, day, 'GOODS_RETURNED')),
     };
-    return withdrawalDates(deliveryDay, notifiedAt ? dateKeyInZone(notifiedAt, company.timezone) : null, p);
+    return withdrawalDates(deliveryDay, notified, p, goodsBackDay);
   }
 
   /** Base quantities on other DRAFT returns per source line. */
@@ -176,9 +185,11 @@ export class ReturnService {
       if (input.type === 'WITHDRAWAL') {
         const consumer = !customer || (customer.type !== 'company' && !customer.isVatTaxpayer);
         if (!order?.isDistanceSale || !consumer) throw new BadRequestException(err('WITHDRAWAL_NOT_DISTANCE_SALE'));
-        const plan = await this.withdrawalPlan(company, String(header.deliveryDate), notified);
+        if (input.goodsHandedOverDate && !isDateKey(input.goodsHandedOverDate)) throw new BadRequestException(err('DOCUMENT_DATE_INVALID'));
+        const handedOver = input.goodsHandedOverDate || null;
+        const plan = await this.withdrawalPlan(company, String(header.deliveryDate), notified, handedOver);
         if (!plan.inTime) throw new BadRequestException(err('WITHDRAWAL_PERIOD_EXPIRED', { deadline: plan.withdrawalDeadline }));
-        Object.assign(header, { withdrawalDeadline: plan.withdrawalDeadline, goodsReturnDeadline: plan.goodsReturnDeadline, refundDueDate: plan.refundDueDate });
+        Object.assign(header, { withdrawalDeadline: plan.withdrawalDeadline, goodsReturnDeadline: plan.goodsReturnDeadline, refundDueDate: plan.refundDueDate, goodsHandedOverDate: handedOver });
       }
     } else {
       const gr = input.goodsReceiptId ? await m.findOne(GoodsReceiptEntity, { where: { companyId: this.companyId, id: input.goodsReceiptId }, relations: { items: true } }) : null;
@@ -300,7 +311,7 @@ export class ReturnService {
   }
 
   // ------------------------------------------------------------------ complete
-  async complete(id: string, input: { goodsMovedAt?: string | null } = {}, user?: string): Promise<ReturnEntity> {
+  async complete(id: string, input: { goodsMovedAt?: string | null; goodsHandedOverDate?: string | null } = {}, user?: string): Promise<ReturnEntity> {
     const touched: ProductEntity[] = [];
     const saved = await this.dataSource.transaction(async (m) => {
       await this.warehouseStock.begin(m, this.companyId);
@@ -311,7 +322,17 @@ export class ReturnService {
       const now = new Date();
       const at = input.goodsMovedAt ? parseZonedDateTime(input.goodsMovedAt, company.timezone) || now : now;
       const txDate = new Date(Math.min(at.getTime(), now.getTime()));
+      if (input.goodsHandedOverDate && !isDateKey(input.goodsHandedOverDate)) throw new BadRequestException(err('DOCUMENT_DATE_INVALID'));
       const sales = SALES_TYPES.includes(r.type);
+      // Withdrawal: the refund period runs from the hand-over to the designated carrier, else from
+      // the day the goods reached the seller (md. 12/1), unless withdrawn before delivery (md. 12/2).
+      const refund: Partial<ReturnEntity> = {};
+      if (r.type === 'WITHDRAWAL' && r.deliveryDate) {
+        const handedOver = input.goodsHandedOverDate || r.goodsHandedOverDate || null;
+        const back = handedOver || dateKeyInZone(txDate, company.timezone);
+        const plan = await this.withdrawalPlan(company, String(r.deliveryDate), r.notifiedAt ? new Date(r.notifiedAt) : null, back);
+        Object.assign(refund, { goodsHandedOverDate: handedOver, goodsReturnDeadline: plan.goodsReturnDeadline, refundDueDate: plan.refundDueDate });
+      }
       const docType = r.counterpartyDocNo ? 'INVOICE' : 'OTHER';
       const docNo = r.counterpartyDocNo || r.returnNo;
       const docDate = r.counterpartyDocDate || dateKeyInZone(txDate, company.timezone);
@@ -374,7 +395,7 @@ export class ReturnService {
         }
       }
       const { items: _i, ...header } = r;
-      await m.save(ReturnEntity, Object.assign(new ReturnEntity(), header, { status: 'COMPLETED', goodsMovedAt: at, completedAt: now, completedBy: user || this.tenant.actor.username || null }));
+      await m.save(ReturnEntity, Object.assign(new ReturnEntity(), header, { ...refund, status: 'COMPLETED', goodsMovedAt: at, completedAt: now, completedBy: user || this.tenant.actor.username || null }));
       const done = await this.get(r.id, m);
       // Follow-up documents: IADE invoice to the supplier; expense voucher for a consumer refund without bank / PTT receipt.
       if (!sales) {
@@ -391,18 +412,31 @@ export class ReturnService {
     return saved;
   }
 
-  /** The sale / receipt movement a return item reverses (first one of that product on the original document). */
+  /**
+   * First movement matching `where` that no other movement reverses yet (a movement can be reversed
+   * once: UQ_stock_movements_reverses). Later partial returns of the same line link to the next
+   * lot / allocation movement, or to none when all are taken (the RETURN still references the return).
+   */
+  private async firstUnreversed(m: EntityManager, where: Record<string, unknown>, order: 'ASC' | 'DESC' = 'ASC'): Promise<StockMovementEntity | null> {
+    const candidates = await m.find(StockMovementEntity, { where: where as any, order: { sequenceNo: order } });
+    if (!candidates.length) return null;
+    const taken = await m.find(StockMovementEntity, { where: { companyId: this.companyId, reversesMovementId: In(candidates.map((c) => c.id)) }, select: { id: true, reversesMovementId: true } });
+    const used = new Set(taken.map((t) => t.reversesMovementId));
+    return candidates.find((c) => !used.has(c.id)) ?? null;
+  }
+
+  /** The sale / receipt movement a return item reverses (first not yet reversed one of that product on the original document). */
   private async originalMovement(m: EntityManager, r: ReturnEntity, it: ReturnItemEntity): Promise<StockMovementEntity | null> {
     if (it.invoiceLineId) {
       const line = await m.findOne(InvoiceLineEntity, { where: { id: it.invoiceLineId } });
       const dl = line?.despatchLineId ? await m.findOne(DespatchLineEntity, { where: { id: line.despatchLineId } }) : null;
       if (dl) {
-        const mv = await m.findOne(StockMovementEntity, { where: { companyId: this.companyId, productId: it.productId as string, referenceType: 'despatch', referenceId: dl.despatchId, type: StockMovementType.ORDER }, order: { sequenceNo: 'ASC' } });
+        const mv = await this.firstUnreversed(m, { companyId: this.companyId, productId: it.productId as string, referenceType: 'despatch', referenceId: dl.despatchId, type: StockMovementType.ORDER });
         if (mv) return mv;
       }
       const order = r.orderId ? await m.findOne(OrderEntity, { where: { companyId: this.companyId, id: r.orderId } }) : null;
       if (order) {
-        const mv = await m.findOne(StockMovementEntity, { where: { companyId: this.companyId, productId: it.productId as string, referenceId: order.orderNumber, type: StockMovementType.ORDER }, order: { sequenceNo: 'ASC' } });
+        const mv = await this.firstUnreversed(m, { companyId: this.companyId, productId: it.productId as string, referenceId: order.orderNumber, type: StockMovementType.ORDER });
         if (mv) return mv;
       }
       return null;
@@ -410,10 +444,7 @@ export class ReturnService {
     if (r.purchaseOrderId) {
       const gr = r.goodsReceiptId ? await m.findOne(GoodsReceiptEntity, { where: { companyId: this.companyId, id: r.goodsReceiptId } }) : null;
       if (!gr?.poNumber) return null;
-      return m.findOne(StockMovementEntity, {
-        where: { companyId: this.companyId, productId: it.productId as string, type: StockMovementType.IN, referenceType: 'purchase_order', referenceId: gr.poNumber },
-        order: { sequenceNo: 'DESC' },
-      });
+      return this.firstUnreversed(m, { companyId: this.companyId, productId: it.productId as string, type: StockMovementType.IN, referenceType: 'purchase_order', referenceId: In([gr.poNumber, gr.purchaseOrderId]) }, 'DESC');
     }
     return null;
   }

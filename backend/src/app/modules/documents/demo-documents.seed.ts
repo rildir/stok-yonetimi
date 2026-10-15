@@ -62,8 +62,32 @@ export class DocumentsDemoSeeder implements OnApplicationBootstrap {
       const companies = await this.dataSource.manager.find(CompanyEntity, { select: ['id'] });
       for (const c of companies) await this.tenant.run(c.id, () => this.numbers.ensureDefaults(this.dataSource.manager, c.id, DEFAULT_SERIES));
       await this.tenant.run(DEFAULT_COMPANY.id, () => this.seedDemo());
+      await this.tenant.run(DEFAULT_COMPANY.id, () => this.repairDemo());
     } catch (e) {
       this.logger.warn(`WP4 demo seed skipped: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * Demo databases seeded before the WP4 review fixes: the farmer purchase's own despatch advice was
+   * left as a draft although the goods moved. Register it with its e-İrsaliye portal number, issued
+   * just before the actual despatch.
+   */
+  private async repairDemo() {
+    const m = this.dataSource.manager;
+    const companyId = DEFAULT_COMPANY.id;
+    const farmer = await m.findOne(SupplierEntity, { where: { companyId, identityNumber: FARMER_TCKN } });
+    if (!farmer) return;
+    const rows: { id: string; actualDespatchAt: Date | null }[] = await m.query(
+      "SELECT d.`id`, d.`actualDespatchAt` FROM `despatches` d JOIN `goods_receipts` g ON g.`ownDespatchId` = d.`id` WHERE d.`companyId` = ? AND d.`status` = 'DRAFT' AND d.`purpose` = 'PURCHASE_PICKUP' AND g.`supplierId` = ? AND g.`createdBy` = ?",
+      [companyId, farmer.id, SEED_USER],
+    );
+    for (const r of rows) {
+      if (!r.actualDespatchAt) continue;
+      const clock = new Date(new Date(r.actualDespatchAt).getTime() - 15 * 60_000);
+      const externalDocNo = `GIB${clock.getUTCFullYear()}000000106`;
+      await this.dataSource.transaction((tx) => this.despatches.approveTx(tx, r.id, { externalDocNo }, SEED_USER, [], clock));
+      this.logger.log(`Approved demo despatch ${r.id} (farmer pickup)`);
     }
   }
 
@@ -115,6 +139,10 @@ export class DocumentsDemoSeeder implements OnApplicationBootstrap {
       drivers: [driver],
       plates: [{ plate, type: 'TRUCK' }],
     });
+    // The demo company is an e-İrsaliye user without an integrator (eDocumentMode NONE): its despatch
+    // advices are issued on the GİB e-İrsaliye portal and registered here with the portal number.
+    let portalNo = 100;
+    const eIrsaliyeNo = () => ({ externalDocNo: `GIB${today.slice(0, 4)}${String(++portalNo).padStart(9, '0')}` });
     const ahmet = { firstName: 'Murat', lastName: 'Kılıç', tckn: DRIVER_TCKN };
     const emre = { firstName: 'Serdar', lastName: 'Öztürk', tckn: DRIVER2_TCKN };
 
@@ -126,7 +154,7 @@ export class DocumentsDemoSeeder implements OnApplicationBootstrap {
     const ship = async (orderId: string, daysAgo: number, driver = ahmet, plate = '34 KLM 482') => {
       const d = await this.dataSource.transaction((tx) => this.despatches.createFromOrderTx(tx, orderId, { sourceWarehouseId: main.id, actualDespatchAt: `${addDays(today, -daysAgo)}T08:30`, ...transport(driver, plate) }, SEED_USER));
       const issue = at(daysAgo, '08:05');
-      return this.dataSource.transaction((tx) => this.despatches.approveTx(tx, d.id, {}, SEED_USER, [], issue));
+      return this.dataSource.transaction((tx) => this.despatches.approveTx(tx, d.id, eIrsaliyeNo(), SEED_USER, [], issue));
     };
 
     // A: construction customer, delivered 9 days ago, not invoiced -> critical (VUK 231/5)
@@ -164,7 +192,7 @@ export class DocumentsDemoSeeder implements OnApplicationBootstrap {
       { purpose: 'TRANSFER', sourceWarehouseId: main.id, targetWarehouseId: izmir.id, lines: [{ productId: stand.id, quantity: 12 }], actualDespatchAt: `${addDays(today, -1)}T17:45`, ...transport(emre, '34 TRV 2051'), note: 'İzmir bölge deposu ikmali' },
       SEED_USER,
     );
-    await this.dataSource.transaction((tx) => this.despatches.approveTx(tx, tr.id, {}, SEED_USER, [], at(1, '17:30')));
+    await this.dataSource.transaction((tx) => this.despatches.approveTx(tx, tr.id, eIrsaliyeNo(), SEED_USER, [], at(1, '17:30')));
 
     // F: partial goods receipt with a shortage, supplier invoice not yet received
     const po2006 = await m.findOne(PurchaseOrderEntity, { where: { companyId, poNumber: 'PO-2006' }, relations: { items: true } });
@@ -197,7 +225,9 @@ export class DocumentsDemoSeeder implements OnApplicationBootstrap {
       },
       SEED_USER,
     );
-    await this.receipts.createOwnDespatch(gr.id, { drivers: [ahmet], plates: [{ plate: '34 KLM 482', type: 'TRUCK' }], actualDespatchAt: `${addDays(today, -1)}T07:30` }, SEED_USER);
+    const own = await this.receipts.createOwnDespatch(gr.id, { drivers: [ahmet], plates: [{ plate: '34 KLM 482', type: 'TRUCK' }], actualDespatchAt: `${addDays(today, -1)}T07:30` }, SEED_USER);
+    // The company's own despatch advice is issued before the goods leave the farm (509 V.5.3).
+    await this.dataSource.transaction((tx) => this.despatches.approveTx(tx, own.id, eIrsaliyeNo(), SEED_USER, [], at(1, '07:15')));
     const grDone = await this.receipts.get(gr.id);
     if (grDone.expenseVoucherId) {
       await this.vouchers.update(grDone.expenseVoucherId, { withholdingRate: 2, paymentChannel: 'BANK_TRANSFER', paymentRef: 'EFT-2026-55120' });

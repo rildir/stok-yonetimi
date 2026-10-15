@@ -115,6 +115,14 @@ export class ReturnEntity {
   @Column({ type: 'date', nullable: true })
   refundDueDate?: string | null;
 
+  /**
+   * Withdrawal: day the consumer handed the goods to the carrier named in the pre-contract
+   * information (start of the refund period, Mesafeli Sözl. Yön. md. 12/1). Null: the day the
+   * goods reached the seller (goodsMovedAt) is used.
+   */
+  @Column({ type: 'date', nullable: true })
+  goodsHandedOverDate?: string | null;
+
   /** Goods physically received back (sales) / shipped back (purchase) */
   @Column({ type: 'datetime', nullable: true })
   goodsMovedAt?: Date | null;

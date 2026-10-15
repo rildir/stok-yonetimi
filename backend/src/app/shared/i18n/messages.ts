@@ -403,6 +403,18 @@ export const MESSAGES: Catalog = {
   ORDER_DESPATCH_MODE_COMPLETE: { tr: 'Sipariş, irsaliye onayı ile tamamlanır. Kalan miktarlar için irsaliye düzenleyin.', en: 'The order completes when its despatch advices are approved. Create a despatch advice for the remaining quantities.' },
   OKC_NOT_ALLOWED_INVOICE_REQUIRED: { tr: 'Bu satış için fatura zorunlu (VUK 232: tutar {limit} TL sınırını aşıyor veya alıcı tacir); ÖKC fişi fatura yerine geçmez.', en: 'An invoice is required for this sale (VUK 232: amount above {limit} TRY or the buyer is a merchant); a cash register receipt does not replace it.' },
   ORDER_CANCELLED_NO_DOCUMENTS: { tr: 'İptal edilmiş siparişten belge oluşturulamaz.', en: 'No documents can be created from a cancelled order.' },
+  IN_TRANSIT_WAREHOUSE_NAME: { tr: 'Yoldaki Mallar', en: 'Goods in Transit' },
+  QUARANTINE_WAREHOUSE_NAME: { tr: 'Karantina', en: 'Quarantine' },
+  EDOCUMENT_REQUIRED: {
+    tr: '{date} tarihinde şirketin {kind} zorunluluğu var ({reason}); uygulamanın kendi kâğıt seri numarası kullanılamaz. Belgeyi GİB portalında / entegratörde düzenleyip numarasını "Harici sistem numarası" olarak girin; e-Belge sistemi arızalıysa 509 V.7 kâğıt belge gerekçesini seçin.',
+    en: 'On {date} the company must use {kind} ({reason}); the app\'s own paper series cannot be used. Issue the document on the GİB portal / with the integrator and enter its number as the external number; if the e-document system is down, select the 509 V.7 paper reason.',
+  },
+  INVOICE_BACKDATED_CONFIRM_REQUIRED: {
+    tr: 'Fatura teslimden ({deliveryDate}) {days} gün sonra kaydediliyor ve {issueDate} tarihine geriye tarihleniyor. Belgenin bu tarihte gerçekten düzenlendiğini açıkça onaylayın (VUK 231/5; kayıt altına alınır).',
+    en: 'The invoice is entered {days} days after delivery ({deliveryDate}) and backdated to {issueDate}. Confirm explicitly that the document was really issued on that date (VUK 231/5; the confirmation is logged).',
+  },
+  DESPATCH_TRANSPORT_REQUIRED: { tr: 'e-İrsaliyede sürücü (ad, soyad, TCKN) ya da taşıyıcı firma bilgisi zorunludur (e-İrsaliye Kılavuzu §15).', en: 'An e-despatch advice needs a driver (name, surname, national ID) or a carrier company (e-İrsaliye guide §15).' },
+  DESPATCH_TIME_TOO_FAR: { tr: 'Fiili sevk zamanı ({at}) çok ileride; irsaliyeyi mal yola çıkmadan hemen önce onaylayın (stok onayda düşer, en fazla {hours} saat sonrası girilebilir).', en: 'The actual despatch time ({at}) is too far ahead; approve the despatch advice just before the goods leave (stock is deducted on approval; at most {hours} hours ahead).' },
 };
 
 export type MessageParams = Record<string, string | number | undefined | null>;

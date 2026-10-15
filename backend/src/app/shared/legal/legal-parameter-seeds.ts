@@ -231,8 +231,11 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
   { country: TR, key: 'INVOICE_DEADLINE_WARN_DAYS', validFrom: '2018-01-01', validTo: null, value: 5, sourceRef: 'İç kontrol: VUK 231/5 süresinin dolmasından önce uyarı (yasal süre değildir)', confidence: 'high', note: 'Uyarı eşiği; şirket politikasıyla değiştirilebilir.' },
   { country: TR, key: 'DOCUMENT_SERIES_FORBIDDEN', validFrom: '2018-01-01', validTo: null, value: ['GIB'], sourceRef: 'e-Fatura / e-Arşiv Portal uygulaması: "GIB" seri öneki GİB portalında düzenlenen belgelere ayrılmıştır', confidence: 'low', note: 'Özel entegratör ve GİB kılavuzlarındaki yasaklı seri listesi teyit edilmeli; liste veri olarak güncellenebilir.' },
   { country: TR, key: 'WITHDRAWAL_PERIOD_DAYS', validFrom: '2015-02-27', validTo: null, value: 14, sourceRef: '6502 s. TKHK md. 48/4; Mesafeli Sözleşmeler Yönetmeliği md. 9 (teslimden itibaren 14 gün)', confidence: 'high' },
-  { country: TR, key: 'WITHDRAWAL_REFUND_DAYS', validFrom: '2015-02-27', validTo: null, value: 14, sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 12 (cayma bildiriminden itibaren 14 gün içinde iade)', confidence: 'high' },
-  { country: TR, key: 'WITHDRAWAL_GOODS_RETURN_DAYS', validFrom: '2015-02-27', validTo: null, value: 10, sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 15/1 (tüketici malı bildirimden itibaren 10 gün içinde geri gönderir)', confidence: 'low', note: 'Uyum planı bu süreyi 14 gün olarak öngörüyor; 2022 değişikliği sonrası metin hukukçu tarafından teyit edilmeli.' },
+  { country: TR, key: 'WITHDRAWAL_REFUND_DAYS', validFrom: '2015-02-27', validTo: null, value: 14, sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 12/1-2 (satıcı bedeli 14 gün içinde iade eder; başlangıç olayı WITHDRAWAL_REFUND_BASIS)', confidence: 'high' },
+  { country: TR, key: 'WITHDRAWAL_REFUND_BASIS', validFrom: '2015-02-27', validTo: '2022-09-30', value: 'NOTIFICATION', sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 12/1 (ilk metin: cayma bildiriminin satıcıya ulaştığı tarihten itibaren)', confidence: 'high' },
+  { country: TR, key: 'WITHDRAWAL_REFUND_BASIS', validFrom: '2022-10-01', validTo: null, value: 'GOODS_RETURNED', sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 12/1-2 (RG 23.08.2022-31932 ile değişik, yürürlük 01.10.2022)', confidence: 'high', note: 'Süre, malın ön bilgilendirmede belirtilen taşıyıcıya teslim edildiği veya satıcıya ulaştığı tarihten başlar. Teslimden önce kullanılan cayma hakkında (md. 12/2) bildirimden başlar; uygulama bunu otomatik uygular.' },
+  { country: TR, key: 'WITHDRAWAL_GOODS_RETURN_DAYS', validFrom: '2015-02-27', validTo: '2022-09-30', value: 10, sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 13/1 (ilk metin: tüketici malı cayma bildiriminden itibaren 10 gün içinde geri gönderir)', confidence: 'high' },
+  { country: TR, key: 'WITHDRAWAL_GOODS_RETURN_DAYS', validFrom: '2022-10-01', validTo: null, value: 14, sourceRef: 'Mesafeli Sözleşmeler Yönetmeliği md. 13/1 (RG 23.08.2022-31932 Değişiklik Yön. md. 11 ile "on" yerine "on dört"; yürürlük 01.10.2022)', confidence: 'high' },
   { country: TR, key: 'EXPENSE_VOUCHER_DEADLINE_DAYS', validFrom: '2021-01-01', validTo: null, value: 7, sourceRef: 'VUK md. 234, 231/5 (7338 s.K.); 509 Sıra No.lu VUK GT IV.6', confidence: 'medium', note: 'Gider pusulasının teslimden itibaren 7 gün içinde düzenlenmesi.' },
   {
     country: TR,
@@ -273,3 +276,6 @@ export const WP4_PARAMETER_KEYS = [
   'EXPENSE_VOUCHER_WITHHOLDING_RATES',
   'MATBUDAN_DEADLINE_DAYS',
 ];
+
+/** Keys (re)written by migration 1784274136000 (WP4 review fixes: withdrawal periods per RG 31932). */
+export const WP4_FIX_PARAMETER_KEYS = ['WITHDRAWAL_REFUND_DAYS', 'WITHDRAWAL_REFUND_BASIS', 'WITHDRAWAL_GOODS_RETURN_DAYS'];

@@ -191,6 +191,7 @@ export class OrderDocumentsController {
   @ApiOperation({ summary: 'Sipariş belge zinciri: irsaliyeler, faturalar, iadeler' })
   @Get(':id/documents')
   async documents(@Param('id') id: string) {
+    await this.despatches.requireOrder(id);
     const [despatches, invoices, returns] = await Promise.all([this.despatches.list({ orderId: id }), this.invoices.list({ orderId: id }), this.returns.list({ orderId: id })]);
     return { despatches, invoices, returns };
   }

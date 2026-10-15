@@ -196,8 +196,42 @@ describe('WP4 document regime (MySQL)', () => {
     await expect(run(() => returns.create({ type: 'SALES_RETURN', invoiceId: issued.id, lines: [{ invoiceLineId: delivered.id, quantity: 2 }] }))).rejects.toMatchObject({
       response: { code: 'RETURN_QTY_EXCEEDS_SOLD', params: expect.objectContaining({ available: 1 }) },
     });
+    // A second partial return of the same line completes (a movement is reversed only once).
+    const ret2 = await run(() => returns.create({ type: 'SALES_RETURN', invoiceId: issued.id, counterpartyDocNo: 'ALC2026000000002', lines: [{ invoiceLineId: delivered.id, quantity: 1 }] }));
+    const done2 = await run(() => returns.complete(ret2.id, {}));
+    expect(done2.status).toBe('COMPLETED');
+    expect(await qty(product.id)).toBe(10);
+    expect(done2.items[0].reversesMovementId).toBeNull();
     // An invoice with returns cannot be cancelled.
     await expect(run(() => invoices.cancel(issued.id, 'test'))).rejects.toMatchObject({ response: { code: 'INVOICE_HAS_RETURNS' } });
+  }, 120000);
+
+  it('paper series refused once e-documents are mandatory (EDOCUMENT_REQUIRED); 509 V.7 reason or external number allowed', async () => {
+    if (!available) return;
+    const { company } = await fixture('gate');
+    const legal2: any = {
+      param: legal.param,
+      obligationParams: async () => ({
+        sources: {},
+        params: {
+          eFaturaThreshold: () => null,
+          eIrsaliyeThreshold: () => null,
+          allInvoicesElectronicFrom: { BILANCO: '2026-01-01', ISLETME: '2027-01-01', BASIT: '2027-01-01' },
+          thresholdStartMonthDay: '07-01',
+          transitionMonths: 4,
+          toleranceDayEFatura: 7,
+        },
+      }),
+    };
+    const numbers = new DocumentNumberService(ds!, tenant, legal2);
+    const c = await ds!.manager.findOneByOrFail(CompanyEntity, { id: company.id });
+    const assign = (kind: string, date: string, opts: Record<string, unknown> = {}) => tenant.run(company.id, () => ds!.transaction((m) => numbers.assign(m, c, kind, date, opts)));
+    expect((await assign('INVOICE', '2025-12-31')).numberMode).toBe('PAPER');
+    await expect(assign('INVOICE', '2026-01-02')).rejects.toMatchObject({ response: { code: 'EDOCUMENT_REQUIRED' } });
+    expect((await assign('INVOICE', '2026-01-02', { paperReason: 'A' })).numberMode).toBe('PAPER');
+    expect((await assign('INVOICE', '2026-01-02', { externalDocNo: 'GIB2026000000001' })).numberMode).toBe('EXTERNAL');
+    // No e-İrsaliye obligation in this profile: the paper despatch series stays available.
+    expect((await assign('DESPATCH', '2026-01-02')).numberMode).toBe('PAPER');
   }, 120000);
 
   it('transfer despatch: stock goes to IN_TRANSIT on approval and to the target on receipt', async () => {

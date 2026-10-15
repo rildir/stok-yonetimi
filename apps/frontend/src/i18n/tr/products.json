@@ -208,5 +208,7 @@
   "products.inventoryClass.MAMUL_152": "152 Mamuller",
   "products.inventoryClass.DIGER_157": "157 Diğer stoklar",
   "products.available": "Satılabilir: {qty}",
-  "products.availableHint": "Karantina / yoldaki stok hariç; stok durumu bu miktara göre hesaplanır."
+  "products.availableHint": "Karantina / yoldaki stok hariç; stok durumu bu miktara göre hesaplanır.",
+  "products.reservedFree": "Rezerve: {reserved} · Serbest: {free}",
+  "products.reservedHint": "Bekleyen siparişlerin ayırdığı miktar; stok irsaliye onayında düşer."
 }

@@ -62,5 +62,7 @@
   "auditLog.entity.units": "Ölçü Birimleri",
   "auditLog.entity.stock_counts": "Stok Sayımları",
   "auditLog.integrity.attachments": "{count} ek dosya özetiyle karşılaştırıldı",
-  "auditLog.integrity.problem.ATTACHMENT_MISMATCH": "Ek dosya değiştirilmiş veya silinmiş"
+  "auditLog.integrity.problem.ATTACHMENT_MISMATCH": "Ek dosya değiştirilmiş veya silinmiş",
+  "auditLog.action.invoice.late_issue_confirmed": "Geç fatura onayı (VUK 231/5)",
+  "auditLog.action.despatch.late_approval": "İrsaliye sevkten sonra onaylandı"
 }

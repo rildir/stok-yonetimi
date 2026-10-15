@@ -175,6 +175,9 @@ import { PAPER_REASONS } from '@stok/tr-compliance';
                   <div class="doc-field"><label for="ivDate">{{ 'documents.issueDate' | t }}</label><input id="ivDate" type="date" class="input" [(ngModel)]="issueDate" /></div>
                   <div class="doc-field"><label for="ivTime">{{ 'invoices.issueTime' | t }}</label><input id="ivTime" type="time" class="input" [(ngModel)]="issueTime" /></div>
                 </div>
+                <div class="doc-field"><label for="ivPaperReason">{{ 'documents.paperReasonIfMandatory' | t }}</label>
+                  <select id="ivPaperReason" class="select" [(ngModel)]="paperReason"><option value="">{{ 'documents.paperReasonNone' | t }}</option>@for (r of paperReasons; track r) { <option [value]="r">{{ 'despatches.paperReasons.' + r | t }}</option> }</select></div>
+                <p class="doc-hint">{{ 'documents.paperSeriesHint' | t }}</p>
               }
             }
             @if (lateInfo()) {
@@ -233,7 +236,7 @@ export class InvoicesComponent implements OnInit {
   issueTime = '';
   lateConfirm = false;
   paperFallback = false;
-  paperReason = 'A';
+  paperReason = '';
   cancelFor = signal<Invoice | null>(null);
   cancelReason = '';
 
@@ -275,17 +278,19 @@ export class InvoicesComponent implements OnInit {
     this.issueDate = new Date().toISOString().slice(0, 10);
     this.issueTime = '';
     this.paperFallback = false;
+    this.paperReason = '';
     this.issueFor.set(inv);
   }
 
   issue(inv: Invoice) {
     const body: Record<string, unknown> = { lateConfirm: this.lateConfirm || undefined };
     if (this.eDocumentMode() === 'PROVIDER') {
-      if (this.paperFallback) Object.assign(body, { paperFallback: true, paperReason: this.paperReason });
+      if (this.paperFallback) Object.assign(body, { paperFallback: true, paperReason: this.paperReason || 'A' });
     } else if (this.numberSource === 'external') {
       Object.assign(body, { externalDocNo: this.externalDocNo.trim(), externalDocDate: this.issueDate || undefined, issueDate: this.issueDate || undefined });
     } else {
       Object.assign(body, { issueDate: this.issueDate || undefined, issueTime: this.issueTime || undefined });
+      if (this.paperReason) Object.assign(body, { paperFallback: true, paperReason: this.paperReason });
     }
     this.busy.set(true);
     this.docs.issueInvoice(inv.id, body).subscribe({
@@ -299,7 +304,8 @@ export class InvoicesComponent implements OnInit {
       error: (e) => {
         this.busy.set(false);
         // VUK 231/5: more than 7 days after delivery -> show the reason and ask for explicit confirmation.
-        if ((e as any)?.error?.code === 'INVOICE_LATE_CONFIRM_REQUIRED') return this.lateInfo.set(apiError(e, ''));
+        const code = (e as any)?.error?.code;
+        if (code === 'INVOICE_LATE_CONFIRM_REQUIRED' || code === 'INVOICE_BACKDATED_CONFIRM_REQUIRED') return this.lateInfo.set(apiError(e, ''));
         this.ui.showToast(apiError(e, this.i18n.t('documents.actionError')), 'error');
       },
     });

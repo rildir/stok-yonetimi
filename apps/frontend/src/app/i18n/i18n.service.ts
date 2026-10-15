@@ -1,6 +1,6 @@
 import { DOCUMENT, Injectable, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { DICTIONARIES } from '../../i18n';
+import { Dict, TR_DICTIONARY, loadDictionary } from '../../i18n';
 
 export type Lang = 'tr' | 'en';
 export const SUPPORTED_LANGS: Lang[] = ['tr', 'en'];
@@ -29,9 +29,16 @@ export class I18nService {
 
   /** BCP-47 locale used by Intl formatters. */
   readonly locale = computed(() => (this.lang() === 'en' ? 'en-US' : 'tr-TR'));
-  private dict = computed(() => DICTIONARIES[this.lang()]);
+  /** Loaded dictionaries (Turkish is bundled; English arrives from a lazy chunk). */
+  private readonly dicts = signal<Partial<Record<Lang, Dict>>>({ tr: TR_DICTIONARY });
+  private dict = computed(() => this.dicts()[this.lang()] ?? TR_DICTIONARY);
+  private loading = new Map<Lang, Promise<void>>();
+  private requested: Lang | null = null;
+  /** Resolves when the initial language's dictionary is loaded (awaited by the app initializer). */
+  readonly ready: Promise<void>;
 
   constructor() {
+    this.ready = this.ensure(this.lang());
     effect(() => {
       const lang = this.lang();
       this.document?.documentElement?.setAttribute('lang', lang);
@@ -57,7 +64,7 @@ export class I18nService {
 
   /** Translate a key; `{name}` placeholders are replaced from params. Falls back to tr, then the key. */
   t(key: string, params?: Record<string, unknown> | null): string {
-    let text = this.dict()[key] ?? DICTIONARIES.tr[key] ?? key;
+    let text = this.dict()[key] ?? TR_DICTIONARY[key] ?? key;
     if (params) {
       for (const [k, v] of Object.entries(params)) {
         text = text.split(`{${k}}`).join(v == null ? '' : String(v));
@@ -70,10 +77,26 @@ export class I18nService {
     return key in this.dict();
   }
 
+  /** Loads the dictionary of `lang` once. */
+  ensure(lang: Lang): Promise<void> {
+    if (this.dicts()[lang]) return Promise.resolve();
+    let p = this.loading.get(lang);
+    if (!p) {
+      p = loadDictionary(lang)
+        .then((d) => this.dicts.update((all) => ({ ...all, [lang]: d })))
+        .catch(() => undefined);
+      this.loading.set(lang, p);
+    }
+    return p;
+  }
+
   setLanguage(lang: string | null | undefined, persist = true) {
     const l = I18nService.normalize(lang);
     if (!l) return;
-    this.lang.set(l);
+    // Switch once the dictionary is there (no flash of fallback texts); the last request wins.
+    this.requested = l;
+    if (this.dicts()[l]) this.lang.set(l);
+    else void this.ensure(l).then(() => this.requested === l && this.lang.set(l));
     if (persist && this.isBrowser) {
       try {
         localStorage.setItem(LANG_STORAGE_KEY, l);

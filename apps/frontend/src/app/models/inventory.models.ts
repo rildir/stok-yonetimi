@@ -8,6 +8,8 @@ export interface Product {
   quantity: number;
   /** Read-only: stock in sellable warehouses (quarantine / in transit excluded); status follows it */
   availableQuantity?: number;
+  /** Held by pending despatch-mode orders (not free to sell). */
+  reservedQuantity?: number;
   minQuantity: number;
   status: 'In stock' | 'Low stock' | 'Out of stock' | string;
   supplierId?: string | null;

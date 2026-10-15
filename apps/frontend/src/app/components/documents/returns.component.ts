@@ -74,7 +74,8 @@ interface ReturnFormLine {
               @if (r.type === 'WITHDRAWAL') {
                 <div class="doc-field"><label>{{ 'returns.withdrawalDeadline' | t }}</label><span>{{ r.withdrawalDeadline | appDate }}</span></div>
                 <div class="doc-field"><label>{{ 'returns.goodsReturnDeadline' | t }}</label><span>{{ r.goodsReturnDeadline | appDate }}</span></div>
-                <div class="doc-field"><label>{{ 'returns.refundDueDate' | t }}</label><span>{{ r.refundDueDate | appDate }}</span></div>
+                <div class="doc-field"><label>{{ 'returns.refundDueDate' | t }}</label><span>@if (r.refundDueDate) { {{ r.refundDueDate | appDate }} } @else { <span class="text-muted">{{ 'returns.refundPending' | t }}</span> }</span></div>
+                @if (r.goodsHandedOverDate) { <div class="doc-field"><label>{{ 'returns.goodsHandedOverDate' | t }}</label><span>{{ r.goodsHandedOverDate | appDate }}</span></div> }
               }
               @if (r.returnInvoiceId) { <div class="doc-field"><label>{{ 'returns.returnInvoice' | t }}</label><span><a class="link" routerLink="/invoices" [queryParams]="{ id: r.returnInvoiceId }">{{ 'returns.openInvoice' | t }}</a></span></div> }
               @if (r.expenseVoucherId) { <div class="doc-field"><label>{{ 'returns.expenseVoucher' | t }}</label><span><a class="link" routerLink="/expense-vouchers" [queryParams]="{ id: r.expenseVoucherId }">{{ 'returns.openVoucher' | t }}</a></span></div> }
@@ -92,6 +93,12 @@ interface ReturnFormLine {
               <div class="row"><span>{{ 'invoices.vat' | t }}</span><span>{{ r.taxTotal | money: r.currency }}</span></div>
               <div class="row grand"><span>{{ 'invoices.grandTotal' | t }}</span><span>{{ r.grandTotal | money: r.currency }}</span></div>
             </div>
+            @if (r.status === 'DRAFT' && r.type === 'WITHDRAWAL' && !ui.isReadonly()) {
+              <div class="doc-section">
+                <div class="doc-field"><label for="rtHand">{{ 'returns.goodsHandedOverDate' | t }}</label><input id="rtHand" type="date" class="input" [(ngModel)]="handedOver" /></div>
+                <p class="doc-hint">{{ 'returns.goodsHandedOverHint' | t }}</p>
+              </div>
+            }
           </div>
           <div class="drawer-footer">
             <button class="btn btn-secondary" (click)="print(r)">{{ 'documents.print' | t }}</button>
@@ -203,6 +210,7 @@ export class ReturnsComponent implements OnInit {
   counterpartyDocDate = '';
   notifiedAt = nowLocalInput();
   note = '';
+  handedOver = '';
 
   ngOnInit() {
     this.load();
@@ -293,9 +301,10 @@ export class ReturnsComponent implements OnInit {
       message: this.i18n.t('returns.completeConfirm'),
       onConfirm: () => {
         this.busy.set(true);
-        this.docs.completeReturn(r.id).subscribe({
+        this.docs.completeReturn(r.id, r.type === 'WITHDRAWAL' && this.handedOver ? { goodsHandedOverDate: this.handedOver } : {}).subscribe({
           next: (out) => {
             this.busy.set(false);
+            this.handedOver = '';
             this.selected.set(out);
             this.ui.showToast(this.i18n.t('returns.toast.completed'), 'success');
             this.load();

@@ -1,7 +1,10 @@
 import {
   ApplicationConfig,
+  inject,
+  provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
+import { I18nService } from './i18n/i18n.service';
 import { provideRouter } from '@angular/router';
 import { appRoutes } from './app.routes';
 import {
@@ -17,5 +20,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
     provideHttpClient(withInterceptors([authInterceptor])),
+    // The UI language's dictionary (English is a lazy chunk) is loaded before the first render.
+    provideAppInitializer(() => inject(I18nService).ready),
   ],
 };

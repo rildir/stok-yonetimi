@@ -62,5 +62,7 @@
   "auditLog.entity.units": "Units of Measure",
   "auditLog.entity.stock_counts": "Stock Counts",
   "auditLog.integrity.attachments": "{count} attachments checked against their digests",
-  "auditLog.integrity.problem.ATTACHMENT_MISMATCH": "Attachment changed or removed"
+  "auditLog.integrity.problem.ATTACHMENT_MISMATCH": "Attachment changed or removed",
+  "auditLog.action.invoice.late_issue_confirmed": "Late invoice confirmed (VUK 231/5)",
+  "auditLog.action.despatch.late_approval": "Despatch approved after shipping"
 }

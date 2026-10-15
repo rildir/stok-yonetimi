@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { err } from '../../shared/i18n/app-error';
@@ -6,7 +6,8 @@ import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { LegalParameterService } from '../../shared/services/legal-parameter.service';
 import { DocumentSeriesEntity, DocumentSequenceEntity } from '../../entities/document-series.entity';
 import { CompanyEntity } from '../../entities/company.entity';
-import { formatDocumentNumber, isValidExternalDocNo, isValidSeriesFor, todayKey } from '../../shared/tr';
+import { CompanyEBelgeProfileEntity } from '../../entities/company-ebelge-profile.entity';
+import { computeObligations, formatDocumentNumber, isValidExternalDocNo, isValidSeriesFor, PAPER_REASONS, todayKey } from '../../shared/tr';
 
 export interface NextNumber {
   documentNo: string;
@@ -125,17 +126,66 @@ export class DocumentNumberService {
   }
 
   /**
+   * e-Belge obligation on `date` that rules out the company's own paper series for an invoice /
+   * despatch advice (509 IV.2.4.3 / IV.3.5; computeObligations with the company's e-Belge profile
+   * and bookkeeping type). Null when paper is still allowed. `amountTry`: invoice total incl. taxes
+   * (paper invoices are capped while the paper limit applies).
+   */
+  async electronicObligation(
+    manager: EntityManager,
+    company: Pick<CompanyEntity, 'id' | 'country' | 'bookkeepingType'>,
+    kind: string,
+    date: string,
+    amountTry?: number | null,
+  ): Promise<{ kind: string; reason: string } | null> {
+    if ((company.country || 'TR').toUpperCase() !== 'TR' || (kind !== 'INVOICE' && kind !== 'DESPATCH')) return null;
+    let rep: ReturnType<typeof computeObligations>;
+    try {
+      const profile = await manager.findOne(CompanyEBelgeProfileEntity, { where: { companyId: company.id } });
+      const { params } = await this.legalParams.obligationParams('TR', date);
+      rep = computeObligations(profile as any, company.bookkeepingType, date, params);
+    } catch {
+      return null; // obligation data unavailable: the compliance panel reports it (EBELGE_* alerts)
+    }
+    const started = (o: { activeSince: string | null; mandatoryFrom: string | null; reason: string | null }) =>
+      o.activeSince ? 'ACTIVE' : o.mandatoryFrom && o.mandatoryFrom <= date ? o.reason || 'MANDATORY' : null;
+    if (kind === 'DESPATCH') {
+      const why = started(rep.eIrsaliye);
+      return why ? { kind: 'e-İrsaliye', reason: why } : null;
+    }
+    if (!rep.paperInvoice.allowed) {
+      const why = started(rep.eFatura) || started(rep.eArsiv) || 'MANDATORY';
+      return { kind: 'e-Fatura / e-Arşiv', reason: why };
+    }
+    const limit = rep.paperInvoice.limit;
+    if (limit !== null && limit !== undefined && amountTry !== null && amountTry !== undefined && Number(amountTry) > Number(limit)) {
+      return { kind: 'e-Arşiv', reason: `LIMIT ${limit} TL` };
+    }
+    return null;
+  }
+
+  /**
    * Number for a legal document being approved / issued:
    *  - e-Belge mode PROVIDER: next EDOCUMENT number (paperFallback: PAPER series, 509 V.7);
-   *  - mode NONE: the number of the external system / printed form when given (checked for
-   *    duplicates), else the next number of the PAPER series.
+   *  - mode NONE: the number of the external system (GİB portal / integrator) when given (checked
+   *    for duplicates), else the next number of the PAPER series. The PAPER series is refused for
+   *    an invoice / despatch advice once the company is obliged to use e-documents, unless a 509 V.7
+   *    reason (`paperReason`) is given (422 EDOCUMENT_REQUIRED).
    */
   async assign(
     manager: EntityManager,
-    company: Pick<CompanyEntity, 'eDocumentMode'>,
+    company: Pick<CompanyEntity, 'eDocumentMode'> & Partial<Pick<CompanyEntity, 'id' | 'country' | 'bookkeepingType'>>,
     kind: string,
     date: string,
-    opts: { externalDocNo?: string | null; seriesCode?: string | null; warehouseSeries?: string | null; paperFallback?: boolean; exceptId?: string | null } = {},
+    opts: {
+      externalDocNo?: string | null;
+      seriesCode?: string | null;
+      warehouseSeries?: string | null;
+      paperFallback?: boolean;
+      paperReason?: string | null;
+      amountTry?: number | null;
+      exceptId?: string | null;
+    } = {},
   ): Promise<{ documentNo: string; seriesCode: string | null; numberMode: string }> {
     if (company.eDocumentMode === 'PROVIDER' && !opts.paperFallback) {
       const code = await this.resolveSeries(manager, kind, 'EDOCUMENT', opts.seriesCode, opts.warehouseSeries);
@@ -145,6 +195,11 @@ export class DocumentNumberService {
     if (opts.externalDocNo && String(opts.externalDocNo).trim()) {
       const no = await this.assertExternalNumber(manager, kind, String(opts.externalDocNo), opts.exceptId);
       return { documentNo: no, seriesCode: null, numberMode: 'EXTERNAL' };
+    }
+    if (company.id && company.eDocumentMode !== 'PROVIDER') {
+      const reasonOk = !!opts.paperReason && (PAPER_REASONS as readonly string[]).includes(opts.paperReason);
+      const ob = reasonOk ? null : await this.electronicObligation(manager, company as CompanyEntity, kind, date, opts.amountTry);
+      if (ob) throw new UnprocessableEntityException(err('EDOCUMENT_REQUIRED', { date, kind: ob.kind, reason: ob.reason }));
     }
     const code = await this.resolveSeries(manager, kind, 'PAPER', opts.seriesCode, opts.warehouseSeries);
     const n = await this.next(manager, kind, 'PAPER', code, date);
@@ -181,7 +236,7 @@ export class DocumentNumberService {
   async update(id: string, dto: { isDefault?: boolean; isActive?: boolean; note?: string | null; warehouseId?: string | null }): Promise<DocumentSeriesEntity> {
     return this.dataSource.transaction(async (m) => {
       const row = await m.findOne(DocumentSeriesEntity, { where: { companyId: this.companyId, id } });
-      if (!row) throw new BadRequestException(err('DOCUMENT_NOT_FOUND'));
+      if (!row) throw new NotFoundException(err('DOCUMENT_NOT_FOUND'));
       if (dto.isDefault) {
         await m.update(DocumentSeriesEntity, { companyId: this.companyId, kind: row.kind, mode: row.mode }, { isDefault: false });
         row.isDefault = true;

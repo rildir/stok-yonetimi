@@ -13,6 +13,7 @@ import { TaxEngine1784274132000 } from '../../migrations/1784274132000-TaxEngine
 import { TaxEngineReviewFixes1784274133000 } from '../../migrations/1784274133000-TaxEngineReviewFixes';
 import { TaxEngineReviewFixes21784274134000 } from '../../migrations/1784274134000-TaxEngineReviewFixes2';
 import { DocumentRegime1784274135000 } from '../../migrations/1784274135000-DocumentRegime';
+import { DocumentRegimeReviewFixes1784274136000 } from '../../migrations/1784274136000-DocumentRegimeReviewFixes';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -36,4 +37,5 @@ export const MIGRATIONS = [
   TaxEngineReviewFixes1784274133000,
   TaxEngineReviewFixes21784274134000,
   DocumentRegime1784274135000,
+  DocumentRegimeReviewFixes1784274136000,
 ];

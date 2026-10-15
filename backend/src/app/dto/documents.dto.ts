@@ -235,6 +235,11 @@ export class ApproveDespatchDto {
   @IsString()
   @MaxLength(3)
   seriesCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'e-İrsaliye zorunluyken matbu seri kullanımı için 509 V.7 gerekçesi (a-ç)' })
+  @IsOptional()
+  @IsIn(PAPER_REASONS as unknown as string[])
+  paperReason?: string | null;
 }
 
 export class ReceiveDespatchDto {
@@ -367,11 +372,15 @@ export class CreateReturnDto {
   @IsOptional() @IsString() @MaxLength(36) counterpartyEttn?: string | null;
   @ApiPropertyOptional({ description: 'Cayma / iade bildirimi zamanı (şirket saat dilimi)' })
   @IsOptional() @IsString() notifiedAt?: string | null;
+  @ApiPropertyOptional({ description: 'Cayma: malın ön bilgilendirmede belirtilen taşıyıcıya teslim edildiği gün (iade süresi başlangıcı, Mesafeli Sözl. Yön. md. 12/1)' })
+  @IsOptional() @IsDateKey() goodsHandedOverDate?: string | null;
   @IsOptional() @IsString() @MaxLength(2000) note?: string | null;
 }
 
 export class CompleteReturnDto {
   @IsOptional() @IsString() goodsMovedAt?: string | null;
+  @ApiPropertyOptional({ description: 'Cayma: malın belirtilen taşıyıcıya teslim edildiği gün; boşsa malın satıcıya ulaştığı gün esas alınır' })
+  @IsOptional() @IsDateKey() goodsHandedOverDate?: string | null;
 }
 
 export class ReturnRefundDto {

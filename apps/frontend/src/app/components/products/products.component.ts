@@ -338,6 +338,9 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                         @if (p.availableQuantity !== undefined && p.availableQuantity !== null && p.availableQuantity !== p.quantity) {
                           <div class="text-2xs text-muted" [title]="'products.availableHint' | t">{{ 'products.available' | t: { qty: (p.availableQuantity | num) } }}</div>
                         }
+                        @if (p.reservedQuantity) {
+                          <div class="text-2xs text-muted" [title]="'products.reservedHint' | t">{{ 'products.reservedFree' | t: { reserved: (p.reservedQuantity | num), free: (freeQuantity(p) | num) } }}</div>
+                        }
                         @if (p.warehouses && hoveredProductId() === p.id) {
                           <div class="warehouse-tooltip">
                             <div class="wh-tooltip-title">{{ 'products.warehouseDistribution' | t }}</div>
@@ -1356,6 +1359,11 @@ export class ProductsComponent implements OnInit {
     if (p.trackingType === 'serial') return this.i18n.t('products.tracking.serial');
     const lot = this.i18n.t('products.tracking.lot');
     return p.hasExpiry ? `${lot} + ${this.i18n.t('products.tracking.expiry')}` : lot;
+  }
+
+  /** Sellable stock not yet reserved by pending despatch-mode orders. */
+  freeQuantity(p: Product): number {
+    return Math.max(0, Number(p.availableQuantity ?? p.quantity) - Number(p.reservedQuantity || 0));
   }
 
   productUnitLabel(p: Product): string {

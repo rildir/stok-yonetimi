@@ -57,6 +57,9 @@ export class ProductEntity {
   @Column(qtyColumn({ default: 0 }))
   availableQuantity: number;
 
+  /** Response-only (not a column): quantity reserved by pending despatch-mode orders. */
+  reservedQuantity?: number;
+
   @Column(qtyColumn())
   minQuantity: number;
 

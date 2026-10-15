@@ -74,6 +74,7 @@ describe('ProductService', () => {
           }),
           find: jest.fn().mockResolvedValue([{ name: 'Ana Depo' }]),
           exists: jest.fn().mockResolvedValue(false),
+          query: jest.fn().mockResolvedValue([]),
           create: jest.fn().mockImplementation((entity, obj) => ({ id: 'prod-100', ...obj })),
           save: jest.fn().mockImplementation((entity, obj) => Promise.resolve({ id: 'prod-100', ...obj })),
         })
@@ -110,7 +111,7 @@ describe('ProductService', () => {
       const mockProducts = [{ id: '1', name: 'Product 1', isDeleted: false }];
       productRepoMock.find.mockResolvedValue(mockProducts);
 
-      (service as any).dataSource.manager = {};
+      (service as any).dataSource.manager = { query: jest.fn().mockResolvedValue([]) };
       const result = await service.getProducts();
       expect(result).toEqual(mockProducts);
       expect(productRepoMock.find).toHaveBeenCalledWith({ where: { companyId: COMPANY_ID, isDeleted: false } });
@@ -122,7 +123,7 @@ describe('ProductService', () => {
       const mockProd = { id: 'prod-1', name: 'Keyboard', isDeleted: false };
       productRepoMock.findOne.mockResolvedValue(mockProd);
 
-      (service as any).dataSource.manager = {};
+      (service as any).dataSource.manager = { query: jest.fn().mockResolvedValue([]) };
       const result = await service.getProductById('prod-1');
       expect(result).toEqual(mockProd);
       expect(productRepoMock.findOne).toHaveBeenCalledWith({ where: { companyId: COMPANY_ID, id: 'prod-1', isDeleted: false } });
@@ -161,6 +162,7 @@ describe('ProductService tenant isolation', () => {
       exists: jest.fn().mockResolvedValue(false),
       findOne: jest.fn().mockResolvedValue({ id: 'x' }),
       find: jest.fn().mockResolvedValue([{ name: 'Depo' }]),
+      query: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation((_e, obj) => ({ ...obj })),
       save: jest.fn().mockImplementation((_e, obj) => { saved.push(obj); return Promise.resolve({ id: 'p', ...obj }); }),
     };
