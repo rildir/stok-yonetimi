@@ -5,7 +5,7 @@ import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormArray, For
 import { AppStateService } from '../../services/app-state.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService, Order, CreateOrderPayload } from '../../inventory.service';
-import { Customer, TaxRate, OrderItem, Product, StockLot, SerialNumber, BarcodeLookupResult } from '../../models/inventory.models';
+import { Customer, TaxRate, OrderItem, Product, StockLot, SerialNumber, BarcodeLookupResult, Warehouse } from '../../models/inventory.models';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { tap } from 'rxjs';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
@@ -291,6 +291,17 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                   @if (isFieldInvalid('customerName')) { <div class="form-error">{{ 'orders.create.customerNameRequired' | t }}</div> }
                 </div>
               }
+              @if (warehouses().length > 1) {
+                <div class="form-field">
+                  <select id="orderWarehouse" formControlName="warehouseId" class="form-input form-select has-value" (change)="onOrderWarehouseChange()">
+                    <option value="">{{ 'orders.create.warehouseAuto' | t }}</option>
+                    @for (w of warehouses(); track w.id) {
+                      <option [value]="w.id">{{ w.name }}</option>
+                    }
+                  </select>
+                  <label for="orderWarehouse" class="form-label">{{ 'orders.create.warehouse' | t }}</label>
+                </div>
+              }
               <div class="field-hint">
                 {{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}
               </div>
@@ -399,7 +410,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                               }
                             </div>
                             @if (line.get('trackMode')?.value === 'manual') {
-                              @if (lotsCache()[lp.id]; as lots) {
+                              @if (lotsCache()[trackingKey(lp.id)]; as lots) {
                                 @for (lot of lots; track lot.id) {
                                   <div class="ol-lot">
                                     <span class="mono">{{ lot.lotNumber }}{{ lot.warehouseName ? ' · ' + lot.warehouseName : '' }}</span>
@@ -428,7 +439,7 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                               }
                             </div>
                             @if (line.get('trackMode')?.value === 'manual') {
-                              @if (serialsCache()[lp.id]; as serials) {
+                              @if (serialsCache()[trackingKey(lp.id)]; as serials) {
                                 <div class="ol-serials">
                                   @for (sn of serials; track sn.id) {
                                     <label class="ol-serial">
@@ -727,6 +738,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     customerId: [''],
     customerName: ['', [Validators.required, Validators.minLength(2)]],
     currency: [''],
+    warehouseId: [''],
     carrier: [''],
     trackingNumber: [''],
     lines: this.fb.array([])
@@ -757,6 +769,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.state.orders().length === 0) {
       this.state.loadData();
     }
+    this.inventoryService.getWarehouses().subscribe({ next: (w) => this.warehouses.set(w || []), error: () => {} });
     this.route.queryParams.subscribe(params => {
       this.orderSearch.set(params['q'] || '');
       if (params['open'] === 'new') {
@@ -886,7 +899,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Create Order
   openCreateOrder() {
-    this.orderForm.reset({ customerId: '', customerName: '', currency: this.i18n.currency(), carrier: '', trackingNumber: '' });
+    this.orderForm.reset({ customerId: '', customerName: '', currency: this.i18n.currency(), warehouseId: '', carrier: '', trackingNumber: '' });
     this.onCustomerChange();
     this.loadLookups();
     this.linesArray.clear();
@@ -1004,13 +1017,15 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /** "3 Box (= 36)" when entered in an alternate unit, else "5x" */
-  itemQtyLabel(item: OrderItem, withX: boolean): string {
+  itemQtyLabel(item: OrderItem, _withX = false): string {
     const nf = (n: number) => this.i18n.formatNumber(n);
     if (item.unitFactor != null && Number(item.unitFactor) !== 1 && item.unitQuantity != null) {
       const unit = item.unitCode ? this.unitLabelText(item.unitCode) : '';
       return `${nf(item.unitQuantity)} ${unit} (= ${nf(item.quantity)})`;
     }
-    return withX ? `${nf(item.quantity)}x` : nf(item.quantity);
+    // Show the line's actual unit instead of a hard-coded "pcs/adet"
+    const unit = this.unitLabelText(item.unitCode || 'pcs');
+    return `${nf(item.quantity)} ${unit}`;
   }
 
   private unitLabelText(code: string): string {
@@ -1023,17 +1038,38 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
   lotsCache = signal<Record<string, StockLot[]>>({});
   serialsCache = signal<Record<string, SerialNumber[]>>({});
 
+  /** Optional order warehouse: allocation and the lot/serial picker are restricted to it. */
+  warehouses = signal<Warehouse[]>([]);
+
+  /** Cache key per product + selected warehouse ('' = all warehouses). */
+  trackingKey(productId: string): string {
+    return `${productId}|${this.orderForm.get('warehouseId')?.value || ''}`;
+  }
+
+  onOrderWarehouseChange() {
+    // Picked lots/serials may belong to another warehouse: fall back to automatic allocation
+    this.linesArray.controls.forEach(line => {
+      if (line.get('trackMode')?.value === 'manual') {
+        line.patchValue({ lots: [], serials: [] });
+        const product = this.lineProduct(line);
+        if (product) this.ensureTrackingData(product);
+      }
+    });
+  }
+
   private ensureTrackingData(product: Product) {
-    if (product.trackingType === 'lot' && !this.lotsCache()[product.id]) {
-      this.inventoryService.getProductLots(product.id).subscribe({
-        next: lots => this.lotsCache.update(c => ({ ...c, [product.id]: lots })),
-        error: () => this.lotsCache.update(c => ({ ...c, [product.id]: [] }))
+    const key = this.trackingKey(product.id);
+    const warehouseId = this.orderForm.get('warehouseId')?.value || undefined;
+    if (product.trackingType === 'lot' && !this.lotsCache()[key]) {
+      this.inventoryService.getProductLots(product.id, warehouseId).subscribe({
+        next: lots => this.lotsCache.update(c => ({ ...c, [key]: lots })),
+        error: () => this.lotsCache.update(c => ({ ...c, [key]: [] }))
       });
     }
-    if (product.trackingType === 'serial' && !this.serialsCache()[product.id]) {
-      this.inventoryService.getProductSerials(product.id, 'in_stock').subscribe({
-        next: sn => this.serialsCache.update(c => ({ ...c, [product.id]: sn })),
-        error: () => this.serialsCache.update(c => ({ ...c, [product.id]: [] }))
+    if (product.trackingType === 'serial' && !this.serialsCache()[key]) {
+      this.inventoryService.getProductSerials(product.id, 'in_stock', warehouseId).subscribe({
+        next: sn => this.serialsCache.update(c => ({ ...c, [key]: sn })),
+        error: () => this.serialsCache.update(c => ({ ...c, [key]: [] }))
       });
     }
   }
@@ -1353,6 +1389,7 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
       ...(customerId ? { customerId } : { customerName: (formValue.customerName || '').trim() }),
       status: 'Pending',
       currency: formValue.currency || undefined,
+      ...(formValue.warehouseId ? { warehouseId: formValue.warehouseId } : {}),
       carrier: formValue.carrier ? formValue.carrier.trim() : undefined,
       trackingNumber: formValue.trackingNumber ? formValue.trackingNumber.trim() : undefined,
       items,

@@ -73,6 +73,12 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
 .pr-card.is-selected { border-color: var(--color-primary-border); background: var(--color-primary-subtle); }
 .pr-card.is-highlighted { box-shadow: 0 0 0 2px var(--color-primary); }
 .pr-card-top { display: flex; justify-content: space-between; align-items: center; }
+.pr-serial-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--color-surface); }
+.pr-serial-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; cursor: pointer; font-size: var(--text-sm); }
+.pr-serial-block { display: flex; flex-direction: column; gap: var(--space-2); }
+.pr-serial-title { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text); }
+.pr-tr-hint { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: calc(-1 * var(--space-2)); }
+.pr-serial-block .pr-tr-hint { margin-top: 0; }
 .pr-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
 .pr-card-stats dt { font-size: var(--text-xs); color: var(--color-text-muted); }
 .pr-card-stats dd { margin: 0; font-weight: var(--weight-semibold); color: var(--color-text); font-variant-numeric: tabular-nums; }
@@ -172,33 +178,38 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
           <span class="stat-label">{{ 'products.stats.totalProducts' | t }}</span>
           <div class="pr-kpi-row">
             <span class="stat-value">{{ state.products().length }}</span>
-            <span class="badge badge-success">{{ 'products.stats.newCount' | t: { count: 3 } }}</span>
+            @if (newProductCount() > 0) {
+              <span class="badge badge-success">{{ 'products.stats.newCount' | t: { count: newProductCount() } }}</span>
+            }
           </div>
-          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">{{ 'products.stats.last30Days' | t }}</span>
         </div>
         <div class="stat-card pr-kpi">
           <span class="stat-label">{{ 'products.stats.totalValue' | t }}</span>
           <div class="pr-kpi-row">
-            <span class="stat-value">{{ getTotalValue() | money: null : 0 }}</span>
-            <span class="badge badge-success">↑ 9%</span>
+            <span class="stat-value">{{ totalValue().amount | money: totalValue().currency : 0 }}</span>
           </div>
-          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">
+            @if (totalValue().unconverted.length) {
+              {{ 'products.stats.unconverted' | t: { list: totalValue().unconverted.join(', ') } }}
+            } @else {
+              {{ 'products.stats.inBaseCurrency' | t: { currency: totalValue().currency } }}
+            }
+          </span>
         </div>
         <div class="stat-card pr-kpi">
           <span class="stat-label">{{ 'products.stats.criticalStock' | t }}</span>
           <div class="pr-kpi-row">
             <span class="stat-value low">{{ state.lowStockCount() }}</span>
-            <span class="badge badge-warning">↑ 7%</span>
           </div>
-          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">{{ 'products.stats.criticalMeta' | t }}</span>
         </div>
         <div class="stat-card pr-kpi">
           <span class="stat-label">{{ 'products.stats.outOfStock' | t }}</span>
           <div class="pr-kpi-row">
             <span class="stat-value out">{{ state.outOfStockCount() }}</span>
-            <span class="badge badge-danger">↓ 5%</span>
           </div>
-          <span class="kpi-meta">{{ 'products.stats.vsLastMonth' | t }}</span>
+          <span class="kpi-meta">{{ 'products.stats.outMeta' | t }}</span>
         </div>
       </div>
     }
@@ -852,9 +863,43 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
               <label class="form-label">{{ 'products.transferModal.to' | t }}</label>
             </div>
 
+            @if (transferTracking() === 'lot' && transferFromWarehouse()) {
+              <div class="form-field">
+                <select id="prTrLot" class="form-input form-select has-value" [ngModel]="transferLotId()" (ngModelChange)="transferLotId.set($event || '')">
+                  <option value="">{{ 'warehouses.transfer.selectLot' | t }}</option>
+                  @for (l of transferLots(); track l.id) {
+                    <option [value]="l.id">{{ l.lotNumber }}{{ l.expiryDate ? ' · ' + l.expiryDate : '' }} — {{ 'warehouses.transfer.available' | t: { qty: l.quantity } }}</option>
+                  }
+                </select>
+                <label for="prTrLot" class="form-label">{{ 'warehouses.transfer.lot' | t }}</label>
+              </div>
+              @if (!transferTrackingLoading() && transferLots().length === 0) { <div class="pr-tr-hint">{{ 'warehouses.transfer.noLots' | t }}</div> }
+              @else if (!transferTrackingLoading() && !transferLotId()) { <div class="pr-tr-hint">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
+            }
+            @if (transferTracking() === 'serial' && transferFromWarehouse()) {
+              <div class="pr-serial-block">
+                <div class="pr-serial-title">{{ 'warehouses.transfer.serials' | t }} ({{ transferSerialSel().size }})</div>
+                @if (transferTrackingLoading()) {
+                  <div class="pr-tr-hint">…</div>
+                } @else if (transferSerials().length === 0) {
+                  <div class="pr-tr-hint">{{ 'warehouses.transfer.noSerials' | t }}</div>
+                } @else {
+                  <div class="pr-serial-list">
+                    @for (sn of transferSerials(); track sn.id) {
+                      <label class="pr-serial-item">
+                        <input type="checkbox" [checked]="transferSerialSel().has(sn.serial)" (change)="toggleTransferSerial(sn.serial)" />
+                        <span class="mono">{{ sn.serial }}</span>
+                      </label>
+                    }
+                  </div>
+                  <div class="pr-tr-hint">{{ 'warehouses.transfer.serialsHint' | t }}</div>
+                }
+              </div>
+            }
+
             <!-- Miktar Girişi -->
             <div class="form-field">
-              <input type="number" class="form-input" [ngModel]="transferQuantity()" (ngModelChange)="transferQuantity.set($event)" min="1" [max]="maxTransferQuantity()" />
+              <input type="number" class="form-input" [ngModel]="transferQuantity()" (ngModelChange)="transferQuantity.set($event)" min="1" [max]="maxTransferQuantity()" [readonly]="transferTracking() === 'serial'" />
               <label class="form-label">{{ 'products.transferModal.quantity' | t }}</label>
               @if (maxTransferQuantity() > 0) {
                 <span class="form-error" style="color: var(--text-muted);">{{ 'products.transferModal.max' | t: { max: maxTransferQuantity() } }}</span>
@@ -999,9 +1044,23 @@ export class ProductsComponent implements OnInit {
     this.showStats.update(v => !v);
   }
   
-  getTotalValue(): number {
-    return this.state.products().reduce((acc, p) => acc + (p.price * (p.quantity || 0)), 0);
-  }
+  /** Products created in the last 30 days (real data, from createdAt). */
+  readonly newProductCount = computed(() => {
+    const since = Date.now() - 30 * 24 * 3600 * 1000;
+    return this.state.products().filter(p => p.createdAt && new Date(p.createdAt).getTime() >= since).length;
+  });
+
+  /** Inventory value in company base currency (server converts via exchange rates). */
+  readonly totalValue = computed(() => {
+    const s = this.state.summary();
+    if (s) return { amount: s.inventoryValue, currency: s.currency, unconverted: s.unconvertedCurrencies || [] };
+    // Fallback before summary loads: only sum base-currency products
+    const base = this.i18n.currency();
+    const prods = this.state.products();
+    const amount = prods.filter(p => !p.currency || p.currency === base).reduce((acc, p) => acc + p.price * (p.quantity || 0), 0);
+    const unconverted = [...new Set(prods.map(p => p.currency).filter((c): c is string => !!c && c !== base))];
+    return { amount, currency: base, unconverted };
+  });
 
   isCategoryDropdownOpen = signal(false);
   productSortOption = signal<string>('default');
@@ -1076,9 +1135,20 @@ export class ProductsComponent implements OnInit {
     return this.allWarehouses().filter(w => w.id !== from);
   });
 
+  // Lot/serial selection (same flow as the warehouses page transfer drawer)
+  transferLots = signal<StockLot[]>([]);
+  transferSerials = signal<SerialNumber[]>([]);
+  transferLotId = signal('');
+  transferSerialSel = signal<Set<string>>(new Set());
+  transferTrackingLoading = signal(false);
+  transferTracking = computed(() => this.selectedProductForTransfer()?.trackingType || 'none');
+
   maxTransferQuantity = computed(() => {
     const fromId = this.transferFromWarehouse();
     if (!fromId) return 0;
+    if (this.transferTracking() === 'lot' && this.transferLotId()) {
+      return this.transferLots().find(l => l.id === this.transferLotId())?.quantity ?? 0;
+    }
     return this.availableFromWarehouses().find(w => w.id === fromId)?.qty ?? 0;
   });
 
@@ -1089,6 +1159,7 @@ export class ProductsComponent implements OnInit {
     if (from && to && from === to) return 'products.transferModal.sameWarehouse';
     if (from && qty > this.maxTransferQuantity()) return 'products.transferModal.exceedsAvailable';
     if (from && to && !(qty > 0)) return 'products.transferModal.invalidQuantity';
+    if (from && this.transferTracking() === 'serial' && qty !== this.transferSerialSel().size) return 'warehouses.transfer.serialsMismatch';
     return null;
   });
 
@@ -2104,6 +2175,39 @@ export class ProductsComponent implements OnInit {
   onTransferFromWarehouseChange() {
     this.transferQuantity.set(1);
     this.transferToWarehouse.set('');
+    this.resetTransferTracking();
+    const prod = this.selectedProductForTransfer();
+    const from = this.transferFromWarehouse();
+    if (!prod || !from) return;
+    const tracking = this.transferTracking();
+    if (tracking === 'lot') {
+      this.transferTrackingLoading.set(true);
+      this.inventoryService.getProductLots(prod.id, from).subscribe({
+        next: (lots) => { this.transferLots.set((lots || []).filter(l => l.quantity > 0)); this.transferTrackingLoading.set(false); },
+        error: () => this.transferTrackingLoading.set(false)
+      });
+    } else if (tracking === 'serial') {
+      this.transferQuantity.set(0);
+      this.transferTrackingLoading.set(true);
+      this.inventoryService.getProductSerials(prod.id, 'in_stock', from).subscribe({
+        next: (serials) => { this.transferSerials.set(serials || []); this.transferTrackingLoading.set(false); },
+        error: () => this.transferTrackingLoading.set(false)
+      });
+    }
+  }
+
+  private resetTransferTracking() {
+    this.transferLots.set([]);
+    this.transferSerials.set([]);
+    this.transferLotId.set('');
+    this.transferSerialSel.set(new Set());
+  }
+
+  toggleTransferSerial(serial: string) {
+    const next = new Set(this.transferSerialSel());
+    if (next.has(serial)) next.delete(serial); else next.add(serial);
+    this.transferSerialSel.set(next);
+    this.transferQuantity.set(next.size);
   }
 
   isTransferValid(): boolean {
@@ -2112,7 +2216,8 @@ export class ProductsComponent implements OnInit {
            !!this.transferToWarehouse() &&
            this.transferFromWarehouse() !== this.transferToWarehouse() &&
            qty > 0 &&
-           qty <= this.maxTransferQuantity();
+           qty <= this.maxTransferQuantity() &&
+           !this.transferValidationError();
   }
 
   openTransferModal(product: Product) {
@@ -2122,6 +2227,7 @@ export class ProductsComponent implements OnInit {
     this.transferQuantity.set(1);
     this.transferNote.set('');
     this.transferError.set(null);
+    this.resetTransferTracking();
     if (this.allWarehouses().length === 0) this.loadWarehouses();
     this.isTransferModalOpen.set(true);
   }
@@ -2147,7 +2253,9 @@ export class ProductsComponent implements OnInit {
       this.transferFromWarehouse(),
       this.transferToWarehouse(),
       Number(this.transferQuantity()),
-      this.transferNote().trim() || undefined
+      this.transferNote().trim() || undefined,
+      this.transferTracking() === 'lot' && this.transferLotId() ? this.transferLotId() : undefined,
+      this.transferTracking() === 'serial' ? [...this.transferSerialSel()] : undefined
     ).subscribe({
       next: (updated) => {
         this.isTransferLoading.set(false);

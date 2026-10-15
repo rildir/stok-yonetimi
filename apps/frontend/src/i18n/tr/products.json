@@ -22,7 +22,6 @@
   "products.sort.name-asc": "A-Z",
   "products.stats.totalProducts": "Toplam Ürün",
   "products.stats.newCount": "+{count} yeni",
-  "products.stats.vsLastMonth": "geçen aya göre",
   "products.stats.totalValue": "Toplam Stok Değeri",
   "products.stats.criticalStock": "Kritik Stok",
   "products.stats.outOfStock": "Tükenen Ürün",
@@ -179,5 +178,10 @@
   "products.errors.barcodeChecksum": "Barkod kontrol hanesi geçersiz.",
   "products.errors.trackedQtyLocked": "Takipli ürünlerde stok miktarı elle değiştirilemez.",
   "products.page.title": "Ürünler",
-  "products.page.subtitle": "Ürün kataloğunuzu, stok seviyelerini ve fiyatlarını yönetin."
+  "products.page.subtitle": "Ürün kataloğunuzu, stok seviyelerini ve fiyatlarını yönetin.",
+  "products.stats.last30Days": "son 30 günde eklenen",
+  "products.stats.inBaseCurrency": "{currency} cinsinden, kurla çevrilmiş",
+  "products.stats.unconverted": "Kur bulunamayan: {list}",
+  "products.stats.criticalMeta": "minimum stok seviyesinin altında",
+  "products.stats.outMeta": "stok miktarı sıfır"
 }

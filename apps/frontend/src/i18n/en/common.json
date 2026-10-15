@@ -13,5 +13,8 @@
   "common.actions": "Actions",
   "common.language": "Language",
   "common.unknownError": "An unexpected error occurred.",
-  "common.clear": "Clear"
+  "common.clear": "Clear",
+  "common.dateHint.day": "D",
+  "common.dateHint.month": "M",
+  "common.dateHint.year": "Y"
 }

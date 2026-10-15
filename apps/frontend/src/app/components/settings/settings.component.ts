@@ -1,4 +1,4 @@
-import { Component, inject, ViewChild, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, ViewChild, signal, computed, OnInit, effect, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -921,6 +921,20 @@ export class SettingsComponent implements OnInit {
   @ViewChild(ToastComponent) toast!: ToastComponent;
 
   activeTab = signal<'profile' | 'categories' | 'users' | 'company' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard'>('dashboard');
+
+  private host = inject(ElementRef<HTMLElement>);
+  /** On narrow screens the tab bar scrolls horizontally: keep the active tab visible (e.g. opened via ?tab= link). */
+  private scrollActiveTab = effect(() => {
+    this.activeTab();
+    this.isAdmin(); // admin-only tabs render once the profile has loaded
+    setTimeout(() => {
+      const el = (this.host.nativeElement as HTMLElement).querySelector('.settings-tabs .tab.active') as HTMLElement | null;
+      const bar = el?.parentElement?.closest('.settings-tabs') as HTMLElement | null;
+      if (!el || !bar || bar.scrollWidth <= bar.clientWidth) return;
+      const delta = el.getBoundingClientRect().left - bar.getBoundingClientRect().left;
+      bar.scrollTo({ left: bar.scrollLeft + delta - (bar.clientWidth - el.offsetWidth) / 2, behavior: 'smooth' });
+    });
+  });
 
   // Locale option lists (shared by profile overrides and company settings)
   // Labels are translated in the template via settings.lang.<code> / settings.country.<code> / settings.tz.<tz>

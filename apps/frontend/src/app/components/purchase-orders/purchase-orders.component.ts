@@ -703,7 +703,7 @@ export class PurchaseOrdersComponent implements OnInit {
     if (item.unitFactor != null && Number(item.unitFactor) !== 1 && item.unitQuantity != null) {
       return `${nf(item.unitQuantity)} ${item.unitCode ? this.unitLabelText(item.unitCode) : ''} (= ${nf(item.quantity)})`;
     }
-    return nf(item.quantity);
+    return `${nf(item.quantity)} ${this.unitLabelText(item.unitCode || 'pcs')}`;
   }
 
   // ─── Barcode scanning ───

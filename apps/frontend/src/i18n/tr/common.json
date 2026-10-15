@@ -13,5 +13,8 @@
   "common.actions": "İşlemler",
   "common.language": "Dil",
   "common.unknownError": "Beklenmeyen bir hata oluştu.",
-  "common.clear": "Temizle"
+  "common.clear": "Temizle",
+  "common.dateHint.day": "G",
+  "common.dateHint.month": "A",
+  "common.dateHint.year": "Y"
 }

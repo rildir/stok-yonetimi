@@ -155,7 +155,8 @@ export class InventoryService {
     search?: string,
     startDate?: string,
     endDate?: string,
-    type?: string
+    type?: string,
+    warehouseId?: string
   ): Observable<{ data: StockMovement[], total: number }> {
     let url = `${this.apiUrl}/stock-movements?page=${page}&limit=${limit}`;
     if (productId) url += `&productId=${productId}`;
@@ -163,6 +164,7 @@ export class InventoryService {
     if (startDate) url += `&startDate=${startDate}`;
     if (endDate) url += `&endDate=${endDate}`;
     if (type) url += `&type=${type}`;
+    if (warehouseId) url += `&warehouseId=${encodeURIComponent(warehouseId)}`;
     return this.http.get<{ data: StockMovement[], total: number }>(url);
   }
 

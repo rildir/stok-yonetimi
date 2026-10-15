@@ -42,7 +42,7 @@ import { I18nService, TranslatePipe, AppDatePipe } from '../../i18n';
         </div>
 
         <!-- Depo Filtresi -->
-        <select class="select sm-select" [ngModel]="selectedWarehouseId()" (ngModelChange)="selectedWarehouseId.set($event)" [title]="'stockMovements.filter.warehouse' | t">
+        <select class="select sm-select" [ngModel]="selectedWarehouseId()" (ngModelChange)="selectedWarehouseId.set($event); loadMovements(1)" [title]="'stockMovements.filter.warehouse' | t">
           <option value="">{{ 'stockMovements.filter.allWarehouses' | t }}</option>
           @for (w of warehouses(); track w.id) {
             <option [value]="w.id">{{ w.name }}</option>
@@ -326,7 +326,8 @@ export class StockMovementsComponent implements OnInit {
       search,
       this.startDate() || undefined,
       this.endDate() || undefined,
-      typeParam
+      typeParam,
+      this.selectedWarehouseId() || undefined
     ).subscribe({
       next: (res) => {
         this.movements.set(res.data);
@@ -389,11 +390,11 @@ export class StockMovementsComponent implements OnInit {
       search,
       this.startDate() || undefined,
       this.endDate() || undefined,
-      typeParam
+      typeParam,
+      this.selectedWarehouseId() || undefined
     ).subscribe({
       next: (res) => {
-        const wid = this.selectedWarehouseId();
-        const list = wid ? res.data.filter((m: any) => m.warehouseId === wid) : res.data;
+        const list = res.data;
         if (!list || list.length === 0) {
           this.ui.showToast(this.i18n.t('stockMovements.toast.nothingToExport'), 'error');
           return;
@@ -447,11 +448,9 @@ export class StockMovementsComponent implements OnInit {
     }, 300);
   }
 
-  // getStockMovements has no warehouseId param, so the warehouse filter is applied client-side to the loaded page
+  /** Warehouse filter is applied server-side (see loadMovements). */
   filteredMovements() {
-    const wid = this.selectedWarehouseId();
-    const list = this.movements();
-    return wid ? list.filter(m => m.warehouseId === wid) : list;
+    return this.movements();
   }
 
   /** Comma list of serials, truncated after 3 entries. */

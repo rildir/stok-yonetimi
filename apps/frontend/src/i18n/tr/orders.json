@@ -17,7 +17,7 @@
   "orders.card.copyOrderNo": "Sipariş Numarasını Kopyala",
   "orders.card.copied": "Kopyalandı",
   "orders.card.details": "Sipariş Detayları",
-  "orders.card.itemLine": "{qty} adet x {price}",
+  "orders.card.itemLine": "{qty} x {price}",
   "orders.card.carrier": "Kargo",
   "orders.card.unknown": "Bilinmiyor",
   "orders.card.trackingNo": "Takip No",
@@ -93,5 +93,7 @@
   "orders.tracking.expiry": "SKT",
   "orders.scan.notFound": "Barkod bulunamadı: {code}",
   "orders.scan.outOfStock": "{name} stokta yok",
-  "orders.scan.serialAlready": "{serial} zaten eklendi"
+  "orders.scan.serialAlready": "{serial} zaten eklendi",
+  "orders.create.warehouse": "Çıkış deposu",
+  "orders.create.warehouseAuto": "Otomatik (tüm depolar)"
 }

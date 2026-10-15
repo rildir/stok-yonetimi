@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { authGuard, guestGuard } from './guards/auth.guard';
+import { authGuard, guestGuard, adminGuard } from './guards/auth.guard';
 
 export const appRoutes: Route[] = [
   { 
@@ -23,8 +23,8 @@ export const appRoutes: Route[] = [
       { path: 'reports', loadComponent: () => import('./components/reports/reports.component').then(m => m.ReportsComponent) },
       { path: 'stock-count', loadComponent: () => import('./components/stock-count/stock-count.component').then(m => m.StockCountComponent) },
       { path: 'warehouses', loadComponent: () => import('./components/warehouses/warehouses.component').then(m => m.WarehousesComponent) },
-      { path: 'audit-log', loadComponent: () => import('./components/audit-log/audit-log.component').then(m => m.AuditLogComponent) },
-      { path: 'integrations', loadComponent: () => import('./components/integrations/integrations.component').then(m => m.IntegrationsComponent) },
+      { path: 'audit-log', canActivate: [adminGuard], loadComponent: () => import('./components/audit-log/audit-log.component').then(m => m.AuditLogComponent) },
+      { path: 'integrations', canActivate: [adminGuard], loadComponent: () => import('./components/integrations/integrations.component').then(m => m.IntegrationsComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]
   },

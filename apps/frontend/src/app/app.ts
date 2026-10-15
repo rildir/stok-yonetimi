@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { UiStateService } from './services/ui-state.service';
 import { SocketService } from './services/socket.service';
+import { DateInputLocaleService } from './services/date-input-locale.service';
 
 @Component({
   selector: 'app-root',
@@ -33,5 +34,6 @@ export class App {
 
   constructor() {
     this.socketService.init();
+    inject(DateInputLocaleService).init();
   }
 }

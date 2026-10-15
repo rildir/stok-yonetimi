@@ -55,6 +55,11 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
       .active-actions .btn { flex: 1; }
       .meta-grid { grid-template-columns: 1fr; }
       .drawer-table .hide-xs { display: none; }
+      /* In-progress count: stacked cards instead of horizontal scroll */
+      .sc-active-table tr.track-sub { padding: var(--space-2) var(--space-4) var(--space-2) var(--space-8); background: var(--color-surface-subtle); }
+      .sc-active-table tr.track-sub td { background: transparent; }
+      .sc-active-table .track-sub .indent { padding-left: 0; text-align: left; }
+      .sc-active-table .name-cell { justify-content: flex-start; }
     }
   `],
   template: `
@@ -109,7 +114,7 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
 
         <div class="table-card" style="margin: 0; box-shadow: none;">
           <div class="table-scroll">
-            <table>
+            <table class="table-responsive sc-active-table">
               <thead>
                 <tr>
                   <th>{{ 'stockCount.col.productName' | t }}</th>
@@ -123,7 +128,7 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
               <tbody>
                 @for (item of activeItems(); track item.productId) {
                   <tr [id]="'sc-row-' + item.productId" [class.zero-stock-row]="item.systemQuantity === 0" [class.scan-highlight]="highlightedId() === item.productId">
-                    <td>
+                    <td class="td-primary">
                       <div class="name-cell">
                         @if (isTracked(item)) {
                           <button class="expand-btn" [class.open]="expanded().has(item.productId)" (click)="toggleExpand(item.productId)" [attr.aria-label]="'stockCount.toggleDetails' | t"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
@@ -136,17 +141,17 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                         }
                       </div>
                     </td>
-                    <td class="mono">{{ item.sku }}</td>
-                    <td>{{ item.unit || ('stockCount.defaultUnit' | t) }}</td>
-                    <td class="num">{{ item.systemQuantity }}</td>
-                    <td class="num">
+                    <td class="mono" [attr.data-label]="'stockCount.col.sku' | t">{{ item.sku }}</td>
+                    <td [attr.data-label]="'stockCount.col.unit' | t">{{ item.unit || ('stockCount.defaultUnit' | t) }}</td>
+                    <td class="num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ item.systemQuantity }}</td>
+                    <td class="num" [attr.data-label]="'stockCount.col.countedStock' | t">
                       @if (isTracked(item)) {
                         <span class="mono" [title]="'stockCount.trackedSumHint' | t">{{ item.countedQuantity }}</span>
                       } @else {
                         <input type="number" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
                       }
                     </td>
-                    <td class="num">
+                    <td class="num" [attr.data-label]="'stockCount.col.difference' | t">
                       <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
                         {{ item.difference > 0 ? '+' : '' }}{{ item.difference }}
                       </span>
@@ -157,13 +162,13 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                       @for (lot of item.lots || []; track lot.lotId) {
                         <tr class="track-sub">
                           <td class="indent">{{ 'stockCount.lot' | t }}: <span class="mono">{{ lot.lotNumber }}</span></td>
-                          <td>{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</td>
-                          <td>{{ lot.warehouseName || '' }}</td>
-                          <td class="num">{{ lot.systemQuantity }}</td>
-                          <td class="num">
+                          <td [attr.data-label]="'products.lots.expiry' | t">{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</td>
+                          <td [attr.data-label]="'products.lots.warehouse' | t">{{ lot.warehouseName || '-' }}</td>
+                          <td class="num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ lot.systemQuantity }}</td>
+                          <td class="num" [attr.data-label]="'stockCount.col.countedStock' | t">
                             <input type="number" [(ngModel)]="lot.countedQuantity" (ngModelChange)="recomputeTracked(item)" class="qty-input" min="0" [disabled]="isActionLoading()" />
                           </td>
-                          <td class="num">{{ lot.countedQuantity - lot.systemQuantity }}</td>
+                          <td class="num" [attr.data-label]="'stockCount.col.difference' | t">{{ lot.countedQuantity - lot.systemQuantity }}</td>
                         </tr>
                       } @empty {
                         <tr class="track-sub"><td colspan="6" class="indent">{{ 'stockCount.noLots' | t }}</td></tr>

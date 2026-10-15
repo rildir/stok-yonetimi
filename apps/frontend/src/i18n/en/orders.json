@@ -17,7 +17,7 @@
   "orders.card.copyOrderNo": "Copy Order Number",
   "orders.card.copied": "Copied",
   "orders.card.details": "Order Details",
-  "orders.card.itemLine": "{qty} pcs x {price}",
+  "orders.card.itemLine": "{qty} x {price}",
   "orders.card.carrier": "Carrier",
   "orders.card.unknown": "Unknown",
   "orders.card.trackingNo": "Tracking No",
@@ -93,5 +93,7 @@
   "orders.tracking.expiry": "Expiry",
   "orders.scan.notFound": "Barcode not found: {code}",
   "orders.scan.outOfStock": "{name} is out of stock",
-  "orders.scan.serialAlready": "{serial} already added"
+  "orders.scan.serialAlready": "{serial} already added",
+  "orders.create.warehouse": "Ship from warehouse",
+  "orders.create.warehouseAuto": "Automatic (all warehouses)"
 }

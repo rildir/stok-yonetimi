@@ -22,7 +22,6 @@
   "products.sort.name-asc": "A-Z",
   "products.stats.totalProducts": "Total Products",
   "products.stats.newCount": "+{count} new",
-  "products.stats.vsLastMonth": "vs last month",
   "products.stats.totalValue": "Total Stock Value",
   "products.stats.criticalStock": "Critical Stock",
   "products.stats.outOfStock": "Out of Stock",
@@ -179,5 +178,10 @@
   "products.errors.barcodeChecksum": "Barcode check digit is invalid.",
   "products.errors.trackedQtyLocked": "Stock quantity of tracked products cannot be edited manually.",
   "products.page.title": "Products",
-  "products.page.subtitle": "Manage your product catalog, stock levels and pricing."
+  "products.page.subtitle": "Manage your product catalog, stock levels and pricing.",
+  "products.stats.last30Days": "added in the last 30 days",
+  "products.stats.inBaseCurrency": "in {currency}, converted at exchange rates",
+  "products.stats.unconverted": "No rate for: {list}",
+  "products.stats.criticalMeta": "below minimum stock level",
+  "products.stats.outMeta": "zero quantity on hand"
 }

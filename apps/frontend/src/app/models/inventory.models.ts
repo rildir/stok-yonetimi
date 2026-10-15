@@ -25,6 +25,7 @@ export interface Product {
   baseUnit?: Unit | null;
   /** Alternate units (factor = base units per 1 alternate unit) */
   units?: ProductUnit[];
+  createdAt?: string;
 }
 
 export type BarcodeType = 'EAN13' | 'EAN8' | 'UPCA' | 'CODE128';
