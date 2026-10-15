@@ -549,6 +549,7 @@ export const MESSAGES: Catalog = {
   VALIDATION_PERMISSION_INVALID: { tr: 'Geçersiz yetki.', en: 'Invalid permission.' },
   CUSTOMER_PROCESSING_RESTRICTED: { tr: 'Bu müşterinin verileri silme talebi nedeniyle kısıtlanmıştır ({date} tarihine kadar yalnızca yasal saklama amacıyla tutulur).', en: 'This customer\'s data is restricted after an erasure request (kept only for legal retention until {date}).' },
   AUDIT_LOG_IMMUTABLE: { tr: 'Denetim kaydı değiştirilemez veya silinemez.', en: 'The audit log cannot be changed or deleted.' },
+  AUDIT_MASK_NOT_MARKER: { tr: 'Denetim kaydı maskelemesi yalnızca kişisel verileri maskeleme işaretleriyle değiştirebilir.', en: 'An audit log masking may only replace personal data with masking markers.' },
   DESTRUCTION_LOG_IMMUTABLE: { tr: 'İmha kaydı saklama süresi (en az 3 yıl) dolmadan değiştirilemez veya silinemez.', en: 'A destruction record cannot be changed or deleted before its retention (at least 3 years) ends.' },
   LEGAL_ACCEPTANCE_IMMUTABLE: { tr: 'Kabul kayıtları değiştirilemez veya silinemez.', en: 'Acceptance records cannot be changed or deleted.' },
   NOTICE_PUBLISHED_IMMUTABLE: { tr: 'Yayımlanmış metin değiştirilemez; yeni sürüm yayımlayın.', en: 'A published text cannot be changed; publish a new version.' },

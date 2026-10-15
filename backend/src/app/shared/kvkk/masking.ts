@@ -11,6 +11,13 @@ export function maskPersonalIdsInText(text: string): string {
   return text.replace(TEXT_TCKN, (m) => (isValidTckn(m) ? (maskIdentifier(m) as string) : m));
 }
 
+/** Karekod payload with natural-person identifiers (11-digit TCKN / YKN values) masked (R61). */
+export function maskQrPayload<T extends Record<string, string>>(qr: T): T {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(qr)) out[k] = typeof v === 'string' && /^\d{11}$/.test(v.trim()) ? (maskIdentifier(v) as string) : v;
+  return out as T;
+}
+
 /** Keys never returned by the API: the blind index of identity numbers (R61). */
 const INTERNAL_KEYS = new Set(['identityNumberHash']);
 
@@ -42,7 +49,7 @@ export function stripInternalKeys<T>(value: T, depth = 0): T {
  * Applied globally by PiiMaskingInterceptor, so documents (buyer snapshots, despatch drivers),
  * orders, traces and customer lists are covered alike.
  */
-const ID_KEY = /^(identityNumber|taxNumber|taxId|buyerTaxId|counterpartyTaxId|partyTaxId|receiverTaxId|senderTaxId|tckn|driverTckn|nationalId|customerTaxId|subjectIdentity)$/i;
+const ID_KEY = /^(identityNumber|taxNumber|taxId|buyerTaxId|counterpartyTaxId|partyTaxId|receiverTaxId|senderTaxId|tckn|driverTckn|nationalId|customerTaxId|subjectIdentity|vkntckn|avkntckn|tasiyicivkn)$/i;
 const ALWAYS_KEY = /^(passportNo|passportNumber)$/i;
 
 function isPersonalId(v: unknown): v is string {

@@ -194,8 +194,8 @@ export class EDocumentController {
 
   @Get(':id/html')
   @Header('Content-Type', 'text/html; charset=utf-8')
-  html(@Param('id') id: string) {
-    return this.archive.html(id);
+  html(@Param('id') id: string, @Req() req: any) {
+    return this.archive.html(id, !callerCanReadPii(req));
   }
 
   @Get(':id/pdf')

@@ -40,6 +40,27 @@ const R_AUTH = 'Yetkili kamu kurum ve kuruluşları';
 const R_HOST = 'Barındırma hizmet sağlayıcısı (veri işleyen)';
 const R_WEBHOOK = 'Şirketin tanımladığı entegrasyonlar (webhook alıcıları; kişisel veri varsayılan olarak gönderilmez)';
 
+/** English wording of the legal bases and recipient groups (English privacy notices). */
+const CATALOG_TEXT_EN: Record<string, string> = {
+  [B_CONTRACT]: 'KVKK 5/2-c (formation / performance of a contract)',
+  [B_LEGAL]: 'KVKK 5/2-ç (legal obligation: VUK 230, 253; TTK 82)',
+  [B_LEGIT]: 'KVKK 5/2-f (legitimate interest)',
+  [B_LAW]: 'KVKK 5/2-a (expressly provided for by law: VUK, KDVK, Law No. 7223)',
+  [B_RIGHT]: 'KVKK 5/2-e (establishment, exercise or protection of a right)',
+  [B_CONSENT]: 'KVKK 5/1 (explicit consent) - marketing message permissions only',
+  [R_GIB]: 'Revenue Administration (GİB) and the private e-document integrator (e-Invoice / e-Archive / e-Despatch)',
+  [R_ADVISOR]: 'Financial advisor / auditor',
+  [R_CARRIER]: 'Carrier / courier company',
+  [R_AUTH]: 'Authorised public institutions',
+  [R_HOST]: 'Hosting service provider (processor)',
+  [R_WEBHOOK]: 'Integrations defined by the company (webhook receivers; no personal data is sent by default)',
+};
+
+/** A catalog legal basis / recipient group in the given language. */
+export function catalogText(text: string, lang: 'tr' | 'en'): string {
+  return lang === 'en' ? CATALOG_TEXT_EN[text] ?? text : text;
+}
+
 export const DATA_CATALOG: CatalogEntry[] = [
   {
     category: 'Kimlik', categoryEn: 'Identity', subjectGroup: 'CUSTOMER',

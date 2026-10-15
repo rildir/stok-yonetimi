@@ -1,4 +1,4 @@
-import { DATA_CATALOG, SUBJECT_GROUP_LABELS, SubjectGroup } from './data-catalog';
+import { DATA_CATALOG, SUBJECT_GROUP_LABELS, SubjectGroup, catalogText } from './data-catalog';
 
 /**
  * Default privacy-notice text (aydınlatma metni, KVKK md. 10; Aydınlatma Yükümlülüğünün Yerine
@@ -80,7 +80,7 @@ export function buildPrivacyNotice(
     L.push(
       tr
         ? `- **${e.category}** (${SUBJECT_GROUP_LABELS[e.subjectGroup].tr}): ${e.purposes.join('; ')}. Hukuki sebep: ${e.legalBasis.join('; ')}. Saklama: ${retentionText(e.retentionCategory)}.`
-        : `- **${e.categoryEn}** (${SUBJECT_GROUP_LABELS[e.subjectGroup].en}): ${e.purposesEn.join('; ')}. Legal basis: ${e.legalBasis.join('; ')}. Retention: ${retentionText(e.retentionCategory)}.`,
+        : `- **${e.categoryEn}** (${SUBJECT_GROUP_LABELS[e.subjectGroup].en}): ${e.purposesEn.join('; ')}. Legal basis: ${e.legalBasis.map((b) => catalogText(b, 'en')).join('; ')}. Retention: ${retentionText(e.retentionCategory)}.`,
     );
   }
   L.push(
@@ -91,7 +91,7 @@ export function buildPrivacyNotice(
 
   L.push(tr ? '## 3. Kişisel verilerin aktarılması' : '## 3. Recipients and transfers');
   const recips = Array.from(new Set(entries.flatMap((e) => e.recipients)));
-  L.push(tr ? `Alıcı grupları: ${recips.join('; ')}.` : `Recipient groups: ${recips.join('; ')}.`);
+  L.push(tr ? `Alıcı grupları: ${recips.join('; ')}.` : `Recipient groups: ${recips.map((r) => catalogText(r, 'en')).join('; ')}.`);
   if (processors.length) {
     L.push(tr ? 'Veri işleyenler (alt işleyenler):' : 'Processors (sub-processors):');
     for (const p of processors) L.push(`- ${p.name} - ${p.service} (${p.country}${p.transferBasis && p.country !== 'TR' ? `, ${(tr ? BASIS_TR : BASIS_EN)[p.transferBasis] || p.transferBasis}` : ''})`);

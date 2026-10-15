@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { assessVerbis } from '../../shared/kvkk/verbis';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In, IsNull } from 'typeorm';
 import { err } from '../../shared/i18n/app-error';
@@ -135,24 +136,19 @@ export class GovernanceService {
     const nonBsRow = await active('VERBIS_NON_BALANCE_SHEET_EMPLOYEES_ONLY');
     const empLimit = empRow ? Number(empRow.value) : null;
     const balLimit = balRow ? Number(balRow.value) : null;
-    // Kurul 2025/2393: controllers not keeping balance-sheet books (işletme hesabı, basit usul) are
-    // assessed on the employee count only.
-    const balanceSheetBooks = !c.bookkeepingType || c.bookkeepingType === 'BILANCO';
-    const balanceApplies = balanceSheetBooks || !(nonBsRow && nonBsRow.value === true);
     const emp = c.verbisEmployeeCount ?? null;
     const bal = c.verbisBalanceSheetTotal ?? null;
-    const reasons: string[] = [];
-    if (c.verbisMainActivitySpecial) {
-      // Kurul 2025/1572: main activity special-category processing below 10 employees and 10M TL is exempt.
-      const spEmp = spEmpRow ? Number(spEmpRow.value) : null;
-      const spBal = spBalRow ? Number(spBalRow.value) : null;
-      const exemptionKnown = spEmp !== null || spBal !== null;
-      const overSpecial = (spEmp !== null && (emp ?? 0) >= spEmp) || (balanceApplies && spBal !== null && (bal ?? 0) >= spBal);
-      if (!exemptionKnown || overSpecial) reasons.push('MAIN_ACTIVITY_SPECIAL');
-    }
-    if (empLimit !== null && (emp ?? 0) >= empLimit) reasons.push('EMPLOYEES');
-    if (balanceApplies && balLimit !== null && (bal ?? 0) >= balLimit) reasons.push('BALANCE_SHEET');
-    const missing = emp === null || (balanceApplies && bal === null);
+    const { reasons, inputsMissing: missing, balanceSheetApplies: balanceApplies } = assessVerbis({
+      bookkeepingType: c.bookkeepingType,
+      employeeCount: emp,
+      balanceSheetTotal: bal,
+      mainActivitySpecial: c.verbisMainActivitySpecial,
+      employeeThreshold: empLimit,
+      balanceSheetThreshold: balLimit,
+      specialEmployeeThreshold: spEmpRow ? Number(spEmpRow.value) : null,
+      specialBalanceSheetThreshold: spBalRow ? Number(spBalRow.value) : null,
+      nonBalanceSheetEmployeesOnly: !!nonBsRow && nonBsRow.value === true,
+    });
     return {
       required: reasons.length > 0,
       reasons,

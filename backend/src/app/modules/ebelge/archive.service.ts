@@ -63,6 +63,7 @@ export class EDocumentArchiveService {
     return this.detail(rows[0].id);
   }
 
+  /** Detail JSON; the karekod payload is masked for callers without customers.pii.read by the global PiiMaskingInterceptor (vkntckn / avkntckn keys). */
   async detail(id: string) {
     const e = await this.find(id);
     const company = await this.dataSource.manager.findOneOrFail(CompanyEntity, { where: { id: this.companyId } });
@@ -109,18 +110,19 @@ export class EDocumentArchiveService {
     return { fileName: `${e.documentNo || e.ettn}.xml`, xml: maskPii ? maskPersonalIdsInText(xml) : xml };
   }
 
-  async html(id: string): Promise<string> {
+  /** `maskPii`: caller without customers.pii.read - TCKN masked in the text and in the karekod (R61). */
+  async html(id: string, maskPii = false): Promise<string> {
     const e = await this.find(id);
     const s = await this.settings.getOrCreate();
     const watermark = e.gibStatus === 'CANCELLED' ? 'İPTAL' : e.gibStatus === 'REJECTED' ? 'REDDEDİLDİ' : null;
-    return renderHtml(e.signedXml || e.xml, { logoDataUri: e.direction === 'OUT' ? s.logoDataUri : null, watermark });
+    return renderHtml(e.signedXml || e.xml, { logoDataUri: e.direction === 'OUT' ? s.logoDataUri : null, watermark, maskPii });
   }
 
   async pdf(id: string, maskPii = false): Promise<{ fileName: string; pdf: Buffer }> {
     const e = await this.find(id);
     try {
-      const html = await this.html(id);
-      return { fileName: `${e.documentNo || e.ettn}.pdf`, pdf: await htmlToPdf(maskPii ? maskPersonalIdsInText(html) : html) };
+      const html = await this.html(id, maskPii);
+      return { fileName: `${e.documentNo || e.ettn}.pdf`, pdf: await htmlToPdf(html) };
     } catch (ex) {
       this.logger.warn(`local PDF rendering failed: ${(ex as Error).message}`);
     }

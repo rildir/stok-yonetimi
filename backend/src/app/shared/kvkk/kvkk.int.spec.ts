@@ -10,7 +10,7 @@ import { OrderEntity } from '../../entities/order.entity';
 import { AuditLogEntity } from '../../entities/audit-log.entity';
 import { ConsentEntity, DestructionLogEntity, DsrRequestEntity, RetentionPolicyEntity, SecurityIncidentEntity } from '../../entities/kvkk.entity';
 import { TenantContext } from '../tenant/tenant-context.service';
-import { ensureAuditTriggers, dropAuditTriggers } from './audit-chain';
+import { applyAuditMasks, ensureAuditTriggers, dropAuditTriggers } from './audit-chain';
 import { ensureDocumentTriggers } from '../documents/document-triggers';
 import { RETENTION_DEFAULTS } from './retention';
 import { ErasureService } from '../../modules/kvkk/erasure.service';
@@ -239,13 +239,38 @@ describe('WP7 KVKK (MySQL)', () => {
     };
     await expect(flagged("UPDATE audit_logs SET `after` = JSON_OBJECT('other', 1), maskedAt = UTC_TIMESTAMP() WHERE id = ?")).rejects.toBeTruthy();
     await expect(flagged("UPDATE audit_logs SET username = 'mallory', maskedAt = UTC_TIMESTAMP() WHERE id = ?")).rejects.toBeTruthy();
-    // ... and a value rewrite under the flag without a chained kvkk.audit_mask event is reported as tampered
+    // ... a business value cannot be rewritten under the flag (only masking markers are accepted) ...
     const [second] = await ds!.query('SELECT id FROM audit_logs WHERE companyId = ? ORDER BY chainSeq LIMIT 1 OFFSET 1', [co.id]);
-    await flagged("UPDATE audit_logs SET `after` = JSON_OBJECT('price', 1234), maskedAt = UTC_TIMESTAMP() WHERE id = ?", second.id);
+    let rewrite: string | null = null;
+    try {
+      await flagged("UPDATE audit_logs SET `after` = JSON_SET(`after`, '$.price', 1234), maskedAt = UTC_TIMESTAMP() WHERE id = ?", second.id);
+    } catch (e) {
+      rewrite = triggerErrorCode(e);
+    }
+    expect(rewrite).toBe('AUDIT_MASK_NOT_MARKER');
+    await expect(flagged("UPDATE audit_logs SET `after` = JSON_SET(`after`, '$.price', NULL), maskedAt = UTC_TIMESTAMP() WHERE id = ?", second.id)).rejects.toBeTruthy();
+    // ... and a marker-shaped masking with a forged kvkk.audit_mask event (no / wrong MAC) is reported as tampered
+    await auditRow(m, co.id, 'customers', 'c-1', { name: 'Ali Veli', price: 5 });
+    await auditRow(m, co.id, 'customers', 'c-2', { name: 'Ayşe Kaya', note: 'TCKN 10000000146', price: 6 });
+    await auditRow(m, co.id, 'customers', 'c-3', { name: 'Can Demir', price: 7 });
+    await chain.seal();
+    const [r1] = await ds!.query("SELECT id FROM audit_logs WHERE companyId = ? AND entityId = 'c-1'", [co.id]);
+    const [r2] = await ds!.query("SELECT id FROM audit_logs WHERE companyId = ? AND entityId = 'c-2'", [co.id]);
+    const [r3] = await ds!.query("SELECT id FROM audit_logs WHERE companyId = ? AND entityId = 'c-3'", [co.id]);
+    await flagged("UPDATE audit_logs SET `after` = JSON_SET(`after`, '$.name', '[REDACTED]'), maskedAt = UTC_TIMESTAMP() WHERE id = ?", r1.id);
+    const [{ maskedDigest }] = await ds!.query('SELECT maskedDigest FROM audit_logs WHERE id = ?', [r1.id]);
+    await ds!.query("INSERT INTO audit_logs (id, companyId, username, action, entityType, `after`) VALUES (UUID(), ?, 'mallory', 'kvkk.audit_mask', 'audit_logs', ?)", [co.id, JSON.stringify({ rows: [[r1.id, maskedDigest, 'ab'.repeat(32)]] })]);
+    // a genuine masking (anonymous name, TCKN masked inside a text) is attested and verifies
+    const anon = anonymousCustomerName(randomUUID());
+    await applyAuditMasks((sql, p) => qr.query(sql, p), [
+      { id: r2.id, companyId: co.id, before: null, after: { name: anon, note: 'TCKN *******0146', price: 6 } },
+      { id: r3.id, companyId: co.id, before: null, after: { name: '[ANONIMLESTIRILDI]', price: 7 }, clearActor: true },
+    ]);
     await qr.release();
     const silent = await chain.verify(co.id);
     expect(silent.ok).toBe(false);
-    expect(silent.tampered).toContain(second.id);
+    expect(silent.tampered).toEqual([r1.id]);
+    expect(silent.maskedRows).toBe(3);
     // simulate a privileged tamper (triggers dropped): the verifier finds the changed row
     await ds!.query('DROP TRIGGER trg_audit_logs_append_only');
     await ds!.query("UPDATE audit_logs SET `after` = JSON_OBJECT('price', 999) WHERE id = ?", [first.id]);

@@ -5,6 +5,7 @@ import { saxonJs } from './saxon';
 import { parseUbl } from './ubl/parser';
 import { qrPayload, qrSvg } from './qr';
 import { UblAttachment } from './ubl/model';
+import { maskPersonalIdsInText, maskQrPayload } from '../kvkk/masking';
 
 /**
  * Display of e-documents (509 V.3-V.4): the default XSLT (GİB emblem, "T.C. Hazine ve Maliye
@@ -21,9 +22,15 @@ function sef(): unknown {
 
 const escapeAttr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-export async function renderHtml(xml: string, opts: { logoDataUri?: string | null; watermark?: string | null } = {}): Promise<string> {
+/**
+ * `maskPii` (caller without customers.pii.read, R61): the karekod is built from a payload whose
+ * natural-person identifiers (vkntckn / avkntckn / tasiyicivkn holding a TCKN) are masked, so the
+ * QR image cannot be scanned for the clear TCKN, and every TCKN in the HTML text is masked.
+ */
+export async function renderHtml(xml: string, opts: { logoDataUri?: string | null; watermark?: string | null; maskPii?: boolean } = {}): Promise<string> {
   const parsed = parseUbl(xml);
-  const qr = qrPayload(parsed);
+  const rawQr = qrPayload(parsed);
+  const qr = rawQr && opts.maskPii ? maskQrPayload(rawQr) : rawQr;
   const res = saxonJs().transform(
     {
       stylesheetInternal: sef(),
@@ -41,6 +48,7 @@ export async function renderHtml(xml: string, opts: { logoDataUri?: string | nul
   if (opts.watermark) {
     html = html.replace('</body>', `<div style="position:fixed;top:40%;left:0;right:0;text-align:center;font-size:64px;color:rgba(200,0,0,.18);transform:rotate(-20deg);pointer-events:none">${escapeAttr(opts.watermark)}</div></body>`);
   }
+  if (opts.maskPii) html = maskPersonalIdsInText(html);
   return html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>${html}`;
 }
 

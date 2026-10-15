@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { MigrationInterface, QueryRunner } from 'typeorm';
-import { AUDIT_LOG_TRIGGERS_CURRENT, AUDIT_LOG_TRIGGERS_PREVIOUS, AuditMaskItem, applyAuditMasks, dropAuditTriggers } from '../shared/kvkk/audit-chain';
+import { AUDIT_LOG_TRIGGERS_VERSION_1, AUDIT_LOG_TRIGGERS_VERSION_2, AuditMaskItem, applyAuditMasks, dropAuditTriggers } from '../shared/kvkk/audit-chain';
 import { redactStoredAuditJson } from '../shared/integrations/audit-diff';
 import { decryptPii, piiHash } from '../shared/kvkk/crypto';
 import { LEGAL_PARAMETER_SEEDS, WP7R1_PARAMETER_KEYS } from '../shared/legal/legal-parameter-seeds';
@@ -34,8 +34,8 @@ export class KvkkReviewFixes1784274142000 implements MigrationInterface {
 
     // B. audit_logs
     if (!(await q.hasColumn('audit_logs', 'maskedDigest'))) await q.query('ALTER TABLE `audit_logs` ADD `maskedDigest` char(64) NULL');
-    await dropAuditTriggers(query, AUDIT_LOG_TRIGGERS_PREVIOUS);
-    for (const t of AUDIT_LOG_TRIGGERS_CURRENT) await q.query(t.sql);
+    await dropAuditTriggers(query, AUDIT_LOG_TRIGGERS_VERSION_1);
+    for (const t of AUDIT_LOG_TRIGGERS_VERSION_2) await q.query(t.sql);
 
     // C. masking backfill
     const rows: { id: string; companyId: string | null; before: unknown; after: unknown; maskedAt: Date | null }[] = await q.query(
@@ -82,9 +82,9 @@ export class KvkkReviewFixes1784274142000 implements MigrationInterface {
       for (const r of list) await q.query(`UPDATE \`${table}\` SET identityNumberHash = ?, updatedAt = updatedAt WHERE id = ?`, [piiHash(decryptPii(r.identityNumber)), r.id]);
     }
     // Masked content cannot be restored; the masking events stay in the chain.
-    await dropAuditTriggers(query, AUDIT_LOG_TRIGGERS_CURRENT);
+    await dropAuditTriggers(query, AUDIT_LOG_TRIGGERS_VERSION_2);
     await q.query('ALTER TABLE `audit_logs` DROP COLUMN `maskedDigest`');
-    for (const t of AUDIT_LOG_TRIGGERS_PREVIOUS) await q.query(t.sql);
+    for (const t of AUDIT_LOG_TRIGGERS_VERSION_1) await q.query(t.sql);
     await q.query('DROP INDEX `IDX_user_sessions_prev_token` ON `user_sessions`');
     await q.query('ALTER TABLE `user_sessions` DROP COLUMN `prevTokenHash`');
   }
