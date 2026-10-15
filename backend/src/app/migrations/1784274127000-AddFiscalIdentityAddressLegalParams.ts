@@ -77,20 +77,27 @@ export class AddFiscalIdentityAddressLegalParams1784274127000 implements Migrati
     }
   }
 
+  /** New tables use the charset / collation of `companies`, so foreign keys to it are compatible on any server default. */
+  private tableOptions = '';
+
   public async up(q: QueryRunner): Promise<void> {
+    const [coll] = await q.query(
+      "SELECT c.CHARACTER_SET_NAME AS cs, c.COLLATION_NAME AS co FROM information_schema.COLUMNS c WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = 'companies' AND c.COLUMN_NAME = 'id'",
+    );
+    this.tableOptions = coll?.cs && coll?.co ? ` DEFAULT CHARSET=${coll.cs} COLLATE=${coll.co}` : '';
     const ts = '`createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)';
     const fk = (t: string, name: string, col: string, ref: string, onDelete: string) =>
       q.query(`ALTER TABLE \`${t}\` ADD CONSTRAINT \`${name}\` FOREIGN KEY (\`${col}\`) REFERENCES \`${ref}\`(\`id\`) ON DELETE ${onDelete} ON UPDATE NO ACTION`);
 
     // ─── A. Reference tables ───
-    await q.query('CREATE TABLE `provinces` (`code` varchar(2) NOT NULL, `name` varchar(100) NOT NULL, PRIMARY KEY (`code`)) ENGINE=InnoDB');
+    await q.query('CREATE TABLE `provinces` (`code` varchar(2) NOT NULL, `name` varchar(100) NOT NULL, PRIMARY KEY (`code`)) ENGINE=InnoDB' + this.tableOptions);
     await q.query(
       'CREATE TABLE `districts` (`id` int NOT NULL, `provinceCode` varchar(2) NOT NULL, `name` varchar(100) NOT NULL, ' +
-        'UNIQUE INDEX `UQ_districts_province_name` (`provinceCode`, `name`), PRIMARY KEY (`id`)) ENGINE=InnoDB',
+        'UNIQUE INDEX `UQ_districts_province_name` (`provinceCode`, `name`), PRIMARY KEY (`id`)) ENGINE=InnoDB' + this.tableOptions,
     );
     await q.query(
       'CREATE TABLE `tax_offices` (`code` varchar(10) NOT NULL, `name` varchar(150) NOT NULL, `provinceCode` varchar(2) NOT NULL, `district` varchar(100) NULL, ' +
-        'INDEX `IDX_tax_offices_province` (`provinceCode`), PRIMARY KEY (`code`)) ENGINE=InnoDB',
+        'INDEX `IDX_tax_offices_province` (`provinceCode`), PRIMARY KEY (`code`)) ENGINE=InnoDB' + this.tableOptions,
     );
     await this.bulkInsert(q, 'provinces', ['code', 'name'], TR_PROVINCES);
     await this.bulkInsert(q, 'districts', ['id', 'provinceCode', 'name'], TR_DISTRICTS);
@@ -101,7 +108,7 @@ export class AddFiscalIdentityAddressLegalParams1784274127000 implements Migrati
       "CREATE TABLE `legal_parameters` (`id` varchar(36) NOT NULL, `country` varchar(2) NOT NULL DEFAULT 'TR', `key` varchar(64) NOT NULL, " +
         "`validFrom` date NOT NULL, `validTo` date NULL, `value` text NOT NULL, `sourceRef` varchar(255) NOT NULL, `confidence` varchar(10) NOT NULL DEFAULT 'high', " +
         '`note` varchar(500) NULL, `createdBy` varchar(100) NULL, ' + ts + ', ' +
-        'UNIQUE INDEX `UQ_legal_parameters_country_key_from` (`country`, `key`, `validFrom`), PRIMARY KEY (`id`)) ENGINE=InnoDB',
+        'UNIQUE INDEX `UQ_legal_parameters_country_key_from` (`country`, `key`, `validFrom`), PRIMARY KEY (`id`)) ENGINE=InnoDB' + this.tableOptions,
     );
     await this.bulkInsert(
       q,
@@ -137,7 +144,7 @@ export class AddFiscalIdentityAddressLegalParams1784274127000 implements Migrati
       'CREATE TABLE `company_ebelge_profiles` (`id` varchar(36) NOT NULL, `companyId` varchar(36) NOT NULL, `annualGrossSales` json NULL, ' +
         '`sectorFlagsEFatura` json NULL, `sectorFlagsEIrsaliye` json NULL, `eFaturaSince` date NULL, `eArsivSince` date NULL, `eIrsaliyeSince` date NULL, ' +
         '`mandatoryVsVoluntary` varchar(12) NULL, `gibWrittenNoticeDate` date NULL, `corporateEvents` json NULL, ' + ts + ', ' +
-        'UNIQUE INDEX `UQ_company_ebelge_profiles_company` (`companyId`), PRIMARY KEY (`id`)) ENGINE=InnoDB',
+        'UNIQUE INDEX `UQ_company_ebelge_profiles_company` (`companyId`), PRIMARY KEY (`id`)) ENGINE=InnoDB' + this.tableOptions,
     );
     await fk('company_ebelge_profiles', 'FK_company_ebelge_profiles_company', 'companyId', 'companies', 'CASCADE');
 
@@ -204,7 +211,7 @@ export class AddFiscalIdentityAddressLegalParams1784274127000 implements Migrati
     await q.query(
       "CREATE TABLE `customer_addresses` (`id` varchar(36) NOT NULL, `companyId` varchar(36) NOT NULL, `customerId` varchar(36) NOT NULL, `kind` varchar(10) NOT NULL DEFAULT 'DELIVERY', " +
         '`label` varchar(100) NULL, `isDefault` tinyint NOT NULL DEFAULT 0, `contactName` varchar(120) NULL, `phone` varchar(40) NULL, ' + ADDRESS_DDL + ', ' + ts + ', ' +
-        'INDEX `IDX_customer_addresses_company_customer` (`companyId`, `customerId`), PRIMARY KEY (`id`)) ENGINE=InnoDB',
+        'INDEX `IDX_customer_addresses_company_customer` (`companyId`, `customerId`), PRIMARY KEY (`id`)) ENGINE=InnoDB' + this.tableOptions,
     );
     await fk('customer_addresses', 'FK_customer_addresses_company', 'companyId', 'companies', 'CASCADE');
     await fk('customer_addresses', 'FK_customer_addresses_customer', 'customerId', 'customers', 'CASCADE');

@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { CompanyEntity } from './company.entity';
-import { AddressColumns } from './address.embedded';
+import { AddressColumns, formatAddress } from './address.embedded';
 
 export type SupplierType = 'company' | 'individual' | 'farmer';
 export const SUPPLIER_TYPES: SupplierType[] = ['company', 'individual', 'farmer'];
@@ -85,4 +85,14 @@ export class SupplierEntity {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
 }
+
+// API / webhook compatibility: one-line address (pre-WP1 `address` string); `address` is now an object.
+// Non-enumerable, so it is not a column and not copied by spreads.
+Object.defineProperty(SupplierEntity.prototype, 'toJSON', {
+  enumerable: false,
+  value: function (this: SupplierEntity) {
+    return { ...this, addressText: formatAddress(this.address) };
+  },
+});

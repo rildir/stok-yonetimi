@@ -59,3 +59,59 @@ export function withDayOfMonth(key: string, day: number): string {
 export function isDateKey(v: unknown): v is string {
   return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
 }
+
+/** Same day `months` later (clamped to the month's last day), e.g. 2026-01-31 +1 -> 2026-02-28. */
+export function addMonths(key: string, months: number): string {
+  const { y, m, d } = parse(key);
+  const first = new Date(Date.UTC(y, m - 1 + months, 1));
+  const ty = first.getUTCFullYear();
+  const tm = first.getUTCMonth() + 1;
+  const last = new Date(Date.UTC(ty, tm, 0)).getUTCDate();
+  return fmt(ty, tm, Math.min(d, last));
+}
+
+/** UTC offset (minutes, east positive) of time zone `tz` at instant `at`. */
+function zoneOffsetMinutes(tz: string, at: Date): number {
+  let f: Intl.DateTimeFormat;
+  const o: Intl.DateTimeFormatOptions = { hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+  try {
+    f = new Intl.DateTimeFormat('en-US', { ...o, timeZone: tz || DEFAULT_TIMEZONE });
+  } catch {
+    f = new Intl.DateTimeFormat('en-US', { ...o, timeZone: DEFAULT_TIMEZONE });
+  }
+  const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
+  const asUtc = Date.UTC(+p['year'], +p['month'] - 1, +p['day'], +p['hour'] % 24, +p['minute'], +p['second']);
+  return Math.round((asUtc - Math.floor(at.getTime() / 1000) * 1000) / 60000);
+}
+
+/**
+ * The UTC instant at which calendar day `key` (YYYY-MM-DD) starts in time zone `tz`,
+ * e.g. 2026-10-15 in Europe/Istanbul -> 2026-10-14T21:00:00Z. Use it for report and
+ * filter boundaries: the database stores UTC.
+ */
+export function zonedDayStart(key: string, tz: string = DEFAULT_TIMEZONE): Date {
+  const { y, m, d } = parse(key);
+  const guess = Date.UTC(y, m - 1, d);
+  // Two passes handle a DST change between the guess and the real instant.
+  let t = guess - zoneOffsetMinutes(tz, new Date(guess)) * 60000;
+  t = guess - zoneOffsetMinutes(tz, new Date(t)) * 60000;
+  return new Date(t);
+}
+
+/** Exclusive end of calendar day `key` in `tz` (= start of the next day). */
+export function zonedDayEnd(key: string, tz: string = DEFAULT_TIMEZONE): Date {
+  return zonedDayStart(addDays(key, 1), tz);
+}
+
+/** "HH:MM:SS" (24h) of instant `d` in time zone `tz`. */
+export function timeKeyInZone(d: Date, tz: string = DEFAULT_TIMEZONE): string {
+  let f: Intl.DateTimeFormat;
+  const o: Intl.DateTimeFormatOptions = { hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+  try {
+    f = new Intl.DateTimeFormat('en-GB', { ...o, timeZone: tz || DEFAULT_TIMEZONE });
+  } catch {
+    f = new Intl.DateTimeFormat('en-GB', { ...o, timeZone: DEFAULT_TIMEZONE });
+  }
+  const p = Object.fromEntries(f.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p['hour']}:${p['minute']}:${p['second']}`;
+}

@@ -26,7 +26,7 @@ import {
 import { Transform, Type } from 'class-transformer';
 import { AddressDto } from './address.dto';
 import { IsKepAddress, IsMersis, IsTaxIdFor } from '../shared/identity/validators';
-import { BOOKKEEPING_TYPES, CORPORATE_EVENT_TYPES, EFATURA_SECTOR_FLAGS, EIRSALIYE_SECTOR_FLAGS } from '../shared/tr';
+import { BOOKKEEPING_TYPES, CORPORATE_EVENT_TYPES } from '../shared/tr';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SUPPORTED_LANGUAGES } from '../entities/company.entity';
 import { IsStrongPassword } from '../shared/identity/validators';
@@ -222,8 +222,9 @@ export class GrossSalesDto {
 }
 
 export class SectorFlagDto {
+  /** Checked against the EBELGE_SECTOR_RULES legal parameter (per document) by ComplianceService. */
   @IsString()
-  @IsIn([...EFATURA_SECTOR_FLAGS, ...EIRSALIYE_SECTOR_FLAGS], { message: 'VALIDATION_FAILED' })
+  @Matches(/^[A-Z0-9_]{2,40}$/, { message: 'VALIDATION_FAILED' })
   code: string;
 
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'VALIDATION_DATE' })

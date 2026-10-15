@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { err } from '../../shared/i18n/app-error';
-import { CustomerEntity } from '../../entities/customer.entity';
+import { CustomerEntity, customerLegacyFields } from '../../entities/customer.entity';
 import { CustomerAddressEntity } from '../../entities/customer-address.entity';
 import { OrderEntity } from '../../entities/order.entity';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
@@ -68,6 +68,7 @@ export class CustomerService {
     const byId = new Map(stats.map((s) => [s.customerId, s]));
     return customers.map((c) => ({
       ...c,
+      ...customerLegacyFields(c),
       orderCount: Number(byId.get(c.id)?.orderCount || 0),
       lastOrderDate: byId.get(c.id)?.lastOrderDate || null,
     }));
@@ -80,9 +81,9 @@ export class CustomerService {
   }
 
   /** Customer with its billing / delivery addresses. */
-  async getCustomerDetail(id: string): Promise<CustomerEntity & { addresses: CustomerAddressEntity[] }> {
+  async getCustomerDetail(id: string): Promise<CustomerEntity & ReturnType<typeof customerLegacyFields> & { addresses: CustomerAddressEntity[] }> {
     const c = await this.getCustomer(id);
-    return { ...c, addresses: await this.listAddresses(id) };
+    return { ...c, ...customerLegacyFields(c), addresses: await this.listAddresses(id) };
   }
 
   private async defaultCountry(): Promise<string> {

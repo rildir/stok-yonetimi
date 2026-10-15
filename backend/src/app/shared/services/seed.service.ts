@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull } from 'typeorm';
@@ -83,14 +85,26 @@ export class SeedService implements OnModuleInit {
     }
   }
 
-  /** Initial admin password: ADMIN_PASSWORD (must satisfy the policy) or a random one-time password. */
+  /**
+   * Initial admin password: ADMIN_PASSWORD (must satisfy the policy) or a random
+   * one-time password. The generated password is never written to the log: it goes
+   * to a file readable only by the service account (INITIAL_ADMIN_PASSWORD_FILE,
+   * default ./initial-admin-password.txt); the log only names the file.
+   */
   private initialAdminPassword(): { password: string; mustChange: boolean } {
     const env = process.env.ADMIN_PASSWORD;
     if (env && isStrongPassword(env)) return { password: env, mustChange: false };
     const generated = `${randomBytes(9).toString('base64url')}#7a`;
-    this.logger.warn(
-      `ADMIN_PASSWORD ${env ? 'does not meet the password policy' : 'is not set'}; generated one-time admin password: ${generated} (must be changed at first sign-in)`,
-    );
+    const file = path.resolve(process.env.INITIAL_ADMIN_PASSWORD_FILE || 'initial-admin-password.txt');
+    try {
+      fs.writeFileSync(file, `${generated}
+`, { mode: 0o600 });
+      this.logger.warn(
+        `ADMIN_PASSWORD ${env ? 'does not meet the password policy' : 'is not set'}; a one-time admin password was written to ${file} (must be changed at first sign-in; delete the file afterwards).`,
+      );
+    } catch (e) {
+      this.logger.error(`Could not write the one-time admin password to ${file}: ${(e as Error).message}. Set ADMIN_PASSWORD and restart.`);
+    }
     return { password: generated, mustChange: true };
   }
 
@@ -258,6 +272,7 @@ export class SeedService implements OnModuleInit {
           {
             username: 'manager',
             password: this.stockHelper.hashPassword('manager123'),
+            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
             role: UserRole.MANAGER,
             fullName: 'Yönetici Demo',
             email: 'manager@sirket.com',
@@ -267,6 +282,7 @@ export class SeedService implements OnModuleInit {
           {
             username: 'viewer',
             password: this.stockHelper.hashPassword('viewer123'),
+            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
             role: UserRole.VIEWER,
             fullName: 'Gözlemci Demo',
             email: 'viewer@sirket.com',
@@ -276,6 +292,7 @@ export class SeedService implements OnModuleInit {
           {
             username: 'demo',
             password: this.stockHelper.hashPassword('demo123'),
+            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
             role: UserRole.VIEWER,
             fullName: 'Demo Kullanıcısı',
             email: 'demo@sirket.com',
@@ -292,12 +309,13 @@ export class SeedService implements OnModuleInit {
       // Ensure demo account exists even if DB already seeded
       const existingDemo = await this.userRepo.findOne({ where: { username: 'demo' } });
       if (!existingDemo) {
-        this.logger.log('Seeding demo user account (demo / demo123)...');
+        this.logger.log('Seeding demo user account (demo; password change required at first sign-in)...');
         await this.userRepo.save(
           this.userRepo.create({
             companyId,
             username: 'demo',
             password: this.stockHelper.hashPassword('demo123'),
+            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
             role: UserRole.VIEWER,
             fullName: 'Demo Kullanıcısı',
             email: 'demo@sirket.com',

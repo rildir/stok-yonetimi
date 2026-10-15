@@ -91,7 +91,12 @@ export function IsTaxIdFor(opts: TaxIdForOptions = {}, options?: ValidationOptio
       name: 'isTaxIdFor',
       target: object.constructor,
       propertyName,
-      options: { ...options, message: (args: ValidationArguments) => codeFor(args.value, args.object as Record<string, unknown>) ?? 'INVALID_IDENTITY_TYPE' },
+            // `field=` names the identity-number property in the error (the rule may sit on `name`).
+      options: {
+        ...options,
+        message: (args: ValidationArguments) =>
+          `${codeFor(args.value, args.object as Record<string, unknown>) ?? 'INVALID_IDENTITY_TYPE'}|field=${opts.numberProperty ?? propertyName}`,
+      },
       validator: {
         validate: (value: unknown, args: ValidationArguments) => !codeFor(value, args.object as Record<string, unknown>),
       },

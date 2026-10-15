@@ -214,6 +214,7 @@ export const MESSAGES: Catalog = {
   INVALID_PROVINCE: { tr: 'Geçersiz il.', en: 'Invalid province.' },
   INVALID_DISTRICT: { tr: 'İlçe seçilen ile ait değil.', en: 'The district does not belong to the selected province.' },
   INVALID_TAX_OFFICE: { tr: 'Vergi dairesi bulunamadı.', en: 'Tax office not found.' },
+  INVALID_SECTOR_FLAG: { tr: 'Geçersiz sektör bayrağı: {code} ({doc}). Geçerli değerler yasal parametre EBELGE_SECTOR_RULES içindedir.', en: 'Invalid sector flag: {code} ({doc}). Valid values are defined in the EBELGE_SECTOR_RULES legal parameter.' },
   INVALID_BOOKKEEPING_TYPE: { tr: 'Defter tutma usulü BILANCO, ISLETME veya BASIT olmalıdır.', en: 'Bookkeeping type must be BILANCO, ISLETME or BASIT.' },
   INVALID_WEBSITE: { tr: 'Geçerli bir web adresi girin (https://...).', en: 'Enter a valid web address (https://...).' },
   INVALID_DOCUMENT_SERIES: { tr: 'Belge serisi 3 karakter (A-Z, 0-9) olmalıdır.', en: 'The document series must be 3 characters (A-Z, 0-9).' },
@@ -227,7 +228,6 @@ export const MESSAGES: Catalog = {
   PASSWORD_CHANGE_REQUIRED: { tr: 'Devam etmeden önce geçici şifrenizi değiştirmeniz gerekiyor.', en: 'You must change your temporary password before continuing.' },
   PASSWORD_SAME_AS_OLD: { tr: 'Yeni şifre mevcut şifreyle aynı olamaz.', en: 'The new password must differ from the current one.' },
   INVITE_INVALID: { tr: 'Davet bağlantısı geçersiz veya süresi dolmuş.', en: 'The invitation link is invalid or has expired.' },
-  USER_INVITE_PENDING: { tr: 'Bu hesap henüz etkinleştirilmedi. Davet bağlantısını kullanın.', en: 'This account is not activated yet. Use the invitation link.' },
   CUSTOMER_ADDRESS_NOT_FOUND: { tr: 'Müşteri adresi bulunamadı.', en: 'Customer address not found.' },
 };
 

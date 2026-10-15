@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 import { err } from '../i18n/app-error';
 import { LegalParameterEntity } from '../../entities/legal-parameter.entity';
 import { ANNUAL_PARAMETER_KEYS, OBLIGATION_PARAMETER_KEYS, SPECIAL_TAX_IDS_KEY } from '../legal/legal-parameter-seeds';
-import { addDays, isDateKey, ObligationParams, SpecialTaxId, todayKey } from '../tr';
+import { addDays, isDateKey, ObligationParams, SectorRule, SpecialTaxId, todayKey } from '../tr';
 import { setSpecialTaxIds } from '../identity/validators';
 
 export interface CreateLegalParameterInput {
@@ -145,6 +145,20 @@ export class LegalParameterService implements OnApplicationBootstrap {
     return saved;
   }
 
+  /** Validated EBELGE_SECTOR_RULES value (malformed entries are dropped). */
+  private sectorRulesFrom(value: unknown): SectorRule[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter(
+      (r): r is SectorRule =>
+        !!r && typeof r === 'object' && typeof (r as SectorRule).code === 'string' && ['EFATURA', 'EIRSALIYE'].includes((r as SectorRule).doc) && !!(r as SectorRule).start,
+    );
+  }
+
+  /** Sector items valid on `date` (drives the flag list in the UI and the API check). */
+  async sectorRules(country = 'TR', date: string = todayKey()): Promise<SectorRule[]> {
+    return this.sectorRulesFrom(await this.paramOrNull(OBLIGATION_PARAMETER_KEYS.sectorRules, date, country));
+  }
+
   /** Inputs of computeObligations() for `country`, resolved per revenue year / date. */
   async obligationParams(country = 'TR', today: string = todayKey()): Promise<{ params: ObligationParams; sources: Record<string, string> }> {
     const rows = await this.rows(country);
@@ -169,8 +183,10 @@ export class LegalParameterService implements OnApplicationBootstrap {
       },
       paperInvoiceLimit: paperRow ? { amount: Number(paperRow.value), until: paperRow.validTo ? String(paperRow.validTo).slice(0, 10) : null } : null,
       thresholdStartMonthDay: str(K.startMonthDay, today) || '07-01',
-      transitionMonths: num(K.transitionMonths, today) ?? 3,
+      transitionMonths: num(K.transitionMonths, today) ?? 4,
       toleranceDayEFatura: num(K.toleranceDay, today) ?? 7,
+      sectorRules: this.sectorRulesFrom(of(K.sectorRules, today)?.value),
+      gibNoticeMinMonths: num(K.gibNoticeMinMonths, today),
     };
     const sources: Record<string, string> = {};
     for (const key of Object.values(K)) {

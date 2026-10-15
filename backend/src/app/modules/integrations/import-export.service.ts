@@ -26,6 +26,14 @@ import { parseCsvObjects, toCsv } from '../../shared/integrations/csv';
 
 export const PRODUCT_CSV_COLUMNS = ['sku', 'name', 'category', 'price', 'quantity', 'minQuantity', 'unit', 'barcode', 'barcodeType', 'supplierId'];
 /** Address columns shared by customer / supplier CSVs (district by name within the province). */
+/**
+ * Spreadsheet programs drop leading zeros of numeric-looking cells (06 -> 6,
+ * 06257 -> 6257). Codes with a fixed width are left-padded again on import.
+ */
+export function zeroPad(v: string | undefined, width: number): string | undefined {
+  return v !== undefined && /^\d+$/.test(v) && v.length < width ? v.padStart(width, '0') : v;
+}
+
 const ADDRESS_CSV_COLUMNS = ['addressLine1', 'addressLine2', 'provinceCode', 'district', 'postalCode', 'country'];
 export const CUSTOMER_CSV_COLUMNS = [
   'name', 'type', 'identityType', 'identityNumber', 'taxOfficeCode', 'taxOfficeName', 'isVatTaxpayer', 'isDesignatedBuyer',
@@ -91,11 +99,11 @@ export class ImportExportService {
   /** CSV address columns -> AddressDto-like object (district name resolved within the province). */
   private async csvAddress(r: Record<string, string>, legacy = false): Promise<Record<string, unknown> | undefined> {
     const line1 = str(r['addressLine1']) ?? (legacy ? str(r['address']) : undefined);
-    let provinceCode = str(r['provinceCode']);
+    let provinceCode = zeroPad(str(r['provinceCode']), 2);
     const city = legacy ? str(r['city']) : undefined;
     if (!provinceCode && city) provinceCode = (await this.refdata.listProvinces()).find((p) => trKey(p.name) === trKey(city))?.code;
     const district = str(r['district']);
-    const out: Record<string, unknown> = { line1, line2: str(r['addressLine2']), provinceCode, postalCode: str(r['postalCode']), country: str(r['country'])?.toUpperCase() };
+    const out: Record<string, unknown> = { line1, line2: str(r['addressLine2']), provinceCode, postalCode: zeroPad(str(r['postalCode']), 5), country: str(r['country'])?.toUpperCase() };
     if (district) {
       const d = provinceCode ? (await this.refdata.listDistricts(provinceCode)).find((x) => trKey(x.name) === trKey(district)) : undefined;
       if (d) out['districtId'] = d.id;
@@ -194,7 +202,8 @@ export class ImportExportService {
     for (const e of errors) {
       for (const m of Object.values(e.constraints || {})) {
         const { code, params } = parseValidationMessage(m);
-        out.push(this.issue(row, code, lang, { property: e.property, ...params }, e.property));
+        const field = params['field'] ? String(params['field']) : e.property;
+        out.push(this.issue(row, code, lang, { ...params, property: field }, field));
       }
     }
     return out;
@@ -307,6 +316,7 @@ export class ImportExportService {
         const v = str(r[col]);
         if (v !== undefined) input[col] = v;
       }
+      if (typeof input['taxOfficeCode'] === 'string') input['taxOfficeCode'] = zeroPad(input['taxOfficeCode'] as string, 5);
       for (const col of ['isVatTaxpayer', 'isDesignatedBuyer']) {
         const v = bool(r[col]);
         if (v !== undefined) input[col] = v;
@@ -367,6 +377,7 @@ export class ImportExportService {
         const v = str(r[col]);
         if (v !== undefined) input[col] = v;
       }
+      if (typeof input['taxOfficeCode'] === 'string') input['taxOfficeCode'] = zeroPad(input['taxOfficeCode'] as string, 5);
       for (const col of ['isTaxpayer', 'isVatTaxpayer', 'isForeign', 'isRealTaxationFarmer']) {
         const v = bool(r[col]);
         if (v !== undefined) input[col] = v;

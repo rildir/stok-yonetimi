@@ -14,6 +14,8 @@ import { SerialNumberEntity, SerialStatus } from '../../entities/serial-number.e
 import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { TrackingType } from '../../entities/tracking';
 import { MoreThan } from 'typeorm';
+import { CompanyEntity } from '../../entities/company.entity';
+import { dateKeyInZone, DEFAULT_TIMEZONE, timeKeyInZone } from '../../shared/tr';
 
 @Injectable()
 export class StockCountService {
@@ -46,9 +48,12 @@ export class StockCountService {
       throw new BadRequestException(err('STOCK_COUNT_IN_PROGRESS'));
     }
     
+    // Count number uses the company's local date and time (the server / DB run in UTC).
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+    const company = await this.dataSource.manager.findOne(CompanyEntity, { where: { id: this.companyId }, select: ['id', 'timezone'] });
+    const tz = company?.timezone || DEFAULT_TIMEZONE;
+    const dateStr = dateKeyInZone(now, tz).replace(/-/g, '');
+    const timeStr = timeKeyInZone(now, tz).replace(/:/g, '');
     const countNumber = `SC-${dateStr}-${timeStr}`;
 
     const products = await this.productRepo.find({ where: { companyId: this.companyId, isDeleted: false } });

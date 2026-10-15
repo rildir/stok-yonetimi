@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { SectorRule } from '@stok/tr-compliance';
 import { Observable, of, shareReplay, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
@@ -18,6 +19,13 @@ import {
  * Turkish reference data (cached), company fiscal identity, e-Belge profile,
  * compliance panel and (super admin) legal parameters.
  */
+export interface ObligationsResponse {
+  profile: EBelgeProfile;
+  report: ObligationReport;
+  sources: Record<string, string>;
+  sectorRules: SectorRule[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ComplianceService {
   private http = inject(HttpClient);
@@ -72,8 +80,8 @@ export class ComplianceService {
     return this.http.put<EBelgeProfile>(`${this.api}/company/ebelge/profile`, data);
   }
 
-  getObligations(): Observable<{ profile: EBelgeProfile; report: ObligationReport; sources: Record<string, string> }> {
-    return this.http.get<{ profile: EBelgeProfile; report: ObligationReport; sources: Record<string, string> }>(`${this.api}/company/ebelge/obligations`);
+  getObligations(): Observable<ObligationsResponse> {
+    return this.http.get<ObligationsResponse>(`${this.api}/company/ebelge/obligations`);
   }
 
   loadCompliance(asOf?: string): Observable<ComplianceReport> {

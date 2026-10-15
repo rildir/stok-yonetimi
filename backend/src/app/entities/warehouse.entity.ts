@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { CompanyEntity } from './company.entity';
-import { AddressColumns } from './address.embedded';
+import { AddressColumns, formatAddress } from './address.embedded';
 
 @Entity('warehouses')
 @Index('UQ_warehouses_company_name', ['companyId', 'name'], { unique: true })
@@ -48,4 +48,14 @@ export class WarehouseEntity {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
 }
+
+// API / webhook compatibility: one-line address (pre-WP1 `address` string); `address` is now an object.
+// Non-enumerable, so it is not a column and not copied by spreads.
+Object.defineProperty(WarehouseEntity.prototype, 'toJSON', {
+  enumerable: false,
+  value: function (this: WarehouseEntity) {
+    return { ...this, addressText: formatAddress(this.address) };
+  },
+});

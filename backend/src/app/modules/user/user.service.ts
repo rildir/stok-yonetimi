@@ -40,15 +40,18 @@ export class UserService {
     return this.tenant.companyId;
   }
 
+  /**
+   * Forwards a reset request to the company's admins. The response is the same
+   * whether or not the user exists, so the endpoint cannot be used to enumerate accounts.
+   */
   async requestPasswordReset(username: string): Promise<{ success: boolean; message: string }> {
     const user = await this.getUserByUsername(username);
-    if (!user) {
-      throw new BadRequestException(err('USER_NOT_FOUND_BY_USERNAME'));
+    if (user) {
+      this.appGateway.notifyPasswordResetRequest(user.companyId, {
+        username: user.username,
+        fullName: user.fullName || user.username,
+      });
     }
-    this.appGateway.notifyPasswordResetRequest(user.companyId, {
-      username: user.username,
-      fullName: user.fullName || user.username,
-    });
     return {
       success: true,
       message: 'Şifre sıfırlama talebiniz sistem yöneticisine başarıyla iletildi.',
@@ -79,12 +82,16 @@ export class UserService {
     return user;
   }
 
-  /** The invitee sets the first password; the invitation is consumed. */
+  /**
+   * The invitee sets the first password; the invitation is consumed. The token is
+   * matched again inside the UPDATE so two concurrent requests cannot both use it.
+   */
   async acceptInvite(token: string, password: string): Promise<UserEntity> {
     const user = await this.findByInviteToken(token);
-    await this.userRepo.update(
-      { id: user.id },
-      {
+    const result = await this.userRepo
+      .createQueryBuilder()
+      .update(UserEntity)
+      .set({
         password: this.stockHelper.hashPassword(password),
         inviteTokenHash: null,
         inviteExpiresAt: null,
@@ -92,9 +99,11 @@ export class UserService {
         failedLoginCount: 0,
         lockedUntil: null,
         passwordChangedAt: new Date(),
-        tokenVersion: user.tokenVersion + 1,
-      },
-    );
+        tokenVersion: () => 'tokenVersion + 1',
+      })
+      .where('id = :id AND inviteTokenHash = :hash AND inviteExpiresAt >= :now', { id: user.id, hash: sha256(token), now: new Date() })
+      .execute();
+    if (!result.affected) throw new BadRequestException(err('INVITE_INVALID'));
     return this.userRepo.findOneByOrFail({ id: user.id });
   }
 
@@ -124,13 +133,31 @@ export class UserService {
     }
   }
 
-  /** Counts a failed sign-in; returns true when the account has just been locked. */
+  /**
+   * Counts a failed sign-in; returns true when the account is (now) locked.
+   * Runs in a transaction with a row lock (SELECT ... FOR UPDATE) so concurrent
+   * failed attempts are serialized and cannot all compute from the same stale count.
+   */
   async recordFailedLogin(user: UserEntity, now = new Date()): Promise<boolean> {
-    const next = registerFailedLogin(user, now, lockoutPolicy());
-    await this.userRepo.update({ id: user.id }, { failedLoginCount: next.failedLoginCount, lockedUntil: next.lockedUntil });
+    const next = await this.userRepo.manager.transaction(async (m) => {
+      const row = await m.findOne(UserEntity, { where: { id: user.id }, select: ['id', 'failedLoginCount', 'lockedUntil'], lock: { mode: 'pessimistic_write' } });
+      if (!row) return { failedLoginCount: 0, lockedUntil: null, locked: false };
+      // A concurrent attempt has already locked the account: keep that lock.
+      if (isLocked(row, now)) return { failedLoginCount: row.failedLoginCount || 0, lockedUntil: row.lockedUntil as Date, locked: true };
+      const r = registerFailedLogin(row, now, lockoutPolicy());
+      await m.update(UserEntity, { id: user.id }, { failedLoginCount: r.failedLoginCount, lockedUntil: r.lockedUntil });
+      return r;
+    });
     user.failedLoginCount = next.failedLoginCount;
     user.lockedUntil = next.lockedUntil;
     return next.locked;
+  }
+
+  /** Fresh lock state from the database (a parallel request may have locked the account meanwhile). */
+  async assertNotLockedFresh(user: UserEntity, now = new Date()): Promise<void> {
+    const row = await this.userRepo.findOne({ where: { id: user.id }, select: ['id', 'lockedUntil'] });
+    if (row) user.lockedUntil = row.lockedUntil ?? null;
+    this.assertNotLocked(user, now);
   }
 
   async recordSuccessfulLogin(user: UserEntity): Promise<void> {

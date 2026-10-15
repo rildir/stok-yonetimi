@@ -2,13 +2,14 @@ import { BadRequestException, Injectable, Logger, NotFoundException, OnApplicati
 import { DataSource } from 'typeorm';
 import { err } from '../../shared/i18n/app-error';
 import { CompanyEntity } from '../../entities/company.entity';
+import { AuditLogEntity } from '../../entities/audit-log.entity';
 import { CompanyEBelgeProfileEntity } from '../../entities/company-ebelge-profile.entity';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { RefdataService } from '../../shared/services/refdata.service';
 import { LegalParameterService } from '../../shared/services/legal-parameter.service';
 import { AppGateway } from '../../app.gateway';
 import { EBelgeProfileDto, UpdateFiscalDto } from '../../dto/company.dto';
-import { computeObligations, guessIdentityType, isDateKey, ObligationReport, todayKey, validateTaxId } from '../../shared/tr';
+import { computeObligations, guessIdentityType, isDateKey, ObligationReport, SectorRule, todayKey, validateTaxId } from '../../shared/tr';
 import { fiscalStatus, FiscalStatus } from './fiscal';
 
 export type AlertSeverity = 'error' | 'warning' | 'info';
@@ -31,15 +32,14 @@ const PROFILE_FIELDS = ['annualGrossSales', 'sectorFlagsEFatura', 'sectorFlagsEI
 
 /**
  * Fiscal identity, e-Belge profile / obligations and the compliance panel.
- * Also runs an hourly check that pushes a `compliance_warning` socket event to a
- * company when a yearly legal parameter (e.g. VUK232_INVOICE_LIMIT) is missing
+ * Also runs an hourly check that pushes a `compliance_warning` socket event to the
+ * admins of a company when a yearly legal parameter (e.g. VUK232_INVOICE_LIMIT) is missing
  * for the current year in the company's time zone (e.g. on 1 January).
  */
 @Injectable()
 export class ComplianceService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(ComplianceService.name);
   private timer: NodeJS.Timeout | null = null;
-  private readonly notified = new Set<string>();
 
   constructor(
     private readonly dataSource: DataSource,
@@ -132,6 +132,16 @@ export class ComplianceService implements OnApplicationBootstrap, OnModuleDestro
   }
 
   async saveProfile(dto: EBelgeProfileDto): Promise<CompanyEBelgeProfileEntity> {
+    const c = await this.company();
+    // Sector flags must be items of the EBELGE_SECTOR_RULES legal parameter for the right document.
+    const rules = await this.legalParams.sectorRules(c.country || 'TR', todayKey(c.timezone));
+    const check = (doc: 'EFATURA' | 'EIRSALIYE', flags?: { code: string }[] | null) => {
+      for (const f of flags || []) {
+        if (!rules.some((r) => r.doc === doc && r.code === f.code)) throw new BadRequestException(err('INVALID_SECTOR_FLAG', { code: f.code, doc }));
+      }
+    };
+    check('EFATURA', dto.sectorFlagsEFatura);
+    check('EIRSALIYE', dto.sectorFlagsEIrsaliye);
     const p = await this.getProfile();
     for (const k of PROFILE_FIELDS) {
       const v = (dto as Record<string, unknown>)[k];
@@ -144,13 +154,15 @@ export class ComplianceService implements OnApplicationBootstrap, OnModuleDestro
     return this.dataSource.manager.save(CompanyEBelgeProfileEntity, p);
   }
 
-  async obligations(asOf?: string): Promise<{ profile: CompanyEBelgeProfileEntity; report: ObligationReport; sources: Record<string, string> }> {
+  async obligations(
+    asOf?: string,
+  ): Promise<{ profile: CompanyEBelgeProfileEntity; report: ObligationReport; sources: Record<string, string>; sectorRules: SectorRule[] }> {
     const c = await this.company();
     const today = isDateKey(asOf) ? asOf : todayKey(c.timezone);
     const profile = await this.getProfile(c.id);
     const { params, sources } = await this.legalParams.obligationParams(c.country || 'TR', today);
     const report = computeObligations(profile, c.bookkeepingType, today, params);
-    return { profile, report, sources };
+    return { profile, report, sources, sectorRules: params.sectorRules || [] };
   }
 
   // ------------------------------------------------------------------ compliance panel
@@ -179,18 +191,31 @@ export class ComplianceService implements OnApplicationBootstrap, OnModuleDestro
     return { today, country, fiscal, obligations, missingParameters, alerts };
   }
 
-  /** Hourly: tell each company once per day when a yearly legal parameter is missing for "today". */
+  /**
+   * Hourly: tell each company's admins once per day (company time zone) when a yearly
+   * legal parameter is missing for "today". The once-per-day marker is an audit-log row
+   * (action `compliance_warning`, entityId = day), so it survives restarts and is visible
+   * in the audit log.
+   */
   async notifyMissingParameters(now = new Date()): Promise<number> {
     const companies = await this.dataSource.manager.find(CompanyEntity, { select: ['id', 'country', 'timezone'] });
     let sent = 0;
     for (const c of companies) {
       const today = todayKey(c.timezone, now);
-      const missing = await this.legalParams.missingAnnual(Number(today.slice(0, 4)), c.country || 'TR');
+      const year = Number(today.slice(0, 4));
+      const missing = await this.legalParams.missingAnnual(year, c.country || 'TR');
       if (!missing.length) continue;
-      const key = `${c.id}:${today}`;
-      if (this.notified.has(key)) continue;
-      this.notified.add(key);
-      this.gateway.emitToCompany(c.id, 'compliance_warning', { code: 'LEGAL_PARAMETER_MISSING', keys: missing, year: Number(today.slice(0, 4)) });
+      const already = await this.dataSource.manager.exists(AuditLogEntity, { where: { companyId: c.id, action: 'compliance_warning', entityId: today } });
+      if (already) continue;
+      await this.dataSource.manager.insert(AuditLogEntity, {
+        companyId: c.id,
+        action: 'compliance_warning',
+        entityType: 'legal_parameter',
+        entityId: today,
+        username: 'system',
+        after: { code: 'LEGAL_PARAMETER_MISSING', keys: missing, year } as any,
+      });
+      this.gateway.emitToCompanyAdmins(c.id, 'compliance_warning', { code: 'LEGAL_PARAMETER_MISSING', keys: missing, year });
       sent++;
     }
     if (sent) this.logger.warn(`legal parameters missing for the current year; notified ${sent} compan${sent === 1 ? 'y' : 'ies'}`);

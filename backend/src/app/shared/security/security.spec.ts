@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { ArgumentMetadata, BadRequestException, ValidationPipe } from '@nestjs/common';
 import { assertSecurityConfig, isLocked, registerFailedLogin, resolveJwtSecret, SecurityConfigError } from './security-config';
-import { validationExceptionFactory } from '../i18n/i18n-exception.filter';
+import { buildErrorBody, validationExceptionFactory } from '../i18n/i18n-exception.filter';
 import { CreateUserDto, UpdatePasswordDto, AcceptInviteDto } from '../../dto/user.dto';
 import { RegisterCompanyDto } from '../../dto/company.dto';
 import { CreateCustomerDto } from '../../dto/customer.dto';
@@ -66,5 +66,20 @@ describe('password policy on DTOs (ValidationPipe)', () => {
     expect(await run(CreateCustomerDto, { name: 'A', type: 'company' })).toContain('TAX_ID_REQUIRED_FOR_COMPANY');
     expect(await run(CreateCustomerDto, { name: 'A', type: 'company', taxNumber: '4890598016' })).toEqual([]);
     expect(await run(CreateCustomerDto, { name: 'B', type: 'individual', identityType: 'TCKN', identityNumber: '11084871202' })).toEqual([]);
+  });
+
+  it('API body: the domain code is the top-level code and the identity error names identityNumber', async () => {
+    const body = async (metatype: any, value: unknown) => {
+      try {
+        await pipe.transform(value, { type: 'body', metatype } as ArgumentMetadata);
+        return null;
+      } catch (e) {
+        return buildErrorBody(e, 400, 'en');
+      }
+    };
+    const vkn = await body(CreateCustomerDto, { name: 'A', type: 'company', identityType: 'VKN', identityNumber: '4890598017' });
+    expect(vkn?.code).toBe('INVALID_VKN');
+    expect(vkn?.fields).toContainEqual({ property: 'identityNumber', code: 'INVALID_VKN' });
+    expect((await body(CreateUserDto, { username: 'u', role: 'viewer', fullName: 'U', password: '123456' }))?.code).toBe('WEAK_PASSWORD');
   });
 });

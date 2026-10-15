@@ -10,9 +10,28 @@ import { DistrictEntity, ProvinceEntity, TaxOfficeEntity } from '../../entities/
 import { AddressColumns } from '../../entities/address.embedded';
 import { tcknCheckDigits, vknCheckDigit } from '../tr';
 
-/** Checksum-valid but fictitious identifiers for demo data (never real persons / entities). */
-export const demoVkn = (first9: string) => first9 + vknCheckDigit(first9);
-export const demoTckn = (first9: string) => first9 + tcknCheckDigits(first9).join('');
+/**
+ * Checksum-valid demo identifiers built from a repeated digit (1111111111-style), so
+ * they are recognisably fictitious and cannot be mistaken for a real person's TCKN or
+ * a real taxpayer's VKN (KVKK). 11111111110 is the widely used test TCKN.
+ */
+export const demoVkn = (digit: string) => digit.repeat(9) + vknCheckDigit(digit.repeat(9));
+export const demoTckn = (digit: string) => digit.repeat(9) + tcknCheckDigits(digit.repeat(9)).join('');
+
+/** Identifiers of the first WP1 demo seed (random-looking, possibly real) -> patterned replacements. */
+export const LEGACY_DEMO_IDENTIFIERS: [first9: string, kind: 'VKN' | 'TCKN', replacementDigit: string][] = [
+  ['847291035', 'VKN', '1'], // company
+  ['781204563', 'VKN', '3'],
+  ['379015284', 'VKN', '4'],
+  ['836702419', 'VKN', '5'],
+  ['645183207', 'VKN', '6'],
+  ['128450937', 'VKN', '7'],
+  ['104827365', 'VKN', '8'],
+  ['290318475', 'VKN', '9'],
+  ['285104637', 'TCKN', '1'],
+  ['419027385', 'TCKN', '3'],
+];
+
 
 interface AddrSpec {
   line1: string;
@@ -53,7 +72,7 @@ export async function seedDemoFiscalData(m: EntityManager, companyId: string, lo
   if (!company || company.taxId || !(await m.count(ProvinceEntity))) return;
   logger.log('Seeding demo fiscal identity / addresses (WP1)...');
 
-  const vkn = demoVkn('847291035');
+  const vkn = demoVkn('1');
   Object.assign(company, {
     legalName: 'Demo Teknoloji Ürünleri Ticaret A.Ş.',
     taxIdType: 'VKN',
@@ -108,11 +127,11 @@ export async function seedDemoFiscalData(m: EntityManager, companyId: string, lo
 
   // Suppliers
   const supSpecs: Record<string, { vkn: string; office: string; a: AddrSpec }> = {
-    'Ses & Görüntü Elektronik': { vkn: demoVkn('781204563'), office: '34272', a: { line1: 'Caferağa Mah. Moda Cad. No:112', provinceCode: '34', districtId: 3423, postalCode: '34710' } },
-    'EkranPro Bilişim': { vkn: demoVkn('379015284'), office: '06257', a: { line1: 'Kızılırmak Mah. 1450. Sok. No:3', provinceCode: '06', districtId: 607, postalCode: '06510' } },
-    'TeknoDağıtım A.Ş.': { vkn: demoVkn('836702419'), office: '34252', a: { line1: 'Esenşehir Mah. Hale Sok. No:6', provinceCode: '34', districtId: 3437, postalCode: '34776' } },
-    'Ofis Merkezi Ltd. Şti.': { vkn: demoVkn('645183207'), office: '34247', a: { line1: 'Maslak Mah. Büyükdere Cad. No:255', provinceCode: '34', districtId: 3430, postalCode: '34485' } },
-    'Akıllı Cihaz Toptan': { vkn: demoVkn('128450937'), office: '35264', a: { line1: 'Kazımdirik Mah. 372. Sok. No:21', provinceCode: '35', districtId: 3507, postalCode: '35100' } },
+    'Ses & Görüntü Elektronik': { vkn: demoVkn('3'), office: '34272', a: { line1: 'Caferağa Mah. Moda Cad. No:112', provinceCode: '34', districtId: 3423, postalCode: '34710' } },
+    'EkranPro Bilişim': { vkn: demoVkn('4'), office: '06257', a: { line1: 'Kızılırmak Mah. 1450. Sok. No:3', provinceCode: '06', districtId: 607, postalCode: '06510' } },
+    'TeknoDağıtım A.Ş.': { vkn: demoVkn('5'), office: '34252', a: { line1: 'Esenşehir Mah. Hale Sok. No:6', provinceCode: '34', districtId: 3437, postalCode: '34776' } },
+    'Ofis Merkezi Ltd. Şti.': { vkn: demoVkn('6'), office: '34247', a: { line1: 'Maslak Mah. Büyükdere Cad. No:255', provinceCode: '34', districtId: 3430, postalCode: '34485' } },
+    'Akıllı Cihaz Toptan': { vkn: demoVkn('7'), office: '35264', a: { line1: 'Kazımdirik Mah. 372. Sok. No:21', provinceCode: '35', districtId: 3507, postalCode: '35100' } },
   };
   for (const s of await m.find(SupplierEntity, { where: { companyId, needsReview: true } })) {
     const spec = supSpecs[s.name];
@@ -124,12 +143,12 @@ export async function seedDemoFiscalData(m: EntityManager, companyId: string, lo
   // Customers: companies with VKN + tax office; some individuals with TCKN; everyone gets an address.
   const custCompanies: Record<string, { vkn: string; office: string; a: AddrSpec; delivery?: AddrSpec }> = {
     'ABC Yazılım A.Ş.': {
-      vkn: demoVkn('104827365'),
+      vkn: demoVkn('8'),
       office: '34247',
       a: { line1: 'Maslak Mah. AOS 55. Sok. No:2 Kat:14', provinceCode: '34', districtId: 3430, postalCode: '34398' },
       delivery: { line1: 'İkitelli OSB Mah. Atatürk Bulvarı No:9 Depo 4', provinceCode: '34', districtId: 3408, postalCode: '34490' },
     },
-    'Delta Danışmanlık': { vkn: demoVkn('290318475'), office: '06253', a: { line1: 'Kavaklıdere Mah. Tunalı Hilmi Cad. No:88/5', provinceCode: '06', districtId: 607, postalCode: '06680' } },
+    'Delta Danışmanlık': { vkn: demoVkn('9'), office: '06253', a: { line1: 'Kavaklıdere Mah. Tunalı Hilmi Cad. No:88/5', provinceCode: '06', districtId: 607, postalCode: '06680' } },
   };
   const homes: AddrSpec[] = [
     { line1: 'Bağdat Cad. No:214 D:8', provinceCode: '34', districtId: 3423, postalCode: '34728' },
@@ -140,7 +159,7 @@ export async function seedDemoFiscalData(m: EntityManager, companyId: string, lo
     { line1: 'Teşvikiye Mah. Rumeli Cad. No:19 D:4', provinceCode: '34', districtId: 3435, postalCode: '34365' },
     { line1: 'Altunizade Mah. Kuşbakışı Cad. No:11', provinceCode: '34', districtId: 3438, postalCode: '34662' },
   ];
-  const tckns = [demoTckn('285104637'), demoTckn('419027385')];
+  const tckns = [demoTckn('1'), demoTckn('3')];
   let i = 0;
   for (const c of await m.find(CustomerEntity, { where: { companyId }, order: { name: 'ASC' } })) {
     const spec = custCompanies[c.name];

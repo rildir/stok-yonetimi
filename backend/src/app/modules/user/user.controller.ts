@@ -77,10 +77,16 @@ export class UserController {
       await this.audit.record({ companyId: user.companyId, action: 'login_failed', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { reason: 'locked' } });
       throw e;
     }
+    // A pending invitation has no usable password: refuse without counting a failure, so that
+    // knowing the username is not enough to lock the invitee out. Same response as a wrong password.
+    if (user.inviteTokenHash) {
+      await this.audit.record({ companyId: user.companyId, action: 'login_failed', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { reason: 'invite_pending' } });
+      throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
+    }
     const onMigration = async (plainPassword: string) => {
       await this.userService.migratePasswordHash(user, plainPassword);
     };
-    const valid = !user.inviteTokenHash && (await this.stockHelper.verifyPassword(password, user.password, onMigration));
+    const valid = await this.stockHelper.verifyPassword(password, user.password, onMigration);
     if (!valid) {
       const locked = await this.userService.recordFailedLogin(user);
       await this.audit.record({
@@ -90,11 +96,13 @@ export class UserController {
         entityId: user.id,
         userId: user.id,
         username: user.username,
-        after: { reason: user.inviteTokenHash ? 'invite_pending' : 'invalid_password' },
+        after: { reason: 'invalid_password' },
       });
       if (locked) this.userService.assertNotLocked(user);
       throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
     }
+    // Parallel wrong attempts may have locked the account while this password was being checked.
+    await this.userService.assertNotLockedFresh(user);
     await this.userService.recordSuccessfulLogin(user);
     await this.audit.record({ companyId: user.companyId, action: 'login', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username });
     return {

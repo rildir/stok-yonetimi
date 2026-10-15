@@ -1,6 +1,6 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { EFATURA_SECTOR_FLAGS, EIRSALIYE_SECTOR_FLAGS, CORPORATE_EVENT_TYPES } from '@stok/tr-compliance';
+import { CORPORATE_EVENT_TYPES, SectorRule } from '@stok/tr-compliance';
 import { ComplianceService } from '../../services/compliance.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { CorporateEvent, EBelgeProfile, GrossSales, ObligationReport, ObligationResult, SectorFlag } from '../../models/inventory.models';
@@ -90,21 +90,21 @@ import { ComplianceBannersComponent } from '../shared/compliance-banners.compone
       <div class="eb-section">
         <div class="form-section-title">{{ 'settings.ebelge.sectorEFatura' | t }}</div>
         <div class="eb-flags">
-          @for (code of eFaturaFlags; track code) {
-            <label class="eb-flag">
-              <input type="checkbox" [checked]="hasFlag('e', code)" (change)="toggleFlag('e', code, $any($event.target).checked)" />
-              {{ 'settings.ebelge.sector.' + code | t }}
-              @if (hasFlag('e', code)) { <input type="date" class="form-input" [ngModel]="flagSince('e', code)" (ngModelChange)="setFlagSince('e', code, $event)" /> }
+          @for (rule of eFaturaFlags(); track rule.code) {
+            <label class="eb-flag" [title]="rule.ref || ''">
+              <input type="checkbox" [checked]="hasFlag('e', rule.code)" (change)="toggleFlag('e', rule.code, $any($event.target).checked)" />
+              <span>{{ sectorLabel(rule.code) }}@if (rule.thresholds?.length) { <span class="eb-meta"> · {{ 'settings.ebelge.sectorThreshold' | t }}</span> }</span>
+              @if (hasFlag('e', rule.code)) { <input type="date" class="form-input" [ngModel]="flagSince('e', rule.code)" (ngModelChange)="setFlagSince('e', rule.code, $event)" /> }
             </label>
           }
         </div>
         <div class="form-section-title">{{ 'settings.ebelge.sectorEIrsaliye' | t }}</div>
         <div class="eb-flags">
-          @for (code of eIrsaliyeFlags; track code) {
-            <label class="eb-flag">
-              <input type="checkbox" [checked]="hasFlag('i', code)" (change)="toggleFlag('i', code, $any($event.target).checked)" />
-              {{ 'settings.ebelge.sector.' + code | t }}
-              @if (hasFlag('i', code)) { <input type="date" class="form-input" [ngModel]="flagSince('i', code)" (ngModelChange)="setFlagSince('i', code, $event)" /> }
+          @for (rule of eIrsaliyeFlags(); track rule.code) {
+            <label class="eb-flag" [title]="rule.ref || ''">
+              <input type="checkbox" [checked]="hasFlag('i', rule.code)" (change)="toggleFlag('i', rule.code, $any($event.target).checked)" />
+              <span>{{ sectorLabel(rule.code) }}@if (rule.thresholds?.length) { <span class="eb-meta"> · {{ 'settings.ebelge.sectorThreshold' | t }}</span> }</span>
+              @if (hasFlag('i', rule.code)) { <input type="date" class="form-input" [ngModel]="flagSince('i', rule.code)" (ngModelChange)="setFlagSince('i', rule.code, $event)" /> }
             </label>
           }
         </div>
@@ -181,8 +181,10 @@ export class EBelgeSettingsComponent implements OnInit {
   private ui = inject(UiStateService);
   private i18n = inject(I18nService);
 
-  readonly eFaturaFlags = [...EFATURA_SECTOR_FLAGS];
-  readonly eIrsaliyeFlags = [...EIRSALIYE_SECTOR_FLAGS];
+  /** Sector items come from the EBELGE_SECTOR_RULES legal parameter (served with the obligations). */
+  private rules = signal<SectorRule[]>([]);
+  readonly eFaturaFlags = computed(() => this.rules().filter((r) => r.doc === 'EFATURA'));
+  readonly eIrsaliyeFlags = computed(() => this.rules().filter((r) => r.doc === 'EIRSALIYE'));
   readonly eventTypes = [...CORPORATE_EVENT_TYPES];
 
   profile: EBelgeProfile = {};
@@ -213,6 +215,7 @@ export class EBelgeSettingsComponent implements OnInit {
         this.flagsE.set([...(p.sectorFlagsEFatura || [])]);
         this.flagsI.set([...(p.sectorFlagsEIrsaliye || [])]);
         this.events.set([...(p.corporateEvents || [])]);
+        this.rules.set(r.sectorRules || []);
         this.report.set(r.report);
         this.sourceList.set(Object.entries(r.sources || {}));
       },
@@ -225,9 +228,17 @@ export class EBelgeSettingsComponent implements OnInit {
     return 'badge ' + (map[o.status] || 'badge-neutral');
   }
 
+  /** Label of a sector code; codes added later to the legal parameter fall back to the code itself. */
+  sectorLabel(code: string): string {
+    const key = 'settings.ebelge.sector.' + code;
+    const label = this.i18n.t(key);
+    return label === key ? code : label;
+  }
+
   reasonLabel(reason: string): string {
-    const [kind, arg] = reason.split(':');
-    if (kind === 'SECTOR') return this.i18n.t('settings.ebelge.reason.SECTOR', { sector: this.i18n.t('settings.ebelge.sector.' + arg) });
+    const [kind, arg, year] = reason.split(':');
+    if (kind === 'SECTOR' && year) return this.i18n.t('settings.ebelge.reason.SECTOR_YEAR', { sector: this.sectorLabel(arg), year });
+    if (kind === 'SECTOR') return this.i18n.t('settings.ebelge.reason.SECTOR', { sector: this.sectorLabel(arg) });
     if (kind === 'EVENT') return this.i18n.t('settings.ebelge.reason.EVENT', { event: this.i18n.t('settings.ebelge.event.' + arg) });
     if (kind === 'BOOKKEEPING') return this.i18n.t('settings.ebelge.reason.BOOKKEEPING', { type: this.i18n.t('settings.fiscal.bookkeeping.' + arg) });
     return this.i18n.t('settings.ebelge.reason.' + kind, { year: arg ?? '' });

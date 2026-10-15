@@ -1,4 +1,7 @@
+import { EBELGE_SECTOR_RULES_SEED, LEGAL_PARAMETER_SEEDS } from '../legal/legal-parameter-seeds';
+import { pickParameter } from '../services/legal-parameter.service';
 import {
+  addMonths,
   computeObligations,
   guessIdentityType,
   isStrongPassword,
@@ -12,8 +15,11 @@ import {
   ObligationParams,
   SpecialTaxId,
   tcknCheckDigits,
+  SectorRule,
   todayKey,
   validateTaxId,
+  zonedDayEnd,
+  zonedDayStart,
   vknCheckDigit,
 } from './index';
 
@@ -122,10 +128,24 @@ describe('todayKey (company time zone)', () => {
   });
 });
 
+describe('legal parameter seeds (509 text)', () => {
+  const at = (key: string, date: string) => pickParameter(LEGAL_PARAMETER_SEEDS.filter((p) => p.key === key), date)?.value ?? null;
+  it('e-Fatura gross-sales thresholds: 5M for 2018-2020, 4M for 2021, 3M from 2022 (509 IV.1.4(a)(1), 535 SN)', () => {
+    expect([2018, 2019, 2020, 2021, 2022, 2025].map((y) => at('EFATURA_GROSS_SALES_THRESHOLD', `${y}-12-31`))).toEqual([5e6, 5e6, 5e6, 4e6, 3e6, 3e6]);
+  });
+  it('e-Irsaliye thresholds: 25M for 2018-2020, 10M from 2021 (509 IV.3.5(7))', () => {
+    expect([2018, 2020, 2021, 2026].map((y) => at('EIRSALIYE_GROSS_SALES_THRESHOLD', `${y}-12-31`))).toEqual([25e6, 25e6, 10e6, 10e6]);
+  });
+  it('3.000 TL paper limit applies from 1/1/2025 (509 IV.2.4.3)', () => {
+    expect(at('EARSIV_PAPER_LIMIT_SIMPLE', '2025-03-01')).toBe(3000);
+    expect(at('EARSIV_PAPER_LIMIT_SIMPLE', '2027-01-01')).toBeNull();
+  });
+});
+
 describe('computeObligations', () => {
   const thresholds: Record<string, [number, number, number][]> = {
-    EF: [[2018, 2021, 5_000_000], [2022, 2022, 4_000_000], [2023, 9999, 3_000_000]],
-    EI: [[2019, 2020, 25_000_000], [2021, 9999, 10_000_000]],
+    EF: [[2018, 2020, 5_000_000], [2021, 2021, 4_000_000], [2022, 9999, 3_000_000]],
+    EI: [[2018, 2020, 25_000_000], [2021, 9999, 10_000_000]],
   };
   const lookup = (rows: [number, number, number][]) => (y: number) => rows.find(([a, b]) => y >= a && y <= b)?.[2] ?? null;
   const params: ObligationParams = {
@@ -134,9 +154,70 @@ describe('computeObligations', () => {
     allInvoicesElectronicFrom: { BILANCO: '2026-01-01', ISLETME: '2027-01-01', BASIT: '2027-01-01' },
     paperInvoiceLimit: { amount: 3000, until: '2026-12-31' },
     thresholdStartMonthDay: '07-01',
-    transitionMonths: 3,
+    transitionMonths: 4,
     toleranceDayEFatura: 7,
+    sectorRules: EBELGE_SECTOR_RULES_SEED as SectorRule[],
+    gibNoticeMinMonths: 3,
   };
+
+  it('2021 turnover of 4.5M -> e-Fatura from 1/7/2022; 2022 turnover of 3.5M -> from 1/7/2023', () => {
+    const a = computeObligations({ annualGrossSales: [{ year: 2021, amount: 4_500_000 }] }, 'BILANCO', '2022-01-15', params);
+    expect(a.eFatura.mandatoryFrom).toBe('2022-07-01');
+    const b = computeObligations({ annualGrossSales: [{ year: 2022, amount: 3_500_000 }] }, 'BILANCO', '2023-01-15', params);
+    expect(b.eFatura.mandatoryFrom).toBe('2023-07-01');
+  });
+
+  it('sector licence (EPDK, e-Fatura and e-Irsaliye): first day of the 4th month after the licence month', () => {
+    const r = computeObligations(
+      { sectorFlagsEFatura: [{ code: 'EPDK_OTV1_LICENSE', since: '2026-02-10' }], sectorFlagsEIrsaliye: [{ code: 'EPDK_OTV1_LICENSE', since: '2026-02-10' }] },
+      'BILANCO',
+      '2026-03-01',
+      params,
+    );
+    expect(r.eFatura.mandatoryFrom).toBe('2026-06-01');
+    expect(r.eIrsaliye.mandatoryFrom).toBe('2026-06-01');
+  });
+
+  it('hal trader: e-Fatura within 3 months of starting, e-Irsaliye from the 4th month', () => {
+    const r = computeObligations(
+      { sectorFlagsEFatura: [{ code: 'HAL_TRADER', since: '2026-02-10' }], sectorFlagsEIrsaliye: [{ code: 'HAL_TRADER', since: '2026-02-10' }] },
+      'ISLETME',
+      '2026-03-01',
+      params,
+    );
+    expect(r.eFatura.mandatoryFrom).toBe('2026-05-10');
+    expect(r.eIrsaliye.mandatoryFrom).toBe('2026-06-01');
+  });
+
+  it('online seller: only with 500k TL turnover (2022+), from 1 July of the following year', () => {
+    const flag = { sectorFlagsEFatura: [{ code: 'ECOMMERCE_SELLER', since: '2023-05-01' }] };
+    const small = computeObligations({ ...flag, annualGrossSales: [{ year: 2025, amount: 400_000 }] }, 'ISLETME', '2026-03-01', params);
+    expect(small.eFatura.mandatoryFrom).toBeNull();
+    const big = computeObligations({ ...flag, annualGrossSales: [{ year: 2025, amount: 600_000 }] }, 'ISLETME', '2026-03-01', params);
+    expect(big.eFatura.mandatoryFrom).toBe('2026-07-01');
+    expect(big.eFatura.reason).toBe('SECTOR:ECOMMERCE_SELLER:2025');
+  });
+
+  it('construction steel tracking needs 1M TL turnover; iron and steel does not apply to BASIT', () => {
+    const r = computeObligations(
+      { annualGrossSales: [{ year: 2025, amount: 1_200_000 }], sectorFlagsEIrsaliye: [{ code: 'CONSTRUCTION_STEEL_TRACKING', since: '2025-01-01' }] },
+      'BILANCO',
+      '2026-01-15',
+      params,
+    );
+    expect(r.eIrsaliye.mandatoryFrom).toBe('2026-04-01');
+    const basit = computeObligations({ sectorFlagsEIrsaliye: [{ code: 'IRON_STEEL', since: '2026-01-05' }] }, 'BASIT', '2026-02-01', params);
+    expect(basit.eIrsaliye.mandatoryFrom).toBeNull();
+  });
+
+  it('unknown sector codes and GIB written notices', () => {
+    const r = computeObligations({ sectorFlagsEIrsaliye: [{ code: 'FOOD_WHOLESALE', since: '2026-01-05' }], gibWrittenNoticeDate: '2026-09-15' }, 'BILANCO', '2026-10-01', params);
+    expect(r.eIrsaliye.mandatoryFrom).toBeNull();
+    expect(r.warnings).toContain('SECTOR_RULE_MISSING:EIRSALIYE:FOOD_WHOLESALE');
+    expect(r.eFatura.mandatoryFrom).toBe('2026-12-15');
+    expect(r.eFatura.reason).toBe('GIB_NOTICE');
+    expect(r.warnings).toContain('GIB_NOTICE_CHECK_LETTER');
+  });
 
   it('2025 gross sales of 3M TL -> e-Fatura from 1 July 2026', () => {
     const r = computeObligations({ annualGrossSales: [{ year: 2025, amount: 3_000_000 }] }, 'ISLETME', '2026-03-01', params);
@@ -168,14 +249,14 @@ describe('computeObligations', () => {
     expect(bilanco.eArsiv.status).toBe('overdue');
   });
 
-  it('e-commerce intermediary -> obligation regardless of turnover', () => {
+  it('e-commerce intermediary -> obligation regardless of turnover, within 3 months of starting', () => {
     const r = computeObligations(
       { annualGrossSales: [{ year: 2025, amount: 50_000 }], sectorFlagsEFatura: [{ code: 'ECOMMERCE_INTERMEDIARY', since: '2026-02-10' }] },
       'ISLETME',
       '2026-03-01',
       params,
     );
-    expect(r.eFatura.mandatoryFrom).toBe('2026-05-01');
+    expect(r.eFatura.mandatoryFrom).toBe('2026-05-10');
     expect(r.eFatura.reason).toBe('SECTOR:ECOMMERCE_INTERMEDIARY');
   });
 
@@ -196,5 +277,24 @@ describe('computeObligations', () => {
   it('reports a missing threshold parameter instead of guessing', () => {
     const r = computeObligations({ annualGrossSales: [{ year: 2017, amount: 9_000_000 }, { year: 2025, amount: 1 }] }, 'BILANCO', '2026-10-15', params);
     expect(r.warnings).toContain('THRESHOLD_PARAM_MISSING:EFATURA:2017');
+  });
+
+  it('merger with an obliged taxpayer: 3 months from the start of the month after registration (e-Fatura only)', () => {
+    const r = computeObligations({ corporateEvents: [{ type: 'MERGER', date: '2026-02-10', counterpartyMandatory: true }] }, 'BILANCO', '2026-03-01', params);
+    expect(r.eFatura.mandatoryFrom).toBe('2026-06-01');
+    expect(r.eIrsaliye.mandatoryFrom).toBeNull();
+  });
+});
+
+describe('date helpers', () => {
+  it('addMonths clamps to the end of month', () => {
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-28');
+    expect(addMonths('2026-11-15', 3)).toBe('2027-02-15');
+  });
+  it('company day boundaries in UTC (Europe/Istanbul is UTC+3)', () => {
+    expect(zonedDayStart('2026-10-15', 'Europe/Istanbul').toISOString()).toBe('2026-10-14T21:00:00.000Z');
+    expect(zonedDayEnd('2026-10-15', 'Europe/Istanbul').toISOString()).toBe('2026-10-15T21:00:00.000Z');
+    expect(zonedDayStart('2026-03-29', 'Europe/Berlin').toISOString()).toBe('2026-03-28T23:00:00.000Z');
+    expect(zonedDayStart('2026-03-30', 'Europe/Berlin').toISOString()).toBe('2026-03-29T22:00:00.000Z');
   });
 });

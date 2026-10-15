@@ -9,7 +9,14 @@ import { TenantContext } from '../tenant/tenant-context.service';
 import { RateRow, convertAmount, findRate } from '../finance/currency';
 import { LineAmounts, DocumentTotals, calculateLine, calculateTotals } from '../finance/tax';
 import { LegalParameterService } from './legal-parameter.service';
-import { todayKey } from '../tr';
+import { dateKeyInZone, todayKey } from '../tr';
+
+/** Exchange-rate day of a document: instants (stored in UTC) count in the company time zone. */
+export function rateDay(date: Date | string | null | undefined, tz?: string | null): string {
+  if (date instanceof Date) return dateKeyInZone(date, tz || undefined);
+  if (!date) return todayKey(tz || undefined);
+  return String(date).slice(0, 10);
+}
 
 /**
  * Tenant-aware currency conversion and tax rate resolution.
@@ -56,7 +63,7 @@ export class FinanceService {
   async requireRate(from: string, to: string, date?: Date | string | null, manager?: EntityManager): Promise<number> {
     if (from === to) return 1;
     const company = await this.getCompany(manager);
-    const rate = findRate(await this.getRates(manager), from, to, date, company.baseCurrency);
+    const rate = findRate(await this.getRates(manager), from, to, rateDay(date, company.timezone), company.baseCurrency);
     if (rate === null) throw new BadRequestException(err('EXCHANGE_RATE_MISSING', { from, to }));
     return rate;
   }
@@ -64,7 +71,7 @@ export class FinanceService {
   /** Converts an amount to the company base currency (null if no rate). */
   async convertToBase(amount: number, currency: string, date?: Date | string | null, manager?: EntityManager): Promise<number | null> {
     const company = await this.getCompany(manager);
-    return convertAmount(amount, currency, company.baseCurrency, await this.getRates(manager), date, company.baseCurrency);
+    return convertAmount(amount, currency, company.baseCurrency, await this.getRates(manager), rateDay(date, company.timezone), company.baseCurrency);
   }
 
   async getDefaultTaxRate(manager?: EntityManager): Promise<TaxRateEntity | null> {
@@ -100,7 +107,7 @@ export class FinanceService {
     const company = await this.getCompany(manager);
     const rates = await this.getRates(manager);
     const rateOrThrow = (from: string, to: string) => {
-      const r = findRate(rates, from, to, date, company.baseCurrency);
+      const r = findRate(rates, from, to, rateDay(date, company.timezone), company.baseCurrency);
       if (r === null) throw new BadRequestException(err('EXCHANGE_RATE_MISSING', { from, to }));
       return r;
     };

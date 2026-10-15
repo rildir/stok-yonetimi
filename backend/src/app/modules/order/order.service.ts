@@ -312,7 +312,11 @@ export class OrderService {
       if (order.status !== OrderStatus.CANCELLED) {
         throw new BadRequestException(err('ORDER_DELETE_ONLY_CANCELLED'));
       }
-      await this.orderRepo.softRemove(order);
+      // Soft-remove the order without its eager items: the cascade would soft-remove the items too,
+      // and they have no delete-date column (MissingDeleteDateColumnError). The audit subscriber still fires.
+      const shallow = Object.assign(new OrderEntity(), order) as Partial<OrderEntity>;
+      delete shallow.items;
+      await this.orderRepo.softRemove(shallow as OrderEntity);
       this.appGateway.emitToCompany(this.companyId, 'order_mutated', { type: 'delete', orderId: id });
       return true;
     }

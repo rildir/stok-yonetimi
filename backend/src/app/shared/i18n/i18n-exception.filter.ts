@@ -24,7 +24,9 @@ function flattenValidationErrors(errors: ValidationError[], parent = ''): Valida
     const property = parent ? `${parent}.${e.property}` : e.property;
     for (const message of Object.values(e.constraints || {})) {
       const { code, params } = parseValidationMessage(message);
-      issues.push({ code, params: { property, value: e.value as any, ...params } });
+      // A rule may report on another property than the one it is attached to (`field=`).
+      const field = params['field'] ? (parent ? `${parent}.${params['field']}` : String(params['field'])) : property;
+      issues.push({ code, params: { ...params, property: field, value: e.value as any } });
     }
     if (e.children?.length) issues.push(...flattenValidationErrors(e.children, property));
   }
@@ -49,6 +51,28 @@ export function parseValidationMessage(message: string): ValidationIssue {
 export function vmsg(code: string, ...constraintNames: string[]): string {
   return [code, ...constraintNames.map((n, i) => `${n}=$constraint${i + 1}`)].join('|');
 }
+
+/**
+ * Domain error codes that are reported as the top-level `code` of a validation
+ * error, so clients get the same code (e.g. INVALID_VKN, WEAK_PASSWORD) whether the
+ * check ran in a DTO (create) or in a service (update).
+ */
+export const PROMOTED_VALIDATION_CODES = new Set([
+  'INVALID_VKN',
+  'INVALID_TCKN',
+  'TAX_ID_REQUIRED_FOR_COMPANY',
+  'INVALID_IDENTITY_TYPE',
+  'INVALID_MERSIS',
+  'INVALID_KEP_ADDRESS',
+  'INVALID_POSTAL_CODE',
+  'INVALID_PROVINCE',
+  'INVALID_DISTRICT',
+  'INVALID_TAX_OFFICE',
+  'INVALID_BOOKKEEPING_TYPE',
+  'INVALID_WEBSITE',
+  'INVALID_DOCUMENT_SERIES',
+  'WEAK_PASSWORD',
+]);
 
 /** ValidationPipe exceptionFactory: keeps codes + constraint params for later localization. */
 export function validationExceptionFactory(errors: ValidationError[]): BadRequestException {
@@ -87,6 +111,8 @@ export interface LocalizedErrorBody {
   message: string;
   error?: string;
   errors?: string[];
+  /** Validation errors: failing property and code per issue. */
+  fields?: { property: string; code: string }[];
 }
 
 export function buildErrorBody(exception: unknown, status: number, lang: Lang): LocalizedErrorBody {
@@ -98,8 +124,11 @@ export function buildErrorBody(exception: unknown, status: number, lang: Lang): 
 
   // Validation errors from validationExceptionFactory
   if (res && Array.isArray(res.validation)) {
-    const errors: string[] = res.validation.map((i: ValidationIssue) => translate(i.code, lang, i.params));
-    return { statusCode: status, code: 'VALIDATION_FAILED', message: errors.join(' '), errors, error: 'Bad Request' };
+    const issues = res.validation as ValidationIssue[];
+    const errors: string[] = issues.map((i) => translate(i.code, lang, i.params));
+    const fields = issues.map((i) => ({ property: String(i.params['property'] ?? ''), code: i.code }));
+    const code = issues.find((i) => PROMOTED_VALIDATION_CODES.has(i.code))?.code ?? 'VALIDATION_FAILED';
+    return { statusCode: status, code, message: errors.join(' '), errors, fields, error: 'Bad Request' };
   }
   if (isCodedErrorBody(res)) {
     return { statusCode: status, code: res.code, message: translate(res.code, lang, res.params), ...(error ? { error } : {}) };

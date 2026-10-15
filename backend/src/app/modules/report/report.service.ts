@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, SelectQueryBuilder } from 'typeorm';
 import { OrderEntity } from '../../entities/order.entity';
 import { OrderItemEntity } from '../../entities/order-item.entity';
 import { ProductEntity } from '../../entities/product.entity';
@@ -14,6 +14,8 @@ import { FinanceService } from '../../shared/services/finance.service';
 import { convertAmount } from '../../shared/finance/currency';
 import { StockLotEntity } from '../../entities/stock-lot.entity';
 import { daysUntil, todayKey } from '../../shared/inventory/lot-allocation';
+import { addDays } from '../../shared/tr';
+import { applyDayRange } from '../../shared/time/company-day-range';
 
 @Injectable()
 export class ReportService {
@@ -37,18 +39,23 @@ export class ReportService {
     return this.tenant.companyId;
   }
 
+  /**
+   * Report filters: a plain day (YYYY-MM-DD) means that calendar day in the company time
+   * zone (the database stores UTC), and the end day is inclusive. Full timestamps are used as given.
+   */
+  /** Report filters: plain days are calendar days in the company time zone (end day inclusive). */
+  private async applyDateRange(query: SelectQueryBuilder<any>, column: string, startDate?: string, endDate?: string) {
+    if (!startDate && !endDate) return;
+    applyDayRange(query, column, (await this.finance.getCompany()).timezone, startDate, endDate);
+  }
+
   async getStockSummary(startDate?: string, endDate?: string) {
     const query = this.stockMovementRepo.createQueryBuilder('sm')
       .select('COALESCE(SUM(CASE WHEN sm.quantity > 0 THEN sm.quantity ELSE 0 END), 0)', 'totalIn')
       .addSelect('COALESCE(SUM(CASE WHEN sm.quantity < 0 THEN ABS(sm.quantity) ELSE 0 END), 0)', 'totalOut')
       .where('sm.companyId = :companyId', { companyId: this.companyId });
 
-    if (startDate) {
-      query.andWhere('sm.createdAt >= :startDate', { startDate: new Date(startDate) });
-    }
-    if (endDate) {
-      query.andWhere('sm.createdAt <= :endDate', { endDate: new Date(endDate) });
-    }
+    await this.applyDateRange(query, 'sm.createdAt', startDate, endDate);
 
     const raw = await query.getRawOne();
     const totalIn = Number(raw?.totalIn || 0);
@@ -71,12 +78,7 @@ export class ReportService {
       .andWhere('sm.productId IS NOT NULL')
       .groupBy('sm.productId');
 
-    if (startDate) {
-      query.andWhere('sm.createdAt >= :startDate', { startDate: new Date(startDate) });
-    }
-    if (endDate) {
-      query.andWhere('sm.createdAt <= :endDate', { endDate: new Date(endDate) });
-    }
+    await this.applyDateRange(query, 'sm.createdAt', startDate, endDate);
 
     const rawResults = await query.getRawMany();
     return rawResults.map((r) => ({
@@ -256,8 +258,7 @@ export class ReportService {
     const company = await this.finance.getCompany();
     const window = Number.isFinite(days) && (days as number) >= 0 ? (days as number) : company.expiryAlertDays || 30;
     const today = todayKey(company.timezone);
-    const until = new Date(`${today}T00:00:00Z`);
-    until.setUTCDate(until.getUTCDate() + window);
+    const until = addDays(today, window);
     const rows = await this.dataSource
       .getRepository(StockLotEntity)
       .createQueryBuilder('l')
@@ -266,7 +267,7 @@ export class ReportService {
       .select(['l.id AS lotId', 'l.productId AS productId', 'p.name AS productName', 'p.sku AS sku', 'l.warehouseId AS warehouseId'])
       .addSelect(['w.name AS warehouseName', 'l.lotNumber AS lotNumber', "DATE_FORMAT(l.expiryDate, '%Y-%m-%d') AS expiryDate", 'l.quantity AS quantity'])
       .where('l.companyId = :companyId', { companyId: this.companyId })
-      .andWhere('l.quantity > 0 AND l.expiryDate IS NOT NULL AND l.expiryDate <= :until', { until: until.toISOString().slice(0, 10) })
+      .andWhere('l.quantity > 0 AND l.expiryDate IS NOT NULL AND l.expiryDate <= :until', { until })
       .orderBy('l.expiryDate', 'ASC')
       .getRawMany();
     return {

@@ -4,6 +4,7 @@ import { Brackets, Repository } from 'typeorm';
 import { AuditLogEntity } from '../../entities/audit-log.entity';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { redact } from '../../shared/integrations/audit-diff';
+import { applyDayRange, companyTimezone } from '../../shared/time/company-day-range';
 
 export interface AuditRecordInput {
   companyId: string | null;
@@ -64,8 +65,7 @@ export class AuditService {
     if (q.entityType) qb.andWhere('a.entityType = :entityType', { entityType: q.entityType });
     if (q.entityId) qb.andWhere('a.entityId = :entityId', { entityId: q.entityId });
     if (q.action) qb.andWhere('a.action = :action', { action: q.action });
-    if (q.from) qb.andWhere('a.createdAt >= :from', { from: `${q.from} 00:00:00` });
-    if (q.to) qb.andWhere('a.createdAt <= :to', { to: `${q.to} 23:59:59.999` });
+    if (q.from || q.to) applyDayRange(qb, 'a.createdAt', await companyTimezone(this.repo.manager, this.tenant.companyId), q.from, q.to);
     const [items, total] = await qb
       .orderBy('a.createdAt', 'DESC')
       .addOrderBy('a.id', 'DESC')

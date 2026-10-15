@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { UserEntity } from './entities/user.entity';
 
 export const companyRoom = (companyId: string) => `company:${companyId}`;
+export const companyAdminRoom = (companyId: string) => `company:${companyId}:admins`;
 
 @WebSocketGateway({
   cors: {
@@ -34,13 +35,12 @@ export class AppGateway implements OnGatewayInit, OnGatewayConnection, OnGateway
         client.disconnect();
         return;
       }
-      const payload = await this.jwtService.verifyAsync(token, {
-        secret: process.env.JWT_SECRET,
-      });
+      // Same secret as the HTTP guard (JwtModule / resolveJwtSecret).
+      const payload = await this.jwtService.verifyAsync(token);
       // Resolve tenant from DB (authoritative, also covers tokens issued before multi-tenancy).
       const user = await this.dataSource.getRepository(UserEntity).findOne({
         where: { username: payload.username },
-        select: { id: true, companyId: true, tokenVersion: true },
+        select: { id: true, companyId: true, tokenVersion: true, role: true },
       });
       if (!user || user.tokenVersion !== payload.tokenVersion || (payload.companyId && payload.companyId !== user.companyId)) {
         this.logger.warn(`Connection rejected (Stale session): ${client.id}`);
@@ -49,6 +49,7 @@ export class AppGateway implements OnGatewayInit, OnGatewayConnection, OnGateway
       }
       client['user'] = { ...payload, companyId: user.companyId };
       client.join(companyRoom(user.companyId));
+      if (user.role === 'admin') client.join(companyAdminRoom(user.companyId));
       this.logger.log(`Client authenticated: ${payload.username} (${client.id})`);
     } catch (err: any) {
       this.logger.warn(`Connection rejected (Invalid token): ${client.id} - ${err.message}`);
@@ -67,7 +68,14 @@ export class AppGateway implements OnGatewayInit, OnGatewayConnection, OnGateway
     }
   }
 
+  /** Only to sockets of the company's admins (e.g. legal-parameter warnings). */
+  emitToCompanyAdmins(companyId: string, event: string, data: unknown) {
+    if (this.server) {
+      this.server.to(companyAdminRoom(companyId)).emit(event, data);
+    }
+  }
+
   notifyPasswordResetRequest(companyId: string, data: { username: string; fullName: string }) {
-    this.emitToCompany(companyId, 'password_reset_requested', data);
+    this.emitToCompanyAdmins(companyId, 'password_reset_requested', data);
   }
 }

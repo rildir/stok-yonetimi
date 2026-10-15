@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { CompanyEntity } from './company.entity';
-import { AddressColumns } from './address.embedded';
+import { AddressColumns, formatAddress } from './address.embedded';
 
 export type CustomerType = 'individual' | 'company';
 export const CUSTOMER_TYPES: CustomerType[] = ['individual', 'company'];
@@ -119,4 +119,27 @@ export class CustomerEntity {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
 }
+
+/**
+ * API / webhook compatibility (pre-WP1 integrators): read-only legacy fields next to the
+ * structured identity and address (`address` itself is now an object). Ignored on input.
+ */
+export function customerLegacyFields(c: Pick<CustomerEntity, 'identityNumber' | 'address'>) {
+  return {
+    taxNumber: c.identityNumber ?? null,
+    addressText: formatAddress(c.address),
+    city: c.address?.province ?? null,
+    postalCode: c.address?.postalCode ?? null,
+    country: c.address?.country ?? null,
+  };
+}
+
+// Non-enumerable, so it is not a column and not copied by spreads; JSON responses / webhooks call it.
+Object.defineProperty(CustomerEntity.prototype, 'toJSON', {
+  enumerable: false,
+  value: function (this: CustomerEntity) {
+    return { ...this, ...customerLegacyFields(this) };
+  },
+});

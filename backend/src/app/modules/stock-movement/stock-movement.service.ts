@@ -8,6 +8,7 @@ import { WarehouseStockService } from '../../shared/services/warehouse-stock.ser
 import { StockHelperService } from '../../shared/services/stock-helper.service';
 import { AppGateway } from '../../app.gateway';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
+import { applyDayRange, companyTimezone } from '../../shared/time/company-day-range';
 
 @Injectable()
 export class StockMovementService {
@@ -55,12 +56,9 @@ export class StockMovementService {
       );
     }
 
-    if (startDate) {
-      query.andWhere('sm.createdAt >= :startDate', { startDate: `${startDate} 00:00:00` });
-    }
-
-    if (endDate) {
-      query.andWhere('sm.createdAt <= :endDate', { endDate: `${endDate} 23:59:59` });
+    if (startDate || endDate) {
+      // Calendar days of the company time zone (createdAt is stored in UTC).
+      applyDayRange(query, 'sm.createdAt', await companyTimezone(this.dataSource.manager, this.tenant.companyId), startDate, endDate);
     }
 
     if (type && type !== 'ALL') {
