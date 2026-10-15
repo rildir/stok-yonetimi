@@ -6,7 +6,10 @@
  * 267/2). VUK 267/1 ("ortalama fiyat esası"): the emsal value is the average sales price of
  * the valuation month (M), else of the previous month (M-1), else of the month before (M-2),
  * provided that month's sales quantity is at least 25 % of the quantity being valued.
- * Otherwise the value can only be set by the takdir komisyonu (267/3).
+ * Otherwise the value can only be set by the takdir komisyonu (267/3) - which is only worth
+ * asking for when there is a sign of a value decline: sales in M..M-2 below cost by the decline
+ * threshold that fail the quantity condition, or an indication from the caller (expired, blocked
+ * or recalled lots, damage). Products that simply did not sell are not flagged.
  *
  * The 10 % and 25 % thresholds come from `legal_parameters` (IMPAIRMENT_MIN_DECLINE_PCT,
  * EMSAL_MIN_MONTHLY_SALES_PCT); the defaults here are only used when no parameter exists.
@@ -30,6 +33,8 @@ export interface ImpairmentInput {
   valuationMonth: string;
   minDeclinePct?: number;
   minMonthlySalesPct?: number;
+  /** Sign of a value decline known to the caller (e.g. EXPIRED_LOTS, BLOCKED_LOTS) */
+  indication?: string | null;
 }
 
 export type EmsalBasis = 'M' | 'M-1' | 'M-2' | 'TAKDIR';
@@ -43,8 +48,10 @@ export interface ImpairmentResult {
   declinePct: number | null;
   /** 274: decline >= minDeclinePct and an emsal value from 267/1 exists */
   qualifies: boolean;
-  /** No month met the 25 % condition: valuation needs the takdir komisyonu (267/3) */
+  /** No emsal value under 267/1 but a sign of decline: valuation needs the takdir komisyonu (267/3) */
   requiresCommission: boolean;
+  /** Why a commission valuation is suggested (PRICE_DECLINE_LOW_VOLUME or the caller's indication) */
+  indication: string | null;
   costValue: number;
   /** Tax value (VUK): emsal value when it qualifies, else cost */
   taxValue: number;
@@ -73,11 +80,16 @@ export function evaluateImpairment(input: ImpairmentInput): ImpairmentResult {
     ['M-1', shiftMonth(input.valuationMonth, -1)],
     ['M-2', shiftMonth(input.valuationMonth, -2)],
   ];
+  let lowVolumeDecline = false;
   for (const [basis, month] of order) {
     const s = input.sales.find((x) => x.month === month);
     if (!s || !(s.quantity > 0)) continue;
     // 25 % condition: monthly sales quantity / quantity valued (inclusive).
-    if (qty > 0 && (s.quantity / qty) * 100 + 1e-9 < minSales) continue;
+    if (qty > 0 && (s.quantity / qty) * 100 + 1e-9 < minSales) {
+      const price = s.amount / s.quantity;
+      if (unitCost > 0 && ((unitCost - price) / unitCost) * 100 + 1e-9 >= minDecline) lowVolumeDecline = true;
+      continue;
+    }
     const emsal = roundCost(s.amount / s.quantity);
     const declinePct = unitCost > 0 ? Math.round(((unitCost - emsal) / unitCost) * 10000) / 100 : 0;
     const qualifies = unitCost > 0 && declinePct + 1e-9 >= minDecline;
@@ -91,6 +103,7 @@ export function evaluateImpairment(input: ImpairmentInput): ImpairmentResult {
       declinePct,
       qualifies,
       requiresCommission: false,
+      indication: null,
       costValue,
       taxValue,
       bookValue,
@@ -104,7 +117,8 @@ export function evaluateImpairment(input: ImpairmentInput): ImpairmentResult {
     monthSalesQty: null,
     declinePct: null,
     qualifies: false,
-    requiresCommission: true,
+    requiresCommission: lowVolumeDecline || !!input.indication,
+    indication: lowVolumeDecline ? 'PRICE_DECLINE_LOW_VOLUME' : input.indication || null,
     costValue,
     taxValue: costValue,
     bookValue: costValue,

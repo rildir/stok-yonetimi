@@ -66,9 +66,15 @@ export class DisposalService {
     const m = this.dataSource.manager;
     const company = await m.findOneByOrFail(CompanyEntity, { id: this.companyId });
     const lines: Record<string, unknown>[] = [];
+    // Every identifier must be present and belong to the tenant (an undefined key would match any row).
+    const whs = await m.find(WarehouseEntity, { where: { companyId: this.companyId, isDeleted: false } });
+    const ownWarehouse = (id: string | null | undefined) => !id || whs.some((w) => w.id === id);
+    if (!ownWarehouse(input.warehouseId)) throw new BadRequestException(err('WAREHOUSE_NOT_FOUND'));
     for (const l of input.lines) {
       const q = roundQty(Number(l.quantity));
       if (!(q > 0)) throw new BadRequestException(err('QUANTITY_INVALID'));
+      if (!String(l.productId || '').trim()) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
+      if (!ownWarehouse(l.warehouseId)) throw new BadRequestException(err('WAREHOUSE_NOT_FOUND'));
       const p = await m.findOne(ProductEntity, { where: { companyId: this.companyId, id: l.productId } });
       if (!p) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
       const lot = l.lotId ? await m.findOne(StockLotEntity, { where: { companyId: this.companyId, id: l.lotId, productId: p.id } }) : null;

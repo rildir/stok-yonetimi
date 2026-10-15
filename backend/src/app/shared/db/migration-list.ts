@@ -17,6 +17,7 @@ import { DocumentRegimeReviewFixes1784274136000 } from '../../migrations/1784274
 import { EBelgeIntegration1784274137000 } from '../../migrations/1784274137000-EBelgeIntegration';
 import { CostingPeriodsInventoryReports1784274139000 } from '../../migrations/1784274139000-CostingPeriodsInventoryReports';
 import { EBelgeReviewFixes1784274138000 } from '../../migrations/1784274138000-EBelgeReviewFixes';
+import { CostingReviewFixes1784274140000 } from '../../migrations/1784274140000-CostingReviewFixes';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -44,4 +45,5 @@ export const MIGRATIONS = [
   EBelgeIntegration1784274137000,
   EBelgeReviewFixes1784274138000,
   CostingPeriodsInventoryReports1784274139000,
+  CostingReviewFixes1784274140000,
 ];

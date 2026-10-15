@@ -152,6 +152,7 @@ export const MOVEMENT_REASONS = [
   { code: 'PURCHASE', direction: 'in', manual: true, needsDocument: true, needsAttachment: false },
   { code: 'OPENING', direction: 'in', manual: true, needsDocument: false, needsAttachment: false },
   { code: 'INTERNAL_USE', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
+  { code: 'WITHDRAWAL', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
   { code: 'GIFT_SAMPLE', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
   { code: 'PERSONNEL', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },
   { code: 'WASTAGE_NORMAL', direction: 'out', manual: true, needsDocument: false, needsAttachment: false },

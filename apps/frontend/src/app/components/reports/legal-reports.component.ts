@@ -176,6 +176,10 @@ const thisMonth = () => today().slice(0, 7);
             @if (!v.rows.length) { <tr><td colspan="7"><div class="empty-state"><p class="empty-state-title">{{ 'common.noData' | t }}</p></div></td></tr> }
           </tbody>
         </table></div></div>
+        <p class="lr-note">{{ 'accounting.vat.kdv2Basis' | t }}</p>
+        @for (w of v.warnings || []; track $index) {
+          <div class="alert-banner alert-banner--warning" role="status">{{ 'accounting.vat.poWithholdingNotOnInvoice' | t: { po: w.poNumber, doc: w.documentNo, code: w.withholdingCode, amount: (w.expectedWithheld | money: 'TRY') } }}</div>
+        }
       }
     }
 
@@ -229,7 +233,7 @@ const thisMonth = () => today().slice(0, 7);
                 <td><input type="checkbox" [disabled]="!r.qualifies && !r.requiresCommission" [checked]="selectedImp().includes(r.productId)" (change)="toggleImp(r.productId)" [attr.aria-label]="r.productName" /></td>
                 <td>{{ r.productName }}</td><td class="num">{{ r.quantity | num }}</td><td class="num">{{ r.unitCost | money: d.currency }}</td>
                 <td>{{ 'accounting.impairment.basis.' + r.emsalBasis | t }} @if (r.emsalMonth) { <span class="text-muted">({{ r.emsalMonth }})</span> }
-                  @if (r.qualifies) { <span class="badge badge-warning">{{ 'accounting.impairment.candidate' | t }}</span> } @if (r.requiresCommission) { <span class="badge badge-neutral">{{ 'accounting.impairment.commission' | t }}</span> }</td>
+                  @if (r.qualifies) { <span class="badge badge-warning">{{ 'accounting.impairment.candidate' | t }}</span> } @if (r.requiresCommission) { <span class="badge badge-neutral">{{ 'accounting.impairment.commission' | t }}</span> @if (r.indication) { <span class="text-muted">{{ 'accounting.impairment.indication.' + r.indication | t }}</span> } }</td>
                 <td class="num">{{ r.emsalUnitPrice === null ? '-' : (r.emsalUnitPrice | money: d.currency) }}</td>
                 <td class="num">{{ r.declinePct === null ? '-' : '%' + (r.declinePct | num) }}</td>
                 <td class="num">{{ r.taxValue | money: d.currency }}</td><td class="num">{{ r.provision | money: d.currency }}</td>

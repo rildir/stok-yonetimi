@@ -324,6 +324,27 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     confidence: 'medium',
     note: '"other" için belge türü açıklaması (documentTypeDescription) yevmiye aktarımında doldurulur.',
   },
+  // ─── WP6 review round 1 ───
+  {
+    country: TR,
+    key: 'VAT_DEEMED_SUPPLY_REASONS',
+    validFrom: '1985-01-01',
+    validTo: null,
+    value: ['WITHDRAWAL', 'GIFT_SAMPLE', 'PERSONNEL'],
+    sourceRef: 'KDVK md. 3/a (malların işletmeden çekilmesi: bedelsiz verilmesi, işletme sahibinin kişisel kullanımı, vergiye tabi olmayan / istisna işlemlerde kullanılması), md. 27 (emsal bedel)',
+    confidence: 'low',
+    note: 'İşletmede vergiye tabi faaliyette kullanım (INTERNAL_USE) teslim sayılmaz. Hangi çıkış nedenlerinin emsal bedelle KDV doğurduğu mali müşavirce teyit edilmeli; liste veri olarak değiştirilebilir.',
+  },
+  {
+    country: TR,
+    key: 'EMSAL_COST_MARKUP_PCT',
+    validFrom: '1961-01-01',
+    validTo: null,
+    value: 10,
+    sourceRef: 'VUK md. 267/2 (ortalama fiyat yoksa emsal bedeli: maliyet bedeline %10 eklenerek); KDVK md. 27',
+    confidence: 'medium',
+    note: 'Aylık ortalama satış fiyatı VUK 267/1 koşulunu (ay içi satış miktarı >= değerlenen miktarın EMSAL_MIN_MONTHLY_SALES_PCT oranı) sağlamadığında kullanılır.',
+  },
 ];
 
 
@@ -362,6 +383,9 @@ export const WP5_PARAMETER_KEYS = [
   'EDOC_INTEGRITY_NOTICE_BUSINESS_DAYS',
   'EXPORT_GTB_PARTY',
 ];
+
+/** Keys added by migration 1784274140000 (WP6 review round 1: deemed-supply reasons, emsal mark-up). */
+export const WP6R1_PARAMETER_KEYS = ['VAT_DEEMED_SUPPLY_REASONS', 'EMSAL_COST_MARKUP_PCT'];
 
 /** Keys added by migration 1784274139000 (WP6 costing, inventory, food, price labels, journal export). */
 export const WP6_PARAMETER_KEYS = [

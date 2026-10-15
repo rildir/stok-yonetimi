@@ -15,6 +15,7 @@ import { RefdataService } from '../../shared/services/refdata.service';
 import { FinanceService } from '../../shared/services/finance.service';
 import { CreateWarehouseDto, UpdateWarehouseDto } from '../../dto/warehouse.dto';
 import { formatAddress } from '../../entities/address.embedded';
+import { convertAmount } from '../../shared/finance/currency';
 
 @Injectable()
 export class WarehouseService {
@@ -63,19 +64,38 @@ export class WarehouseService {
     const agg = await this.dataSource
       .getRepository(ProductWarehouseStockEntity)
       .createQueryBuilder('s')
-      .innerJoin(ProductEntity, 'p', 'p.id = s.productId AND p.isDeleted = false')
+      .innerJoin(ProductEntity, 'p', 'p.id = s.productId')
       .select('s.warehouseId', 'warehouseId')
-      .addSelect('SUM(CASE WHEN s.quantity > 0 THEN 1 ELSE 0 END)', 'productCount')
+      .addSelect('SUM(CASE WHEN s.quantity > 0 AND p.isDeleted = false THEN 1 ELSE 0 END)', 'productCount')
+      // Stock of soft-deleted products is still physical stock (and part of the legal inventory).
       .addSelect('COALESCE(SUM(s.quantity), 0)', 'totalStock')
       // WP6: the stock value is the value at cost (VUK 274): quantity x the product's average layer cost.
       .addSelect(
         'COALESCE(SUM(s.quantity * COALESCE((SELECT SUM(l.qtyRemaining * l.unitCost) / NULLIF(SUM(l.qtyRemaining), 0) FROM stock_cost_layers l WHERE l.companyId = s.companyId AND l.productId = s.productId AND l.qtyRemaining > 0), 0)), 0)',
         'totalValue',
       )
-      .addSelect('COALESCE(SUM(s.quantity * p.price), 0)', 'salesValue')
       .where('s.companyId = :companyId', { companyId: this.companyId })
       .groupBy('s.warehouseId')
       .getRawMany();
+    // Information only: quantity x sales price, converted per price currency to the base currency.
+    const salesRows: { warehouseId: string; currency: string | null; v: string }[] = await this.dataSource
+      .getRepository(ProductWarehouseStockEntity)
+      .createQueryBuilder('s')
+      .innerJoin(ProductEntity, 'p', 'p.id = s.productId AND p.isDeleted = false')
+      .select('s.warehouseId', 'warehouseId')
+      .addSelect('p.currency', 'currency')
+      .addSelect('COALESCE(SUM(s.quantity * p.price), 0)', 'v')
+      .where('s.companyId = :companyId', { companyId: this.companyId })
+      .groupBy('s.warehouseId')
+      .addGroupBy('p.currency')
+      .getRawMany();
+    const company = await this.finance.getCompany();
+    const rates = await this.finance.getRates();
+    const salesBy = new Map<string, number>();
+    for (const r of salesRows) {
+      const converted = convertAmount(Number(r.v) || 0, r.currency || company.baseCurrency, company.baseCurrency, rates, null, company.baseCurrency);
+      if (converted !== null) salesBy.set(r.warehouseId, (salesBy.get(r.warehouseId) || 0) + converted);
+    }
     const byId = new Map(agg.map((r) => [r.warehouseId, r]));
     return activeWarehouses.map((wh, i) => {
       const r = byId.get(wh.id);
@@ -96,7 +116,7 @@ export class WarehouseService {
         productCount: Number(r?.productCount || 0),
         totalStock: Number(r?.totalStock || 0),
         totalValue: Math.round(Number(r?.totalValue || 0) * 100) / 100,
-        salesValue: Number(r?.salesValue || 0),
+        salesValue: Math.round((salesBy.get(wh.id) || 0) * 100) / 100,
       };
     });
   }

@@ -7,7 +7,7 @@ import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { FiscalPeriodEntity, InventoryPeriodBalanceEntity } from '../../entities/inventory-accounting.entity';
 import { FinanceService } from '../../shared/services/finance.service';
 import { convertAmount } from '../../shared/finance/currency';
-import { CostingMethod, periodicAverage, roundCost, roundMoney } from '../../shared/inventory/costing';
+import { CostingMethod, periodicAverage, reconcileParts, roundCost, roundMoney } from '../../shared/inventory/costing';
 import { addDays, dateKeyInZone, DEFAULT_TIMEZONE, fiscalYearPeriods, roundQty, zonedDayStart } from '../../shared/tr';
 
 export type Breakdown = 'product' | 'warehouse' | 'lot';
@@ -36,6 +36,10 @@ export interface ValuationRow {
 
 export interface ValuationResult {
   asOf: string;
+  /** SNAPSHOT: the locked closing balance of a closed period ending on asOf; COMPUTED otherwise */
+  source: 'SNAPSHOT' | 'COMPUTED';
+  /** Closed period whose closing balance was served (source SNAPSHOT) */
+  snapshotPeriodId?: string | null;
   asOfInstant: string;
   method: CostingMethod;
   currency: string;
@@ -53,7 +57,13 @@ const TRANSFER_TYPES = ['TRANSFER_OUT', 'TRANSFER_IN', 'QUARANTINE_IN', 'QUARANT
  * (landed costs, opening revaluations) made after it. Periodic weighted-average companies get the
  * period's average ((opening value + receipts) / (opening qty + receipts qty)).
  *
- * Warehouse / lot rows use the product's unit cost, except SPECIFIC_LOT (each lot's own layers).
+ * Warehouse / lot rows use the product's unit cost, except SPECIFIC_LOT (each lot's own layers);
+ * their quantities are reconciled to the product level (reconcileParts) so every breakdown gives
+ * the same total.
+ *
+ * A date on which a CLOSED fiscal period ends is answered from that period's locked closing
+ * snapshot (inventory_period_balances, latest closing): the signed year-end / quarter-end list is
+ * always the closing balance, whatever happens to the books later.
  */
 @Injectable()
 export class ValuationService {
@@ -79,11 +89,15 @@ export class ValuationService {
     return (company.costingMethod || 'WAVG_MOVING') as CostingMethod;
   }
 
-  async valuate(asOfDay: string, breakdown: Breakdown = 'product', opts: { manager?: EntityManager; includeZero?: boolean; productIds?: string[] } = {}): Promise<ValuationResult> {
+  async valuate(asOfDay: string, breakdown: Breakdown = 'product', opts: { manager?: EntityManager; includeZero?: boolean; productIds?: string[]; ignoreSnapshot?: boolean } = {}): Promise<ValuationResult> {
     const m = opts.manager || this.dataSource.manager;
     const company = await m.findOneByOrFail(CompanyEntity, { id: this.companyId });
     const tz = company.timezone || DEFAULT_TIMEZONE;
     const instant = this.dayEnd(asOfDay, tz);
+    if (!opts.ignoreSnapshot) {
+      const snap = await this.fromSnapshot(m, company, asOfDay, instant, breakdown, opts);
+      if (snap) return snap;
+    }
     const method = this.methodOn(company, asOfDay);
     const product = await this.productLevel(m, company, instant, opts.productIds);
 
@@ -96,7 +110,8 @@ export class ValuationService {
         const opening = await this.productLevel(m, company, start, opts.productIds);
         const receipts: { productId: string; q: string; v: string }[] = await m.query(
           'SELECT `productId`, SUM(`quantity`) AS q, SUM(`totalCost`) AS v FROM `stock_movements` WHERE `companyId` = ? AND `transactionDate` >= ? AND `transactionDate` < ? AND `quantity` > 0 AND `type` NOT IN (?) ' +
-            "AND `reasonCode` NOT IN ('RETURN', 'CORRECTION') GROUP BY `productId`",
+            // NULL reason codes (legacy rows) are receipts too: NOT IN alone would drop them.
+            "AND (`reasonCode` IS NULL OR `reasonCode` NOT IN ('RETURN', 'CORRECTION')) GROUP BY `productId`",
           [this.companyId, start, instant, TRANSFER_TYPES],
         );
         for (const [id, row] of product) {
@@ -142,10 +157,19 @@ export class ValuationService {
         });
         continue;
       }
-      const parts = breakdown === 'warehouse' ? await this.warehouseQty(m, p.id, instant) : await this.lotQty(m, p, instant);
-      for (const part of parts) {
-        if (!opts.includeZero && !(part.quantity > 0)) continue;
+      const raw = breakdown === 'warehouse' ? await this.warehouseQty(m, p.id, instant) : await this.lotQty(m, p, instant);
+      // Parts add up to the product quantity (legacy movements without warehouse, ledger gaps).
+      const parts = raw.length ? reconcileParts(raw, agg.quantity) : agg.quantity > 0 ? [{ warehouseId: null, lotNumber: null, expiryDate: null, quantity: agg.quantity }] : [];
+      // The product's value is split over its parts; the last part takes the rounding rest so the
+      // breakdown totals equal the product-level value to the cent (not for SPECIFIC_LOT lot costs).
+      const productValue = agg.quantity > 0 ? roundMoney(Math.max(0, agg.value)) : 0;
+      let valueLeft = productValue;
+      const shown = parts.filter((x) => opts.includeZero || x.quantity > 0);
+      const lotCosted = shown.some((x) => x.lotNumber && lotUnits.has(`${p.id}|${x.lotNumber}`));
+      for (const [idx, part] of shown.entries()) {
         const u = part.lotNumber && lotUnits.has(`${p.id}|${part.lotNumber}`) ? lotUnits.get(`${p.id}|${part.lotNumber}`)! : unit;
+        const value = !lotCosted && idx === shown.length - 1 ? roundMoney(Math.max(0, valueLeft)) : roundMoney(part.quantity * u);
+        valueLeft = roundMoney(valueLeft - value);
         rows.push({
           ...baseRow(p),
           warehouseId: part.warehouseId,
@@ -154,7 +178,7 @@ export class ValuationService {
           expiryDate: part.expiryDate,
           quantity: part.quantity,
           unitCost: u,
-          costValue: roundMoney(part.quantity * u),
+          costValue: value,
           salesValue: sales === null ? null : roundMoney(part.quantity * sales),
           costMissing: agg.missing,
         });
@@ -163,6 +187,8 @@ export class ValuationService {
     rows.sort((a, b) => a.inventoryClass.localeCompare(b.inventoryClass) || a.productName.localeCompare(b.productName, 'tr') || String(a.warehouseName).localeCompare(String(b.warehouseName), 'tr') || String(a.lotNumber).localeCompare(String(b.lotNumber)));
     return {
       asOf: asOfDay,
+      source: 'COMPUTED',
+      snapshotPeriodId: null,
       asOfInstant: instant.toISOString(),
       method,
       currency: company.baseCurrency,
@@ -175,6 +201,101 @@ export class ValuationService {
       },
     };
   }
+
+  /** Latest closing snapshot of a CLOSED period ending on `day` (null when there is none). */
+  async closedSnapshotOn(m: EntityManager, day: string): Promise<{ period: FiscalPeriodEntity; rows: InventoryPeriodBalanceEntity[] } | null> {
+    const periods = await m.find(FiscalPeriodEntity, { where: { companyId: this.companyId, status: 'CLOSED', endDate: day }, order: { closedAt: 'DESC' } });
+    const p = periods[0];
+    if (!p) return null;
+    const rows = await m.find(InventoryPeriodBalanceEntity, { where: { companyId: this.companyId, periodId: p.id, closingSeq: (p.reopenCount || 0) + 1 } });
+    return { period: p, rows };
+  }
+
+  /** Valuation served from a closing snapshot, aggregated to the requested breakdown. */
+  private async fromSnapshot(
+    m: EntityManager,
+    company: CompanyEntity,
+    asOfDay: string,
+    instant: Date,
+    breakdown: Breakdown,
+    opts: { includeZero?: boolean; productIds?: string[] },
+  ): Promise<ValuationResult | null> {
+    const snap = await this.closedSnapshotOn(m, asOfDay);
+    if (!snap) return null;
+    const products = await m.find(ProductEntity, { where: { companyId: this.companyId } });
+    const whs = await m.find(WarehouseEntity, { where: { companyId: this.companyId } });
+    const cats: { id: string; name: string }[] = await m.query('SELECT `id`, `name` FROM `categories` WHERE `companyId` = ?', [this.companyId]);
+    const lots: { productId: string; warehouseId: string; lotNumber: string; expiryDate: string | null }[] = await m.query(
+      "SELECT `productId`, `warehouseId`, `lotNumber`, DATE_FORMAT(`expiryDate`, '%Y-%m-%d') AS expiryDate FROM `stock_lots` WHERE `companyId` = ?",
+      [this.companyId],
+    );
+    const rates = await this.finance.getRates(m);
+    const groups = new Map<string, { r: InventoryPeriodBalanceEntity; quantity: number; value: number; warehouseId: string | null; lotNumber: string | null }>();
+    for (const r of snap.rows) {
+      if (opts.productIds && !opts.productIds.includes(r.productId)) continue;
+      const warehouseId = breakdown === 'product' ? null : r.warehouseId ?? null;
+      const lotNumber = breakdown === 'lot' ? r.lotNumber ?? null : null;
+      const k = `${r.productId}|${warehouseId}|${lotNumber}`;
+      const g = groups.get(k) || { r, quantity: 0, value: 0, warehouseId, lotNumber };
+      g.quantity = roundQty(g.quantity + Number(r.quantity));
+      g.value = roundMoney(g.value + Number(r.totalCost));
+      groups.set(k, g);
+    }
+    const rows: ValuationRow[] = [];
+    for (const g of groups.values()) {
+      if (!opts.includeZero && !(g.quantity > 0)) continue;
+      const p = products.find((x) => x.id === g.r.productId);
+      const sales = p ? convertAmount(Number(p.price) || 0, p.currency || company.baseCurrency, company.baseCurrency, rates, null, company.baseCurrency) : null;
+      rows.push({
+        productId: g.r.productId,
+        productName: g.r.productName,
+        sku: g.r.productSku ?? null,
+        inventoryClass: g.r.inventoryClass || p?.inventoryClass || 'TICARI_MAL_153',
+        categoryId: p?.categoryId ?? null,
+        category: cats.find((c) => c.id === p?.categoryId)?.name ?? p?.category ?? null,
+        unitCode: g.r.unitCode ?? p?.unit ?? null,
+        warehouseId: g.warehouseId,
+        warehouseName: whs.find((w) => w.id === g.warehouseId)?.name ?? null,
+        lotNumber: g.lotNumber,
+        expiryDate: g.lotNumber ? lots.find((l) => l.productId === g.r.productId && l.lotNumber === g.lotNumber && (!g.warehouseId || l.warehouseId === g.warehouseId))?.expiryDate ?? null : null,
+        quantity: g.quantity,
+        unitCost: g.quantity > 0 ? roundCost(g.value / g.quantity) : 0,
+        costValue: g.value,
+        salesValue: sales === null ? null : roundMoney(g.quantity * sales),
+        costMissing: g.quantity > 0 && !(g.value > 0),
+      });
+    }
+    // Products asked for explicitly with zero rows (stock card opening) that the snapshot does not hold.
+    if (opts.includeZero && opts.productIds) {
+      for (const id of opts.productIds) {
+        if (rows.some((r) => r.productId === id)) continue;
+        const p = products.find((x) => x.id === id);
+        if (!p) continue;
+        rows.push({
+          productId: p.id, productName: p.name, sku: p.sku ?? null, inventoryClass: p.inventoryClass || 'TICARI_MAL_153', categoryId: p.categoryId ?? null,
+          category: cats.find((c) => c.id === p.categoryId)?.name ?? p.category ?? null, unitCode: p.unit || null, warehouseId: null, warehouseName: null, lotNumber: null, expiryDate: null,
+          quantity: 0, unitCost: 0, costValue: 0, salesValue: 0, costMissing: false,
+        });
+      }
+    }
+    rows.sort((a, b) => a.inventoryClass.localeCompare(b.inventoryClass) || a.productName.localeCompare(b.productName, 'tr') || String(a.warehouseName).localeCompare(String(b.warehouseName), 'tr') || String(a.lotNumber).localeCompare(String(b.lotNumber)));
+    return {
+      asOf: asOfDay,
+      source: 'SNAPSHOT',
+      snapshotPeriodId: snap.period.id,
+      asOfInstant: instant.toISOString(),
+      method: (snap.rows[0]?.costingMethod as CostingMethod) || this.methodOn(company, asOfDay),
+      currency: company.baseCurrency,
+      breakdown,
+      rows,
+      totals: {
+        quantity: roundQty(rows.reduce((s, r) => s + r.quantity, 0)),
+        costValue: roundMoney(rows.reduce((s, r) => s + r.costValue, 0)),
+        salesValue: roundMoney(rows.reduce((s, r) => s + (r.salesValue || 0), 0)),
+      },
+    };
+  }
+
 
   /** Product quantity and value at `instant` (rolled back from the present). */
   async productLevel(m: EntityManager, company: CompanyEntity, instant: Date, productIds?: string[]): Promise<Map<string, { quantity: number; value: number; missing: boolean; unitCost?: number }>> {

@@ -22,16 +22,18 @@ import {
   AccountMappingEntity,
   DocumentLineTrackingEntity,
   FiscalPeriodEntity,
+  InventoryPeriodBalanceEntity,
   LandedCostAllocationEntity,
   LotRecallEntity,
   ProductPriceHistoryEntity,
 } from '../../entities/inventory-accounting.entity';
-import { LEGAL_PARAMETER_SEEDS, WP6_PARAMETER_KEYS } from '../../shared/legal/legal-parameter-seeds';
+import { LEGAL_PARAMETER_SEEDS, WP6_PARAMETER_KEYS, WP6R1_PARAMETER_KEYS } from '../../shared/legal/legal-parameter-seeds';
 import { ensurePeriodTriggers } from '../../shared/inventory/period-triggers';
-import { ensureFiscalPeriods } from '../../shared/inventory/period-ops';
+import { applyPeriodReopen, ensureFiscalPeriods } from '../../shared/inventory/period-ops';
 import { WarehouseStockService } from '../../shared/services/warehouse-stock.service';
 import { addDays, dateKeyInZone, generateGtin13, parseZonedDateTime, tcknCheckDigits, timeKeyInZone, todayKey, vknCheckDigit } from '../../shared/tr';
 import { FiscalPeriodService } from './fiscal-period.service';
+import { ValuationService } from './valuation.service';
 import { CostingService } from './costing.service';
 import { TraceabilityService } from './traceability.service';
 import { DisposalService } from './disposal.service';
@@ -71,6 +73,7 @@ export class InventoryAccountingDemoSeeder implements OnApplicationBootstrap {
     private readonly costing: CostingService,
     private readonly trace: TraceabilityService,
     private readonly disposals: DisposalService,
+    private readonly valuation: ValuationService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -78,7 +81,7 @@ export class InventoryAccountingDemoSeeder implements OnApplicationBootstrap {
     try {
       const created = await ensurePeriodTriggers((sql, params) => this.dataSource.query(sql, params));
       if (created.length) this.logger.log(`Created period triggers: ${created.join(', ')}`);
-      for (const p of LEGAL_PARAMETER_SEEDS.filter((x) => WP6_PARAMETER_KEYS.includes(x.key))) {
+      for (const p of LEGAL_PARAMETER_SEEDS.filter((x) => WP6_PARAMETER_KEYS.includes(x.key) || WP6R1_PARAMETER_KEYS.includes(x.key))) {
         await this.dataSource.query(
           'INSERT IGNORE INTO `legal_parameters` (`id`, `country`, `key`, `validFrom`, `validTo`, `value`, `sourceRef`, `confidence`, `note`, `createdBy`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [randomUUID(), p.country, p.key, p.validFrom, p.validTo, JSON.stringify(p.value), p.sourceRef, p.confidence, p.note || null, 'seed'],
@@ -90,9 +93,51 @@ export class InventoryAccountingDemoSeeder implements OnApplicationBootstrap {
         await ensureFiscalPeriods(this.dataSource.manager, c, [y - 1, y]);
       }
       await this.tenant.run(DEFAULT_COMPANY.id, () => this.seedDemo());
+      await this.tenant.run(DEFAULT_COMPANY.id, () => this.repairDemoClosings());
     } catch (e) {
       this.logger.warn(`WP6 demo seed skipped: ${(e as Error).message}`);
     }
+  }
+
+  /**
+   * WP6 review fix (one-off, idempotent): the demo periods were first closed while the warehouse /
+   * lot breakdown was not yet reconciled to the product level, so their snapshots held more stock
+   * than the product-level inventory list. Periods closed by the seed and never reopened whose
+   * snapshot differs from a fresh valuation are reopened (reason recorded on the period, reopen
+   * counter +1) and closed again in order, which writes a new closing sequence; the old snapshot
+   * rows stay (append-only). Skipped when any closing check would fail.
+   */
+  private async repairDemoClosings() {
+    const m = this.dataSource.manager;
+    const companyId = DEFAULT_COMPANY.id;
+    const closed = await m.find(FiscalPeriodEntity, { where: { companyId, status: 'CLOSED', closedBy: SEED_USER, reopenCount: 0 } });
+    if (!closed.length) return;
+    let stale = false;
+    for (const p of closed) {
+      const end = String(p.endDate).slice(0, 10);
+      const rows = await m.find(InventoryPeriodBalanceEntity, { where: { companyId, periodId: p.id, closingSeq: 1 } });
+      const snapQty = rows.reduce((s, r) => s + Number(r.quantity), 0);
+      const snapCost = rows.reduce((s, r) => s + Number(r.totalCost), 0);
+      const fresh = await this.valuation.valuate(end, 'lot', { ignoreSnapshot: true });
+      if (Math.abs(fresh.totals.quantity - snapQty) > 0.0001 || Math.abs(fresh.totals.costValue - snapCost) > 0.01) {
+        stale = true;
+        break;
+      }
+    }
+    if (!stale) return;
+    for (const p of closed) {
+      if ((await this.periods.checks(p.id)).length) {
+        this.logger.warn('Demo closing snapshots are stale but a closing check fails; not re-closing.');
+        return;
+      }
+    }
+    const order = [...closed].sort((a, b) => String(a.endDate).localeCompare(String(b.endDate)) || (a.periodType === 'QUARTER' ? -1 : 1));
+    const reason = 'WP6 gözden geçirme düzeltmesi: kapanış bakiyesi depo / parti kırılımı ürün toplamına uzlaştırılarak yeniden hesaplandı.';
+    await this.dataSource.transaction(async (tx) => {
+      for (const p of [...order].reverse()) await applyPeriodReopen(tx, companyId, p.id, reason);
+    });
+    for (const p of order) await this.periods.close(p.id, SEED_USER);
+    this.logger.log(`Re-closed ${order.length} demo periods with reconciled closing snapshots.`);
   }
 
   private async addr(line1: string, provinceCode: string, districtId: number, postalCode: string): Promise<AddressColumns> {

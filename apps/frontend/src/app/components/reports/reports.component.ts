@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, effect } from '@angular/core';
+import { Component, computed, inject, signal, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
@@ -31,9 +31,11 @@ import { LegalReportsComponent } from './legal-reports.component';
 
     <nav class="tabs" role="tablist" style="margin-bottom: var(--space-4);">
       <button type="button" class="tab" role="tab" [class.active]="view() === 'analytics'" [attr.aria-selected]="view() === 'analytics'" (click)="view.set('analytics')">{{ 'reports.tab.analytics' | t }}</button>
-      <button type="button" class="tab" role="tab" [class.active]="view() === 'legal'" [attr.aria-selected]="view() === 'legal'" (click)="view.set('legal')">{{ 'reports.tab.legal' | t }}</button>
+      @if (canSeeLegal()) {
+        <button type="button" class="tab" role="tab" [class.active]="view() === 'legal'" [attr.aria-selected]="view() === 'legal'" (click)="view.set('legal')">{{ 'reports.tab.legal' | t }}</button>
+      }
     </nav>
-    @if (view() === 'legal') { <app-legal-reports></app-legal-reports> }
+    @if (view() === 'legal' && canSeeLegal()) { <app-legal-reports></app-legal-reports> }
     <div class="rep" [hidden]="view() === 'legal'">
       <!-- Filters -->
       <div class="filter-bar">
@@ -317,6 +319,16 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
   route = inject(ActivatedRoute);
   /** analytics (charts) | legal (WP6 inventory / tax pre-reports) */
   view = signal<'analytics' | 'legal'>(this.route.snapshot.queryParamMap.get('tab') === 'legal' ? 'legal' : 'analytics');
+  /** Legal reports carry cost values, tax pre-reports and customer trace data: admin / manager only (backend enforced). */
+  canSeeLegal = computed(() => ['admin', 'manager'].includes(String(this.ui.userProfile()?.role || this.tokenRole())));
+  private tokenRole(): string {
+    try {
+      const t = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
+      return t ? String(JSON.parse(atob(t.split('.')[1])).role || '') : '';
+    } catch {
+      return '';
+    }
+  }
   expiringDays = 30;
   expiringLots = signal<ExpiringLot[]>([]);
   expiringLoading = signal(false);

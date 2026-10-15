@@ -144,6 +144,7 @@
   "stockMovements.reason.PURCHASE": "Purchase",
   "stockMovements.reason.OPENING": "Opening balance",
   "stockMovements.reason.INTERNAL_USE": "Internal use",
+  "stockMovements.reason.WITHDRAWAL": "Withdrawal from the business (personal use / exempt activity)",
   "stockMovements.reason.GIFT_SAMPLE": "Gift / sample",
   "stockMovements.reason.PERSONNEL": "Given to personnel",
   "stockMovements.reason.WASTAGE_NORMAL": "Normal wastage",

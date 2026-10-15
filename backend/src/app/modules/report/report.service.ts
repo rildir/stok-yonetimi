@@ -109,7 +109,8 @@ export class ReportService {
       .getRawMany();
     const costRows: { category: string; v: string }[] = await this.dataSource.query(
       "SELECT COALESCE(p.`category`, 'Diğer') AS category, SUM(l.`qtyRemaining` * l.`unitCost`) AS v FROM `stock_cost_layers` l JOIN `products` p ON p.`id` = l.`productId` " +
-        "WHERE l.`companyId` = ? AND l.`qtyRemaining` > 0 AND p.`isDeleted` = 0 GROUP BY COALESCE(p.`category`, 'Diğer')",
+        // Soft-deleted products that still hold stock are part of the inventory at cost (legal list).
+        "WHERE l.`companyId` = ? AND l.`qtyRemaining` > 0 GROUP BY COALESCE(p.`category`, 'Diğer')",
       [this.companyId],
     );
 
@@ -124,6 +125,10 @@ export class ReportService {
       if (converted === null) row.unconverted.push(r.currency);
       else row.salesValue = Math.round((row.salesValue + converted) * 100) / 100;
       byCategory.set(r.category, row);
+    }
+    // Categories holding only soft-deleted products still carry stock value at cost.
+    for (const c of costRows) {
+      if (!byCategory.has(c.category)) byCategory.set(c.category, { category: c.category, productCount: 0, totalStock: 0, costValue: 0, salesValue: 0, totalValue: 0, currency: company.baseCurrency, unconverted: [] });
     }
     for (const row of byCategory.values()) {
       row.costValue = Math.round(Number(costRows.find((c) => c.category === row.category)?.v || 0) * 100) / 100;

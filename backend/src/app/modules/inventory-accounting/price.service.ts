@@ -37,6 +37,20 @@ export function ean13Svg(code: string, height = 40): string | null {
 
 const UNIT_LABEL: Record<string, string> = { kg: 'kg', l: 'L', m: 'm', m2: 'm²', adet: 'adet' };
 
+const PRICE_CSV_HEADERS_TR: Record<string, string> = {
+  sku: 'Stok kodu',
+  name: 'Ürün adı',
+  currency: 'Para birimi',
+  netPrice: 'Net fiyat',
+  vatRate: 'KDV oranı (%)',
+  grossPrice: 'KDV dahil fiyat',
+  unitPrice: 'Birim fiyat',
+  unit: 'Birim',
+  lastChange: 'Son fiyat değişikliği',
+  originCountry: 'Menşe ülke',
+  barcode: 'Barkod',
+};
+
 /**
  * Prices (Fiyat Etiketi Yönetmeliği; R70): price history, the reference ("indirimden önceki")
  * price of a discount (lowest price of the last DISCOUNT_REFERENCE_DAYS days; previous price for
@@ -152,20 +166,24 @@ export class PriceService {
       const { net, gross, rate } = await this.grossPrice(p, company);
       const last = await m.findOne(ProductPriceHistoryEntity, { where: { companyId: this.companyId, productId: p.id }, order: { validFrom: 'DESC' } });
       const qty = Number(p.labelNetQuantity) || 0;
+      const amount = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? '' : Number(v).toFixed(2));
       rows.push({
         sku: p.sku,
         name: p.name,
         currency: p.currency,
-        netPrice: net,
+        netPrice: amount(net),
         vatRate: rate,
-        grossPrice: gross,
-        unitPrice: qty > 0 ? roundMoney(gross / qty) : '',
+        grossPrice: amount(gross),
+        unitPrice: qty > 0 ? amount(roundMoney(gross / qty)) : '',
         unit: p.labelNetUnit || '',
         lastChange: last ? trDay(dateKeyInZone(new Date(last.validFrom), tz)) : '',
         originCountry: p.originCountry || '',
         barcode: p.barcode || '',
       });
     }
-    return toCsv(['sku', 'name', 'currency', 'netPrice', 'vatRate', 'grossPrice', 'unitPrice', 'unit', 'lastChange', 'originCountry', 'barcode'], rows, locale);
+    const keys = ['sku', 'name', 'currency', 'netPrice', 'vatRate', 'grossPrice', 'unitPrice', 'unit', 'lastChange', 'originCountry', 'barcode'];
+    // Turkish Excel users get Turkish column titles; the English file keeps the machine-readable keys.
+    const labels = locale === 'tr' ? PRICE_CSV_HEADERS_TR : undefined;
+    return toCsv(keys, rows, locale, labels);
   }
 }

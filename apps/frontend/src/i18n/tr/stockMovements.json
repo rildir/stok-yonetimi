@@ -144,6 +144,7 @@
   "stockMovements.reason.PURCHASE": "Alış",
   "stockMovements.reason.OPENING": "Açılış / devir",
   "stockMovements.reason.INTERNAL_USE": "İşletmede kullanım",
+  "stockMovements.reason.WITHDRAWAL": "İşletmeden çekme (kişisel kullanım / istisna faaliyet)",
   "stockMovements.reason.GIFT_SAMPLE": "Promosyon / numune",
   "stockMovements.reason.PERSONNEL": "Personele verilen",
   "stockMovements.reason.WASTAGE_NORMAL": "Normal fire",

@@ -167,7 +167,7 @@ export class InboxService {
         payableAmount: p.legalMonetaryTotal?.payable ?? null,
         taxTotal: p.legalMonetaryTotal ? p.taxTotal : null,
         lines: p.lines.map((l) => ({ ...l })) as any,
-        refs: { orderRef: p.orderRef, despatchRefs: p.despatchRefs, billingRefs: p.billingRefs, notes: p.notes },
+        refs: { orderRef: p.orderRef, despatchRefs: p.despatchRefs, billingRefs: p.billingRefs, notes: p.notes, withholding: { total: p.withholdingTotal, subtotals: p.withholdingSubtotals } },
         status: responseDueAt ? 'RECEIVED' : documentType === 'INVOICE' || documentType === 'DESPATCH' ? 'RECEIVED' : 'INFO',
         matchStatus: 'UNMATCHED',
         relatedEttn: related ? String(related).toLowerCase() : null,

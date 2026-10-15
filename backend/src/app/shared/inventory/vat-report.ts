@@ -24,6 +24,38 @@ export interface VatLine {
   tax: number;
   /** KDV withheld by the buyer (TRY) */
   withheld: number;
+  /** Where the line comes from (KDV-2 lists purchase invoices by source) */
+  source?: 'SALES_INVOICE' | 'INCOMING_EINVOICE' | 'SUPPLIER_INVOICE' | 'CUSTOMS' | 'RETURN';
+}
+
+export interface WithholdingInfo {
+  total: number;
+  subtotals: { code: string; percent: number; taxable: number; amount: number }[];
+}
+
+/**
+ * Spreads an incoming invoice's withholding (UBL WithholdingTaxTotal) over its VAT lines in
+ * proportion to their VAT (the last line takes the rounding rest) and names the code / rate when
+ * the invoice has a single withholding subtotal.
+ */
+export function distributeWithholding(taxes: number[], info: WithholdingInfo | null | undefined): { withheld: number[]; code: string | null; rate: number | null } {
+  const total = roundMoney(Number(info?.total) || 0);
+  if (!(total > 0) || !taxes.length) return { withheld: taxes.map(() => 0), code: null, rate: null };
+  const subs = info?.subtotals || [];
+  const code = subs.length === 1 ? subs[0].code || 'TEVKIFAT' : 'TEVKIFAT';
+  const rate = subs.length === 1 && Number(subs[0].percent) > 0 ? Number(subs[0].percent) : null;
+  const taxSum = taxes.reduce((s, t) => s + (Number(t) || 0), 0);
+  const out: number[] = [];
+  let rest = total;
+  taxes.forEach((t, i) => {
+    if (i === taxes.length - 1) out.push(roundMoney(rest));
+    else {
+      const share = taxSum > 0 ? roundMoney((total * (Number(t) || 0)) / taxSum) : roundMoney(total / taxes.length);
+      out.push(share);
+      rest = roundMoney(rest - share);
+    }
+  });
+  return { withheld: out, code, rate };
 }
 
 export interface VatGroup {

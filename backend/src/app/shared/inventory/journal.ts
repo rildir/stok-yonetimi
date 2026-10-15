@@ -76,6 +76,7 @@ export function accountingEvent(m: { type: string; reasonCode: string; quantity:
     case 'DISASTER_LOSS': return 'DISASTER_LOSS';
     case 'SCRAP': return 'SCRAP';
     case 'INTERNAL_USE':
+    case 'WITHDRAWAL':
     case 'PERSONNEL': return 'INTERNAL_USE';
     case 'GIFT_SAMPLE': return 'GIFT_SAMPLE';
     default: return q > 0 ? 'CORRECTION_IN' : 'CORRECTION_OUT';

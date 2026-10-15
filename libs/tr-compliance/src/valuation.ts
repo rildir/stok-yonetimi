@@ -112,8 +112,13 @@ export const DISPOSAL_TRANSITIONS: Record<string, string[]> = {
 
 /** Exit reasons whose deducted input VAT must be corrected (KDVK 30/c) unless caused by a disaster. */
 export const VAT_CORRECTION_REASONS = ['LOSS_ZAYI', 'THEFT_LOSS', 'EXPIRED_DESTROYED', 'DESTRUCTION_IMHA'] as const;
-/** Withdrawals / gifts taxable at the emsal value (KDVK 3/a, 27). */
-export const VAT_DEEMED_SUPPLY_REASONS = ['INTERNAL_USE', 'GIFT_SAMPLE', 'PERSONNEL'] as const;
+/**
+ * Code default of the exits taxed as a deemed supply at the emsal value (KDVK 3/a, 27): withdrawal
+ * from the business (owner's personal use, use in exempt / non-taxable activities), gifts / samples
+ * and goods given to personnel free of charge. Use inside the taxable business (INTERNAL_USE) is not
+ * a supply. The effective list is the legal parameter VAT_DEEMED_SUPPLY_REASONS.
+ */
+export const VAT_DEEMED_SUPPLY_REASONS = ['WITHDRAWAL', 'GIFT_SAMPLE', 'PERSONNEL'] as const;
 
 // ─── Food (Tebliğ 2026/11; Gıda Etiketleme Yön.) ───
 

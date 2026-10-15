@@ -1,8 +1,8 @@
-import { allocateLandedCost, averageCost, consumeLayers, CostLayer, layerTotals, periodicAverage, replay, splitLandedShare } from './costing';
+import { allocateLandedCost, averageCost, consumeLayers, CostLayer, layerTotals, periodicAverage, reconcileParts, replay, splitLandedShare } from './costing';
 import { evaluateImpairment, shiftMonth } from './impairment';
 import { accountingEvent, buildJournal, DEFAULT_ACCOUNT_RULES, pickRule } from './journal';
 import { discountReferencePrice } from './price-reference';
-import { groupVatLines, totalsOf, VatLine, vatSummary } from './vat-report';
+import { distributeWithholding, groupVatLines, totalsOf, VatLine, vatSummary } from './vat-report';
 import { buildCsv } from './xlsx';
 
 const layer = (qty: number, unitCost: number, at: string, extra: Partial<CostLayer> = {}): CostLayer => ({ qtyIn: qty, qtyRemaining: qty, unitCost, receivedAt: at, ...extra });
@@ -100,9 +100,43 @@ describe('WP6 impairment (VUK 274/2, 267/1)', () => {
     ];
     const r = evaluateImpairment({ ...base, sales });
     expect(r).toMatchObject({ emsalBasis: 'M-1', emsalMonth: '2026-11', emsalUnitPrice: 7, declinePct: 30, qualifies: true });
+    // No sales in M..M-2 and no sign of decline: not a commission case (not every unsold item).
     const none = evaluateImpairment({ ...base, sales: [{ month: '2026-09', quantity: 100, amount: 100 }] });
-    expect(none).toMatchObject({ emsalBasis: 'TAKDIR', requiresCommission: true, qualifies: false, provision: 0 });
+    expect(none).toMatchObject({ emsalBasis: 'TAKDIR', requiresCommission: false, indication: null, qualifies: false, provision: 0 });
+    // A caller's indication (expired / blocked lots) makes it one.
+    expect(evaluateImpairment({ ...base, sales: [], indication: 'EXPIRED_LOTS' })).toMatchObject({ requiresCommission: true, indication: 'EXPIRED_LOTS' });
+    // Sales far below cost that fail the 25 % quantity condition are a sign of decline too.
+    const low = evaluateImpairment({ ...base, sales: [{ month: '2026-12', quantity: 5, amount: 25 }] });
+    expect(low).toMatchObject({ emsalBasis: 'TAKDIR', requiresCommission: true, indication: 'PRICE_DECLINE_LOW_VOLUME' });
     expect(shiftMonth('2026-01', -2)).toBe('2025-11');
+  });
+});
+
+describe('WP6 valuation breakdown reconciliation', () => {
+  it('warehouse / lot parts add up to the product quantity', () => {
+    // Legacy movements without a warehouse and a ledger gap: Merkez 47, Şube 30, unknown -25.
+    const parts = [
+      { warehouseId: 'm', quantity: 47 },
+      { warehouseId: 's', quantity: 30 },
+      { warehouseId: null, quantity: -25 },
+    ];
+    const r = reconcileParts(parts, 52);
+    expect(r.reduce((s, p) => s + p.quantity, 0)).toBe(52);
+    expect(r).toEqual([{ warehouseId: 'm', quantity: 22 }, { warehouseId: 's', quantity: 30 }]);
+    // Unknown-location stock goes to the largest known part; none known -> one row without warehouse.
+    expect(reconcileParts([{ warehouseId: 'm', quantity: 1 }, { warehouseId: null, quantity: 19 }], 20)).toEqual([{ warehouseId: 'm', quantity: 20 }]);
+    expect(reconcileParts([{ warehouseId: null, quantity: 7 }], 7)).toEqual([{ warehouseId: null, quantity: 7 }]);
+    expect(reconcileParts([{ warehouseId: 'm', quantity: 3 }, { warehouseId: 's', quantity: -1 }], 2)).toEqual([{ warehouseId: 'm', quantity: 2 }]);
+    expect(reconcileParts([{ warehouseId: 'm', quantity: 3 }], 0)).toEqual([]);
+  });
+});
+
+describe('WP6 KDV-2 withholding from the invoice', () => {
+  it('spreads the invoice withholding over its VAT lines', () => {
+    const r = distributeWithholding([62000, 0, 18000], { total: 40000, subtotals: [{ code: '627', percent: 50, taxable: 80000, amount: 40000 }] });
+    expect(r).toEqual({ withheld: [31000, 0, 9000], code: '627', rate: 50 });
+    expect(distributeWithholding([20000], { total: 0, subtotals: [] })).toEqual({ withheld: [0], code: null, rate: null });
+    expect(distributeWithholding([1, 1, 1], { total: 1, subtotals: [{ code: '601', percent: 40, taxable: 0, amount: 0.5 }, { code: '627', percent: 50, taxable: 0, amount: 0.5 }] })).toEqual({ withheld: [0.33, 0.33, 0.34], code: 'TEVKIFAT', rate: null });
   });
 });
 

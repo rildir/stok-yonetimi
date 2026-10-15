@@ -13,10 +13,16 @@ import { JournalService } from './journal.service';
 import { TraceabilityService } from './traceability.service';
 import { PriceService } from './price.service';
 import { Breakdown } from './valuation.service';
+import { AccountMappingDto, DisposalCreateDto, DisposalTransitionDto, LotGenealogyDto, LotStatusDto, RecallDto, RecallUpdateDto } from '../../dto/inventory-accounting.dto';
 
 const HTML = 'text/html; charset=utf-8';
 const breakdownOf = (v?: string): Breakdown => (v === 'warehouse' || v === 'lot' ? v : 'product');
 const userOf = (req: any) => req?.user?.username || 'System';
+/**
+ * Cost values, tax pre-reports, journal data and customer trace data (names / VKN / TCKN) are
+ * restricted to administrators and managers; the read-only viewer role does not see them.
+ */
+const STAFF = ['admin', 'manager'];
 
 @ApiTags('fiscal-periods')
 @ApiSecurity('api-key')
@@ -34,6 +40,7 @@ export class FiscalPeriodController {
     return this.svc.checks(id);
   }
 
+  @Roles(...STAFF)
   @Get(':id/snapshot')
   snapshot(@Param('id') id: string) {
     return this.svc.snapshot(id);
@@ -86,11 +93,13 @@ export class CostingController {
     return this.svc.setFxPolicy(policy);
   }
 
+  @Roles(...STAFF)
   @Get('products/:id')
   productCost(@Param('id') id: string) {
     return this.svc.productCost(id);
   }
 
+  @Roles(...STAFF)
   @Get('landed-costs')
   landed(@Query('goodsReceiptId') goodsReceiptId?: string) {
     return this.svc.listLandedCosts(goodsReceiptId);
@@ -113,6 +122,7 @@ export class CostingController {
 
 @ApiTags('reports')
 @ApiSecurity('api-key')
+@Roles(...STAFF)
 @Controller('reports')
 export class AccountingReportController {
   constructor(
@@ -227,6 +237,7 @@ export class StockCountReportController {
 
 @ApiTags('disposals')
 @ApiSecurity('api-key')
+@Roles(...STAFF)
 @Controller('disposals')
 export class DisposalController {
   constructor(private readonly svc: DisposalService) {}
@@ -249,19 +260,20 @@ export class DisposalController {
 
   @Roles('admin', 'manager')
   @Post()
-  create(@Body() body: any, @Req() req: any) {
+  create(@Body() body: DisposalCreateDto, @Req() req: any) {
     return this.svc.create(body, userOf(req));
   }
 
   @Roles('admin')
   @Post(':id/transition')
-  transition(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  transition(@Param('id') id: string, @Body() body: DisposalTransitionDto, @Req() req: any) {
     return this.svc.transition(id, body, userOf(req));
   }
 }
 
 @ApiTags('impairment')
 @ApiSecurity('api-key')
+@Roles(...STAFF)
 @Controller('impairment')
 export class ImpairmentController {
   constructor(private readonly svc: ImpairmentService) {}
@@ -286,6 +298,7 @@ export class ImpairmentController {
 
 @ApiTags('accounting')
 @ApiSecurity('api-key')
+@Roles(...STAFF)
 @Controller('accounting')
 export class AccountingController {
   constructor(private readonly svc: JournalService) {}
@@ -297,13 +310,13 @@ export class AccountingController {
 
   @Roles('admin')
   @Post('mappings')
-  addMapping(@Body() body: any) {
+  addMapping(@Body() body: AccountMappingDto) {
     return this.svc.saveMapping({ ...body, id: undefined });
   }
 
   @Roles('admin')
   @Put('mappings/:id')
-  updateMapping(@Param('id') id: string, @Body() body: any) {
+  updateMapping(@Param('id') id: string, @Body() body: AccountMappingDto) {
     return this.svc.saveMapping({ ...body, id });
   }
 
@@ -345,6 +358,7 @@ export class LotController {
     return this.svc.quarantineSuggestions();
   }
 
+  @Roles(...STAFF)
   @Get('recalls')
   recalls() {
     return this.svc.listRecalls();
@@ -358,25 +372,25 @@ export class LotController {
   @Roles('admin', 'manager')
   @Post('recall')
   @ApiOperation({ summary: 'Geri çağırma: lotlar bloke edilir, müşteri listesi çıkarılır, lot.recalled webhook (isMock: tatbikat)' })
-  recall(@Body() body: { productId: string; lotNumbers: string[]; reason: string; isMock?: boolean }, @Req() req: any) {
+  recall(@Body() body: RecallDto, @Req() req: any) {
     return this.svc.recall(body, userOf(req));
   }
 
   @Roles('admin', 'manager')
   @Patch('recalls/:id')
-  updateRecall(@Param('id') id: string, @Body() body: any) {
+  updateRecall(@Param('id') id: string, @Body() body: RecallUpdateDto) {
     return this.svc.updateRecall(id, body);
   }
 
   @Roles('admin', 'manager')
   @Post('status')
-  status(@Body() body: { productId: string; lotNumber: string; status: 'active' | 'blocked'; reason?: string }) {
-    return this.svc.setLotStatus(body.productId, body.lotNumber, body.status, body.reason);
+  status(@Body() body: LotStatusDto) {
+    return this.svc.setLotStatus(body);
   }
 
   @Roles('admin', 'manager')
   @Post('genealogy')
-  genealogy(@Body() body: any, @Req() req: any) {
+  genealogy(@Body() body: LotGenealogyDto, @Req() req: any) {
     return this.svc.addGenealogy(body, userOf(req));
   }
 }
@@ -428,6 +442,7 @@ export class PriceController {
     return this.svc.reference(productId, at);
   }
 
+  @Roles(...STAFF)
   @Get('serials/:serial/trace')
   serial(@Param('serial') serial: string) {
     return this.trace.serialTrace(serial);

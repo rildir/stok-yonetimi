@@ -5,6 +5,8 @@ import { err } from '../../shared/i18n/app-error';
 import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { CompanyEntity } from '../../entities/company.entity';
 import { ProductEntity } from '../../entities/product.entity';
+import { CategoryEntity } from '../../entities/category.entity';
+import { WarehouseEntity } from '../../entities/warehouse.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import {
   AccountMappingEntity,
@@ -71,6 +73,9 @@ export class JournalService {
     if (!acc.test(String(input.debitAccount || '')) || !acc.test(String(input.creditAccount || ''))) throw new BadRequestException(err('ACCOUNT_CODE_INVALID'));
     if (input.inventoryClass && !(INVENTORY_CLASSES as readonly string[]).includes(input.inventoryClass)) throw new BadRequestException(err('INVENTORY_CLASS_INVALID'));
     const m = this.dataSource.manager;
+    // Scope keys must belong to the tenant.
+    if (input.categoryId && !(await m.exists(CategoryEntity, { where: { companyId: this.companyId, id: String(input.categoryId) } }))) throw new BadRequestException(err('PRODUCT_INVALID_CATEGORY', { category: String(input.categoryId) }));
+    if (input.warehouseId && !(await m.exists(WarehouseEntity, { where: { companyId: this.companyId, id: String(input.warehouseId) } }))) throw new BadRequestException(err('WAREHOUSE_NOT_FOUND'));
     let row = input.id ? await m.findOne(AccountMappingEntity, { where: { companyId: this.companyId, id: input.id } }) : null;
     if (input.id && !row) throw new NotFoundException(err('ACCOUNT_MAPPING_NOT_FOUND'));
     row = row || m.create(AccountMappingEntity, { companyId: this.companyId });

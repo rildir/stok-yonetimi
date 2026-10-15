@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { authGuard, guestGuard, adminGuard } from './guards/auth.guard';
+import { authGuard, guestGuard, adminGuard, staffGuard } from './guards/auth.guard';
 
 export const appRoutes: Route[] = [
   { 
@@ -41,7 +41,7 @@ export const appRoutes: Route[] = [
       { path: 'despatches', loadComponent: () => import('./components/documents/despatches.component').then(m => m.DespatchesComponent) },
       { path: 'returns', loadComponent: () => import('./components/documents/returns.component').then(m => m.ReturnsComponent) },
       { path: 'goods-receipts', loadComponent: () => import('./components/documents/goods-receipts.component').then(m => m.GoodsReceiptsComponent) },
-      { path: 'disposals', loadComponent: () => import('./components/disposals/disposals.component').then(m => m.DisposalsComponent) },
+      { path: 'disposals', canActivate: [staffGuard], loadComponent: () => import('./components/disposals/disposals.component').then(m => m.DisposalsComponent) },
       { path: 'inbox', loadComponent: () => import('./components/ebelge/inbox.component').then(m => m.EBelgeInboxComponent) },
       { path: 'expense-vouchers', loadComponent: () => import('./components/documents/expense-vouchers.component').then(m => m.ExpenseVouchersComponent) },
       { path: 'audit-log', canActivate: [adminGuard], loadComponent: () => import('./components/audit-log/audit-log.component').then(m => m.AuditLogComponent) },

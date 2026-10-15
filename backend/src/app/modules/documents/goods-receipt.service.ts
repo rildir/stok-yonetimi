@@ -216,6 +216,11 @@ export class GoodsReceiptService {
     const docNo = r.supplierDespatchNo || r.supplierInvoiceNo || r.receiptNo;
     const docType = r.supplierDespatchNo ? 'DESPATCH' : r.supplierInvoiceNo ? 'INVOICE' : 'GOODS_RECEIPT';
     const docDate = r.supplierDespatchDate || r.supplierInvoiceDate || dateKeyInZone(new Date(r.receivedAt), company.timezone);
+    // VUK 262 / 280: a foreign-currency purchase enters stock at the rate of its own acquisition
+    // date (supplier invoice, else despatch / receipt day), not at the rate of the order date.
+    const costDay = r.supplierInvoiceDate || docDate;
+    const fxRate = po.currency && po.currency !== company.baseCurrency ? await this.finance.convertToBase(1, po.currency, costDay, m) : null;
+    const costFx = fxRate && fxRate > 0 ? { rate: fxRate, date: String(costDay).slice(0, 10), source: 'DOCUMENT' } : undefined;
     for (const item of r.items) {
       if (!(item.acceptedQuantity > 0) || !item.productId) continue;
       const product = await m.findOne(ProductEntity, { where: { companyId: this.companyId, id: item.productId }, lock: { mode: 'pessimistic_write' } });
@@ -225,7 +230,7 @@ export class GoodsReceiptService {
       const split = receiptSplit(item.despatchQuantity, item.countedQuantity, item.rejectedQuantity);
       const [regular, surplus] = splitAllocations(allocations, split.againstDocument);
       const poItem0 = po.items.find((i) => i.id === item.purchaseOrderItemId);
-      const cost = purchaseUnitCost(po, poItem0, company.baseCurrency);
+      const cost = purchaseUnitCost(po, poItem0, company.baseCurrency, costFx);
       const base = {
         type: StockMovementType.IN,
         transactionDate: txDate,
@@ -349,15 +354,23 @@ export class GoodsReceiptService {
 /**
  * Unit cost (company base currency, per base unit) of goods received against a PO line (VUK 262):
  * net line amount (after discounts) + ÖTV + VAT that cannot be deducted + the line's share of the
- * order's charges (nakliye, ambalaj...), converted with the order's exchange rate.
+ * order's charges (nakliye, ambalaj...), converted at `fx` (the rate of the receipt's document date)
+ * when given, else at the order's exchange rate.
  */
 export function purchaseUnitCost(
   po: Pick<PurchaseOrderEntity, 'currency' | 'exchangeRate' | 'exchangeRateDate' | 'exchangeRateSource' | 'subtotal' | 'charges'>,
   item: Pick<PurchaseOrderItemEntity, 'netAmount' | 'otvAmount' | 'taxAmount' | 'deductibleVat' | 'quantity'> | undefined,
   baseCurrency: string,
+  override?: { rate: number; date: string; source: string },
 ): { unitCost?: number; costCurrency: string; fxRate: number | null; fxDate: string | null; fxSource: string | null } {
-  const rate = po.currency === baseCurrency ? 1 : Number(po.exchangeRate) || 1;
-  const fx = { costCurrency: po.currency || baseCurrency, fxRate: po.currency === baseCurrency ? null : rate, fxDate: po.exchangeRateDate ? String(po.exchangeRateDate).slice(0, 10) : null, fxSource: po.currency === baseCurrency ? null : po.exchangeRateSource || 'MANUAL' };
+  const foreign = po.currency !== baseCurrency;
+  const rate = !foreign ? 1 : override?.rate || Number(po.exchangeRate) || 1;
+  const fx = {
+    costCurrency: po.currency || baseCurrency,
+    fxRate: foreign ? rate : null,
+    fxDate: foreign && override ? override.date : po.exchangeRateDate ? String(po.exchangeRateDate).slice(0, 10) : null,
+    fxSource: !foreign ? null : override ? override.source : po.exchangeRateSource || 'MANUAL',
+  };
   const qty = Number(item?.quantity) || 0;
   if (!item || !(qty > 0)) return fx;
   const net = Number(item.netAmount) || 0;

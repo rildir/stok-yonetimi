@@ -22,7 +22,28 @@ import { WebhookService, PendingEvent } from './webhook.service';
  * the movement chain head (bookkeeping of the hash chain) and attachment blobs (linked to their
  * immutable movement; the content would bloat the diff).
  */
-const NOT_AUDITED = new Set(['audit_logs', 'webhook_deliveries', 'stock_movements', 'product_warehouse_stocks', 'migrations', 'stock_movement_chains', 'stock_movement_attachments', 'document_sequences']);
+const NOT_AUDITED = new Set([
+  'audit_logs', 'webhook_deliveries', 'stock_movements', 'product_warehouse_stocks', 'migrations', 'stock_movement_chains', 'stock_movement_attachments', 'document_sequences',
+  // WP6: per-row bookkeeping of immutable records that are audited as a whole (the export batch,
+  // the period close with its snapshot hash) - one audit row per item would only add volume.
+  'journal_export_items', 'inventory_period_balances',
+]);
+
+/**
+ * Large payload fields kept out of the audit diff (the record itself is immutable and hashed;
+ * the audit row keeps a marker instead of a copy of the content).
+ */
+const OMITTED_FIELDS: Record<string, string[]> = {
+  journal_export_batches: ['content'],
+};
+
+function omitLarge(table: string, row: Row | null): Row | null {
+  const fields = OMITTED_FIELDS[table];
+  if (!row || !fields) return row;
+  const out = { ...row };
+  for (const f of fields) if (f in out) out[f] = '[omitted]';
+  return out;
+}
 
 /** Changes to only these fields are noise (e.g. API key last-used bookkeeping). */
 const NOISE_ONLY = new Set(['lastUsedAt', 'updatedAt']);
@@ -100,7 +121,7 @@ export class AuditSubscriber implements EntitySubscriberInterface {
       if (NOT_AUDITED.has(table)) return;
       if (!actor.username && !actor.apiKeyId) return; // seeders / background jobs
 
-      const diff = computeDiff(action === 'create' ? null : before, action === 'delete' ? null : after);
+      const diff = computeDiff(action === 'create' ? null : omitLarge(table, before), action === 'delete' ? null : omitLarge(table, after));
       let finalAction: string = action;
       if (action === 'update') {
         if (!diff.changed.length || diff.changed.every((k) => NOISE_ONLY.has(k))) return;
@@ -132,7 +153,13 @@ export class AuditSubscriber implements EntitySubscriberInterface {
 
     // WP6: a real recall (not a mock drill) and a closed fiscal period.
     if (table === 'lot_recalls' && action === 'create' && after && !after['isMock']) {
-      ev('lot.recalled', { id: after['id'], recallNo: after['recallNo'], productId: after['productId'], productName: after['productName'], lotNumbers: after['lotNumbers'], reason: after['reason'], affectedCustomers: after['affectedCustomers'] });
+      // KVKK data minimisation: no customer names / VKN / TCKN in the webhook; subscribers read the
+      // customer list through the authenticated API (GET /lots/recalls) when they need it.
+      const customers = Array.isArray(after['affectedCustomers']) ? (after['affectedCustomers'] as Row[]) : [];
+      ev('lot.recalled', {
+        id: after['id'], recallNo: after['recallNo'], productId: after['productId'], productName: after['productName'], lotNumbers: after['lotNumbers'], reason: after['reason'],
+        affectedCustomerCount: customers.length, quantityShipped: after['quantityShipped'] ?? null, quantityInStock: after['quantityInStock'] ?? null,
+      });
       return out;
     }
     if (table === 'fiscal_periods' && action === 'update' && after && after['status'] === 'CLOSED' && before?.['status'] !== 'CLOSED') {

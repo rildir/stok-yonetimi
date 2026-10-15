@@ -62,8 +62,8 @@ function cell(v: unknown, locale: CsvLocale = 'en'): string {
  * CSV with a UTF-8 BOM. locale 'tr' (R70, Turkish Excel): ';' separator and decimal comma;
  * default: ',' and decimal point.
  */
-export function toCsv(headers: string[], rows: Record<string, unknown>[], locale: CsvLocale = 'en'): string {
+export function toCsv(headers: string[], rows: Record<string, unknown>[], locale: CsvLocale = 'en', labels?: Record<string, string>): string {
   const sep = locale === 'tr' ? ';' : ',';
-  const lines = [headers.join(sep), ...rows.map((r) => headers.map((h) => cell(r[h], locale)).join(sep))];
+  const lines = [headers.map((h) => (labels?.[h] ? cell(labels[h], locale) : h)).join(sep), ...rows.map((r) => headers.map((h) => cell(r[h], locale)).join(sep))];
   return '﻿' + lines.join('\r\n') + '\r\n';
 }

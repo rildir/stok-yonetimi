@@ -56,8 +56,18 @@ export class ImpairmentService {
     const minSales = Number(await this.finance.param<number>('EMSAL_MIN_MONTHLY_SALES_PCT', day).catch(() => 25)) || 25;
     const v = await this.valuation.valuate(day, 'product');
     const sales = await this.sales(month);
+    // Signs of a value decline known from the lots: expired on the valuation day, blocked or recalled.
+    const lotSigns: { productId: string; expired: string; blocked: string }[] = await this.dataSource.manager.query(
+      "SELECT `productId`, SUM(CASE WHEN `expiryDate` IS NOT NULL AND `expiryDate` < ? THEN 1 ELSE 0 END) AS expired, SUM(CASE WHEN `status` <> 'active' THEN 1 ELSE 0 END) AS blocked " +
+        'FROM `stock_lots` WHERE `companyId` = ? AND `quantity` > 0 GROUP BY `productId`',
+      [day, this.companyId],
+    );
+    const indicationOf = (productId: string): string | null => {
+      const l = lotSigns.find((x) => x.productId === productId);
+      return l && Number(l.expired) > 0 ? 'EXPIRED_LOTS' : l && Number(l.blocked) > 0 ? 'BLOCKED_LOTS' : null;
+    };
     const rows = v.rows.map((r) => {
-      const res = evaluateImpairment({ quantity: r.quantity, unitCost: r.unitCost, sales: sales.get(r.productId) || [], valuationMonth: month, minDeclinePct: minDecline, minMonthlySalesPct: minSales });
+      const res = evaluateImpairment({ quantity: r.quantity, unitCost: r.unitCost, sales: sales.get(r.productId) || [], valuationMonth: month, minDeclinePct: minDecline, minMonthlySalesPct: minSales, indication: indicationOf(r.productId) });
       return { productId: r.productId, productName: r.productName, sku: r.sku, inventoryClass: r.inventoryClass, quantity: r.quantity, unitCost: r.unitCost, ...res };
     });
     return {

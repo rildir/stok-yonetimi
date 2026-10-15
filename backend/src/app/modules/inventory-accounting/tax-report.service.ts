@@ -5,15 +5,17 @@ import { TenantContext } from '../../shared/tenant/tenant-context.service';
 import { CompanyEntity } from '../../entities/company.entity';
 import { InvoiceEntity } from '../../entities/invoice.entity';
 import { ReturnEntity } from '../../entities/return.entity';
-import { IncomingDocumentEntity } from '../../entities/ebelge.entity';
+import { EDocumentEntity, IncomingDocumentEntity } from '../../entities/ebelge.entity';
+import { parseUbl } from '../../shared/ebelge/ubl/parser';
 import { GoodsReceiptEntity } from '../../entities/goods-receipt.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { ProductEntity } from '../../entities/product.entity';
 import { CategoryEntity } from '../../entities/category.entity';
 import { StockMovementEntity } from '../../entities/stock-movement.entity';
 import { FinanceService } from '../../shared/services/finance.service';
-import { groupVatLines, totalsOf, VatLine, vatSummary } from '../../shared/inventory/vat-report';
+import { distributeWithholding, groupVatLines, totalsOf, VatLine, vatSummary, WithholdingInfo } from '../../shared/inventory/vat-report';
 import { roundMoney } from '../../shared/inventory/costing';
+import { evaluateImpairment, shiftMonth } from '../../shared/inventory/impairment';
 import { addDays, DEFAULT_TIMEZONE, endOfMonth, isDateKey, roundQty, VAT_CORRECTION_REASONS, VAT_DEEMED_SUPPLY_REASONS, withDayOfMonth, zonedDayStart, dateKeyInZone } from '../../shared/tr';
 import { ValuationService } from './valuation.service';
 import { esc, legalPage, money, num, PRE_REPORT_NOTICE, trDay } from './legal-print';
@@ -83,7 +85,7 @@ export class TaxReportService {
       taxTotalTry = roundMoney(taxTotalTry + Number(inv.taxTotalTry || 0));
       for (const l of inv.lines || []) {
         lines.push({
-          kind, documentId: inv.id, documentNo: inv.documentNo ?? null, documentDate: inv.issueDate ?? null, partyTaxId: party?.taxId ?? null, partyName: party?.legalName || party?.name || null,
+          kind, source: 'SALES_INVOICE', documentId: inv.id, documentNo: inv.documentNo ?? null, documentDate: inv.issueDate ?? null, partyTaxId: party?.taxId ?? null, partyName: party?.legalName || party?.name || null,
           rate: Number(l.taxRate) || 0, exemptionCode: l.exemptionCode ?? null, withholdingCode: l.withholdingCode ?? null, withholdingRate: l.withholdingRate ?? null,
           base: roundMoney(Number(l.netAmount) * rate), tax: roundMoney(Number(l.taxAmount) * rate), withheld: roundMoney(Number(l.withheldTaxAmount || 0) * rate),
         });
@@ -111,21 +113,25 @@ export class TaxReportService {
       incomingEttns.add(d.ettn);
       if (d.documentNo) incomingNos.add(`${d.senderTaxId}|${d.documentNo}`);
       const fx = d.currency && d.currency !== company.baseCurrency ? (await this.finance.convertToBase(1, d.currency, d.issueDate)) ?? 1 : 1;
-      const kind = d.typeCode === 'IADE' ? 'SALES_RETURN' : 'PURCHASE';
+      const kind: VatLine['kind'] = d.typeCode === 'IADE' ? 'SALES_RETURN' : 'PURCHASE';
       const docLines = (d.lines || []) as { taxPercent?: number | null; lineExtension?: number; taxAmount?: number; allowance?: number }[];
+      const head = { kind, source: 'INCOMING_EINVOICE' as const, documentId: d.id, documentNo: d.documentNo ?? null, documentDate: String(d.issueDate), partyTaxId: d.senderTaxId ?? null, partyName: d.senderName ?? null, exemptionCode: null };
+      // The tax point and the withholding are those of the invoice (UBL WithholdingTaxTotal), never the order's.
+      const wh = kind === 'PURCHASE' ? await this.incomingWithholding(d) : null;
       if (docLines.length && docLines.some((l) => l.taxPercent !== null && l.taxPercent !== undefined)) {
-        for (const l of docLines) {
+        const split = distributeWithholding(docLines.map((l) => Number(l.taxAmount) || 0), wh);
+        docLines.forEach((l, i) => {
           lines.push({
-            kind, documentId: d.id, documentNo: d.documentNo ?? null, documentDate: String(d.issueDate), partyTaxId: d.senderTaxId ?? null, partyName: d.senderName ?? null,
-            rate: Number(l.taxPercent) || 0, exemptionCode: null, withholdingCode: d.typeCode === 'TEVKIFAT' ? 'TEVKIFAT' : null, withholdingRate: null,
-            base: roundMoney((Number(l.lineExtension) || 0) * fx), tax: roundMoney((Number(l.taxAmount) || 0) * fx), withheld: 0,
+            ...head, rate: Number(l.taxPercent) || 0, withholdingCode: split.code, withholdingRate: split.rate,
+            base: roundMoney((Number(l.lineExtension) || 0) * fx), tax: roundMoney((Number(l.taxAmount) || 0) * fx), withheld: roundMoney(split.withheld[i] * fx),
           });
-        }
+        });
       } else {
         const tax = Number(d.taxTotal) || 0;
+        const split = distributeWithholding([tax], wh);
         lines.push({
-          kind, documentId: d.id, documentNo: d.documentNo ?? null, documentDate: String(d.issueDate), partyTaxId: d.senderTaxId ?? null, partyName: d.senderName ?? null,
-          rate: 0, exemptionCode: null, withholdingCode: null, withholdingRate: null, base: roundMoney(((Number(d.payableAmount) || 0) - tax) * fx), tax: roundMoney(tax * fx), withheld: 0,
+          ...head, rate: 0, withholdingCode: split.code, withholdingRate: split.rate,
+          base: roundMoney(((Number(d.payableAmount) || 0) + (Number(wh?.total) || 0) - tax) * fx), tax: roundMoney(tax * fx), withheld: roundMoney(split.withheld[0] * fx),
         });
       }
     }
@@ -151,7 +157,7 @@ export class TaxReportService {
         const share = Math.min(1, gi.acceptedQuantity / Number(pi.quantity));
         const vat = pi.deductibleVat !== null && pi.deductibleVat !== undefined ? Number(pi.deductibleVat) : Number(pi.taxAmount);
         lines.push({
-          kind: 'PURCHASE', documentId: r.id, documentNo: r.supplierInvoiceNo, documentDate: day, partyTaxId: taxId, partyName: r.supplierSnapshot?.legalName || r.supplierSnapshot?.name || po.supplierName,
+          kind: 'PURCHASE', source: 'SUPPLIER_INVOICE', documentId: r.id, documentNo: r.supplierInvoiceNo, documentDate: day, partyTaxId: taxId, partyName: r.supplierSnapshot?.legalName || r.supplierSnapshot?.name || po.supplierName,
           rate: Number(pi.taxRate) || 0, exemptionCode: pi.exemptionCode ?? null, withholdingCode: pi.withholdingCode ?? null, withholdingRate: pi.withholdingRate ?? null,
           base: roundMoney(Number(pi.netAmount) * share * rate), tax: roundMoney(vat * share * rate), withheld: roundMoney(Number(pi.withheldTaxAmount || 0) * share * rate),
         });
@@ -166,7 +172,7 @@ export class TaxReportService {
       if (day < from || day > to) continue;
       const vat = roundMoney(Number(po.importVatAmount || 0) - Number(po.nonDeductibleImportVat || 0));
       lines.push({
-        kind: 'IMPORT', documentId: po.id, documentNo: po.customsDeclarationNo, documentDate: day, partyTaxId: null, partyName: po.supplierName,
+        kind: 'IMPORT', source: 'CUSTOMS', documentId: po.id, documentNo: po.customsDeclarationNo, documentDate: day, partyTaxId: null, partyName: po.supplierName,
         rate: Number(po.subtotalTry) ? Math.round((Number(po.importVatAmount || 0) / Number(po.subtotalTry)) * 100) : 0, exemptionCode: null, withholdingCode: null, withholdingRate: null,
         base: roundMoney(Number(po.subtotalTry || 0)), tax: vat, withheld: 0,
       });
@@ -186,13 +192,31 @@ export class TaxReportService {
       }
       for (const it of r.items || []) {
         lines.push({
-          kind: 'SALES_RETURN', documentId: r.id, documentNo: r.counterpartyDocNo || r.returnNo, documentDate: day, partyTaxId: r.partySnapshot?.taxId ?? null, partyName: r.partySnapshot?.legalName || r.partySnapshot?.name || null,
+          kind: 'SALES_RETURN', source: 'RETURN', documentId: r.id, documentNo: r.counterpartyDocNo || r.returnNo, documentDate: day, partyTaxId: r.partySnapshot?.taxId ?? null, partyName: r.partySnapshot?.legalName || r.partySnapshot?.name || null,
           rate: Number(it.taxRate) || 0, exemptionCode: it.exemptionCode ?? null, withholdingCode: it.withholdingCode ?? null, withholdingRate: it.withholdingRate ?? null,
           base: roundMoney(Number(it.netAmount) * rate), tax: roundMoney(Number(it.taxAmount) * rate), withheld: roundMoney(Number(it.withheldTaxAmount || 0) * rate),
         });
       }
     }
     return { lines, invoiceTotals: { subtotalTry, taxTotalTry, count: invoices.length }, notes };
+  }
+
+  /**
+   * Withholding (tevkifat) of an incoming invoice: stored on the row since WP6 review round 1;
+   * older TEVKIFAT rows are read from the archived UBL.
+   */
+  private async incomingWithholding(d: IncomingDocumentEntity): Promise<WithholdingInfo | null> {
+    const stored = (d.refs as Record<string, unknown> | null)?.['withholding'] as WithholdingInfo | undefined;
+    if (stored && typeof stored === 'object') return stored;
+    if (!String(d.typeCode || '').includes('TEVKIFAT') || !d.eDocumentId) return null;
+    const doc = await this.dataSource.manager.findOne(EDocumentEntity, { where: { companyId: this.companyId, id: d.eDocumentId }, select: { id: true, xml: true } });
+    if (!doc?.xml) return null;
+    try {
+      const p = parseUbl(doc.xml);
+      return { total: p.withholdingTotal, subtotals: p.withholdingSubtotals };
+    } catch {
+      return null;
+    }
   }
 
   async vatReport(period?: string) {
@@ -242,38 +266,69 @@ export class TaxReportService {
   }
 
   /**
-   * KDV-2 pre-report: VAT the company withholds as buyer (tevkifat: PO lines with a withholding
-   * code / incoming TEVKIFAT invoices) and reverse-charge VAT (sorumlu sıfatıyla, e.g. services
-   * from abroad), by tax point in the month.
+   * KDV-2 pre-report: VAT the company withholds as buyer and reverse-charge VAT (sorumlu sıfatıyla).
+   * Withholding comes from the purchase invoice that creates the liability, in the invoice's month:
+   * incoming e-invoices (their WithholdingTaxTotal) and supplier invoices recorded on goods receipts
+   * (the order lines' withholding code) - the same lines as the KDV-1 deductible list, so the two
+   * pre-reports agree. An order that expects withholding whose invoice carries none is a warning,
+   * not a KDV-2 row. Reverse charge has no supplier invoice of ours: its tax point is the supplier
+   * invoice date on the receipt, else the order's tax point.
    */
   async vatWithholdingReport(period?: string) {
     const { month, from, to } = this.parsePeriod(period);
     const m = this.dataSource.manager;
+    const { lines } = await this.collectVatLines(month);
+    type Row = { source: string; documentNo: string | null; documentDate: string | null; partyTaxId: string | null; partyName: string | null; withholdingCode: string | null; withholdingRate: number | null; base: number; tax: number; withheld: number; reverseCharge: boolean };
+    const rows: Row[] = [];
+    const byDoc = new Map<string, Row>();
+    for (const l of lines.filter((x) => x.kind === 'PURCHASE' && x.withheld > 0)) {
+      const k = `${l.documentId}|${l.withholdingCode}|${l.withholdingRate}`;
+      const row = byDoc.get(k) || { source: l.source || 'SUPPLIER_INVOICE', documentNo: l.documentNo, documentDate: l.documentDate, partyTaxId: l.partyTaxId, partyName: l.partyName, withholdingCode: l.withholdingCode, withholdingRate: l.withholdingRate, base: 0, tax: 0, withheld: 0, reverseCharge: false };
+      row.base = roundMoney(row.base + l.base);
+      row.tax = roundMoney(row.tax + l.tax);
+      row.withheld = roundMoney(row.withheld + l.withheld);
+      if (!byDoc.has(k)) rows.push(row);
+      byDoc.set(k, row);
+    }
+
+    // Orders expecting withholding whose invoice of this month carries none.
+    const warnings: { code: 'PO_WITHHOLDING_NOT_ON_INVOICE'; poNumber: string; documentNo: string | null; documentDate: string | null; partyTaxId: string | null; withholdingCode: string | null; expectedWithheld: number }[] = [];
+    const incoming = await m.find(IncomingDocumentEntity, { where: { companyId: this.companyId, documentType: 'INVOICE', status: Not(In(['REJECTED'])) } });
+    for (const d of incoming) {
+      if (!d.purchaseOrderId || !d.issueDate || String(d.issueDate) < from || String(d.issueDate) > to || d.typeCode === 'IADE') continue;
+      const docWithheld = lines.filter((l) => l.documentId === d.id).reduce((s2, l) => s2 + l.withheld, 0);
+      if (docWithheld > 0) continue;
+      const po = await m.findOne(PurchaseOrderEntity, { where: { companyId: this.companyId, id: d.purchaseOrderId }, relations: { items: true } });
+      const expected = (po?.items || []).filter((i) => !i.reverseCharge && Number(i.withheldTaxAmount || 0) > 0);
+      if (!po || !expected.length) continue;
+      warnings.push({
+        code: 'PO_WITHHOLDING_NOT_ON_INVOICE', poNumber: po.poNumber, documentNo: d.documentNo ?? null, documentDate: String(d.issueDate), partyTaxId: d.senderTaxId ?? null,
+        withholdingCode: expected[0].withholdingCode ?? null, expectedWithheld: roundMoney(expected.reduce((s2, i) => s2 + Number(i.withheldTaxAmount || 0), 0) * (Number(po.exchangeRate) || 1)),
+      });
+    }
+
+    // Reverse charge (sorumlu sıfatıyla): services / goods from abroad.
     const pos = await m
       .createQueryBuilder(PurchaseOrderEntity, 'po')
       .leftJoinAndSelect('po.items', 'i')
-      .where('po.companyId = :c AND po.taxPointDate >= :f AND po.taxPointDate <= :t', { c: this.companyId, f: from, t: to })
+      .where('po.companyId = :c AND i.reverseCharge = :rc', { c: this.companyId, rc: true })
       .andWhere("po.status IN ('Received', 'Partially Received')")
       .getMany();
-    const rows: { source: string; documentNo: string | null; documentDate: string | null; partyTaxId: string | null; partyName: string | null; withholdingCode: string | null; withholdingRate: number | null; base: number; tax: number; withheld: number; reverseCharge: boolean }[] = [];
     for (const po of pos) {
-      const rate = Number(po.exchangeRate) || 1;
       const gr = await m.findOne(GoodsReceiptEntity, { where: { companyId: this.companyId, purchaseOrderId: po.id, status: 'COMPLETED' }, order: { receivedAt: 'ASC' } });
+      const day = gr?.supplierInvoiceDate ? String(gr.supplierInvoiceDate).slice(0, 10) : po.taxPointDate ? String(po.taxPointDate).slice(0, 10) : null;
+      if (!day || day < from || day > to) continue;
+      const rate = Number(po.exchangeRate) || 1;
       for (const i of po.items || []) {
-        const withheld = Number(i.withheldTaxAmount || 0);
-        if (!(withheld > 0) && !i.reverseCharge) continue;
+        if (!i.reverseCharge) continue;
         rows.push({
-          source: 'PURCHASE_ORDER', documentNo: gr?.supplierInvoiceNo || po.poNumber, documentDate: gr?.supplierInvoiceDate ? String(gr.supplierInvoiceDate) : String(po.taxPointDate), partyTaxId: gr?.supplierSnapshot?.taxId ?? null, partyName: po.supplierName,
+          source: 'REVERSE_CHARGE', documentNo: gr?.supplierInvoiceNo || po.poNumber, documentDate: day, partyTaxId: gr?.supplierSnapshot?.taxId ?? null, partyName: po.supplierName,
           withholdingCode: i.withholdingCode ?? null, withholdingRate: i.withholdingRate ?? null, base: roundMoney(Number(i.netAmount) * rate), tax: roundMoney(Number(i.taxAmount) * rate),
-          withheld: roundMoney((i.reverseCharge ? Number(i.taxAmount) : withheld) * rate), reverseCharge: !!i.reverseCharge,
+          withheld: roundMoney(Number(i.taxAmount) * rate), reverseCharge: true,
         });
       }
     }
-    const incoming = await m.find(IncomingDocumentEntity, { where: { companyId: this.companyId, documentType: 'INVOICE', typeCode: 'TEVKIFAT', status: Not(In(['REJECTED'])) } });
-    for (const d of incoming) {
-      if (!d.issueDate || String(d.issueDate) < from || String(d.issueDate) > to) continue;
-      rows.push({ source: 'INCOMING_EINVOICE', documentNo: d.documentNo ?? null, documentDate: String(d.issueDate), partyTaxId: d.senderTaxId ?? null, partyName: d.senderName ?? null, withholdingCode: null, withholdingRate: null, base: roundMoney((Number(d.payableAmount) || 0) - (Number(d.taxTotal) || 0)), tax: roundMoney(Number(d.taxTotal) || 0), withheld: 0, reverseCharge: false });
-    }
+    rows.sort((a, b) => String(a.documentDate).localeCompare(String(b.documentDate)) || String(a.documentNo).localeCompare(String(b.documentNo)));
     const byCode = new Map<string, { withholdingCode: string; base: number; tax: number; withheld: number; count: number }>();
     for (const r of rows) {
       const k = r.reverseCharge ? 'SORUMLU' : r.withholdingCode || '-';
@@ -293,14 +348,18 @@ export class TaxReportService {
       ...(await this.dueDates(month)),
       rows,
       byCode: [...byCode.values()],
-      totals: { base: roundMoney(rows.reduce((s, r) => s + r.base, 0)), tax: roundMoney(rows.reduce((s, r) => s + r.tax, 0)), withheld: roundMoney(rows.reduce((s, r) => s + r.withheld, 0)) },
+      totals: { base: roundMoney(rows.reduce((s2, r) => s2 + r.base, 0)), tax: roundMoney(rows.reduce((s2, r) => s2 + r.tax, 0)), withheld: roundMoney(rows.reduce((s2, r) => s2 + r.withheld, 0)) },
+      warnings,
     };
   }
 
   /**
    * VAT-relevant stock exits of the month:
-   *  - deemed supplies (KDVK 3/a, 27): withdrawals for own use / personnel, gifts and samples,
-   *    taxed at the emsal value (average sales price of the month, else cost + 10 %);
+   *  - deemed supplies (KDVK 3/a, 27): the exit reasons of the legal parameter
+   *    VAT_DEEMED_SUPPLY_REASONS (withdrawal from the business, gifts / samples, personnel), taxed at
+   *    the emsal value: VUK 267/1 average sales price of the month (else M-1, M-2) when that month's
+   *    sales quantity is at least EMSAL_MIN_MONTHLY_SALES_PCT of the quantity, else VUK 267/2 cost
+   *    plus EMSAL_COST_MARKUP_PCT. Use inside the taxable business (INTERNAL_USE) is not a supply;
    *  - KDV indirim düzeltmesi (KDVK 30/c): zayi, theft, expired / destroyed goods and wastage
    *    above the normal rate; the input VAT deducted on them is added back. Disaster exits
    *    (afet) and scrap (VUK 278 hurda) are listed but excluded.
@@ -310,14 +369,19 @@ export class TaxReportService {
     const m = this.dataSource.manager;
     const company = await m.findOneByOrFail(CompanyEntity, { id: this.companyId });
     const tz = company.timezone || DEFAULT_TIMEZONE;
-    const reasons = [...VAT_DEEMED_SUPPLY_REASONS, ...VAT_CORRECTION_REASONS, 'DISASTER_LOSS', 'SCRAP'];
+    const configured = await this.finance.param<string[]>('VAT_DEEMED_SUPPLY_REASONS', to).catch(() => null);
+    const deemedReasons: string[] = Array.isArray(configured) && configured.length ? configured.map(String) : [...VAT_DEEMED_SUPPLY_REASONS];
+    const markupPct = Number(await this.finance.param<number>('EMSAL_COST_MARKUP_PCT', to).catch(() => 10));
+    const markup = Number.isFinite(markupPct) && markupPct >= 0 ? markupPct : 10;
+    const minSales = Number(await this.finance.param<number>('EMSAL_MIN_MONTHLY_SALES_PCT', to).catch(() => 25)) || 25;
+    const reasons = [...new Set([...deemedReasons, ...VAT_CORRECTION_REASONS, 'DISASTER_LOSS', 'SCRAP'])];
     const moves = await m
       .createQueryBuilder(StockMovementEntity, 'sm')
       .where('sm.companyId = :c AND sm.transactionDate >= :s AND sm.transactionDate < :e AND sm.quantity < 0 AND sm.reasonCode IN (:...r)', { c: this.companyId, s: zonedDayStart(from, tz), e: zonedDayStart(addDays(to, 1), tz), r: reasons })
       .orderBy('sm.transactionDate', 'ASC')
       .getMany();
     const products = await m.find(ProductEntity, { where: { companyId: this.companyId } });
-    const sales = await this.monthlySalesPrices(month);
+    const sales = await this.monthlySales(month);
     const rateOf = async (p: ProductEntity | undefined) => (p ? await this.finance.taxRateForProduct(p).catch(() => 20) : 20);
     const deemed = [];
     const corrections = [];
@@ -329,11 +393,13 @@ export class TaxReportService {
       const vatRate = await rateOf(p);
       const day = dateKeyInZone(new Date(mv.transactionDate), tz);
       const base = { movementId: mv.id, date: day, productId: mv.productId, productName: mv.productName, reasonCode: mv.reasonCode, documentNo: mv.documentNo ?? null, quantity: qty, costValue: roundMoney(cost), vatRate };
-      if ((VAT_DEEMED_SUPPLY_REASONS as readonly string[]).includes(mv.reasonCode)) {
-        const avg = sales.get(mv.productId);
-        const emsalUnit = avg ?? (qty ? (cost / qty) * 1.1 : 0);
+      if (deemedReasons.includes(mv.reasonCode)) {
+        // VUK 267/1 (average sales price with the quantity condition), else 267/2 (cost + mark-up).
+        const avg = evaluateImpairment({ quantity: qty, unitCost: qty ? cost / qty : 0, sales: sales.get(mv.productId) || [], valuationMonth: month, minMonthlySalesPct: minSales });
+        const byAverage = avg.emsalUnitPrice !== null;
+        const emsalUnit = byAverage ? Number(avg.emsalUnitPrice) : qty ? (cost / qty) * (1 + markup / 100) : 0;
         const emsal = roundMoney(emsalUnit * qty);
-        deemed.push({ ...base, emsalBasis: avg !== undefined ? 'MONTH_AVG_SALES_PRICE' : 'COST_PLUS_10', emsalValue: emsal, vat: roundMoney((emsal * vatRate) / 100) });
+        deemed.push({ ...base, emsalBasis: byAverage ? `AVG_SALES_${avg.emsalBasis}` : 'COST_PLUS_MARKUP', emsalMonth: avg.emsalMonth, markupPct: byAverage ? null : markup, emsalValue: emsal, vat: roundMoney((emsal * vatRate) / 100) });
       } else if ((VAT_CORRECTION_REASONS as readonly string[]).includes(mv.reasonCode)) {
         corrections.push({ ...base, vatToCorrect: roundMoney((cost * vatRate) / 100) });
       } else {
@@ -353,6 +419,7 @@ export class TaxReportService {
       to,
       notice: 'PRE_REPORT',
       noticeText: PRE_REPORT_NOTICE,
+      deemedSupplyReasons: deemedReasons,
       deemedSupplies: deemed,
       vatCorrections: corrections,
       excluded,
@@ -363,16 +430,18 @@ export class TaxReportService {
     };
   }
 
-  /** Average net sales price (TRY) per product in a month, from issued invoices. */
-  async monthlySalesPrices(month: string): Promise<Map<string, number>> {
-    const from = `${month}-01`;
-    const to = endOfMonth(from);
-    const rows: { productId: string; q: string; v: string }[] = await this.dataSource.manager.query(
-      'SELECT l.`productId`, SUM(l.`baseQuantity`) AS q, SUM(l.`netAmount` * i.`exchangeRate`) AS v FROM `invoice_lines` l JOIN `invoices` i ON i.`id` = l.`invoiceId` ' +
-        "WHERE i.`companyId` = ? AND i.`kind` = 'SALES' AND i.`status` IN (?) AND i.`issueDate` >= ? AND i.`issueDate` <= ? AND l.`productId` IS NOT NULL GROUP BY l.`productId`",
+  /** Net sales quantity / amount (TRY) per product and month for M-2 .. M, from issued invoices. */
+  async monthlySales(month: string): Promise<Map<string, { month: string; quantity: number; amount: number }[]>> {
+    const from = `${shiftMonth(month, -2)}-01`;
+    const to = endOfMonth(`${month}-01`);
+    const rows: { productId: string; ym: string; q: string; v: string }[] = await this.dataSource.manager.query(
+      "SELECT l.`productId`, DATE_FORMAT(i.`issueDate`, '%Y-%m') AS ym, SUM(l.`baseQuantity`) AS q, SUM(l.`netAmount` * i.`exchangeRate`) AS v FROM `invoice_lines` l JOIN `invoices` i ON i.`id` = l.`invoiceId` " +
+        "WHERE i.`companyId` = ? AND i.`kind` = 'SALES' AND i.`status` IN (?) AND i.`issueDate` >= ? AND i.`issueDate` <= ? AND l.`productId` IS NOT NULL GROUP BY l.`productId`, ym",
       [this.companyId, LIVE_INVOICE, from, to],
     );
-    return new Map(rows.filter((r) => Number(r.q) > 0).map((r) => [r.productId, Number(r.v) / Number(r.q)]));
+    const out = new Map<string, { month: string; quantity: number; amount: number }[]>();
+    for (const r of rows) out.set(r.productId, [...(out.get(r.productId) || []), { month: r.ym, quantity: Number(r.q) || 0, amount: Number(r.v) || 0 }]);
+    return out;
   }
 
   /**

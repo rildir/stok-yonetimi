@@ -286,3 +286,38 @@ export function replay(method: CostingMethod, events: CostEvent[], fallbackUnitC
   }
   return { costs, layers: layers.filter((l) => l.qtyRemaining > 0) };
 }
+
+/**
+ * Splits a product's quantity on a past date over warehouses / lots so that the parts add up to
+ * the product-level quantity (the inventory list must give the same total in every breakdown).
+ *
+ * Each part is "stock today - movements after the date" for its warehouse (and lot). Movements
+ * recorded before warehouses existed carry no warehouse (key null) and legacy ledgers can have
+ * gaps, so a part can come out negative or belong to no warehouse. Those are reconciled:
+ * negative parts are dropped and the difference to the product total is taken from (or given to)
+ * the largest known parts; quantity that cannot be placed in a warehouse stays on a row without a
+ * warehouse. Nothing is shown when the product total is not positive.
+ */
+export function reconcileParts<T extends { warehouseId: string | null; quantity: number }>(parts: T[], total: number): T[] {
+  const q = (n: number) => Math.round((Number(n) || 0) * 1e4) / 1e4;
+  const target = q(total);
+  if (!(target > 0)) return [];
+  const known = parts.filter((p) => p.warehouseId && q(p.quantity) > 0).map((p) => ({ ...p, quantity: q(p.quantity) }));
+  const ordered = [...known].sort((a, b) => b.quantity - a.quantity);
+  let diff = q(target - known.reduce((s, p) => s + p.quantity, 0));
+  if (diff < 0) {
+    for (const p of ordered) {
+      if (diff >= 0) break;
+      const take = Math.min(p.quantity, -diff);
+      p.quantity = q(p.quantity - take);
+      diff = q(diff + take);
+    }
+  } else if (diff > 0) {
+    if (ordered.length) ordered[0].quantity = q(ordered[0].quantity + diff);
+    else {
+      const unknown = parts.find((p) => !p.warehouseId) || parts[0];
+      if (unknown) known.push({ ...unknown, warehouseId: null, quantity: diff });
+    }
+  }
+  return known.filter((p) => p.quantity > 0);
+}

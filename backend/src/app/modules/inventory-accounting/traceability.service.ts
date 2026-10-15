@@ -126,11 +126,24 @@ export class TraceabilityService {
     };
   }
 
-  /** Lot block / unblock (all warehouses). */
-  async setLotStatus(productId: string, lotNumber: string, status: 'active' | 'blocked', reason?: string) {
+  /**
+   * Lot block / unblock (all warehouses). The lot is named by `lotId` or by productId + lotNumber;
+   * both identifiers are required - an empty key would otherwise match every lot of the company.
+   */
+  async setLotStatus(input: { lotId?: string | null; productId?: string | null; lotNumber?: string | null; status: 'active' | 'blocked'; reason?: string | null }) {
+    const { status, reason } = input;
     if (!['active', 'blocked'].includes(status)) throw new BadRequestException(err('LOT_STATUS_INVALID'));
     if (status === 'blocked' && !String(reason || '').trim()) throw new BadRequestException(err('LOT_BLOCK_REASON_REQUIRED'));
     const m = this.dataSource.manager;
+    let productId = String(input.productId || '').trim();
+    let lotNumber = String(input.lotNumber || '').trim();
+    if (input.lotId) {
+      const lot = await m.findOne(StockLotEntity, { where: { companyId: this.companyId, id: String(input.lotId) } });
+      if (!lot || (productId && lot.productId !== productId) || (lotNumber && lot.lotNumber !== lotNumber)) throw new NotFoundException(err('LOT_NOT_FOUND', { lot: String(input.lotId) }));
+      productId = lot.productId;
+      lotNumber = lot.lotNumber;
+    }
+    if (!productId || !lotNumber) throw new BadRequestException(err('TRACE_QUERY_REQUIRED'));
     const lots = await m.find(StockLotEntity, { where: { companyId: this.companyId, productId, lotNumber } });
     if (!lots.length) throw new NotFoundException(err('LOT_NOT_FOUND', { lot: lotNumber }));
     if (status === 'active' && lots.some((l) => l.status === 'recalled')) throw new BadRequestException(err('LOT_RECALLED_CANNOT_UNBLOCK', { lot: lotNumber }));
@@ -147,6 +160,7 @@ export class TraceabilityService {
     const lotNumbers = [...new Set((input.lotNumbers || []).map((l) => String(l || '').trim()).filter(Boolean))];
     if (!lotNumbers.length) throw new BadRequestException(err('RECALL_LOTS_REQUIRED'));
     if (!String(input.reason || '').trim()) throw new BadRequestException(err('RECALL_REASON_REQUIRED'));
+    if (!String(input.productId || '').trim()) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
     const m = this.dataSource.manager;
     const product = await m.findOne(ProductEntity, { where: { companyId: this.companyId, id: input.productId } });
     if (!product) throw new NotFoundException(err('PRODUCT_NOT_FOUND'));
@@ -245,10 +259,19 @@ export class TraceabilityService {
     return { quarantineWarehouseId: quarantine?.id ?? null, quarantineWarehouseName: quarantine?.name ?? null, items: out };
   }
 
+  /** Lot genealogy row (split / merge / repack / process). Only whitelisted fields are stored. */
   async addGenealogy(input: { parentProductId: string; parentLotNumber: string; childProductId: string; childLotNumber: string; relation: string; quantity?: number | null; note?: string | null }, user?: string) {
-    if (!['SPLIT', 'MERGE', 'REPACK', 'PROCESS'].includes(input.relation)) throw new BadRequestException(err('GENEALOGY_RELATION_INVALID'));
+    if (!['SPLIT', 'MERGE', 'REPACK', 'PROCESS'].includes(String(input?.relation))) throw new BadRequestException(err('GENEALOGY_RELATION_INVALID'));
+    const parentProductId = String(input.parentProductId || '').trim();
+    const parentLotNumber = String(input.parentLotNumber || '').trim();
+    const childProductId = String(input.childProductId || '').trim();
+    const childLotNumber = String(input.childLotNumber || '').trim();
+    if (!parentProductId || !childProductId) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
+    if (!parentLotNumber || !childLotNumber) throw new BadRequestException(err('TRACE_QUERY_REQUIRED'));
+    const quantity = input.quantity === null || input.quantity === undefined ? null : roundQty(Number(input.quantity));
+    if (quantity !== null && !(quantity > 0)) throw new BadRequestException(err('QUANTITY_INVALID'));
     const m = this.dataSource.manager;
-    for (const [pid, ln] of [[input.parentProductId, input.parentLotNumber], [input.childProductId, input.childLotNumber]]) {
+    for (const [pid, ln] of [[parentProductId, parentLotNumber], [childProductId, childLotNumber]]) {
       const p = await m.findOne(ProductEntity, { where: { companyId: this.companyId, id: pid } });
       if (!p) throw new BadRequestException(err('PRODUCT_NOT_FOUND'));
       if (!(await m.exists(StockLotEntity, { where: { companyId: this.companyId, productId: pid, lotNumber: ln } }))) throw new NotFoundException(err('LOT_NOT_FOUND', { lot: ln }));
@@ -257,8 +280,12 @@ export class TraceabilityService {
       LotGenealogyEntity,
       m.create(LotGenealogyEntity, {
         companyId: this.companyId,
-        ...input,
-        quantity: input.quantity ?? null,
+        parentProductId,
+        parentLotNumber,
+        childProductId,
+        childLotNumber,
+        relation: input.relation,
+        quantity,
         note: input.note ? String(input.note).slice(0, 500) : null,
         createdBy: (user || this.tenant.actor.username || null)?.slice(0, 100) ?? null,
       }),

@@ -53,3 +53,21 @@ export const adminGuard: CanActivateFn = () => {
   }
   return router.parseUrl('/dashboard');
 };
+
+/**
+ * Pages with cost values, tax pre-reports or customer trace data (disposal files): administrators
+ * and managers only. The backend enforces the same roles.
+ */
+export const staffGuard: CanActivateFn = () => {
+  const router = inject(Router);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.role === 'admin' || payload.role === 'manager') return true;
+    } catch {
+      // Invalid token
+    }
+  }
+  return router.parseUrl('/dashboard');
+};

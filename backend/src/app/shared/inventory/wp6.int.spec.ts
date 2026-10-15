@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import 'reflect-metadata';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -130,6 +131,13 @@ describe('WP6 costing, periods and food traceability (MySQL)', () => {
       const computed = await valuation.valuate(addDays(String(q2.startDate).slice(0, 10), -1), 'product');
       expect(opening.costValue).toBe(computed.totals.costValue);
       expect(opening.quantity).toBe(computed.totals.quantity);
+      // The list on a closed period's end is the locked closing balance, in every breakdown.
+      expect(computed.source).toBe('SNAPSHOT');
+      const q1End = String(q1.endDate).slice(0, 10);
+      for (const b of ['warehouse', 'lot'] as const) expect((await valuation.valuate(q1End, b)).totals).toEqual(computed.totals);
+      const fresh = await valuation.valuate(q1End, 'lot', { ignoreSnapshot: true });
+      expect(fresh.source).toBe('COMPUTED');
+      expect(fresh.totals.costValue).toBe(computed.totals.costValue);
     });
     await expect(book(company.id, product.id, wh.id, 1, { unitCost: 10, transactionDate: new Date(`${y}-03-20T09:00:00Z`) })).rejects.toMatchObject({ response: { code: 'PERIOD_CLOSED' } });
     const raw = await ds!
@@ -173,10 +181,23 @@ describe('WP6 costing, periods and food traceability (MySQL)', () => {
     const blocked = await ds!.manager.findOneByOrFail(StockLotEntity, { companyId: company.id, lotNumber: 'L-NEW' });
     expect(blocked.status).toBe('recalled');
     await expect(book(company.id, product.id, wh.id, -1, {}, { pick: [{ lotId: blocked.id, quantity: 1 }], sale: true })).rejects.toMatchObject({ response: { code: 'LOT_BLOCKED' } });
-    // Another tenant cannot see the lot.
+    // Another tenant cannot see the lot, block it by id, or write genealogy into this tenant.
     const other = await fixture(ds!.manager, 'food-other');
     await tenant.run(other.company.id, async () => {
       await expect(trace.trace({ lotNumber: 'L-NEW' })).rejects.toMatchObject({ response: { code: 'LOT_NOT_FOUND' } });
+      await expect(trace.setLotStatus({ lotId: old.id, status: 'blocked', reason: 'x' })).rejects.toMatchObject({ response: { code: 'LOT_NOT_FOUND' } });
+      // Missing identifiers never match "every lot of the company".
+      await expect(trace.setLotStatus({ status: 'blocked', reason: 'x' })).rejects.toMatchObject({ response: { code: 'TRACE_QUERY_REQUIRED' } });
+      const forged = { companyId: company.id, id: randomUUID(), parentProductId: product.id, parentLotNumber: 'L-OLD', childProductId: product.id, childLotNumber: 'L-NEW', relation: 'REPACK' };
+      await expect(trace.addGenealogy(forged as any)).rejects.toMatchObject({ response: { code: 'PRODUCT_NOT_FOUND' } });
+    });
+    await tenant.run(company.id, async () => {
+      // Body fields other than the genealogy itself (companyId, id) are ignored.
+      const g = await trace.addGenealogy({ companyId: other.company.id, id: randomUUID(), parentProductId: product.id, parentLotNumber: 'L-OLD', childProductId: product.id, childLotNumber: 'L-NEW', relation: 'REPACK' } as any);
+      expect(g.companyId).toBe(company.id);
+      await expect(trace.addGenealogy({ parentProductId: product.id, parentLotNumber: '', childProductId: product.id, childLotNumber: 'L-NEW', relation: 'REPACK' })).rejects.toMatchObject({ response: { code: 'TRACE_QUERY_REQUIRED' } });
+      const lots = await trace.setLotStatus({ lotId: old.id, status: 'blocked', reason: 'Numune analizi' });
+      expect(lots.map((l) => l.lotNumber)).toEqual(['L-OLD']);
     });
   }, 90000);
 });

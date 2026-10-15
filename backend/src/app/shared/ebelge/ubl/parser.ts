@@ -67,6 +67,8 @@ export interface ParsedUbl {
   /** Document-level tax subtotals (QR code kdvmatrah(..) / hesaplanankdv(..)) */
   taxSubtotals: { code: string; percent: number; taxable: number; amount: number }[];
   withholdingTotal: number;
+  /** Document-level withholding (tevkifat) subtotals: code (e.g. 627), percent, VAT base, amount */
+  withholdingSubtotals: { code: string; percent: number; taxable: number; amount: number }[];
   carrierTaxId: string | null;
   plates: string[];
   lines: ParsedLine[];
@@ -178,6 +180,12 @@ export function parseUbl(xml: string): ParsedUbl {
       amount: n('cbc:TaxAmount', t),
     })),
     withholdingTotal: n('cac:WithholdingTaxTotal/cbc:TaxAmount'),
+    withholdingSubtotals: list('cac:WithholdingTaxTotal/cac:TaxSubtotal').map((t) => ({
+      code: s('cac:TaxCategory/cac:TaxScheme/cbc:TaxTypeCode', t) || '',
+      percent: n('cbc:Percent', t),
+      taxable: n('cbc:TaxableAmount', t),
+      amount: n('cbc:TaxAmount', t),
+    })),
     carrierTaxId: s('cac:Shipment/cac:Delivery/cac:CarrierParty/cac:PartyIdentification/cbc:ID | cac:Delivery/cac:CarrierParty/cac:PartyIdentification/cbc:ID'),
     plates: list('cac:Shipment/cac:ShipmentStage/cac:TransportMeans/cac:RoadTransport/cbc:LicensePlateID').map((x) => s('.', x) || '').filter(Boolean),
     lines,

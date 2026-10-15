@@ -189,6 +189,7 @@ export class CostingService {
     const amountIn = Number(input.amount);
     if (!(amountIn > 0)) throw new BadRequestException(err('LANDED_COST_AMOUNT_INVALID'));
     const basis = input.basis === 'QUANTITY' ? 'QUANTITY' : 'AMOUNT';
+    if (!String(input.goodsReceiptId || '').trim()) throw new NotFoundException(err('DOCUMENT_NOT_FOUND'));
     return this.dataSource.transaction(async (m) => {
       await this.warehouseStock.begin(m, this.companyId);
       const company = await m.findOneByOrFail(CompanyEntity, { id: this.companyId });
