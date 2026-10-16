@@ -157,9 +157,9 @@
   "kvkk.accept.check.DPA": "Veri işleme sözleşmesini şirket (veri sorumlusu) adına kabul ediyorum.",
   "kvkk.accept.submit": "Onayla ve devam et",
   "kvkk.accept.done": "Onayınız kaydedildi.",
-  "kvkk.footer.notice": "Aydınlatma Metni",
-  "kvkk.footer.tos": "Kullanım Koşulları",
-  "kvkk.footer.dpa": "Veri İşleme Sözleşmesi",
+  "kvkk.footer.notice": "Aydınlatma metni",
+  "kvkk.footer.tos": "Kullanım koşulları",
+  "kvkk.footer.dpa": "Veri işleme sözleşmesi",
   "kvkk.register.noticeText": "Kayıt olarak şirketiniz adına aşağıdaki metinleri kabul etmiş olursunuz:",
   "kvkk.session.idleLogout": "Uzun süre işlem yapılmadığı için oturum kapatıldı.",
   "kvkk.auditor.title": "Denetçi görünümü:",
@@ -214,5 +214,6 @@
   "kvkk.socket.dsrOverdue": "{no} numaralı başvurunun 30 günlük yanıt süresi geçti.",
   "kvkk.socket.alert": "Güvenlik alarmı ({no}): {title}. İhlal olup olmadığını değerlendirin.",
   "kvkk.socket.destruction": "Periyodik imha listesi {no} ({n} kalem) onayınızı bekliyor.",
-  "kvkk.notesSensitiveWarning": "Bu not özel nitelikli kişisel veri içeriyor olabilir ({categories}). Bu tür veriler not alanına yazılmamalıdır (KVKK md. 6)."
+  "kvkk.notesSensitiveWarning": "Bu not özel nitelikli kişisel veri içeriyor olabilir ({categories}). Bu tür veriler not alanına yazılmamalıdır (KVKK md. 6).",
+  "kvkk.accept.progress": "{n} / {total} metin onaylandı"
 }

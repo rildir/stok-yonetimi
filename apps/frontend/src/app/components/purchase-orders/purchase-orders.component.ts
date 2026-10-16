@@ -11,9 +11,9 @@ import { ToastComponent } from '../shared/toast/toast.component';
 import { tap, debounceTime, switchMap, catchError } from 'rxjs/operators';
 import { of, Subscription } from 'rxjs';
 import { TaxService } from '../../services/tax.service';
-import { ExemptionCode, TaxQuote, TaxSummaryView, WithholdingCode, summaryFromDocument, summaryFromQuote } from '../../models/tax.models';
+import { CHARGE_TYPES, ExemptionCode, TaxQuote, TaxSummaryView, WithholdingCode, summaryFromDocument, summaryFromQuote } from '../../models/tax.models';
 import { TaxSummaryComponent } from '../shared/tax-summary.component';
-import { DocumentTaxFieldsComponent, LineTaxFieldsComponent, documentTaxGroup, documentTaxPayload, lineNeedsExemption, lineTaxControls, lineTaxPayload } from '../shared/tax-fields.component';
+import { LineTaxFieldsComponent, chargeGroup, documentTaxGroup, documentTaxPayload, lineNeedsExemption, lineTaxControls, lineTaxPayload } from '../shared/tax-fields.component';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
 import { fitsDecimals, roundQty, sumQty } from '@stok/tr-compliance';
@@ -22,12 +22,13 @@ import { GoodsReceiptFormComponent } from '../documents/goods-receipt-form.compo
 import { DocumentsService } from '../../services/documents.service';
 import { RouterLink } from '@angular/router';
 import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
+import { IconComponent } from '../shared/icon.component';
 
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent, GoodsReceiptFormComponent, RouterLink, SpecialCategoryWarningComponent],
-  styleUrls: ['../../drawer.css'],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, GoodsReceiptFormComponent, RouterLink, SpecialCategoryWarningComponent, IconComponent],
+  styleUrls: ['../../drawer.css', '../documents/documents.css'],
   template: `
     <header class="page-header">
       <div>
@@ -35,125 +36,112 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
         <p>{{ 'purchaseOrders.subtitle' | t }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-secondary" (click)="autoDraft()" [disabled]="isAutoDrafting()" [class.is-loading]="isAutoDrafting()" [title]="'purchaseOrders.autoDraftTooltip' | t">
-          @if (isAutoDrafting()) {
-            <span class="spinner-sm"></span> {{ 'purchaseOrders.analyzing' | t }}
-          } @else {
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            {{ 'purchaseOrders.autoDraft' | t }}
-          }
+        <button type="button" class="btn" (click)="autoDraft()" [disabled]="isAutoDrafting()" [class.is-loading]="isAutoDrafting()" [attr.data-tip]="'purchaseOrders.autoDraftTooltip' | t" [attr.aria-label]="'purchaseOrders.autoDraft' | t">
+          <app-icon name="zap" /><span class="no-xs">{{ (isAutoDrafting() ? 'purchaseOrders.analyzing' : 'purchaseOrders.autoDraft') | t }}</span>
         </button>
-        <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          {{ 'purchaseOrders.new' | t }}
+        <button type="button" class="btn btn-primary" (click)="openDrawer()">
+          <app-icon name="plus" /><span>{{ 'purchaseOrders.new' | t }}</span><kbd>N</kbd><kbd>B</kbd>
         </button>
       </div>
     </header>
 
-    <div class="filter-bar">
-      <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" [placeholder]="'purchaseOrders.searchPlaceholder' | t" [ngModel]="poSearch()" (ngModelChange)="poSearch.set($event)"/>
-      </div>
-      <div class="po-dates">
-        <input type="date" class="input" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" [title]="'purchaseOrders.startDate' | t" />
-        <span class="text-muted">–</span>
-        <input type="date" class="input" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" [title]="'purchaseOrders.endDate' | t" />
-        @if (startDate() || endDate()) {
-          <button class="icon-btn" (click)="startDate.set(''); endDate.set('')" [title]="'purchaseOrders.clearFilter' | t">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
+    <div class="toolbar po-toolbar">
+      <div class="seg seg-sm" role="group" [attr.aria-label]="'purchaseOrders.status' | t">
+        @for (f of poFilters; track f.v) {
+          <button type="button" [attr.aria-pressed]="poFilterStatus() === f.v" (click)="poFilterStatus.set(f.v)">{{ f.k | t }} <span class="count">{{ statusCount(f.v) }}</span></button>
         }
       </div>
-      <div class="filter-pills">
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'all'" (click)="poFilterStatus.set('all')">{{ 'purchaseOrders.filter.all' | t }}</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Draft'" (click)="poFilterStatus.set('Draft')">{{ 'purchaseOrders.filter.draft' | t }}</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Sent'" (click)="poFilterStatus.set('Sent')">{{ 'purchaseOrders.filter.sent' | t }}</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Received'" (click)="poFilterStatus.set('Received')">{{ 'purchaseOrders.filter.received' | t }}</button>
-        <button class="filter-pill" [class.active]="poFilterStatus() === 'Cancelled'" (click)="poFilterStatus.set('Cancelled')">{{ 'purchaseOrders.filter.cancelled' | t }}</button>
+      <div class="field field-sm po-search">
+        <span class="lead"><app-icon name="search" size="sm" /></span>
+        <input type="search" data-page-search [placeholder]="'purchaseOrders.searchPlaceholder' | t" [attr.aria-label]="'common.search' | t" [ngModel]="poSearch()" (ngModelChange)="poSearch.set($event)" />
+        <span class="trail"><kbd>/</kbd></span>
+      </div>
+      <span class="spacer"></span>
+      <div class="po-dates">
+        <div class="field field-sm">
+          <input type="date" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" [attr.aria-label]="'purchaseOrders.startDate' | t" [title]="'purchaseOrders.startDate' | t" />
+        </div>
+        <span class="po-dash" aria-hidden="true">–</span>
+        <div class="field field-sm">
+          <input type="date" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" [attr.aria-label]="'purchaseOrders.endDate' | t" [title]="'purchaseOrders.endDate' | t" />
+        </div>
+        @if (startDate() || endDate()) {
+          <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="startDate.set(''); endDate.set('')" [attr.aria-label]="'purchaseOrders.clearFilter' | t" [attr.data-tip]="'purchaseOrders.clearFilter' | t">
+            <app-icon name="x" size="sm" />
+          </button>
+        }
       </div>
     </div>
 
     <div class="table-card">
       @if (isLoading()) {
-        <div class="po-skel">
-          @for (r of [1,2,3,4,5]; track r) { <div class="skeleton skeleton-text"></div> }
+        <div class="po-skel" aria-busy="true">
+          @for (r of [1,2,3,4,5,6]; track r) { <div class="skeleton-row"></div> }
         </div>
       } @else if (filteredOrders().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <div class="empty-art"><app-icon name="cart" /></div>
+          <h3>{{ 'purchaseOrders.noResults' | t }}</h3>
+          <div class="actions cluster">
+            <button type="button" class="btn btn-primary" (click)="openDrawer()"><app-icon name="plus" />{{ 'purchaseOrders.create' | t }}</button>
           </div>
-          <div class="empty-state-title">{{ 'purchaseOrders.noResults' | t }}</div>
-          <button class="btn btn-primary" (click)="openDrawer()">{{ 'purchaseOrders.create' | t }}</button>
         </div>
       } @else {
         <div class="table-scroll">
-          <table class="table-responsive">
+          <table class="tbl table-responsive po-table">
             <thead>
               <tr>
                 <th>{{ 'purchaseOrders.col.poNumber' | t }}</th>
                 <th>{{ 'purchaseOrders.supplier' | t }}</th>
                 <th>{{ 'purchaseOrders.orderDate' | t }}</th>
+                <th class="lg-only">{{ 'purchaseOrders.expectedDate' | t }}</th>
                 <th>{{ 'purchaseOrders.items' | t }}</th>
                 <th>{{ 'purchaseOrders.status' | t }}</th>
-                <th class="num">{{ 'purchaseOrders.totalAmount' | t }}</th>
-                <th class="th-actions">{{ 'common.actions' | t }}</th>
+                <th class="r">{{ 'purchaseOrders.totalAmount' | t }}</th>
+                <th class="w-acts po-th-acts"><span class="sr">{{ 'common.actions' | t }}</span></th>
               </tr>
             </thead>
             <tbody>
               @for (o of filteredOrders(); track o.id) {
-                <tr>
-                  <td [attr.data-label]="'purchaseOrders.col.poNumber' | t">
-                    <a href="#" class="po-link mono" (click)="openDetailDrawer(o); $event.preventDefault()" [title]="'purchaseOrders.orderDetails' | t">{{ formatPoNumber(o.poNumber) }}</a>
+                @let g = getGroupedItems(o.items);
+                <tr class="clickable-row" (click)="openDetailDrawer(o)">
+                  <td class="td-primary">
+                    <span class="po-head">
+                      <button type="button" class="mono po-no" [attr.aria-label]="('purchaseOrders.orderDetails' | t) + ' ' + formatPoNumber(o.poNumber)" (click)="$event.stopPropagation(); openDetailDrawer(o)">{{ formatPoNumber(o.poNumber) }}</button>
+                      <span class="badge xs-only" [ngClass]="getBadgeClass(o.status)"><span class="dot"></span>{{ getStatusName(o.status) }}</span>
+                    </span>
                   </td>
-                  <td [attr.data-label]="'purchaseOrders.supplier' | t"><span class="po-strong">{{ o.supplierName }}</span></td>
-                  <td [attr.data-label]="'purchaseOrders.orderDate' | t">
-                    <div>{{ o.createdAt | appDate }}</div>
-                    @if (o.expectedDate) {
-                      <div class="po-sub">{{ 'purchaseOrders.expectedDate' | t }}: {{ o.expectedDate | appDate }}</div>
-                    }
+                  <td class="po-sup" [attr.data-label]="'purchaseOrders.supplier' | t"><span class="truncate">{{ o.supplierName }}</span></td>
+                  <td [attr.data-label]="'purchaseOrders.orderDate' | t">{{ o.createdAt | appDate }}</td>
+                  <td class="no-xs lg-only cell-sec">{{ o.expectedDate ? (o.expectedDate | appDate) : '—' }}</td>
+                  <td class="no-xs po-items-td" [title]="o.notes || ''">
+                    @if (g.length) {
+                      <span class="po-items"><span class="truncate">{{ g[0].productName }}</span><span class="cell-sec">{{ qtyLabel(g[0]) }}</span>@if (g.length > 1) { <span class="tag">+{{ g.length - 1 }}</span> }</span>
+                    } @else { <span class="cell-sec">—</span> }
                   </td>
-                  <td [attr.data-label]="'purchaseOrders.items' | t" class="po-items">
-                    <div class="po-items-in">
-                    @for (item of getGroupedItems(o.items); track item.key) {
-                      <div class="po-item">
-                        <span class="po-strong">{{ item.productName }}</span>
-                        <span class="po-sub">{{ 'purchaseOrders.itemLine' | t: { qty: qtyLabel(item), price: (item.price | money: o.currency), total: (item.lineTotal | money: o.currency) } }}</span>
-                      </div>
-                    }
-                    @if (o.notes) { <div class="po-sub po-note" [title]="o.notes">{{ 'purchaseOrders.notes' | t }}: {{ o.notes }}</div> }
-                    </div>
-                  </td>
-                  <td [attr.data-label]="'purchaseOrders.status' | t">
-                    <span class="badge badge-dot" [ngClass]="getBadgeClass(o.status)">{{ getStatusName(o.status) }}</span>
-                  </td>
-                  <td class="num po-strong" [attr.data-label]="'purchaseOrders.totalAmount' | t">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</td>
-                  <td class="po-actions-td" (click)="$event.stopPropagation()">
-                    <div class="po-actions">
-                      @if (o.status === 'Draft') {
-                        <button class="btn btn-primary btn-sm" (click)="sendPurchaseOrder(o)">{{ 'purchaseOrders.send' | t }}</button>
-                        <button class="edit-btn" [title]="'common.edit' | t" (click)="editPurchaseOrder(o)">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                        </button>
-                        <button class="delete-btn" [title]="'common.delete' | t" (click)="deletePurchaseOrder(o)">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                        </button>
-                      } @else if (o.status === 'Sent') {
-                        <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)">{{ 'purchaseOrders.receive' | t }}</button>
-                        <button class="icon-btn" [title]="'purchaseOrders.cancelOrder' | t" (click)="cancelPurchaseOrder(o)">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>
-                        </button>
-                      } @else if (o.status === 'Partially Received') {
-                        <button class="btn btn-primary btn-sm" (click)="receivePurchaseOrder(o)">{{ 'purchaseOrders.receiveMore' | t }}</button>
-                      } @else if (o.status === 'Cancelled') {
-                        <button class="delete-btn" [title]="'common.delete' | t" (click)="deletePurchaseOrder(o)">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                        </button>
-                      }
-                      <button class="icon-btn" [title]="'purchaseOrders.orderDetails' | t" (click)="openDetailDrawer(o)">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                      </button>
+                  <td class="no-xs"><span class="badge" [ngClass]="getBadgeClass(o.status)"><span class="dot"></span>{{ getStatusName(o.status) }}</span></td>
+                  <td class="r po-total" [attr.data-label]="'purchaseOrders.totalAmount' | t">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</td>
+                  <td class="td-actions w-acts" (click)="$event.stopPropagation()">
+                    <div class="po-acts">
+                      <span class="po-act-main">
+                        @if (o.status === 'Draft') {
+                          <button type="button" class="btn btn-ghost btn-sm po-main" (click)="sendPurchaseOrder(o)"><app-icon name="arrowur" size="sm" /><span>{{ 'purchaseOrders.send' | t }}</span></button>
+                        } @else if (o.status === 'Sent') {
+                          <button type="button" class="btn btn-ghost btn-sm po-main" (click)="receivePurchaseOrder(o)"><app-icon name="box-in" size="sm" /><span>{{ 'purchaseOrders.receive' | t }}</span></button>
+                        } @else if (o.status === 'Partially Received') {
+                          <button type="button" class="btn btn-ghost btn-sm po-main" (click)="receivePurchaseOrder(o)"><app-icon name="box-in" size="sm" /><span>{{ 'purchaseOrders.receive' | t }}</span></button>
+                        }
+                      </span>
+                      <span class="po-act-icons">
+                        @if (o.status === 'Draft') {
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon row-act" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t" (click)="editPurchaseOrder(o)"><app-icon name="edit" /></button>
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon row-act po-del" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" (click)="deletePurchaseOrder(o)"><app-icon name="trash" /></button>
+                        } @else if (o.status === 'Sent') {
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon row-act po-del" [attr.aria-label]="'purchaseOrders.cancelOrder' | t" [attr.data-tip]="'purchaseOrders.cancelOrder' | t" (click)="cancelPurchaseOrder(o)"><app-icon name="x" /></button>
+                        } @else if (o.status === 'Cancelled') {
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon row-act po-del" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" (click)="deletePurchaseOrder(o)"><app-icon name="trash" /></button>
+                        }
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -161,109 +149,124 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
             </tbody>
           </table>
         </div>
+        <div class="tbl-foot">
+          <span>{{ 'purchaseOrders.count' | t: { n: filteredOrders().length } }}</span>
+        </div>
       }
     </div>
 
-    <!-- New Order Drawer -->
+    <!-- New / edit order drawer -->
     @if (isDrawerOpen()) {
-      <div class="drawer-overlay" (click)="closeDrawer()">
-        <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
-          <div class="drawer-header">
-            <span class="drawer-title">{{ (editingPoId() ? 'purchaseOrders.editTitle' : 'purchaseOrders.newTitle') | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()" [title]="'common.close' | t">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
+      <div class="drawer-overlay" (click)="closeDrawer()" (document:keydown.escape)="!scannerMode() && closeDrawer()">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" [attr.aria-label]="(editingPoId() ? 'purchaseOrders.editTitle' : 'purchaseOrders.newTitle') | t" (click)="$event.stopPropagation()">
+          <header class="drawer-h">
+            <div class="t">
+              <div class="eyebrow"><app-icon name="cart" size="sm" /><span class="truncate">{{ 'purchaseOrders.title' | t }}</span></div>
+              <h2>{{ (editingPoId() ? 'purchaseOrders.editTitle' : 'purchaseOrders.newTitle') | t }}</h2>
+            </div>
+            <div class="tools">
+              <button type="button" class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+            </div>
+          </header>
 
           <form [formGroup]="poForm" (ngSubmit)="savePo()" class="po-form">
-            <div class="drawer-body">
-              <div class="form-field">
-                <select formControlName="supplierId" class="form-input form-select" [class.has-value]="hasValue('supplierId')" (change)="onSupplierChange()">
-                  <option value="" disabled selected></option>
-                  @for (s of suppliers(); track s.id) {
-                    <option [value]="s.id">{{ s.name }}</option>
-                  }
-                </select>
-                <label class="form-label">{{ 'purchaseOrders.supplier' | t }}</label>
-                @if (isFieldInvalid('supplierId')) { <div class="form-error">{{ 'purchaseOrders.supplierRequired' | t }}</div> }
-              </div>
-
-              <div class="form-row">
-                <div class="form-field">
-                  <select formControlName="currency" class="form-input form-select has-value">
-                    @for (c of currencies(); track c) { <option [value]="c">{{ c }}</option> }
-                  </select>
-                  <label class="form-label">{{ 'finance.currency' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <select formControlName="warehouseId" class="form-input form-select has-value">
-                    <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
-                    @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
-                  </select>
-                  <label class="form-label">{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
-                </div>
-              </div>
-              <div class="field-hint po-hint">{{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}</div>
-
-              <div class="form-field">
-                <input type="date" formControlName="expectedDate" class="form-input has-value" />
-                <label class="form-label">{{ 'purchaseOrders.expectedDate' | t }}</label>
-              </div>
-
-              <div class="form-field">
-                <textarea formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')"></textarea>
-                <label class="form-label">{{ 'purchaseOrders.notes' | t }}</label>
-              </div>
-              <app-special-category-warning [text]="poForm.get('notes')?.value" />
-
-              <div class="po-section">
-                <div class="po-section-head">
-                  <h3 class="po-h3">{{ 'purchaseOrders.orderItems' | t }}</h3>
-                  <div class="cluster">
-                    <button type="button" class="btn btn-sm btn-secondary" (click)="openLineScanner()" [disabled]="scanning()">
-                      @if (scanning()) { <span class="spinner-sm"></span> } @else {
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8"/></svg>
-                      } {{ 'purchaseOrders.scan' | t }}
-                    </button>
-                    <button type="button" class="btn btn-sm btn-secondary" (click)="addItem()">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                      {{ 'purchaseOrders.addProduct' | t }}
-                    </button>
+            <div class="drawer-body drawer-b">
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'purchaseOrders.section.supplier' | t }}</h3><p>{{ 'purchaseOrders.section.supplierSub' | t }}</p></div>
+                <div class="grid-2">
+                  <div class="fld span-2">
+                    <label class="fld-label" for="poSupplier">{{ 'purchaseOrders.supplier' | t }} <span class="req">*</span></label>
+                    <div class="field select">
+                      <span class="lead"><app-icon name="truck" size="sm" /></span>
+                      <select id="poSupplier" formControlName="supplierId" (change)="onSupplierChange()" [attr.aria-invalid]="isFieldInvalid('supplierId')">
+                        <option value="" disabled>{{ 'purchaseOrders.selectSupplier' | t }}</option>
+                        @for (s of suppliers(); track s.id) { <option [value]="s.id">{{ s.name }}</option> }
+                      </select>
+                    </div>
+                    @if (isFieldInvalid('supplierId')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'purchaseOrders.supplierRequired' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="poCurrency">{{ 'finance.currency' | t }}</label>
+                    <div class="field select">
+                      <select id="poCurrency" formControlName="currency">
+                        @for (c of currencies(); track c) { <option [value]="c">{{ c }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="poExpected">{{ 'purchaseOrders.expectedDate' | t }}</label>
+                    <div class="field">
+                      <input id="poExpected" type="date" formControlName="expectedDate" />
+                    </div>
+                  </div>
+                  <div class="fld span-2">
+                    <label class="fld-label" for="poWarehouse">{{ 'purchaseOrders.receivingWarehouse' | t }}</label>
+                    <div class="field select">
+                      <span class="lead"><app-icon name="warehouse" size="sm" /></span>
+                      <select id="poWarehouse" formControlName="warehouseId">
+                        <option value="">{{ 'purchaseOrders.defaultWarehouse' | t }}</option>
+                        @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld span-2">
+                    <label class="fld-label" for="poNotes">{{ 'purchaseOrders.notes' | t }}</label>
+                    <div class="field has-area"><textarea id="poNotes" rows="2" formControlName="notes"></textarea></div>
+                    <app-special-category-warning [text]="poForm.get('notes')?.value" />
                   </div>
                 </div>
+              </section>
 
-                <div formArrayName="items" class="stack po-lines">
+              <section class="fsec">
+                <div class="fsec-h">
+                  <span class="n">2</span><h3>{{ 'purchaseOrders.orderItems' | t }}</h3>
+                  <p>@if (itemsArray.length) { {{ 'purchaseOrders.lineCount' | t: { n: itemsArray.length } }} · }{{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}</p>
+                  <span class="aside po-sec-acts">
+                    <button type="button" class="btn btn-sm" (click)="openLineScanner()" [disabled]="scanning()" [class.is-loading]="scanning()"><app-icon name="barcode" size="sm" /><span>{{ 'purchaseOrders.scan' | t }}</span></button>
+                    <button type="button" class="btn btn-sm btn-subtle" (click)="addItem()"><app-icon name="plus" size="sm" />{{ 'purchaseOrders.addProduct' | t }}</button>
+                  </span>
+                </div>
+
+                <div formArrayName="items" class="po-lines">
                   @for (item of itemsArray.controls; track i; let i = $index) {
                     <div [formGroupName]="i" class="po-line" [class.po-line-hl]="highlightIndex() === i">
-                      <div class="po-line-product">
-                        <select formControlName="productId" class="select" (change)="onProductChange(i)">
-                          <option value="" disabled selected>{{ 'purchaseOrders.selectProduct' | t }}</option>
-                          @for (p of state.products(); track p.id) {
-                            <option [value]="p.id">{{ p.name }} ({{ 'purchaseOrders.available' | t: { n: p.quantity } }})</option>
+                      <div class="po-line-top">
+                        <span class="po-line-n mono">{{ i + 1 }}</span>
+                        <div class="field field-sm select po-line-product">
+                          <select formControlName="productId" (change)="onProductChange(i)" [attr.aria-label]="'purchaseOrders.selectProduct' | t">
+                            <option value="" disabled>{{ 'purchaseOrders.selectProduct' | t }}</option>
+                            @for (p of state.products(); track p.id) {
+                              <option [value]="p.id">{{ p.name }} ({{ 'purchaseOrders.available' | t: { n: p.quantity } }})</option>
+                            }
+                          </select>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-icon po-del" (click)="removeItem(i)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" /></button>
+                      </div>
+                      <div class="po-line-grid">
+                        <div class="fld">
+                          <label class="fld-label" [for]="'poQty' + i">{{ 'purchaseOrders.quantity' | t }}</label>
+                          <div class="field field-sm"><input [id]="'poQty' + i" type="text" class="num" inputmode="decimal" appQty [qtyDecimals]="lineDecimals(item.get('productId')?.value, item.get('unitId')?.value)" formControlName="quantity" /></div>
+                        </div>
+                        @if (productById(item.get('productId')?.value); as lp) {
+                          @if (lp.units?.length) {
+                            <div class="fld">
+                              <label class="fld-label" [for]="'poUnit' + i">{{ 'purchaseOrders.unit' | t }}</label>
+                              <div class="field field-sm select">
+                                <select [id]="'poUnit' + i" formControlName="unitId" (change)="onUnitChange(i)">
+                                  <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
+                                  @for (u of lp.units; track u.unitId) {
+                                    <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
+                                  }
+                                </select>
+                              </div>
+                            </div>
                           }
-                        </select>
-                      </div>
-                      <div class="po-line-num">
-                        <input type="text" appQty [qtyDecimals]="lineDecimals(item.get('productId')?.value, item.get('unitId')?.value)" formControlName="quantity" class="input" [placeholder]="'purchaseOrders.quantity' | t" [title]="'purchaseOrders.quantity' | t" />
-                      </div>
-                      @if (productById(item.get('productId')?.value); as lp) {
-                        @if (lp.units?.length) {
-                          <div class="po-line-num">
-                            <select formControlName="unitId" class="select" (change)="onUnitChange(i)" [title]="'purchaseOrders.unit' | t">
-                              <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
-                              @for (u of lp.units; track u.unitId) {
-                                <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
-                              }
-                            </select>
-                          </div>
                         }
-                      }
-                      <div class="po-line-num">
-                        <input type="number" formControlName="unitPrice" class="input" [placeholder]="'finance.unitPrice' | t" min="0" step="0.01" [title]="'finance.unitPrice' | t" />
+                        <div class="fld">
+                          <label class="fld-label" [for]="'poPrice' + i">{{ 'finance.unitPrice' | t }}</label>
+                          <div class="field field-sm"><input [id]="'poPrice' + i" type="number" class="num" formControlName="unitPrice" min="0" step="0.01" /><span class="affix suf">{{ formCurrency() }}</span></div>
+                        </div>
                       </div>
-                      <button type="button" class="delete-btn" (click)="removeItem(i)" [title]="'common.delete' | t">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-                      </button>
                       @if (item.get('productId')?.value) {
                         <app-line-tax-fields [group]="$any(item)" [product]="productById(item.get('productId')?.value)" [rates]="taxRates()" [exemptions]="exemptions()" [withholdings]="withholdings()" [importLine]="foreignSupplier()" [showReverseCharge]="foreignSupplier()"></app-line-tax-fields>
                       }
@@ -273,14 +276,14 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
                             <span>{{ 'purchaseOrders.baseQtyHint' | t: { qty: ((item.get('quantity')?.value || 0) * factorFor(item.get('productId')?.value, item.get('unitId')?.value) | num), unit: (baseUnitOf(item.get('productId')?.value) | unitLabel) } }}</span>
                           }
                           @if (quoteLine(i); as ql) {
-                            <span>{{ 'finance.taxRate' | t }}: {{ ql.taxRate | num }}%</span>
-                            <span>{{ 'finance.taxAmount' | t }}: {{ ql.taxAmount | money: formCurrency() }}</span>
-                            @if (ql.withheldTaxAmount > 0) { <span>{{ 'orders.withheldVat' | t }}: {{ ql.withheldTaxAmount | money: formCurrency() }}</span> }
-                            <span>{{ 'finance.lineTotal' | t }}: <strong>{{ ql.lineTotal | money: formCurrency() }}</strong></span>
+                            <span>{{ 'finance.taxRate' | t }} <b>{{ ql.taxRate | num }}%</b></span>
+                            <span>{{ 'finance.taxAmount' | t }} <b>{{ ql.taxAmount | money: formCurrency() }}</b></span>
+                            @if (ql.withheldTaxAmount > 0) { <span>{{ 'orders.withheldVat' | t }} <b>{{ ql.withheldTaxAmount | money: formCurrency() }}</b></span> }
+                            <span class="po-line-total">{{ 'finance.lineTotal' | t }} <b>{{ ql.lineTotal | money: formCurrency() }}</b></span>
                           } @else if (ln.hasPrice) {
-                            <span>{{ 'finance.taxRate' | t }}: {{ ln.rate | num }}%</span>
-                            <span>{{ 'finance.taxAmount' | t }}: {{ ln.tax | money: formCurrency() }}</span>
-                            <span>{{ 'finance.lineTotal' | t }}: <strong>{{ ln.gross | money: formCurrency() }}</strong></span>
+                            <span>{{ 'finance.taxRate' | t }} <b>{{ ln.rate | num }}%</b></span>
+                            <span>{{ 'finance.taxAmount' | t }} <b>{{ ln.tax | money: formCurrency() }}</b></span>
+                            <span class="po-line-total">{{ 'finance.lineTotal' | t }} <b>{{ ln.gross | money: formCurrency() }}</b></span>
                           } @else if (ln.productId) {
                             <span>{{ 'purchaseOrders.serverPriceHint' | t }}</span>
                           }
@@ -288,42 +291,99 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
                       }
                     </div>
                   }
-                  @if (itemsArray.length > 0) {
-                    <app-document-tax-fields [group]="taxGroup"></app-document-tax-fields>
-                    @if (foreignSupplier()) {
-                      <div class="form-row" [formGroup]="poForm">
-                        <div class="form-field">
-                          <input id="cdNo" type="text" formControlName="customsDeclarationNo" class="form-input has-value mono" maxlength="30" />
-                          <label for="cdNo" class="form-label">{{ 'purchaseOrders.customsDeclarationNo' | t }}</label>
-                        </div>
-                        <div class="form-field">
-                          <input id="cdDate" type="date" formControlName="customsDeclarationDate" class="form-input has-value" />
-                          <label for="cdDate" class="form-label">{{ 'purchaseOrders.customsDeclarationDate' | t }}</label>
-                        </div>
-                      </div>
-                    }
-                    @if (quote()) {
-                      <app-tax-summary [view]="quoteView()" [error]="quoteError()" [baseCurrency]="i18n.currency()"></app-tax-summary>
-                    } @else {
-                      @if (quoteError()) { <app-tax-summary [view]="null" [error]="quoteError()"></app-tax-summary> }
-                      <div class="po-totals">
-                        <div class="po-trow"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ preview().subtotal | money: formCurrency() }}</span></div>
-                        <div class="po-trow po-grand"><span>{{ 'finance.grandTotal' | t }}</span><span class="num">{{ preview().total | money: formCurrency() }}</span></div>
-                        @if (preview().incomplete) { <div class="field-hint">{{ 'purchaseOrders.previewIncomplete' | t }}</div> }
-                      </div>
-                    }
-                  }
                   @if (itemsArray.length === 0) {
-                    <div class="po-empty-lines text-muted">{{ 'purchaseOrders.noItems' | t }}</div>
+                    <div class="empty-state po-empty-lines">
+                      <div class="empty-art"><app-icon name="box" /></div>
+                      <p>{{ 'purchaseOrders.noItems' | t }}</p>
+                      <div class="actions cluster">
+                        <button type="button" class="btn btn-sm btn-subtle" (click)="addItem()"><app-icon name="plus" size="sm" />{{ 'purchaseOrders.addProduct' | t }}</button>
+                      </div>
+                    </div>
                   }
                 </div>
-              </div>
+              </section>
+
+              @if (itemsArray.length > 0) {
+                <section class="fsec">
+                  <div class="fsec-h">
+                    <span class="n">3</span><h3>{{ 'finance.charges' | t }}</h3><p>{{ 'orders.create.chargesOptional' | t }}</p>
+                    <span class="aside po-sec-acts">
+                      <button type="button" class="btn btn-sm btn-subtle" (click)="addCharge()"><app-icon name="plus" size="sm" />{{ 'finance.addCharge' | t }}</button>
+                    </span>
+                  </div>
+                  <div [formGroup]="taxGroup">
+                    <div formArrayName="charges" class="po-ch-list">
+                      @for (c of chargesArray.controls; track $index; let i = $index) {
+                        <div class="po-ch-row" [formGroupName]="i">
+                          <div class="field field-sm select">
+                            <select formControlName="type" [attr.aria-label]="'finance.chargeType' | t">
+                              @for (ct of chargeTypes; track ct) { <option [value]="ct">{{ 'orders.charges.' + ct | t }}</option> }
+                            </select>
+                          </div>
+                          <div class="field field-sm">
+                            <input type="number" min="0" step="0.01" class="num" formControlName="amount" [placeholder]="'finance.amount' | t" [attr.aria-label]="'finance.amount' | t" />
+                            <span class="affix suf">{{ formCurrency() }}</span>
+                          </div>
+                          <div class="field field-sm po-ch-desc">
+                            <input type="text" formControlName="description" maxlength="255" [placeholder]="'finance.chargeDescription' | t" [attr.aria-label]="'finance.chargeDescription' | t" />
+                          </div>
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon po-del" (click)="chargesArray.removeAt(i)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" /></button>
+                        </div>
+                      }
+                    </div>
+                    <div class="fld-help">{{ 'finance.chargesHint' | t }}</div>
+                  </div>
+                </section>
+
+                <section class="fsec">
+                  <div class="fsec-h"><span class="n">4</span><h3>{{ 'purchaseOrders.section.totals' | t }}</h3></div>
+                  <div class="grid-2" [formGroup]="taxGroup">
+                    <div class="fld">
+                      <label class="fld-label" for="poDocDiscount">{{ 'finance.documentDiscount' | t }}</label>
+                      <div class="field">
+                        <input id="poDocDiscount" type="number" min="0" step="0.01" class="num" formControlName="documentDiscountAmount" placeholder="0" />
+                        <span class="affix suf">{{ formCurrency() }}</span>
+                      </div>
+                    </div>
+                    <div class="fld">
+                      <label class="fld-label" for="poTaxPoint">{{ 'finance.taxPointDate' | t }}</label>
+                      <div class="field">
+                        <span class="lead"><app-icon name="calendar" size="sm" /></span>
+                        <input id="poTaxPoint" type="date" formControlName="taxPointDate" />
+                      </div>
+                    </div>
+                  </div>
+                  @if (foreignSupplier()) {
+                    <div class="grid-2" [formGroup]="poForm">
+                      <div class="fld">
+                        <label class="fld-label" for="cdNo">{{ 'purchaseOrders.customsDeclarationNo' | t }}</label>
+                        <div class="field"><input id="cdNo" type="text" class="mono" formControlName="customsDeclarationNo" maxlength="30" /></div>
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="cdDate">{{ 'purchaseOrders.customsDeclarationDate' | t }}</label>
+                        <div class="field"><input id="cdDate" type="date" formControlName="customsDeclarationDate" /></div>
+                      </div>
+                    </div>
+                  }
+                  @if (quote()) {
+                    <app-tax-summary [view]="quoteView()" [error]="quoteError()" [baseCurrency]="i18n.currency()"></app-tax-summary>
+                  } @else {
+                    @if (quoteError()) { <app-tax-summary [view]="null" [error]="quoteError()"></app-tax-summary> }
+                    <div class="po-totals">
+                      <div class="row"><span>{{ 'finance.subtotal' | t }}</span><span>{{ preview().subtotal | money: formCurrency() }}</span></div>
+                      <div class="row grand"><span>{{ 'finance.grandTotal' | t }}</span><span>{{ preview().total | money: formCurrency() }}</span></div>
+                      @if (preview().incomplete) { <div class="fld-help">{{ 'purchaseOrders.previewIncomplete' | t }}</div> }
+                    </div>
+                  }
+                </section>
+              }
             </div>
 
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="poForm.invalid || itemsArray.length === 0 || isSaving() || exemptionMissing()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'purchaseOrders.saving' | t }} } @else { {{ (editingPoId() ? 'purchaseOrders.update' : 'purchaseOrders.createBtn') | t }} }
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeDrawer()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSaving()" [disabled]="poForm.invalid || itemsArray.length === 0 || isSaving() || exemptionMissing()">
+                <span>{{ (isSaving() ? 'purchaseOrders.saving' : (editingPoId() ? 'purchaseOrders.update' : 'purchaseOrders.createBtn')) | t }}</span><kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </form>
@@ -331,153 +391,154 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
       </div>
     }
 
-    <!-- Detail Drawer -->
+    <!-- Detail drawer -->
     @if (detailOrder()) {
-      <div class="drawer-overlay" (click)="closeDetailDrawer()">
-        <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
-          <div class="drawer-header">
-            <div>
-              <span class="drawer-title">{{ 'purchaseOrders.detailTitle' | t }}</span>
-              <span class="po-sub mono po-block">{{ 'purchaseOrders.poNo' | t: { no: formatPoNumber(detailOrder().poNumber) } }}</span>
+      <div class="drawer-overlay" (click)="closeDetailDrawer()" (document:keydown.escape)="!grTarget() && closeDetailDrawer()">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" [attr.aria-label]="'purchaseOrders.detailTitle' | t" (click)="$event.stopPropagation()">
+          <header class="drawer-h">
+            <div class="t">
+              <div class="eyebrow">
+                <span class="mono">{{ formatPoNumber(detailOrder().poNumber) }}</span>
+                <span class="badge" [ngClass]="getBadgeClass(detailOrder().status)"><span class="dot"></span>{{ getStatusName(detailOrder().status) }}</span>
+                @if (detailOrder().isImport) { <span class="badge badge-info">{{ 'purchaseOrders.import' | t }}</span> }
+              </div>
+              <h2 class="truncate">{{ detailOrder().supplierName }}</h2>
             </div>
-            <button class="drawer-close" (click)="closeDetailDrawer()" [title]="'common.close' | t">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
+            <div class="tools">
+              @if (detailOrder().status !== 'Draft' && detailOrder().status !== 'Sent') {
+                <a class="btn btn-ghost btn-sm" routerLink="/goods-receipts" [attr.aria-label]="'purchaseOrders.goodsReceipts' | t"><app-icon name="box-in" size="sm" /><span class="no-xs">{{ 'purchaseOrders.goodsReceipts' | t }}</span></a>
+              }
+              <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="docs.print('purchase-orders/' + detailOrder().id + '/print')" [attr.aria-label]="'purchaseOrders.printForm' | t" [attr.data-tip]="'purchaseOrders.printForm' | t"><app-icon name="printer" /></button>
+              <button type="button" class="drawer-close" (click)="closeDetailDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+            </div>
+          </header>
           <div class="drawer-body">
-            <div class="detail-grid">
-              <div class="detail-field">
-                <span class="detail-label">{{ 'purchaseOrders.supplier' | t }}</span>
-                <span class="detail-value">{{ detailOrder().supplierName }}</span>
-              </div>
-              <div class="detail-field">
-                <span class="detail-label">{{ 'purchaseOrders.status' | t }}</span>
-                <div>
-                  <span class="badge badge-dot" [ngClass]="getBadgeClass(detailOrder().status)">{{ getStatusName(detailOrder().status) }}</span>
-                </div>
-              </div>
-              <div class="detail-field">
-                <span class="detail-label">{{ 'purchaseOrders.createdAt' | t }}</span>
-                <span class="detail-value">{{ detailOrder().createdAt | appDate: 'datetime' }}</span>
-              </div>
-              <div class="detail-field">
-                <span class="detail-label">{{ 'purchaseOrders.expectedDate' | t }}</span>
-                <span class="detail-value">{{ detailOrder().expectedDate ? (detailOrder().expectedDate | appDate) : '-' }}</span>
-              </div>
-            </div>
-
-            <h3 class="detail-items-title">{{ 'purchaseOrders.items' | t }}</h3>
-            <div class="stack po-gap-2">
-              @for (item of getGroupedItems(detailOrder().items); track item.key) {
-                <div class="detail-item-row">
-                  <span class="detail-item-name">{{ item.productName }}</span>
-                  <span class="detail-item-qty">
-                    {{ 'purchaseOrders.itemQtyPrice' | t: { qty: qtyLabel(item), price: (item.price | money: detailOrder().currency) } }}
-                    · {{ 'finance.taxRate' | t }} {{ item.taxRate | num }}% · {{ 'finance.tax' | t }} {{ item.taxAmount | money: detailOrder().currency }}
-                    = <strong>{{ item.lineTotal | money: detailOrder().currency }}</strong>
-                  </span>
-                  @if ((item.discountAmount || 0) > 0 || item.exemptionCode || item.withholdingCode || item.reverseCharge) {
-                    <span class="detail-item-qty">
-                      @if ((item.discountAmount || 0) > 0) { {{ 'orders.discount' | t }}: −{{ item.discountAmount | money: detailOrder().currency }} }
-                      @if (item.exemptionCode) { · {{ 'finance.exemptionShort' | t: { code: item.exemptionCode } }} }
-                      @if (item.withholdingCode) { · {{ 'finance.withholdingCodeShort' | t: { code: item.withholdingCode } }}: {{ (item.withheldTaxAmount || 0) | money: detailOrder().currency }} }
-                      @if (item.reverseCharge) { · {{ 'finance.reverseCharge' | t }} }
-                    </span>
-                  }
-                  @if (item.tracking.length) {
-                    <div class="po-tracking">
-                      @for (tr of item.tracking; track $index) {
-                        <span>
-                          @if (tr.lotNumber) {
-                            {{ 'purchaseOrders.tracking.lotLine' | t: { lot: tr.lotNumber, qty: (tr.quantity | num) } }}
-                            @if (tr.expiryDate) { · {{ 'purchaseOrders.tracking.expiry' | t }}: {{ tr.expiryDate | appDate }} }
-                          }
-                          @if (tr.serials?.length) {
-                            {{ 'purchaseOrders.tracking.serials' | t }}: <span class="mono">{{ tr.serials.join(', ') }}</span>
-                          }
-                        </span>
-                      }
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-
-            <div class="po-totals po-mt-3">
-              @for (c of detailOrder().charges || []; track $index) {
-                <div class="po-trow"><span>{{ 'orders.charges.' + c.type | t }}@if (c.description) { · {{ c.description }} }</span><span class="num">{{ (c.lineTotal ?? c.amount) | money: detailOrder().currency }}</span></div>
-              }
-              <app-tax-summary [view]="detailView()" [flat]="true" [baseCurrency]="i18n.currency()"></app-tax-summary>
-              @if (detailOrder().isImport) {
-                <div class="po-import">
-                  <span class="badge badge-info">{{ 'purchaseOrders.import' | t }}</span>
-                  <span class="field-hint">{{ 'finance.importVatHint' | t }}</span>
-                  <div class="form-row">
-                    <div class="form-field">
-                      <input id="dCdNo" type="text" class="form-input has-value mono" [(ngModel)]="customsNo" maxlength="30" />
-                      <label for="dCdNo" class="form-label">{{ 'purchaseOrders.customsDeclarationNo' | t }}</label>
-                    </div>
-                    <div class="form-field">
-                      <input id="dCdDate" type="date" class="form-input has-value" [(ngModel)]="customsDate" />
-                      <label for="dCdDate" class="form-label">{{ 'purchaseOrders.customsDeclarationDate' | t }}</label>
-                    </div>
-                    <div class="form-field">
-                      <input id="dIv" type="number" min="0" step="0.01" class="form-input has-value num" [(ngModel)]="importVat" />
-                      <label for="dIv" class="form-label">{{ 'purchaseOrders.importVatAmount' | t }}</label>
-                    </div>
-                    <div class="form-field">
-                      <input id="dNd" type="number" min="0" step="0.01" class="form-input has-value num" [(ngModel)]="nonDeductibleVat" />
-                      <label for="dNd" class="form-label">{{ 'purchaseOrders.nonDeductibleImportVat' | t }}</label>
-                    </div>
-                  </div>
-                  @if (detailOrder().status !== 'Cancelled') {
-                    <button type="button" class="btn btn-sm btn-secondary" (click)="saveCustoms()" [disabled]="isSaving()">{{ 'purchaseOrders.saveCustoms' | t }}</button>
-                  }
-                </div>
-              }
-              @if (warehouseName(detailOrder().warehouseId); as wn) {
-                <div class="field-hint">{{ 'purchaseOrders.receivingWarehouse' | t }}: {{ wn }}</div>
-              }
-            </div>
-
-            @if (detailOrder().notes) {
-              <div class="po-section">
-                <h3 class="po-h3">{{ 'purchaseOrders.notes' | t }}</h3>
-                <p class="po-notes">{{ detailOrder().notes }}</p>
-              </div>
+            @if (detailOrder().status === 'Received') {
+              <div class="notice notice-success"><app-icon name="okc" /><span class="t">{{ 'purchaseOrders.receivedInfo' | t }}</span></div>
+            } @else if (detailOrder().status === 'Cancelled') {
+              <div class="notice notice-danger"><app-icon name="alert" /><span class="t">{{ 'purchaseOrders.cancelledInfo' | t }}</span></div>
             }
 
-            @if (detailOrder().status === 'Received') {
-              <div class="po-callout po-callout-success">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
-                {{ 'purchaseOrders.receivedInfo' | t }}
+            <div class="doc-grid po-meta">
+              <div class="doc-field"><label>{{ 'purchaseOrders.createdAt' | t }}</label><span>{{ detailOrder().createdAt | appDate: 'datetime' }}</span></div>
+              <div class="doc-field"><label>{{ 'purchaseOrders.expectedDate' | t }}</label><span>{{ detailOrder().expectedDate ? (detailOrder().expectedDate | appDate) : '—' }}</span></div>
+              @if (warehouseName(detailOrder().warehouseId); as wn) {
+                <div class="doc-field"><label>{{ 'purchaseOrders.receivingWarehouse' | t }}</label><span>{{ wn }}</span></div>
+              }
+              <div class="doc-field"><label>{{ 'finance.currency' | t }}</label><span class="mono">{{ detailOrder().currency }}</span></div>
+            </div>
+
+            <section class="doc-section">
+              <h3 class="doc-section-title">{{ 'purchaseOrders.items' | t }} <span class="tag">{{ getGroupedItems(detailOrder().items).length }}</span></h3>
+              <div class="table-scroll po-dt-wrap">
+                <table class="doc-table po-dt">
+                  <thead><tr>
+                    <th>{{ 'despatches.product' | t }}</th>
+                    <th class="num">{{ 'purchaseOrders.quantity' | t }}</th>
+                    <th class="num hide-xs">{{ 'finance.unitPrice' | t }}</th>
+                    <th class="num hide-xs">{{ 'finance.tax' | t }}</th>
+                    <th class="num">{{ 'finance.lineTotal' | t }}</th>
+                  </tr></thead>
+                  <tbody>
+                    @for (item of getGroupedItems(detailOrder().items); track item.key) {
+                      <tr>
+                        <td>
+                          <div class="po-dt-name">{{ item.productName }}</div>
+                          @if ((item.discountAmount || 0) > 0 || item.exemptionCode || item.withholdingCode || item.reverseCharge) {
+                            <div class="po-dt-sub">
+                              @if ((item.discountAmount || 0) > 0) { <span>{{ 'orders.discount' | t }} −{{ item.discountAmount | money: detailOrder().currency }}</span> }
+                              @if (item.exemptionCode) { <span class="tag">{{ 'finance.exemptionShort' | t: { code: item.exemptionCode } }}</span> }
+                              @if (item.withholdingCode) { <span>{{ 'finance.withholdingCodeShort' | t: { code: item.withholdingCode } }}: {{ (item.withheldTaxAmount || 0) | money: detailOrder().currency }}</span> }
+                              @if (item.reverseCharge) { <span class="tag">{{ 'finance.reverseCharge' | t }}</span> }
+                            </div>
+                          }
+                          @if (item.tracking.length) {
+                            <div class="po-dt-sub">
+                              @for (tr of item.tracking; track $index) {
+                                <span>
+                                  @if (tr.lotNumber) {
+                                    <span class="mono">{{ 'purchaseOrders.tracking.lotLine' | t: { lot: tr.lotNumber, qty: (tr.quantity | num) } }}</span>
+                                    @if (tr.expiryDate) { · {{ 'purchaseOrders.tracking.expiry' | t }} {{ tr.expiryDate | appDate }} }
+                                  }
+                                  @if (tr.serials?.length) {
+                                    {{ 'purchaseOrders.tracking.serials' | t }}: <span class="mono">{{ tr.serials.join(', ') }}</span>
+                                  }
+                                </span>
+                              }
+                            </div>
+                          }
+                        </td>
+                        <td class="num nowrap">{{ qtyLabel(item) }}</td>
+                        <td class="num hide-xs nowrap">{{ item.price | money: detailOrder().currency }}</td>
+                        <td class="num hide-xs nowrap"><span class="po-dt-rate">%{{ item.taxRate | num }}</span> {{ item.taxAmount | money: detailOrder().currency }}</td>
+                        <td class="num nowrap"><b class="po-dt-total">{{ item.lineTotal | money: detailOrder().currency }}</b></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
               </div>
-            } @else if (detailOrder().status === 'Cancelled') {
-              <div class="po-callout po-callout-danger">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg>
-                {{ 'purchaseOrders.cancelledInfo' | t }}
+
+              <div class="po-sum">
+                @for (c of detailOrder().charges || []; track $index) {
+                  <div class="po-sum-row"><span>{{ 'orders.charges.' + c.type | t }}@if (c.description) { · {{ c.description }} }</span><span>{{ (c.lineTotal ?? c.amount) | money: detailOrder().currency }}</span></div>
+                }
+                <app-tax-summary [view]="detailView()" [flat]="true" [baseCurrency]="i18n.currency()"></app-tax-summary>
               </div>
+            </section>
+
+            @if (detailOrder().isImport) {
+              <section class="doc-section">
+                <h3 class="doc-section-title">{{ 'purchaseOrders.import' | t }}</h3>
+                <div class="fld-help po-import-hint">{{ 'finance.importVatHint' | t }}</div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="dCdNo">{{ 'purchaseOrders.customsDeclarationNo' | t }}</label>
+                    <div class="field"><input id="dCdNo" type="text" class="mono" [(ngModel)]="customsNo" maxlength="30" /></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="dCdDate">{{ 'purchaseOrders.customsDeclarationDate' | t }}</label>
+                    <div class="field"><input id="dCdDate" type="date" [(ngModel)]="customsDate" /></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="dIv">{{ 'purchaseOrders.importVatAmount' | t }}</label>
+                    <div class="field"><input id="dIv" type="number" min="0" step="0.01" class="num" [(ngModel)]="importVat" /></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="dNd">{{ 'purchaseOrders.nonDeductibleImportVat' | t }}</label>
+                    <div class="field"><input id="dNd" type="number" min="0" step="0.01" class="num" [(ngModel)]="nonDeductibleVat" /></div>
+                  </div>
+                </div>
+                @if (detailOrder().status !== 'Cancelled') {
+                  <div><button type="button" class="btn btn-sm" (click)="saveCustoms()" [disabled]="isSaving()">{{ 'purchaseOrders.saveCustoms' | t }}</button></div>
+                }
+              </section>
+            }
+
+            @if (detailOrder().notes) {
+              <section class="doc-section">
+                <h3 class="doc-section-title">{{ 'purchaseOrders.notes' | t }}</h3>
+                <p class="doc-note po-notes">{{ detailOrder().notes }}</p>
+              </section>
             }
           </div>
           <div class="drawer-footer">
-            <button class="btn btn-secondary" (click)="closeDetailDrawer()">{{ 'common.close' | t }}</button>
-            <button class="btn btn-ghost" (click)="docs.print('purchase-orders/' + detailOrder().id + '/print')">{{ 'purchaseOrders.printForm' | t }}</button>
-            @if (detailOrder().status !== 'Draft' && detailOrder().status !== 'Sent') {
-              <a class="btn btn-ghost" routerLink="/goods-receipts">{{ 'purchaseOrders.goodsReceipts' | t }}</a>
-            }
-            @if (detailOrder().status === 'Partially Received') {
-              <button class="btn btn-secondary" (click)="closePartial(detailOrder())">{{ 'purchaseOrders.closeShort' | t }}</button>
-              <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">{{ 'purchaseOrders.receiveMore' | t }}</button>
-            }
             @if (detailOrder().status === 'Draft') {
-              <button class="btn btn-outline-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
-              <button class="btn btn-secondary" (click)="editPurchaseOrder(detailOrder())">{{ 'common.edit' | t }}</button>
-              <button class="btn btn-primary" (click)="sendPurchaseOrder(detailOrder())">{{ 'purchaseOrders.send' | t }}</button>
+              <button type="button" class="btn btn-danger-ghost" (click)="deletePurchaseOrder(detailOrder())"><app-icon name="trash" size="sm" />{{ 'common.delete' | t }}</button>
             } @else if (detailOrder().status === 'Sent') {
-              <button class="btn btn-outline-danger" (click)="cancelPurchaseOrder(detailOrder())">{{ 'purchaseOrders.cancelOrder' | t }}</button>
-              <button class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())">{{ 'purchaseOrders.receive' | t }}</button>
+              <button type="button" class="btn btn-danger-ghost" (click)="cancelPurchaseOrder(detailOrder())">{{ 'purchaseOrders.cancelOrder' | t }}</button>
             } @else if (detailOrder().status === 'Cancelled') {
-              <button class="btn btn-danger" (click)="deletePurchaseOrder(detailOrder())">{{ 'common.delete' | t }}</button>
+              <button type="button" class="btn btn-danger-ghost" (click)="deletePurchaseOrder(detailOrder())"><app-icon name="trash" size="sm" />{{ 'common.delete' | t }}</button>
+            }
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-ghost" [class.no-xs]="detailOrder().status !== 'Received'" (click)="closeDetailDrawer()">{{ 'common.close' | t }}</button>
+            @if (detailOrder().status === 'Partially Received') {
+              <button type="button" class="btn" (click)="closePartial(detailOrder())">{{ 'purchaseOrders.closeShort' | t }}</button>
+              <button type="button" class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())"><app-icon name="box-in" />{{ 'purchaseOrders.receive' | t }}</button>
+            } @else if (detailOrder().status === 'Draft') {
+              <button type="button" class="btn" (click)="editPurchaseOrder(detailOrder())"><app-icon name="edit" />{{ 'common.edit' | t }}</button>
+              <button type="button" class="btn btn-primary" (click)="sendPurchaseOrder(detailOrder())"><app-icon name="arrowur" />{{ 'purchaseOrders.send' | t }}</button>
+            } @else if (detailOrder().status === 'Sent') {
+              <button type="button" class="btn btn-primary" (click)="receivePurchaseOrder(detailOrder())"><app-icon name="box-in" />{{ 'purchaseOrders.receive' | t }}</button>
             }
           </div>
         </div>
@@ -499,83 +560,117 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
     <app-toast></app-toast>
   `,
   styles: [`
-    .po-import { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) dashed var(--color-border); }
-    .po-receipt-doc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
-    @media (max-width: 640px) { .po-receipt-doc { grid-template-columns: 1fr; } }
-    .po-dates { display: flex; align-items: center; gap: var(--space-2); }
-    .po-dates .input { width: auto; min-width: 0; }
-    .po-skel { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
-    .po-link { color: var(--color-primary-text); font-weight: var(--weight-semibold); text-decoration: none; white-space: nowrap; }
-    .po-link:hover { text-decoration: underline; }
-    .po-strong { font-weight: var(--weight-medium); color: var(--color-text); }
-    td.num.po-strong { font-weight: var(--weight-semibold); white-space: nowrap; }
-    .po-sub { font-size: var(--text-xs); color: var(--color-text-muted); margin: 0; }
-    .po-block { display: block; margin-top: 2px; }
-    .po-items { min-width: 220px; max-width: 380px; }
-    .po-item { display: flex; flex-direction: column; line-height: 1.35; }
-    .po-item + .po-item { margin-top: var(--space-1); }
-    .po-note { margin-top: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
-    .po-actions-td { text-align: right; white-space: nowrap; }
-    .po-items-in { display: flex; flex-direction: column; min-width: 0; }
-    .po-actions { display: inline-flex; align-items: center; gap: var(--space-1); justify-content: flex-end; }
-    .po-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .po-hint { margin: calc(var(--space-2) * -1) 0 var(--space-3); }
-    .po-section { margin-top: var(--space-6); }
-    .po-section-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
-    .po-h3 { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-text); margin: 0 0 var(--space-2); }
-    .po-section-head .po-h3 { margin: 0; }
-    .po-lines { gap: var(--space-3); }
-    .po-line { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-3); background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); transition: box-shadow var(--duration-fast) var(--ease-standard); }
-    .po-line-hl { box-shadow: var(--focus-ring); border-color: var(--color-primary); }
-    .po-line-product { flex: 2 1 200px; min-width: 0; }
-    .po-line-num { flex: 1 1 90px; min-width: 0; }
-    .po-line .select, .po-line .input { width: 100%; }
-    .po-line-meta { flex-basis: 100%; font-size: var(--text-xs); color: var(--color-text-secondary); display: flex; gap: var(--space-3); flex-wrap: wrap; }
-    .po-totals { padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); font-size: var(--text-sm); display: flex; flex-direction: column; gap: var(--space-1); }
-    .po-trow { display: flex; justify-content: space-between; gap: var(--space-3); }
-    .po-grand { font-weight: var(--weight-bold); color: var(--color-text); border-top: 1px solid var(--color-border-subtle); padding-top: var(--space-2); margin-top: var(--space-1); }
-    .po-empty-lines { text-align: center; padding: var(--space-4); border: 1px dashed var(--color-border); border-radius: var(--radius-md); font-size: var(--text-sm); }
-    .po-mt-3 { margin-top: var(--space-3); }
-    .po-gap-2 { gap: var(--space-2); }
-    .po-notes { font-size: var(--text-sm); line-height: 1.5; color: var(--color-text-secondary); background: var(--color-surface-subtle); padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--color-border); margin: 0; white-space: pre-wrap; }
-    .po-callout { margin-top: var(--space-6); padding: var(--space-3); border-radius: var(--radius-md); display: flex; align-items: center; gap: var(--space-2); font-weight: var(--weight-medium); font-size: var(--text-sm); border: 1px solid; }
-    .po-callout-success { background: var(--color-success-subtle); border-color: var(--color-success-border); color: var(--color-success-text); }
-    .po-callout-danger { background: var(--color-danger-subtle); border-color: var(--color-danger-border); color: var(--color-danger-text); }
-    .po-tracking { flex-basis: 100%; font-size: var(--text-xs); color: var(--color-text-secondary); display: flex; flex-direction: column; gap: 2px; }
-    .po-modal-overlay { display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
-    .po-modal { background: var(--color-surface-raised, var(--color-surface)); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); padding: var(--space-6); width: min(440px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-4); }
-    .po-modal-wide { width: min(640px, 100%); }
-    .po-modal-head { display: flex; flex-direction: column; gap: var(--space-1); }
-    .po-modal-title { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--color-text); }
-    .po-modal-head .po-sub { font-size: var(--text-sm); color: var(--color-text-secondary); }
-    .po-modal-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
-    .po-rlines { display: flex; flex-direction: column; gap: var(--space-3); max-height: 50vh; overflow-y: auto; }
-    .po-rline { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); background: var(--color-surface-subtle); }
-    .po-rline-head, .po-rline-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-    .po-lot { display: flex; gap: var(--space-2); align-items: center; }
-    .po-lot .input { min-width: 0; }
-    .po-lot-no { flex: 2; } .po-lot-date { flex: 1.6; } .po-lot-qty { flex: 1; }
-    .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); background: var(--color-surface-subtle); padding: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border); }
-    .detail-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-    .detail-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
-    .detail-value { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-text); }
-    .detail-items-title { font-size: var(--text-sm); font-weight: var(--weight-semibold); margin: var(--space-6) 0 var(--space-3); color: var(--color-text); }
-    .detail-item-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border); }
-    .detail-item-name { font-weight: var(--weight-semibold); font-size: var(--text-sm); color: var(--color-text); }
-    .detail-item-qty { font-size: var(--text-xs); color: var(--color-text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
-    .detail-item-qty strong { color: var(--color-text); }
+    .drawer-h .eyebrow .mono { flex: none; white-space: nowrap; }
+    .drawer-h .eyebrow .truncate { min-width: 0; }
+    .xs-only { display: none !important; }
+    .nowrap { white-space: nowrap; }
+    /* toolbar */
+    .po-toolbar { margin-bottom: 12px; }
+    .po-search { flex: 1 1 240px; max-width: 360px; }
+    .po-dates { display: flex; align-items: center; gap: 6px; }
+    .po-dates .field { width: 140px; }
+    .po-dash { color: var(--fg-3); font-size: var(--text-xs); }
+    /* table */
+    .po-skel { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .po-table td { white-space: nowrap; }
+    .po-table td.w-acts { overflow: visible; }
+    .po-no { all: unset; font-family: var(--font-mono); font-feature-settings: 'zero'; font-size: inherit; font-weight: 500; white-space: nowrap; color: var(--fg); cursor: pointer; border-radius: var(--radius-sm); }
+    .po-no:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+    .po-no:focus-visible { box-shadow: var(--focus-ring); }
+    .po-head { display: inline-flex; align-items: center; gap: 8px; }
+    .po-sup { width: 22%; max-width: 0; }
+    .po-sup .truncate { display: block; }
+    /* the items column absorbs the remaining width; product names truncate only when space truly runs out */
+    .po-items-td { width: 34%; max-width: 0; }
+    .po-items { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .po-items .truncate { min-width: 0; flex: 0 1 auto; }
+    .po-items .cell-sec { white-space: nowrap; font-size: var(--text-xs); flex: none; }
+    .po-items .tag { flex: none; }
+    .po-total { font-weight: 500; white-space: nowrap; }
+    .w-acts { width: 1%; text-align: right; padding-right: 8px; }
+    /* fixed icon slot so every row's main action ends at the same x: [main (natural width)][2 hover icons] */
+    .po-acts { display: grid; grid-template-columns: auto calc(var(--h-sm) * 2 + 2px); align-items: center; justify-content: end; gap: 2px; }
+    .po-act-main { display: flex; justify-content: flex-end; }
+    .po-act-main .btn { white-space: nowrap; }
+    .po-main { padding-inline: 8px; }
+    .po-act-icons { display: flex; justify-content: flex-start; gap: 2px; }
+    /* keep the global toast stack clear of a drawer's sticky footer */
+    ::ng-deep body:has(.drawer-overlay .drawer-footer) .toast-container { bottom: calc(var(--h-md) + 48px); }
+    .po-del:hover { color: var(--danger); }
+    .po-ch-list { display: flex; flex-direction: column; gap: 8px; }
+    .po-ch-list:not(:empty) { margin-bottom: 8px; }
+    .po-ch-row { display: grid; grid-template-columns: 150px 140px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
     @media (max-width: 640px) {
-      .filter-bar .po-dates { width: 100%; }
-      .po-dates .input { flex: 1; }
-      .po-items, .po-note { max-width: none; min-width: 0; }
-      .po-line-product { flex-basis: 100%; }
-      .detail-grid { grid-template-columns: 1fr; }
-      .detail-item-qty { text-align: left; }
-      .po-lot { flex-wrap: wrap; }
-      .po-lot-no { flex-basis: 100%; }
-      .po-modal { padding: var(--space-4); }
-      .po-items-in { align-items: flex-end; text-align: right; }
-      .po-actions-td { text-align: left; }
+      .po-ch-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+      .po-ch-desc { grid-column: 1 / -1; grid-row: 2; }
+    }
+    /* drawer form */
+    .po-form { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+    .po-sec-acts { display: inline-flex; gap: 6px; align-items: center; }
+    .po-lines { display: flex; flex-direction: column; gap: 10px; }
+    .po-line {
+      display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: var(--radius-md);
+      background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line);
+      transition: box-shadow var(--dur-2) var(--ease-out);
+    }
+    .po-line-hl { box-shadow: inset 0 0 0 1px var(--accent), var(--focus-ring); }
+    .po-line-top { display: flex; align-items: center; gap: 8px; }
+    .po-line-n { width: 20px; flex: none; font-size: var(--text-xs); color: var(--fg-3); text-align: center; }
+    .po-line-product { flex: 1; min-width: 0; }
+    .po-line-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 14px; padding-left: 28px; }
+    .po-line app-line-tax-fields { display: block; padding-left: 28px; }
+    .po-line-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 8px 0 0 28px; box-shadow: inset 0 1px 0 var(--line); font-size: var(--text-xs); color: var(--fg-3); }
+    .po-line-meta:empty { display: none; }
+    .po-line-meta b { font-weight: 500; color: var(--fg-2); }
+    .po-line-total { margin-left: auto; }
+    .po-line-total b { color: var(--fg); font-size: var(--text-sm); }
+    .po-empty-lines { padding: 24px 16px; border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line); background: var(--surface-2); }
+    .po-totals { margin-left: auto; width: min(340px, 100%); }
+    .po-totals .row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: var(--text-sm); box-shadow: inset 0 -1px 0 var(--line); }
+    .po-totals .row > :first-child { color: var(--fg-2); }
+    .po-totals .row > :last-child { font-variant-numeric: tabular-nums; }
+    .po-totals .row.grand { box-shadow: none; padding-top: 8px; font-weight: 600; font-size: var(--text-md); }
+    .po-totals .row.grand > :first-child { color: var(--fg); }
+    /* detail */
+    .po-meta { margin-bottom: 0; }
+    .po-dt-wrap { border-radius: var(--radius-md); }
+    .po-dt td { vertical-align: top; padding-top: 9px; padding-bottom: 9px; }
+    .po-dt-name { font-weight: 500; }
+    .po-dt-sub { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 3px; font-size: var(--text-xs); color: var(--fg-3); }
+    .po-dt-rate { color: var(--fg-3); font-size: var(--text-xs); margin-right: 4px; }
+    .po-dt-total { font-weight: 600; }
+    .po-sum { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+    .po-sum-row { display: flex; justify-content: space-between; gap: 12px; font-size: var(--text-sm); color: var(--fg-2); }
+    .po-sum-row > :last-child { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .po-import-hint { margin: -4px 0 12px; }
+    .po-notes { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+    @media (min-width: 641px) and (max-width: 1500px) { .lg-only { display: none; } }
+    @media (max-width: 640px) {
+      .xs-only { display: inline-flex !important; }
+      .no-xs { display: none !important; }
+      .po-search { flex-basis: 100%; max-width: none; }
+      .po-dates { flex: 1 1 100%; }
+      .po-dates .field { flex: 1; width: auto; min-width: 0; }
+      .po-toolbar .seg { width: 100%; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+      .po-toolbar .seg::-webkit-scrollbar { display: none; }
+      .po-toolbar .seg button { flex: 1 0 auto; padding: 0 8px; white-space: nowrap; }
+      .po-toolbar .seg .count { display: none; }
+      .po-table td { max-width: none; white-space: normal; }
+      .po-sup, .po-items-td { width: auto; }
+      .po-toolbar .spacer { display: none; }
+      .po-head { display: flex; justify-content: space-between; width: 100%; }
+      .po-sup .truncate { max-width: 60vw; }
+      .po-total { font-weight: 600; }
+      .po-table .row-act { opacity: 1; }
+      .po-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .table-responsive td.w-acts { width: 100%; padding-top: 6px; }
+      .po-acts { display: flex; justify-content: flex-end; }
+      .po-act-main:empty, .po-act-icons:empty { display: none; }
+      .po-act-main .btn { width: auto; }
+      .po-line-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 0; }
+      .po-line app-line-tax-fields, .po-line-meta { padding-left: 0; }
+      .po-sec-acts { margin-left: 0; width: 100%; }
+      .po-sec-acts .btn { flex: 1; }
     }
   `]
 })
@@ -672,6 +767,14 @@ export class PurchaseOrdersComponent implements OnInit {
 
   get taxGroup(): FormGroup {
     return this.poForm.get('tax') as FormGroup;
+  }
+
+  readonly chargeTypes = CHARGE_TYPES;
+  get chargesArray(): FormArray {
+    return this.taxGroup.get('charges') as FormArray;
+  }
+  addCharge() {
+    this.chargesArray.push(chargeGroup(this.fb));
   }
 
   foreignSupplier = computed(() => {
@@ -959,6 +1062,23 @@ export class PurchaseOrdersComponent implements OnInit {
 
   get itemsArray() {
     return this.poForm.get('items') as FormArray;
+  }
+
+  /** Status filter segments (display only) */
+  readonly poFilters = [
+    { v: 'all', k: 'purchaseOrders.filter.all' },
+    { v: 'Draft', k: 'purchaseOrders.filter.draft' },
+    { v: 'Sent', k: 'purchaseOrders.filter.sent' },
+    { v: 'Received', k: 'purchaseOrders.filter.received' },
+    { v: 'Cancelled', k: 'purchaseOrders.filter.cancelled' },
+  ];
+  private statusCounts = computed(() => {
+    const m: Record<string, number> = { all: this.orders().length };
+    for (const o of this.orders()) m[o.status] = (m[o.status] || 0) + 1;
+    return m;
+  });
+  statusCount(v: string): number {
+    return this.statusCounts()[v] || 0;
   }
 
   filteredOrders = computed(() => {
@@ -1386,7 +1506,7 @@ export class PurchaseOrdersComponent implements OnInit {
     if (clean.length > 4) {
       clean = clean.slice(-4);
     }
-    return `#PO-${clean.toUpperCase()}`;
+    return `PO-${clean.toUpperCase()}`;
   }
 
   getStatusName(status: string) {

@@ -6,165 +6,198 @@ import { UiStateService } from '../../services/ui-state.service';
 import { CorporateEvent, EBelgeProfile, GrossSales, ObligationReport, ObligationResult, SectorFlag } from '../../models/inventory.models';
 import { AppDatePipe, I18nService, MoneyPipe, TranslatePipe } from '../../i18n';
 import { ComplianceBannersComponent } from '../shared/compliance-banners.component';
+import { IconComponent } from '../shared/icon.component';
 
 /** Settings > e-Belge compliance: turnover declaration, sector flags, computed start dates and countdown. */
 @Component({
   selector: 'app-ebelge-settings',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, AppDatePipe, MoneyPipe, ComplianceBannersComponent],
+  imports: [FormsModule, TranslatePipe, AppDatePipe, MoneyPipe, ComplianceBannersComponent, IconComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    app-compliance-banners { margin-top: var(--space-4); }
-    .eb-row > *, .eb-row-event > *, .eb-flag > * { order: 0; }
-    .eb-grid { margin-top: var(--space-4); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
-    .eb-tile { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
-    .eb-tile-title { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-text); display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
-    .eb-date { font-size: var(--text-lg); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; color: var(--color-text); }
-    .eb-meta { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .eb-paper { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--color-text-secondary); }
-    .eb-section { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-6); }
-    .eb-rows { display: flex; flex-direction: column; gap: var(--space-2); }
-    .eb-row { display: grid; grid-template-columns: 120px minmax(0, 260px) auto; justify-content: start; gap: var(--space-2); align-items: center; }
-    .eb-row-wide { display: grid; grid-template-columns: minmax(0, 1fr) 160px auto; gap: var(--space-2); align-items: center; }
-    .eb-row-event { display: grid; grid-template-columns: 160px 160px minmax(0, 1fr) auto auto; gap: var(--space-2); align-items: center; }
-    .eb-flags { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-4); }
-    .eb-flag { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
-    .eb-flag input[type='date'] { margin-left: auto; width: 150px; height: 30px; }
-    .eb-dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
-    .eb-actions { display: flex; justify-content: flex-end; margin-top: var(--space-6); padding-top: var(--space-4); border-top: var(--border-width) solid var(--color-border-subtle); }
-    .eb-sources { margin-top: var(--space-4); font-size: var(--text-xs); color: var(--color-text-muted); }
-    .eb-sources summary { cursor: pointer; }
+    :host { display: block; }
+    .card-h.sh { padding-block: 12px; min-height: 56px; flex-wrap: wrap; row-gap: 8px; }
+    .sh .hg { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .sh .hg p { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .inline-form { display: flex; flex-direction: column; gap: 14px; box-shadow: inset 0 -1px 0 var(--line); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; align-items: start; }
+    .stack-20 { display: flex; flex-direction: column; gap: 20px; }
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .grid-4 { grid-template-columns: minmax(0, 1fr); } }
+    app-compliance-banners { display: block; }
+    .eb-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .eb-kpis .kpi { box-shadow: 0 0 0 1px var(--line); }
+    .eb-kpis .kpi { display: flex; flex-direction: column; }
+    .kpi-top b { font-weight: 500; color: var(--fg); min-width: 0; }
+    .eb-meta { display: block; font-size: var(--text-xs); color: var(--fg-3); line-height: 18px; }
+    .eb-status { margin-top: auto; padding-top: 10px; }
+    .eb-status .badge { margin-left: 0; }
+    .eb-paper { margin-top: 12px; }
+    .card-b { padding-top: 0; padding-bottom: 0; }
+    .fsec:first-child { padding-top: 16px; }
+    .eb-rows { display: flex; flex-direction: column; gap: 8px; }
+    .eb-row { display: grid; grid-template-columns: minmax(0, 320px) auto; justify-content: start; gap: 4px; align-items: center; }
+    /* one control per year: year | ₺ | amount */
+    .eb-sale input.eb-year { flex: none; width: 64px; text-align: center; }
+    .eb-sale .affix.pre { box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line); }
+    .eb-row-event { display: grid; grid-template-columns: 180px 160px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+    .eb-flags { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 24px; }
+    .eb-flag { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: var(--text-sm); cursor: pointer; }
+    .eb-flag > span { flex: 1; min-width: 0; }
+    .eb-flag .field { width: 160px; flex: none; }
+    .eb-sub { margin: 4px 0 0; padding-top: 14px; font-size: var(--text-sm); font-weight: 500; color: var(--fg); box-shadow: inset 0 1px 0 var(--line); }
+    .eb-sub + .eb-flags { margin-top: -4px; }
+    .eb-empty { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-3); }
+    .eb-sources { font-size: var(--text-xs); color: var(--fg-3); padding: 12px 16px; box-shadow: inset 0 1px 0 var(--line); }
+    .eb-sources summary { cursor: pointer; color: var(--fg-2); font-weight: 500; }
+    .eb-sources ul { margin: 8px 0 0; padding-left: 16px; }
     .eb-sources li { margin: 2px 0; }
-    .eb-inline { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); white-space: nowrap; }
-    @media (max-width: 900px) { .eb-grid, .eb-dates, .eb-flags { grid-template-columns: 1fr; } .eb-row-event { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 900px) {
+      .eb-kpis, .eb-flags { grid-template-columns: minmax(0, 1fr); }
+      .eb-row-event { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .eb-row-event .ev-note { grid-column: 1 / -1; }
+    }
+    @media (max-width: 640px) {
+      .eb-row { grid-template-columns: minmax(0, 1fr) auto; }
+      .eb-flag { flex-wrap: wrap; }
+      .eb-flag .field { width: 100%; margin-left: 26px; }
+    }
   `],
   template: `
-    <div class="settings-card settings-card-lg">
-      <h3 class="card-title">{{ 'settings.ebelge.title' | t }}</h3>
-      <p class="card-subtitle settings-card-sub">{{ 'settings.ebelge.subtitle' | t }}</p>
 
-      <app-compliance-banners [showAll]="true"></app-compliance-banners>
+    <section class="card">
+      <div class="card-h sh">
+        <div class="hg"><h3>{{ 'settings.ebelge.title' | t }}</h3><p>{{ 'settings.ebelge.subtitle' | t }}</p></div>
+      </div>
 
-      @if (report(); as r) {
-        <div class="eb-grid">
-          @for (o of [r.eFatura, r.eArsiv, r.eIrsaliye]; track o.kind) {
-            <div class="eb-tile">
-              <div class="eb-tile-title">
-                {{ 'settings.ebelge.kind.' + o.kind | t }}
-                <span class="badge" [class]="badgeClass(o)">{{ 'settings.ebelge.status.' + o.status | t }}</span>
+      <div class="card-b">
+        <div class="fsec">
+          <app-compliance-banners [showAll]="true"></app-compliance-banners>
+
+          @if (report(); as r) {
+            <div class="eb-kpis">
+              @for (o of [r.eFatura, r.eArsiv, r.eIrsaliye]; track o.kind) {
+                <div class="kpi">
+                  <div class="kpi-top"><app-icon name="file" size="sm" /><b>{{ 'settings.ebelge.kind.' + o.kind | t }}</b></div>
+                  <div class="kpi-val"><b>{{ o.mandatoryFrom ? (o.mandatoryFrom | appDate) : '—' }}</b></div>
+                  <div>
+                    <span class="eb-meta">{{ 'settings.ebelge.obligationStart' | t }}@if (o.mandatoryFrom && o.daysLeft !== null && o.daysLeft > 0) { · {{ 'settings.ebelge.daysLeft' | t: { n: o.daysLeft } }} }</span>
+                    @if (o.reason) { <span class="eb-meta">{{ reasonLabel(o.reason) }}</span> }
+                    @if (o.activeSince) { <span class="eb-meta">{{ 'settings.ebelge.activeSince' | t }}: {{ o.activeSince | appDate }}</span> }
+                    @if (o.toleranceUntil && o.status !== 'active') { <span class="eb-meta">{{ 'settings.ebelge.tolerance' | t }}: {{ o.toleranceUntil | appDate }}</span> }
+                  </div>
+                  <div class="eb-status"><span [class]="badgeClass(o)"><span class="dot"></span>{{ 'settings.ebelge.status.' + o.status | t }}</span></div>
+                </div>
+              }
+            </div>
+            <div class="notice eb-paper" [class.notice-info]="r.paperInvoice.allowed" [class.notice-warning]="!r.paperInvoice.allowed">
+              <app-icon [name]="r.paperInvoice.allowed ? 'info' : 'warn'" />
+              <span class="t">
+                @if (r.paperInvoice.allowed) {
+                  @if (r.paperInvoice.until) { {{ 'settings.ebelge.paperAllowed' | t: { date: (r.paperInvoice.until | appDate) } }} }
+                  @else { {{ 'settings.ebelge.paperAllowedOpen' | t }} }
+                  @if (r.paperInvoice.limit) { {{ 'settings.ebelge.paperLimit' | t: { amount: (r.paperInvoice.limit | money: 'TRY') } }} }
+                } @else {
+                  {{ 'settings.ebelge.paperNotAllowed' | t }}
+                }
+              </span>
+            </div>
+          }
+        </div>
+
+        <section class="fsec">
+          <div class="fsec-h"><span class="n">1</span><h3>{{ 'settings.ebelge.grossSales' | t }}</h3><p>{{ 'settings.ebelge.grossSalesHint' | t }}</p></div>
+          <div class="eb-rows">
+            @for (row of sales(); track $index; let i = $index) {
+              <div class="eb-row">
+                <div class="field eb-sale">
+                  <input type="text" inputmode="numeric" maxlength="4" class="eb-year mono" [value]="row.year || ''" (change)="updateSale(i, 'year', digits($any($event.target).value))" [attr.aria-label]="'settings.ebelge.year' | t" />
+                  <span class="affix pre">₺</span>
+                  <input type="text" inputmode="numeric" class="num" [value]="fmtAmount(row.amount)" (input)="onAmountInput(i, $event)" (blur)="$any($event.target).value = fmtAmount(sales()[i]?.amount)" [attr.aria-label]="'settings.ebelge.amount' | t" />
+                </div>
+                <button type="button" class="btn btn-ghost btn-icon" (click)="removeSale(i)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" size="sm" /></button>
               </div>
-              <span class="eb-meta">{{ 'settings.ebelge.obligationStart' | t }}</span>
-              <span class="eb-date">{{ o.mandatoryFrom ? (o.mandatoryFrom | appDate) : '—' }}</span>
-              @if (o.mandatoryFrom && o.daysLeft !== null && o.daysLeft > 0) { <span class="eb-meta">{{ 'settings.ebelge.daysLeft' | t: { n: o.daysLeft } }}</span> }
-              @if (o.reason) { <span class="eb-meta">{{ reasonLabel(o.reason) }}</span> }
-              @if (o.activeSince) { <span class="eb-meta">{{ 'settings.ebelge.activeSince' | t }}: {{ o.activeSince | appDate }}</span> }
-              @if (o.toleranceUntil && o.status !== 'active') { <span class="eb-meta">{{ 'settings.ebelge.tolerance' | t }}: {{ o.toleranceUntil | appDate }}</span> }
-            </div>
-          }
-        </div>
-        <p class="eb-paper">
-          @if (r.paperInvoice.allowed) {
-            {{ 'settings.ebelge.paperAllowed' | t: { date: r.paperInvoice.until ? (r.paperInvoice.until | appDate) : '—' } }}
-            @if (r.paperInvoice.limit) { {{ 'settings.ebelge.paperLimit' | t: { amount: (r.paperInvoice.limit | money: 'TRY') } }} }
+            }
+            <div><button type="button" class="btn btn-subtle btn-sm" (click)="addSale()"><app-icon name="plus" size="sm" />{{ 'settings.ebelge.addYear' | t }}</button></div>
+          </div>
+        </section>
+
+        <section class="fsec">
+          <div class="fsec-h"><span class="n">2</span><h3>{{ 'settings.ebelge.sectorEFatura' | t }}</h3></div>
+          @if (!eFaturaFlags().length && !eIrsaliyeFlags().length) {
+            <p class="eb-empty"><app-icon name="info" size="sm" />{{ 'settings.ebelge.noSectorRules' | t }}</p>
           } @else {
-            {{ 'settings.ebelge.paperNotAllowed' | t }}
+          <div class="eb-flags">
+            @for (rule of eFaturaFlags(); track rule.code) {
+              <label class="eb-flag" [attr.title]="rule.ref || null">
+                <input type="checkbox" [checked]="hasFlag('e', rule.code)" (change)="toggleFlag('e', rule.code, $any($event.target).checked)" />
+                <span>{{ sectorLabel(rule.code) }}@if (rule.thresholds?.length) { <span class="text-muted"> · {{ 'settings.ebelge.sectorThreshold' | t }}</span> }</span>
+                @if (hasFlag('e', rule.code)) { <span class="field field-sm"><input type="date" [ngModel]="flagSince('e', rule.code)" (ngModelChange)="setFlagSince('e', rule.code, $event)" /></span> }
+              </label>
+            }
+          </div>
+          @if (eIrsaliyeFlags().length) { <h4 class="eb-sub">{{ 'settings.ebelge.sectorEIrsaliye' | t }}</h4> }
+          <div class="eb-flags">
+            @for (rule of eIrsaliyeFlags(); track rule.code) {
+              <label class="eb-flag" [attr.title]="rule.ref || null">
+                <input type="checkbox" [checked]="hasFlag('i', rule.code)" (change)="toggleFlag('i', rule.code, $any($event.target).checked)" />
+                <span>{{ sectorLabel(rule.code) }}@if (rule.thresholds?.length) { <span class="text-muted"> · {{ 'settings.ebelge.sectorThreshold' | t }}</span> }</span>
+                @if (hasFlag('i', rule.code)) { <span class="field field-sm"><input type="date" [ngModel]="flagSince('i', rule.code)" (ngModelChange)="setFlagSince('i', rule.code, $event)" /></span> }
+              </label>
+            }
+          </div>
           }
-        </p>
-      }
+        </section>
 
-      <div class="eb-section">
-        <div class="form-section-title">{{ 'settings.ebelge.grossSales' | t }}</div>
-        <p class="field-hint">{{ 'settings.ebelge.grossSalesHint' | t }}</p>
-        <div class="eb-rows">
-          @for (row of sales(); track $index; let i = $index) {
-            <div class="eb-row">
-              <input type="number" class="form-input" min="2000" max="2100" [ngModel]="row.year" (ngModelChange)="updateSale(i, 'year', $event)" [attr.aria-label]="'settings.ebelge.year' | t" />
-              <input type="number" class="form-input" min="0" step="1000" [ngModel]="row.amount" (ngModelChange)="updateSale(i, 'amount', $event)" [attr.aria-label]="'settings.ebelge.amount' | t" />
-              <button type="button" class="btn btn-ghost btn-sm" (click)="removeSale(i)">{{ 'common.delete' | t }}</button>
+        <section class="fsec">
+          <div class="fsec-h"><span class="n">3</span><h3>{{ 'settings.ebelge.actualUse' | t }}</h3></div>
+          <div class="grid-3">
+            <div class="fld">
+              <label class="fld-label" for="ebEf">{{ 'settings.ebelge.since.eFatura' | t }}</label>
+              <div class="field"><input id="ebEf" type="date" [(ngModel)]="profile.eFaturaSince" /></div>
             </div>
-          }
-          <div><button type="button" class="btn btn-secondary btn-sm" (click)="addSale()">{{ 'settings.ebelge.addYear' | t }}</button></div>
-        </div>
-      </div>
-
-      <div class="eb-section">
-        <div class="form-section-title">{{ 'settings.ebelge.sectorEFatura' | t }}</div>
-        <div class="eb-flags">
-          @for (rule of eFaturaFlags(); track rule.code) {
-            <label class="eb-flag" [title]="rule.ref || ''">
-              <input type="checkbox" [checked]="hasFlag('e', rule.code)" (change)="toggleFlag('e', rule.code, $any($event.target).checked)" />
-              <span>{{ sectorLabel(rule.code) }}@if (rule.thresholds?.length) { <span class="eb-meta"> · {{ 'settings.ebelge.sectorThreshold' | t }}</span> }</span>
-              @if (hasFlag('e', rule.code)) { <input type="date" class="form-input" [ngModel]="flagSince('e', rule.code)" (ngModelChange)="setFlagSince('e', rule.code, $event)" /> }
-            </label>
-          }
-        </div>
-        <div class="form-section-title">{{ 'settings.ebelge.sectorEIrsaliye' | t }}</div>
-        <div class="eb-flags">
-          @for (rule of eIrsaliyeFlags(); track rule.code) {
-            <label class="eb-flag" [title]="rule.ref || ''">
-              <input type="checkbox" [checked]="hasFlag('i', rule.code)" (change)="toggleFlag('i', rule.code, $any($event.target).checked)" />
-              <span>{{ sectorLabel(rule.code) }}@if (rule.thresholds?.length) { <span class="eb-meta"> · {{ 'settings.ebelge.sectorThreshold' | t }}</span> }</span>
-              @if (hasFlag('i', rule.code)) { <input type="date" class="form-input" [ngModel]="flagSince('i', rule.code)" (ngModelChange)="setFlagSince('i', rule.code, $event)" /> }
-            </label>
-          }
-        </div>
-      </div>
-
-      <div class="eb-section">
-        <div class="form-section-title">{{ 'settings.ebelge.actualUse' | t }}</div>
-        <div class="eb-dates">
-          <div class="form-field">
-            <input id="ebEf" type="date" class="form-input" [(ngModel)]="profile.eFaturaSince" />
-            <label for="ebEf" class="form-label">{{ 'settings.ebelge.since.eFatura' | t }}</label>
-          </div>
-          <div class="form-field">
-            <input id="ebEa" type="date" class="form-input" [(ngModel)]="profile.eArsivSince" />
-            <label for="ebEa" class="form-label">{{ 'settings.ebelge.since.eArsiv' | t }}</label>
-          </div>
-          <div class="form-field">
-            <input id="ebEi" type="date" class="form-input" [(ngModel)]="profile.eIrsaliyeSince" />
-            <label for="ebEi" class="form-label">{{ 'settings.ebelge.since.eIrsaliye' | t }}</label>
-          </div>
-        </div>
-        <div class="eb-dates">
-          <div class="form-field">
-            <select id="ebMv" class="form-input has-value" [(ngModel)]="profile.mandatoryVsVoluntary">
-              <option [ngValue]="null">—</option>
-              <option value="MANDATORY">{{ 'settings.ebelge.mandatory' | t }}</option>
-              <option value="VOLUNTARY">{{ 'settings.ebelge.voluntary' | t }}</option>
-            </select>
-            <label for="ebMv" class="form-label">{{ 'settings.ebelge.mandatoryVsVoluntary' | t }}</label>
-          </div>
-          <div class="form-field">
-            <input id="ebGib" type="date" class="form-input" [(ngModel)]="profile.gibWrittenNoticeDate" />
-            <label for="ebGib" class="form-label">{{ 'settings.ebelge.gibNotice' | t }}</label>
-          </div>
-        </div>
-      </div>
-
-      <div class="eb-section">
-        <div class="form-section-title">{{ 'settings.ebelge.events' | t }}</div>
-        <p class="field-hint">{{ 'settings.ebelge.eventsHint' | t }}</p>
-        <div class="eb-rows">
-          @for (ev of events(); track $index; let i = $index) {
-            <div class="eb-row-event">
-              <select class="form-input has-value" [ngModel]="ev.type" (ngModelChange)="updateEvent(i, 'type', $event)">
-                @for (t of eventTypes; track t) { <option [value]="t">{{ 'settings.ebelge.event.' + t | t }}</option> }
-              </select>
-              <input type="date" class="form-input" [ngModel]="ev.date" (ngModelChange)="updateEvent(i, 'date', $event)" />
-              <input type="text" class="form-input" [ngModel]="ev.note" (ngModelChange)="updateEvent(i, 'note', $event)" [placeholder]="'settings.ebelge.eventNote' | t" />
-              <label class="eb-inline"><input type="checkbox" [ngModel]="ev.counterpartyMandatory" (ngModelChange)="updateEvent(i, 'counterpartyMandatory', $event)" /> {{ 'settings.ebelge.counterpartyMandatory' | t }}</label>
-              <button type="button" class="btn btn-ghost btn-sm" (click)="removeEvent(i)">{{ 'common.delete' | t }}</button>
+            <div class="fld">
+              <label class="fld-label" for="ebEa">{{ 'settings.ebelge.since.eArsiv' | t }}</label>
+              <div class="field"><input id="ebEa" type="date" [(ngModel)]="profile.eArsivSince" /></div>
             </div>
-          }
-          <div><button type="button" class="btn btn-secondary btn-sm" (click)="addEvent()">{{ 'settings.ebelge.addEvent' | t }}</button></div>
-        </div>
-      </div>
+            <div class="fld">
+              <label class="fld-label" for="ebEi">{{ 'settings.ebelge.since.eIrsaliye' | t }}</label>
+              <div class="field"><input id="ebEi" type="date" [(ngModel)]="profile.eIrsaliyeSince" /></div>
+            </div>
+            <div class="fld">
+              <label class="fld-label" for="ebMv">{{ 'settings.ebelge.mandatoryVsVoluntary' | t }}</label>
+              <div class="field select"><select id="ebMv" [(ngModel)]="profile.mandatoryVsVoluntary" [class.is-placeholder]="!profile.mandatoryVsVoluntary">
+                <option [ngValue]="null">{{ 'settings.ebelge.mandatoryVsVoluntaryPh' | t }}</option>
+                <option value="MANDATORY">{{ 'settings.ebelge.mandatory' | t }}</option>
+                <option value="VOLUNTARY">{{ 'settings.ebelge.voluntary' | t }}</option>
+              </select></div>
+            </div>
+            <div class="fld">
+              <label class="fld-label" for="ebGib">{{ 'settings.ebelge.gibNotice' | t }}</label>
+              <div class="field"><input id="ebGib" type="date" [(ngModel)]="profile.gibWrittenNoticeDate" /></div>
+            </div>
+          </div>
+        </section>
 
-      <div class="eb-actions">
-        <button type="button" class="btn btn-primary" [disabled]="saving()" (click)="save()">
-          @if (saving()) { {{ 'settings.saving' | t }} } @else { {{ 'common.save' | t }} }
-        </button>
+        <section class="fsec">
+          <div class="fsec-h"><span class="n">4</span><h3>{{ 'settings.ebelge.events' | t }}</h3><p>{{ 'settings.ebelge.eventsHint' | t }}</p></div>
+          <div class="eb-rows">
+            @for (ev of events(); track $index; let i = $index) {
+              <div class="eb-row-event">
+                <div class="field select"><select [ngModel]="ev.type" (ngModelChange)="updateEvent(i, 'type', $event)">
+                  @for (t of eventTypes; track t) { <option [value]="t">{{ 'settings.ebelge.event.' + t | t }}</option> }
+                </select></div>
+                <div class="field"><input type="date" [ngModel]="ev.date" (ngModelChange)="updateEvent(i, 'date', $event)" /></div>
+                <div class="field ev-note"><input type="text" [ngModel]="ev.note" (ngModelChange)="updateEvent(i, 'note', $event)" [placeholder]="'settings.ebelge.eventNote' | t" /></div>
+                <label class="check"><input type="checkbox" [ngModel]="ev.counterpartyMandatory" (ngModelChange)="updateEvent(i, 'counterpartyMandatory', $event)" />{{ 'settings.ebelge.counterpartyMandatory' | t }}</label>
+                <button type="button" class="btn btn-ghost btn-icon" (click)="removeEvent(i)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" size="sm" /></button>
+              </div>
+            }
+            <div><button type="button" class="btn btn-subtle btn-sm" (click)="addEvent()"><app-icon name="plus" size="sm" />{{ 'settings.ebelge.addEvent' | t }}</button></div>
+          </div>
+        </section>
       </div>
 
       @if (sourceList().length) {
@@ -173,7 +206,12 @@ import { ComplianceBannersComponent } from '../shared/compliance-banners.compone
           <ul>@for (s of sourceList(); track s[0]) { <li><span class="mono">{{ s[0] }}</span>: {{ s[1] }}</li> }</ul>
         </details>
       }
-    </div>
+
+      <div class="card-f">
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-primary" [class.is-loading]="saving()" [disabled]="saving()" (click)="save()"><span>{{ 'common.save' | t }}</span></button>
+      </div>
+    </section>
   `,
 })
 export class EBelgeSettingsComponent implements OnInit {
@@ -252,6 +290,27 @@ export class EBelgeSettingsComponent implements OnInit {
   }
   removeSale(i: number) {
     this.sales.update((l) => l.filter((_, j) => j !== i));
+  }
+  /** Amounts are shown with thousands separators; the model keeps plain integers. */
+  fmtAmount(v: number | null | undefined): string {
+    return v || v === 0 ? this.i18n.formatNumber(v, { maximumFractionDigits: 0 }) : '';
+  }
+  digits(v: string): number {
+    const d = String(v ?? '').replace(/\D/g, '');
+    return d ? Number(d) : 0;
+  }
+  onAmountInput(i: number, ev: Event) {
+    const el = ev.target as HTMLInputElement;
+    const caret = el.selectionStart ?? el.value.length;
+    const digitsBefore = el.value.slice(0, caret).replace(/\D/g, '').length;
+    const n = this.digits(el.value);
+    this.updateSale(i, 'amount', n);
+    const shown = el.value.replace(/\D/g, '') ? this.fmtAmount(n) : '';
+    el.value = shown;
+    // keep the caret after the same number of digits
+    let pos = 0, seen = 0;
+    while (pos < shown.length && seen < digitsBefore) { if (/\d/.test(shown[pos])) seen++; pos++; }
+    el.setSelectionRange(pos, pos);
   }
   updateSale(i: number, k: 'year' | 'amount', v: number) {
     this.sales.update((l) => l.map((r, j) => (j === i ? { ...r, [k]: Number(v) } : r)));

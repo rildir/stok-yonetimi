@@ -91,9 +91,10 @@ const REMEMBER_KEY = 'login_remember_username';
                   <div class="fld span-2">
                     <label class="fld-label" for="regPassword">{{ 'login.password' | t }}</label>
                     <div class="field">
-                      <input [type]="showRegPassword() ? 'text' : 'password'" #rPassword id="regPassword" [placeholder]="'login.register.passwordPh' | t" required minlength="6" [disabled]="isRegisterLoading()" autocomplete="new-password">
+                      <input [type]="showRegPassword() ? 'text' : 'password'" #rPassword id="regPassword" aria-describedby="regPasswordHelp" required minlength="10" [disabled]="isRegisterLoading()" autocomplete="new-password">
                       <span class="trail"><button class="btn btn-ghost btn-xs btn-icon" type="button" (click)="showRegPassword.set(!showRegPassword())" [attr.aria-label]="(showRegPassword() ? 'login.hidePassword' : 'login.showPassword') | t" [attr.aria-pressed]="showRegPassword()"><app-icon [name]="showRegPassword() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
                     </div>
+                    <p class="fld-help" id="regPasswordHelp">{{ 'login.register.passwordHelp' | t }}</p>
                   </div>
                 </div>
               </section>
@@ -288,6 +289,10 @@ const REMEMBER_KEY = 'login_remember_username';
     .reset-done { padding-top: 20px; }
     .reset-p { margin-top: 6px; }
     .reset-fld { margin-top: 14px; }
+    @media (max-width: 640px) {
+      .auth-foot .spacer { flex: 1 0 100%; height: 0; }
+      .auth-foot > span:last-child { margin-left: auto; }
+    }
   `]
 })
 export class LoginComponent {

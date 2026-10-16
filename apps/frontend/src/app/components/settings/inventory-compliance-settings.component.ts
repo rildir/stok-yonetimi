@@ -4,8 +4,9 @@ import { COMPLIANCE_MODULES, CATEGORY_RULES } from '@stok/tr-compliance';
 import { ComplianceService } from '../../services/compliance.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { CompanyInfo } from '../../models/inventory.models';
-import { I18nService, TranslatePipe, MoneyPipe } from '../../i18n';
-import { QuantityInputDirective } from '../shared/quantity-input.directive';
+import { I18nService, TranslatePipe } from '../../i18n';
+import { parseLocalizedQuantity } from '../shared/quantity-input.directive';
+import { IconComponent } from '../shared/icon.component';
 
 /**
  * Settings > Compliance modules (admin): regulatory product categories the company
@@ -15,85 +16,108 @@ import { QuantityInputDirective } from '../shared/quantity-input.directive';
 @Component({
   selector: 'app-inventory-compliance-settings',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, MoneyPipe, QuantityInputDirective],
+  imports: [FormsModule, TranslatePipe, IconComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .icm-list { list-style: none; margin: var(--space-4) 0; padding: 0; display: grid; gap: var(--space-2); }
-    .icm-item { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); align-items: start; padding: var(--space-3) var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); cursor: pointer; }
-    .icm-item.on { border-color: var(--color-primary-border, var(--color-primary)); background: var(--color-primary-subtle); }
-    .icm-item input { margin-top: 3px; }
-    .icm-title { font-weight: var(--weight-semibold); font-size: var(--text-sm); }
-    .icm-desc, .icm-basis { grid-column: 2; font-size: var(--text-xs); color: var(--color-text-muted); }
-    .icm-section { margin-top: var(--space-6); padding-top: var(--space-4); border-top: var(--border-width) solid var(--color-border-subtle); }
-    .icm-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
-    .icm-row .form-field { flex: 0 1 260px; margin: 0; }
-    .icm-actions { display: flex; justify-content: flex-end; padding-top: var(--space-4); margin-top: var(--space-4); border-top: var(--border-width) solid var(--color-border-subtle); }
+    :host { display: block; }
+    .card-h.sh { padding-block: 12px; min-height: 56px; flex-wrap: wrap; row-gap: 8px; }
+    .sh .hg { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .sh .hg p { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .inline-form { display: flex; flex-direction: column; gap: 14px; box-shadow: inset 0 -1px 0 var(--line); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; align-items: start; }
+    .stack-20 { display: flex; flex-direction: column; gap: 20px; }
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .grid-4 { grid-template-columns: minmax(0, 1fr); } }
+    .card { max-width: 960px; }
+    .card-b { padding-top: 0; padding-bottom: 0; }
+    .icm-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .choice-card { align-items: flex-start; height: 100%; }
+    .choice-card input { margin-top: 2px; flex: none; }
+    .icm-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .icm-t b { font-weight: 500; }
+    .icm-t span { font-size: var(--text-xs); color: var(--fg-3); }
+    .icm-t .icm-basis { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding-top: 6px; box-shadow: inset 0 1px 0 var(--line); font-size: var(--text-xs); line-height: 16px; color: var(--fg-2); }
+    .icm-t .icm-basis app-icon { flex: none; margin-top: 2px; color: var(--fg-3); }
+    .icm-row { display: flex; gap: 8px 16px; align-items: flex-end; flex-wrap: wrap; }
+    .icm-row .fld { width: 240px; }
+    .icm-row .fld-help { margin: 0; }
+    @media (max-width: 640px) { .icm-list { grid-template-columns: minmax(0, 1fr); } .icm-row .fld { width: 100%; } }
   `],
   template: `
-    <div class="settings-card settings-card-lg">
-      <h3 class="card-title">{{ 'settings.complianceModules.title' | t }}</h3>
-      <p class="card-subtitle settings-card-sub">{{ 'settings.complianceModules.subtitle' | t }}</p>
 
-      <ul class="icm-list">
-        @for (m of modules; track m) {
-          <li>
-            <label class="icm-item" [class.on]="enabled().includes(m)">
-              <input type="checkbox" [checked]="enabled().includes(m)" (change)="toggle(m)" />
-              <span class="icm-title">{{ 'products.regulatory.' + m | t }}</span>
-              <span class="icm-desc">{{ 'settings.complianceModules.desc.' + m | t }}</span>
-              <span class="icm-basis">{{ rules[m].legalBasis }}</span>
-            </label>
-          </li>
-        }
-      </ul>
-      <p class="field-hint">{{ 'settings.complianceModules.outOfScope' | t }}</p>
+    <section class="card">
+      <div class="card-h sh">
+        <div class="hg"><h3>{{ 'settings.complianceModules.title' | t }}</h3><p>{{ 'settings.complianceModules.subtitle' | t }}</p></div>
+      </div>
+      <div class="card-b">
+        <section class="fsec">
+          <ul class="icm-list">
+            @for (m of modules; track m) {
+              <li>
+                <label class="choice-card">
+                  <input type="checkbox" [checked]="enabled().includes(m)" (change)="toggle(m)" />
+                  <span class="icm-t">
+                    <b>{{ 'products.regulatory.' + m | t }}</b>
+                    <span>{{ 'settings.complianceModules.desc.' + m | t }}</span>
+                    <span class="icm-basis"><app-icon name="file" size="xs" />{{ rules[m].legalBasis }}</span>
+                  </span>
+                </label>
+              </li>
+            }
+          </ul>
+          <p class="fld-help">{{ 'settings.complianceModules.outOfScope' | t }}</p>
+        </section>
 
-      <div class="icm-section">
-        <h4 class="card-title">{{ 'settings.approval.title' | t }}</h4>
-        <p class="card-subtitle settings-card-sub">{{ 'settings.approval.subtitle' | t }}</p>
-        <div class="icm-row">
-          <label class="icm-row"><input type="checkbox" [checked]="thresholdOn()" (change)="thresholdOn.set(!thresholdOn())" /> {{ 'settings.approval.enable' | t }}</label>
+        <section class="fsec">
+          <div class="fsec-h"><h3>{{ 'settings.approval.title' | t }}</h3><p>{{ 'settings.approval.subtitle' | t }}</p></div>
+          <label class="setting-row">
+            <span class="t"><b>{{ 'settings.approval.enable' | t }}</b></span>
+            <span class="switch"><input type="checkbox" role="switch" [checked]="thresholdOn()" (change)="thresholdOn.set(!thresholdOn())" /><span class="track"></span></span>
+          </label>
           @if (thresholdOn()) {
-            <div class="form-field">
-              <input id="icmThreshold" type="text" appQty [qtyDecimals]="2" class="form-input has-value" [ngModel]="threshold()" (ngModelChange)="threshold.set($event)" />
-              <label for="icmThreshold" class="form-label">{{ 'settings.approval.threshold' | t: { currency: currency() } }}</label>
+            <div class="icm-row">
+              <div class="fld">
+                <label class="fld-label" for="icmThreshold">{{ 'settings.approval.threshold' | t: { currency: currency() } }}</label>
+                <div class="field" [class.is-error]="thresholdInvalid()"><input id="icmThreshold" type="text" inputmode="decimal" autocomplete="off" class="num" [value]="thresholdText()" (focus)="thresholdFocus(true)" (blur)="thresholdFocus(false)" (input)="onThreshold($any($event.target).value)" [attr.aria-invalid]="thresholdInvalid()" aria-describedby="icmThresholdHelp" /><span class="affix suf">{{ currency() }}</span></div>
+                <span class="fld-help" id="icmThresholdHelp">{{ 'settings.approval.thresholdHelp' | t }}</span>
+              </div>
             </div>
-            @if (threshold() !== null) { <span class="text-sm text-muted">{{ 'settings.approval.example' | t: { value: (threshold() | money: currency()) } }}</span> }
           }
-        </div>
-      </div>
+        </section>
 
-      <div class="icm-section">
-        <h4 class="card-title">{{ 'settings.stockLock.title' | t }}</h4>
-        <p class="card-subtitle settings-card-sub">{{ 'settings.stockLock.subtitle' | t }}</p>
-        <div class="icm-row">
-          <div class="form-field">
-            <input id="icmLockDate" type="date" class="form-input has-value" [max]="today" [ngModel]="lockDate()" (ngModelChange)="lockDate.set($event || '')" />
-            <label for="icmLockDate" class="form-label">{{ 'settings.stockLock.date' | t }}</label>
+        <section class="fsec">
+          <div class="fsec-h"><h3>{{ 'settings.stockLock.title' | t }}</h3><p>{{ 'settings.stockLock.subtitle' | t }}</p></div>
+          <div class="icm-row">
+            <div class="fld">
+              <label class="fld-label" for="icmLockDate">{{ 'settings.stockLock.date' | t }}</label>
+              <div class="field"><span class="lead"><app-icon name="lock" size="sm" /></span><input id="icmLockDate" type="date" [max]="today" [ngModel]="lockDate()" (ngModelChange)="lockDate.set($event || '')" /></div>
+            </div>
+            @if (lockDate()) {
+              <button type="button" class="btn" (click)="lockDate.set('')"><app-icon name="x" />{{ 'settings.stockLock.clear' | t }}</button>
+            }
           </div>
-          @if (lockDate()) {
-            <button type="button" class="btn btn-sm btn-secondary" (click)="lockDate.set('')">{{ 'settings.stockLock.clear' | t }}</button>
-          }
-        </div>
-        <p class="field-hint">{{ 'settings.stockLock.hint' | t }}</p>
+          <p class="fld-help">{{ 'settings.stockLock.hint' | t }}</p>
+        </section>
+
+        @if (loosening()) {
+          <section class="fsec">
+            <div class="notice notice-warning"><app-icon name="warn" /><span class="t">{{ 'settings.controlChange.hint' | t }}</span></div>
+            <div class="fld">
+              <label class="fld-label" for="icmReason">{{ 'settings.controlChange.reason' | t }} <span class="req">*</span></label>
+              <div class="field has-area"><textarea id="icmReason" rows="2" maxlength="500" [ngModel]="reason()" (ngModelChange)="reason.set($event)"></textarea><span class="counter">{{ reason().length }} / 500</span></div>
+            </div>
+          </section>
+        }
       </div>
-
-      @if (loosening()) {
-        <div class="icm-section">
-          <p class="text-sm">{{ 'settings.controlChange.hint' | t }}</p>
-          <div class="form-field">
-            <textarea id="icmReason" class="form-input has-value" rows="2" maxlength="500" [ngModel]="reason()" (ngModelChange)="reason.set($event)"></textarea>
-            <label for="icmReason" class="form-label">{{ 'settings.controlChange.reason' | t }}</label>
-          </div>
-        </div>
-      }
-
-      <div class="icm-actions">
-        <button type="button" class="btn btn-primary" [disabled]="saving() || (thresholdOn() && (threshold() === null || threshold()! < 0)) || (loosening() && !reason().trim())" (click)="save()">
-          {{ (saving() ? 'settings.saving' : 'common.save') | t }}
+      <div class="card-f">
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-primary" [class.is-loading]="saving()" [disabled]="saving() || (thresholdOn() && thresholdInvalid()) || (loosening() && !reason().trim())" (click)="save()">
+          <span>{{ 'common.save' | t }}</span>
         </button>
       </div>
-    </div>
+    </section>
   `,
 })
 export class InventoryComplianceSettingsComponent implements OnInit {
@@ -119,6 +143,32 @@ export class InventoryComplianceSettingsComponent implements OnInit {
     const thresholdUp = s.threshold !== null && (next === null || next > s.threshold);
     return lockBack || thresholdUp;
   });
+  /** Threshold input: grouped money format at rest, plain digits while editing */
+  private thresholdEditing = signal(false);
+  private thresholdRaw = signal('');
+  thresholdInvalid = computed(() => {
+    const t = this.threshold();
+    return t === null || Number.isNaN(t) || t < 0 || Math.round(t * 100) !== t * 100;
+  });
+  thresholdText = computed(() => {
+    const t = this.threshold();
+    if (this.thresholdEditing()) return this.thresholdRaw();
+    if (t === null || Number.isNaN(t)) return this.thresholdRaw();
+    return this.i18n.formatNumber(t, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  });
+
+  thresholdFocus(on: boolean) {
+    const t = this.threshold();
+    if (on && t !== null && !Number.isNaN(t)) this.thresholdRaw.set(new Intl.NumberFormat(this.i18n.locale(), { useGrouping: false, maximumFractionDigits: 2 }).format(t));
+    this.thresholdEditing.set(on);
+  }
+
+  onThreshold(text: string) {
+    this.thresholdRaw.set(text);
+    const sep = (1.5).toLocaleString(this.i18n.locale()).includes(',') ? ',' : '.';
+    this.threshold.set(text.trim() === '' ? null : parseLocalizedQuantity(text, sep));
+  }
+
   readonly today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   ngOnInit() {

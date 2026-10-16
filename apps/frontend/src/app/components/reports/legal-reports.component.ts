@@ -1,12 +1,13 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, I18nService } from '../../i18n';
+import { TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, UnitLabelPipe, I18nService } from '../../i18n';
 import { AccountingService, InventoryList } from '../../services/accounting.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService } from '../../inventory.service';
 import { apiError } from '../../services/documents.service';
 import { Product } from '../../models/inventory.models';
+import { IconComponent } from '../shared/icon.component';
 
 type LegalTab = 'inventory' | 'ledger' | 'vat' | 'vat2' | 'impact' | 'impairment' | 'trace' | 'journal';
 
@@ -21,342 +22,439 @@ const thisMonth = () => today().slice(0, 7);
 @Component({
   selector: 'app-legal-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe],
+  host: { '(document:click)': 'invMore.set(false)', '(document:keydown.escape)': 'invMore.set(false)' },
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, UnitLabelPipe, IconComponent],
   styleUrls: ['../documents/documents.css'],
   styles: [`
-    .lr-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
-    .lr-bar { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; margin-bottom: var(--space-4); }
-    .lr-bar .doc-field { min-width: 160px; }
-    .lr-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
-    .lr-kpi { border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); background: var(--color-surface); }
-    .lr-kpi .v { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
-    .lr-kpi .l { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .lr-kpi.muted .v { color: var(--color-text-muted); font-weight: var(--weight-normal); }
-    .lr-note { font-size: var(--text-xs); color: var(--color-text-muted); margin: var(--space-2) 0; }
-    .lr-pre { border: 2px solid var(--color-danger, #b00); color: var(--color-danger, #b00); font-weight: var(--weight-semibold); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3); font-size: var(--text-sm); }
-    h3.lr-h { font-size: var(--text-md, 15px); margin: var(--space-5) 0 var(--space-2); }
-    .lr-cust { display: flex; flex-direction: column; gap: 2px; }
+    :host { display: flex; flex-direction: column; gap: 12px; }
+    .lr-tabs { align-self: flex-start; }
+    .lr-tabs button { flex: none; }
+    .lr-bar { display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 12px 16px; }
+    .lr-bar .fld { width: 176px; }
+    .lr-bar .fld.wide { width: 320px; max-width: 100%; }
+    .lr-bar .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .lr-bar .spacer { flex: 1; }
+    .lr-more { position: relative; display: none; }
+    .lr-more-pop { top: calc(100% + 4px); left: 0; min-width: 240px; }
+    .lr-kpis { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .lr-kpis .kpi { gap: 6px; }
+    .kpi-val.txt b { font-size: var(--text-md); letter-spacing: -0.006em; line-height: 1.35; white-space: normal; }
+    .kpi-val.muted b { color: var(--fg-3); }
+    .kpi-val b.mono { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 500; overflow-wrap: anywhere; }
+    .lr-note { font-size: var(--text-xs); color: var(--fg-3); line-height: 1.5; }
+    .ch2 { min-height: 48px; flex-wrap: wrap; row-gap: 4px; padding-block: 8px; }
+    .lr-list { list-style: none; margin: 0; padding: 0; }
+    .lr-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 10px 16px; font-size: var(--text-sm); color: var(--fg-2); box-shadow: inset 0 -1px 0 var(--line); }
+    .lr-list li:last-child { box-shadow: none; }
+    .lr-list .mono { font-size: var(--text-xs); color: var(--fg); }
+    .lr-list .sep { color: var(--fg-3); }
+    .lr-list .spacer { flex: 1; }
+    .lr-cust { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+    .lr-cust .mono { font-size: var(--text-xs); }
+    .notice .t b { font-weight: 600; }
+    .notice > app-icon { display: inline-flex; flex: none; color: var(--tone); }
+    .notice.top { align-items: flex-start; }
+    .notice.top > app-icon { margin-top: 2px; }
+    .card.flush { padding: 0; gap: 0; }
+    .q-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .q-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+    .q-row .spacer { flex: 1; }
+    .recall-f { display: flex; flex-direction: column; gap: 10px; }
+    .recall-f .fld { max-width: 480px; }
+    .ministry { display: inline-flex; align-items: center; gap: 8px; }
+    .ministry .field { width: 200px; }
+    .tbl td.wrap { white-space: normal; }
+    td .sec { color: var(--fg-3); margin-left: 6px; }
+    td.w-check { width: 40px; }
+    .empty-row td { padding: 0 !important; height: auto; }
+    .empty-row td::before { display: none !important; }
+    .empty-row:hover td { background: transparent; }
+    .empty-row .empty-state { padding: 28px 16px; }
+    @media (max-width: 640px) {
+      .table-responsive td { justify-content: flex-end; gap: 6px; }
+      .table-responsive td[data-label]::before { margin-right: auto; }
+      .table-responsive .empty-row td { display: block; text-align: center; }
+      .lr-tabs { align-self: stretch; }
+      .lr-bar { padding: 12px; }
+      .lr-bar .fld, .lr-bar .fld.wide { width: 100%; }
+      .lr-bar .spacer { display: none; }
+      /* Inventory list: Apply · "…" (XLSX, summary) · full-width primary on one row. */
+      .lr-inv .lr-wide { display: none; }
+      .lr-inv .lr-more { display: inline-flex; }
+      .lr-inv .acts { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; }
+      .lr-inv .acts > .btn-primary { flex: 1 1 auto; min-width: 0; }
+      .lr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .lr-kpis > .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+      .ministry { flex-wrap: wrap; }
+      .lr-cust { align-items: flex-end; }
+    }
   `],
   template: `
-    <nav class="lr-tabs" role="tablist">
+    <div class="seg lr-tabs" role="tablist">
       @for (t of tabs; track t) {
-        <button type="button" class="btn btn-sm" [class.btn-primary]="tab() === t" [class.btn-secondary]="tab() !== t" role="tab" [attr.aria-selected]="tab() === t" (click)="tab.set(t)">{{ 'accounting.tab.' + t | t }}</button>
+        <button type="button" role="tab" [attr.aria-pressed]="tab() === t" [attr.aria-selected]="tab() === t" (click)="tab.set(t)">{{ 'accounting.tab.' + t | t }}</button>
       }
-    </nav>
+    </div>
 
-    @if (error()) { <div class="doc-alert danger">{{ error() }}</div> }
+    @if (error()) { <div class="notice notice-danger" role="alert"><app-icon name="alert" /><span class="t">{{ error() }}</span></div> }
 
     <!-- Inventory list (as-of) -->
     @if (tab() === 'inventory') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrAsOf">{{ 'accounting.asOf' | t }}</label><input id="lrAsOf" type="date" class="input" [(ngModel)]="asOf" /></div>
-        <div class="doc-field"><label for="lrBd">{{ 'accounting.breakdown' | t }}</label>
-          <select id="lrBd" class="select" [(ngModel)]="breakdown"><option value="product">{{ 'accounting.breakdown.product' | t }}</option><option value="warehouse">{{ 'accounting.breakdown.warehouse' | t }}</option><option value="lot">{{ 'accounting.breakdown.lot' | t }}</option></select></div>
-        <button class="btn btn-secondary" (click)="loadInventory()">{{ 'reports.apply' | t }}</button>
-        <button class="btn btn-primary" (click)="api.openPrintable('reports/inventory-list', { asOf, breakdown: breakdown === 'product' ? 'lot' : breakdown, format: 'html' })">{{ 'accounting.printPdf' | t }}</button>
-        <button class="btn btn-secondary" (click)="api.openPrintable('reports/inventory-summary', { asOf, format: 'html' })">{{ 'accounting.summaryPdf' | t }}</button>
-        <button class="btn btn-ghost" (click)="api.download('reports/e-envanter', { asOf, format: 'xlsx' }, 'e-envanter.xlsx')">{{ 'accounting.eEnvanterXlsx' | t }}</button>
+      <div class="card lr-bar lr-inv">
+        <div class="fld"><label class="fld-label" for="lrAsOf">{{ 'accounting.asOf' | t }}</label>
+          <div class="field"><input id="lrAsOf" type="date" [(ngModel)]="asOf" /></div></div>
+        <div class="fld"><label class="fld-label" for="lrBd">{{ 'accounting.breakdown' | t }}</label>
+          <div class="field select"><select id="lrBd" [(ngModel)]="breakdown"><option value="product">{{ 'accounting.breakdown.product' | t }}</option><option value="warehouse">{{ 'accounting.breakdown.warehouse' | t }}</option><option value="lot">{{ 'accounting.breakdown.lot' | t }}</option></select></div></div>
+        <button type="button" class="btn" (click)="loadInventory()">{{ 'reports.apply' | t }}</button>
+        <span class="spacer"></span>
+        <div class="acts">
+          <button type="button" class="btn btn-ghost lr-wide" (click)="api.download('reports/e-envanter', { asOf, format: 'xlsx' }, 'e-envanter.xlsx')"><app-icon name="download" />{{ 'accounting.eEnvanterXlsx' | t }}</button>
+          <button type="button" class="btn lr-wide" (click)="api.openPrintable('reports/inventory-summary', { asOf, format: 'html' })"><app-icon name="file" />{{ 'accounting.summaryPdf' | t }}</button>
+          <span class="lr-more">
+            <button type="button" class="btn btn-icon" [class.is-active]="invMore()" aria-haspopup="menu" [attr.aria-expanded]="invMore()" [attr.aria-label]="'reports.moreActions' | t" (click)="invMore.set(!invMore()); $event.stopPropagation()"><app-icon name="more" /></button>
+            @if (invMore()) {
+              <div class="pop lr-more-pop" role="menu">
+                <button type="button" class="menu-i" role="menuitem" (click)="invMore.set(false); api.download('reports/e-envanter', { asOf, format: 'xlsx' }, 'e-envanter.xlsx')"><app-icon name="download" />{{ 'accounting.eEnvanterXlsx' | t }}</button>
+                <button type="button" class="menu-i" role="menuitem" (click)="invMore.set(false); api.openPrintable('reports/inventory-summary', { asOf, format: 'html' })"><app-icon name="file" />{{ 'accounting.summaryPdf' | t }}</button>
+              </div>
+            }
+          </span>
+          <button type="button" class="btn btn-primary" (click)="api.openPrintable('reports/inventory-list', { asOf, breakdown: breakdown === 'product' ? 'lot' : breakdown, format: 'html' })"><app-icon name="printer" />{{ 'accounting.printPdf' | t }}</button>
+        </div>
       </div>
       @if (inv(); as d) {
-        <div class="lr-kpis">
-          <div class="lr-kpi"><div class="l">{{ 'reports.costValue' | t }}</div><div class="v">{{ d.totals.costValue | money: d.currency }}</div></div>
-          <div class="lr-kpi muted"><div class="l">{{ 'reports.salesValue' | t }}</div><div class="v">{{ d.totals.salesValue | money: d.currency }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.method' | t }}</div><div class="v">{{ 'settings.costing.' + d.method | t }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.lastCount' | t }}</div><div class="v">{{ d.countPolicy.lastPhysicalCountDate ? (d.countPolicy.lastPhysicalCountDate | appDate) : '-' }}</div>
-            @if (d.countPolicy.overdue) { <span class="badge badge-warning">{{ 'accounting.countOverdue' | t }}</span> }</div>
+        <div class="kpi-grid lr-kpis">
+          <div class="kpi"><div class="kpi-top">{{ 'reports.costValue' | t }}</div><div class="kpi-val"><b>{{ d.totals.costValue | money: d.currency }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'reports.salesValue' | t }}</div><div class="kpi-val muted"><b>{{ d.totals.salesValue | money: d.currency }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.method' | t }}</div><div class="kpi-val txt"><b>{{ 'settings.costing.' + d.method | t }}</b></div></div>
+          <div class="kpi" [class.is-alert]="d.countPolicy.overdue"><div class="kpi-top">@if (d.countPolicy.overdue) { <app-icon name="warn" size="sm" /> }{{ 'accounting.lastCount' | t }}</div><div class="kpi-val txt"><b>{{ d.countPolicy.lastPhysicalCountDate ? (d.countPolicy.lastPhysicalCountDate | appDate) : '-' }}</b></div>
+            @if (d.countPolicy.overdue) { <div class="kpi-foot"><span class="badge badge-warning"><span class="dot"></span>{{ 'accounting.countOverdue' | t }}</span></div> }</div>
         </div>
         <p class="lr-note">{{ 'accounting.salesValueNote' | t }}</p>
-        @if (d.costMissing) { <div class="doc-alert">{{ 'accounting.costMissing' | t }}</div> }
-        <div class="table-card"><div class="table-scroll">
-          <table class="table-responsive">
-            <thead><tr><th>{{ 'accounting.col.account' | t }}</th><th>{{ 'accounting.col.sku' | t }}</th><th>{{ 'accounting.col.product' | t }}</th>
+        @if (d.costMissing) { <div class="notice notice-warning"><app-icon name="warn" /><span class="t">{{ 'accounting.costMissing' | t }}</span></div> }
+        <section class="card"><div class="table-scroll">
+          <table class="tbl table-responsive">
+            <thead><tr><th>{{ 'accounting.col.account' | t }}</th><th>{{ 'accounting.col.product' | t }}</th>
               @if (breakdown !== 'product') { <th>{{ 'accounting.col.warehouse' | t }}</th> } @if (breakdown === 'lot') { <th>{{ 'accounting.col.lot' | t }}</th> }
-              <th class="num">{{ 'accounting.col.qty' | t }}</th><th class="num">{{ 'accounting.col.unitCost' | t }}</th><th class="num">{{ 'reports.costValue' | t }}</th></tr></thead>
+              <th class="r">{{ 'accounting.col.qty' | t }}</th><th class="r">{{ 'accounting.col.unitCost' | t }}</th><th class="r">{{ 'reports.costValue' | t }}</th></tr></thead>
             <tbody>
               @for (r of d.rows; track $index) {
                 <tr>
-                  <td class="mono" [attr.data-label]="'accounting.col.account' | t">{{ account(r.inventoryClass) }}</td>
-                  <td class="mono" [attr.data-label]="'accounting.col.sku' | t">{{ r.sku }}</td>
-                  <td class="td-primary" [attr.data-label]="'accounting.col.product' | t">{{ r.productName }}</td>
+                  <td class="mono" [attr.data-label]="'accounting.col.account' | t"><span class="tag">{{ account(r.inventoryClass) }}</span></td>
+                  <td class="td-primary"><div class="cell-prod"><b>{{ r.productName }}</b><span class="cell-code">{{ r.sku }}</span></div></td>
                   @if (breakdown !== 'product') { <td [attr.data-label]="'accounting.col.warehouse' | t">{{ r.warehouseName }}</td> }
-                  @if (breakdown === 'lot') { <td [attr.data-label]="'accounting.col.lot' | t">{{ r.lotNumber }} @if (r.expiryDate) { <span class="text-muted">· {{ r.expiryDate | appDate }}</span> }</td> }
-                  <td class="num" [attr.data-label]="'accounting.col.qty' | t">{{ r.quantity | num }} {{ r.unitCode }}</td>
-                  <td class="num" [attr.data-label]="'accounting.col.unitCost' | t">{{ r.unitCost | money: d.currency }}</td>
-                  <td class="num" [attr.data-label]="'reports.costValue' | t"><strong>{{ r.costValue | money: d.currency }}</strong></td>
+                  @if (breakdown === 'lot') { <td [attr.data-label]="'accounting.col.lot' | t"><span class="mono">{{ r.lotNumber }}</span>@if (r.expiryDate) { <span class="sec">{{ r.expiryDate | appDate }}</span> }</td> }
+                  <td class="r" [attr.data-label]="'accounting.col.qty' | t">{{ r.quantity | num }} <span class="sec">{{ r.unitCode | unitLabel }}</span></td>
+                  <td class="r" [attr.data-label]="'accounting.col.unitCost' | t">{{ r.unitCost | money: d.currency }}</td>
+                  <td class="r" [attr.data-label]="'reports.costValue' | t"><strong>{{ r.costValue | money: d.currency }}</strong></td>
                 </tr>
               }
-              @if (!d.rows.length) { <tr><td colspan="8"><div class="empty-state"><p class="empty-state-title">{{ 'common.noData' | t }}</p></div></td></tr> }
+              @if (!d.rows.length) { <tr class="empty-row"><td colspan="7"><div class="empty-state"><div class="empty-art"><app-icon name="box" /></div><p>{{ 'common.noData' | t }}</p></div></td></tr> }
             </tbody>
           </table>
-        </div></div>
+        </div></section>
       }
     }
 
     <!-- Stock card at cost -->
     @if (tab() === 'ledger') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrProd">{{ 'accounting.col.product' | t }}</label>
-          <select id="lrProd" class="select" [(ngModel)]="ledgerProduct">@for (p of products(); track p.id) { <option [value]="p.id">{{ p.sku }} · {{ p.name }}</option> }</select></div>
-        <div class="doc-field"><label for="lrFrom">{{ 'reports.startDate' | t }}</label><input id="lrFrom" type="date" class="input" [(ngModel)]="from" /></div>
-        <div class="doc-field"><label for="lrTo">{{ 'reports.endDate' | t }}</label><input id="lrTo" type="date" class="input" [(ngModel)]="to" /></div>
-        <button class="btn btn-secondary" [disabled]="!ledgerProduct" (click)="loadLedger()">{{ 'reports.apply' | t }}</button>
+      <div class="card lr-bar">
+        <div class="fld wide"><label class="fld-label" for="lrProd">{{ 'accounting.col.product' | t }}</label>
+          <div class="field select"><select id="lrProd" [(ngModel)]="ledgerProduct"><option value="" disabled>{{ 'accounting.col.product' | t }}</option>@for (p of products(); track p.id) { <option [value]="p.id">{{ p.sku }} · {{ p.name }}</option> }</select></div></div>
+        <div class="fld"><label class="fld-label" for="lrFrom">{{ 'reports.startDate' | t }}</label><div class="field"><input id="lrFrom" type="date" [(ngModel)]="from" /></div></div>
+        <div class="fld"><label class="fld-label" for="lrTo">{{ 'reports.endDate' | t }}</label><div class="field"><input id="lrTo" type="date" [(ngModel)]="to" /></div></div>
+        <button type="button" class="btn btn-primary" [disabled]="!ledgerProduct" (click)="loadLedger()">{{ 'reports.apply' | t }}</button>
       </div>
       @if (ledger(); as l) {
-        <div class="lr-kpis">
-          <div class="lr-kpi"><div class="l">{{ 'accounting.opening' | t }}</div><div class="v">{{ l.opening.quantity | num }} · {{ l.opening.costValue | money: l.currency }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.closing' | t }}</div><div class="v">{{ l.closing.quantity | num }} · {{ l.closing.costValue | money: l.currency }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.method' | t }}</div><div class="v">{{ 'settings.costing.' + l.method | t }}</div></div>
+        <div class="kpi-grid lr-kpis">
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.opening' | t }}</div><div class="kpi-val"><b>{{ l.opening.costValue | money: l.currency }}</b></div><div class="kpi-foot"><span>{{ 'accounting.col.qty' | t }} {{ l.opening.quantity | num }}</span></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.closing' | t }}</div><div class="kpi-val"><b>{{ l.closing.costValue | money: l.currency }}</b></div><div class="kpi-foot"><span>{{ 'accounting.col.qty' | t }} {{ l.closing.quantity | num }}</span></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.method' | t }}</div><div class="kpi-val txt"><b>{{ 'settings.costing.' + l.method | t }}</b></div></div>
         </div>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.reason' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.col.warehouse' | t }}</th><th class="num">{{ 'accounting.col.qty' | t }}</th><th class="num">{{ 'accounting.col.unitCost' | t }}</th><th class="num">{{ 'accounting.col.totalCost' | t }}</th><th class="num">{{ 'accounting.col.balance' | t }}</th></tr></thead>
+        <section class="card"><div class="table-scroll"><table class="tbl table-responsive">
+          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.reason' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.col.warehouse' | t }}</th><th class="r">{{ 'accounting.col.qty' | t }}</th><th class="r">{{ 'accounting.col.unitCost' | t }}</th><th class="r">{{ 'accounting.col.totalCost' | t }}</th><th class="r">{{ 'accounting.col.balance' | t }}</th></tr></thead>
           <tbody>
             @for (m of l.lines; track m.id) {
               <tr>
                 <td [attr.data-label]="'accounting.col.date' | t">{{ m.date | appDate }}</td>
-                <td [attr.data-label]="'accounting.col.reason' | t">{{ 'stockMovements.reason.' + m.reasonCode | t }} @if (m.costSource === 'MISSING' || m.costSource === 'FALLBACK' || m.costSource === 'ESTIMATE') { <span class="badge badge-warning">{{ 'accounting.costSource.' + m.costSource | t }}</span> }</td>
+                <td [attr.data-label]="'accounting.col.reason' | t">{{ 'stockMovements.reason.' + m.reasonCode | t }} @if (m.costSource === 'MISSING' || m.costSource === 'FALLBACK' || m.costSource === 'ESTIMATE') { <span class="badge badge-warning"><span class="dot"></span>{{ 'accounting.costSource.' + m.costSource | t }}</span> }</td>
                 <td class="mono" [attr.data-label]="'accounting.col.document' | t">{{ m.documentNo }}</td>
-                <td [attr.data-label]="'accounting.col.warehouse' | t">{{ m.warehouseName }} @if (m.lotNumber) { <span class="text-muted">· {{ m.lotNumber }}</span> }</td>
-                <td class="num" [attr.data-label]="'accounting.col.qty' | t">{{ m.quantity | num }}</td>
-                <td class="num" [attr.data-label]="'accounting.col.unitCost' | t">{{ m.unitCost === null ? '-' : (m.unitCost | money: l.currency) }}</td>
-                <td class="num" [attr.data-label]="'accounting.col.totalCost' | t">{{ m.totalCost === null ? '-' : (m.totalCost | money: l.currency) }}</td>
-                <td class="num" [attr.data-label]="'accounting.col.balance' | t">{{ m.balanceQuantity | num }} · {{ m.balanceValue | money: l.currency }}</td>
+                <td [attr.data-label]="'accounting.col.warehouse' | t">{{ m.warehouseName }} @if (m.lotNumber) { <span class="sec mono">{{ m.lotNumber }}</span> }</td>
+                <td class="r" [attr.data-label]="'accounting.col.qty' | t">{{ m.quantity | num }}</td>
+                <td class="r" [attr.data-label]="'accounting.col.unitCost' | t">{{ m.unitCost === null ? '-' : (m.unitCost | money: l.currency) }}</td>
+                <td class="r" [attr.data-label]="'accounting.col.totalCost' | t">{{ m.totalCost === null ? '-' : (m.totalCost | money: l.currency) }}</td>
+                <td class="r" [attr.data-label]="'accounting.col.balance' | t">{{ m.balanceQuantity | num }} <span class="sec">{{ m.balanceValue | money: l.currency }}</span></td>
               </tr>
             }
+            @if (!l.lines.length) { <tr class="empty-row"><td colspan="8"><div class="empty-state"><div class="empty-art"><app-icon name="rows" /></div><p>{{ 'common.noData' | t }}</p></div></td></tr> }
           </tbody>
-        </table></div></div>
+        </table></div></section>
       }
     }
 
     <!-- KDV pre-report -->
     @if (tab() === 'vat') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrPer">{{ 'accounting.period' | t }}</label><input id="lrPer" type="month" class="input" [(ngModel)]="period" /></div>
-        <button class="btn btn-secondary" (click)="loadVat()">{{ 'reports.apply' | t }}</button>
-        <button class="btn btn-primary" (click)="api.openPrintable('reports/vat', { period, format: 'html' })">{{ 'accounting.printPdf' | t }}</button>
+      <div class="card lr-bar">
+        <div class="fld"><label class="fld-label" for="lrPer">{{ 'accounting.period' | t }}</label><div class="field"><input id="lrPer" type="month" [(ngModel)]="period" /></div></div>
+        <button type="button" class="btn" (click)="loadVat()">{{ 'reports.apply' | t }}</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-primary" (click)="api.openPrintable('reports/vat', { period, format: 'html' })"><app-icon name="printer" />{{ 'accounting.printPdf' | t }}</button>
       </div>
       @if (vat(); as v) {
-        <div class="lr-pre">{{ 'accounting.preReport' | t }}</div>
-        <div class="lr-kpis">
-          <div class="lr-kpi"><div class="l">{{ 'accounting.vat.computed' | t }}</div><div class="v">{{ v.summary.computedVat | money: 'TRY' }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.vat.deductible' | t }}</div><div class="v">{{ v.summary.deductibleVat | money: 'TRY' }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ (v.summary.payable >= 0 ? 'accounting.vat.payable' : 'accounting.vat.carried') | t }}</div><div class="v">{{ abs(v.summary.payable) | money: 'TRY' }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.vat.due' | t }}</div><div class="v">KDV-1: {{ v.kdv1Due | appDate }} · KDV-2: {{ v.kdv2Due | appDate }}</div></div>
+        <div class="notice notice-danger"><app-icon name="alert" /><span class="t"><b>{{ 'accounting.preReport' | t }}</b></span></div>
+        <div class="kpi-grid lr-kpis">
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.vat.computed' | t }}</div><div class="kpi-val"><b>{{ v.summary.computedVat | money: 'TRY' }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.vat.deductible' | t }}</div><div class="kpi-val"><b>{{ v.summary.deductibleVat | money: 'TRY' }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ (v.summary.payable >= 0 ? 'accounting.vat.payable' : 'accounting.vat.carried') | t }}</div><div class="kpi-val"><b>{{ abs(v.summary.payable) | money: 'TRY' }}</b></div></div>
+          <div class="kpi"><div class="kpi-top"><app-icon name="calendar" size="sm" />{{ 'accounting.vat.due' | t }}</div><div class="kpi-val txt"><b>KDV-1 · {{ v.kdv1Due | appDate }}</b></div><div class="kpi-foot"><span>KDV-2 · {{ v.kdv2Due | appDate }}</span></div></div>
         </div>
         <p class="lr-note">{{ 'accounting.vat.reconciled' | t: { count: v.reconciliation.invoices, base: (v.reconciliation.invoiceSubtotalTry | money: 'TRY'), tax: (v.reconciliation.invoiceTaxTotalTry | money: 'TRY') } }}</p>
-        <h3 class="lr-h">{{ 'accounting.vat.sales' | t }}</h3>
-        <ng-container *ngTemplateOutlet="groupsTpl; context: { $implicit: v.sales.groups }"></ng-container>
-        @if (v.salesReturns.groups.length) { <h3 class="lr-h">{{ 'accounting.vat.salesReturns' | t }}</h3><ng-container *ngTemplateOutlet="groupsTpl; context: { $implicit: v.salesReturns.groups }"></ng-container> }
-        @if (v.purchaseReturns.groups.length) { <h3 class="lr-h">{{ 'accounting.vat.purchaseReturns' | t }}</h3><ng-container *ngTemplateOutlet="groupsTpl; context: { $implicit: v.purchaseReturns.groups }"></ng-container> }
-        <h3 class="lr-h">{{ 'accounting.vat.deductibleList' | t }}</h3>
-        <ng-container *ngTemplateOutlet="docsTpl; context: { $implicit: v.deductible.documents }"></ng-container>
-        <h3 class="lr-h">{{ 'accounting.vat.imports' | t }}</h3>
-        <ng-container *ngTemplateOutlet="docsTpl; context: { $implicit: v.imports.documents }"></ng-container>
+        <section class="card"><div class="card-h"><h3>{{ 'accounting.vat.sales' | t }}</h3></div>
+          <ng-container *ngTemplateOutlet="groupsTpl; context: { $implicit: v.sales.groups }"></ng-container></section>
+        @if (v.salesReturns.groups.length) { <section class="card"><div class="card-h"><h3>{{ 'accounting.vat.salesReturns' | t }}</h3></div><ng-container *ngTemplateOutlet="groupsTpl; context: { $implicit: v.salesReturns.groups }"></ng-container></section> }
+        @if (v.purchaseReturns.groups.length) { <section class="card"><div class="card-h"><h3>{{ 'accounting.vat.purchaseReturns' | t }}</h3></div><ng-container *ngTemplateOutlet="groupsTpl; context: { $implicit: v.purchaseReturns.groups }"></ng-container></section> }
+        <section class="card"><div class="card-h"><h3>{{ 'accounting.vat.deductibleList' | t }}</h3></div>
+          <ng-container *ngTemplateOutlet="docsTpl; context: { $implicit: v.deductible.documents }"></ng-container></section>
+        <section class="card"><div class="card-h"><h3>{{ 'accounting.vat.imports' | t }}</h3></div>
+          <ng-container *ngTemplateOutlet="docsTpl; context: { $implicit: v.imports.documents }"></ng-container></section>
       }
     }
 
     <!-- KDV-2 -->
     @if (tab() === 'vat2') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrPer2">{{ 'accounting.period' | t }}</label><input id="lrPer2" type="month" class="input" [(ngModel)]="period" /></div>
-        <button class="btn btn-secondary" (click)="loadVat2()">{{ 'reports.apply' | t }}</button>
+      <div class="card lr-bar">
+        <div class="fld"><label class="fld-label" for="lrPer2">{{ 'accounting.period' | t }}</label><div class="field"><input id="lrPer2" type="month" [(ngModel)]="period" /></div></div>
+        <button type="button" class="btn btn-primary" (click)="loadVat2()">{{ 'reports.apply' | t }}</button>
       </div>
       @if (vat2(); as v) {
-        <div class="lr-pre">{{ 'accounting.preReport' | t }}</div>
-        <div class="lr-kpis">
-          <div class="lr-kpi"><div class="l">{{ 'accounting.vat.withheldTotal' | t }}</div><div class="v">{{ v.totals.withheld | money: 'TRY' }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.vat.due' | t }}</div><div class="v">{{ v.kdv2Due | appDate }}</div></div>
+        <div class="notice notice-danger"><app-icon name="alert" /><span class="t"><b>{{ 'accounting.preReport' | t }}</b></span></div>
+        <div class="kpi-grid lr-kpis">
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.vat.withheldTotal' | t }}</div><div class="kpi-val"><b>{{ v.totals.withheld | money: 'TRY' }}</b></div></div>
+          <div class="kpi"><div class="kpi-top"><app-icon name="calendar" size="sm" />{{ 'accounting.vat.due' | t }}</div><div class="kpi-val txt"><b>{{ v.kdv2Due | appDate }}</b></div></div>
         </div>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.col.party' | t }}</th><th>{{ 'accounting.col.code' | t }}</th><th class="num">{{ 'accounting.col.base' | t }}</th><th class="num">{{ 'accounting.col.vat' | t }}</th><th class="num">{{ 'accounting.col.withheld' | t }}</th></tr></thead>
+        <section class="card"><div class="table-scroll"><table class="tbl table-responsive">
+          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.col.party' | t }}</th><th>{{ 'accounting.col.code' | t }}</th><th class="r">{{ 'accounting.col.base' | t }}</th><th class="r">{{ 'accounting.col.vat' | t }}</th><th class="r">{{ 'accounting.col.withheld' | t }}</th></tr></thead>
           <tbody>
             @for (r of v.rows; track $index) {
-              <tr><td>{{ r.documentDate | appDate }}</td><td class="mono">{{ r.documentNo }}</td><td>{{ r.partyName }} <span class="mono text-muted">{{ r.partyTaxId }}</span></td>
-                <td>{{ r.reverseCharge ? ('accounting.vat.reverseCharge' | t) : r.withholdingCode }} {{ r.withholdingRate }}</td><td class="num">{{ r.base | money: 'TRY' }}</td><td class="num">{{ r.tax | money: 'TRY' }}</td><td class="num"><strong>{{ r.withheld | money: 'TRY' }}</strong></td></tr>
+              <tr><td [attr.data-label]="'accounting.col.date' | t">{{ r.documentDate | appDate }}</td><td class="mono" [attr.data-label]="'accounting.col.document' | t">{{ r.documentNo }}</td><td [attr.data-label]="'accounting.col.party' | t">{{ r.partyName }} <span class="sec mono">{{ r.partyTaxId }}</span></td>
+                <td [attr.data-label]="'accounting.col.code' | t">{{ r.reverseCharge ? ('accounting.vat.reverseCharge' | t) : r.withholdingCode }} {{ r.withholdingRate }}</td><td class="r" [attr.data-label]="'accounting.col.base' | t">{{ r.base | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.col.vat' | t">{{ r.tax | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.col.withheld' | t"><strong>{{ r.withheld | money: 'TRY' }}</strong></td></tr>
             }
-            @if (!v.rows.length) { <tr><td colspan="7"><div class="empty-state"><p class="empty-state-title">{{ 'common.noData' | t }}</p></div></td></tr> }
+            @if (!v.rows.length) { <tr class="empty-row"><td colspan="7"><div class="empty-state"><div class="empty-art"><app-icon name="receipt" /></div><p>{{ 'common.noData' | t }}</p></div></td></tr> }
           </tbody>
-        </table></div></div>
+        </table></div></section>
         <p class="lr-note">{{ 'accounting.vat.kdv2Basis' | t }}</p>
         @for (w of v.warnings || []; track $index) {
-          <div class="alert-banner alert-banner--warning" role="status">{{ 'accounting.vat.poWithholdingNotOnInvoice' | t: { po: w.poNumber, doc: w.documentNo, code: w.withholdingCode, amount: (w.expectedWithheld | money: 'TRY') } }}</div>
+          <div class="notice notice-warning" role="status"><app-icon name="warn" /><span class="t">{{ 'accounting.vat.poWithholdingNotOnInvoice' | t: { po: w.poNumber, doc: w.documentNo, code: w.withholdingCode, amount: (w.expectedWithheld | money: 'TRY') } }}</span></div>
         }
       }
     }
 
     <!-- VAT-relevant movements + wastage -->
     @if (tab() === 'impact') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrPer3">{{ 'accounting.period' | t }}</label><input id="lrPer3" type="month" class="input" [(ngModel)]="period" /></div>
-        <button class="btn btn-secondary" (click)="loadImpact()">{{ 'reports.apply' | t }}</button>
+      <div class="card lr-bar">
+        <div class="fld"><label class="fld-label" for="lrPer3">{{ 'accounting.period' | t }}</label><div class="field"><input id="lrPer3" type="month" [(ngModel)]="period" /></div></div>
+        <button type="button" class="btn btn-primary" (click)="loadImpact()">{{ 'reports.apply' | t }}</button>
       </div>
       @if (impact(); as v) {
-        <div class="lr-pre">{{ 'accounting.preReport' | t }}</div>
-        <h3 class="lr-h">{{ 'accounting.impact.deemed' | t }}</h3>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.product' | t }}</th><th>{{ 'accounting.col.reason' | t }}</th><th class="num">{{ 'accounting.col.qty' | t }}</th><th class="num">{{ 'reports.costValue' | t }}</th><th class="num">{{ 'accounting.impact.emsal' | t }}</th><th class="num">{{ 'accounting.col.vat' | t }}</th></tr></thead>
-          <tbody>@for (r of v.deemedSupplies; track $index) { <tr><td>{{ r.date | appDate }}</td><td>{{ r.productName }}</td><td>{{ 'stockMovements.reason.' + r.reasonCode | t }}</td><td class="num">{{ r.quantity | num }}</td><td class="num">{{ r.costValue | money: 'TRY' }}</td><td class="num">{{ r.emsalValue | money: 'TRY' }}</td><td class="num">{{ r.vat | money: 'TRY' }}</td></tr> }
-            @if (!v.deemedSupplies.length) { <tr><td colspan="7" class="text-muted">{{ 'common.noData' | t }}</td></tr> }</tbody>
-        </table></div></div>
-        <h3 class="lr-h">{{ 'accounting.impact.corrections' | t }}</h3>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.product' | t }}</th><th>{{ 'accounting.col.reason' | t }}</th><th class="num">{{ 'accounting.col.qty' | t }}</th><th class="num">{{ 'reports.costValue' | t }}</th><th class="num">{{ 'accounting.impact.vatToCorrect' | t }}</th></tr></thead>
-          <tbody>@for (r of v.vatCorrections; track $index) { <tr><td>{{ r.date | appDate }}</td><td>{{ r.productName }}</td><td>{{ (r.reasonCode === 'WASTAGE_ABNORMAL' ? 'accounting.impact.abnormal' : 'stockMovements.reason.' + r.reasonCode) | t }}</td><td class="num">{{ r.quantity | num }}</td><td class="num">{{ r.costValue | money: 'TRY' }}</td><td class="num"><strong>{{ r.vatToCorrect | money: 'TRY' }}</strong></td></tr> }
-            @if (!v.vatCorrections.length) { <tr><td colspan="6" class="text-muted">{{ 'common.noData' | t }}</td></tr> }</tbody>
-        </table></div></div>
+        <div class="notice notice-danger"><app-icon name="alert" /><span class="t"><b>{{ 'accounting.preReport' | t }}</b></span></div>
+        <section class="card"><div class="card-h"><h3>{{ 'accounting.impact.deemed' | t }}</h3></div><div class="table-scroll"><table class="tbl table-responsive">
+          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.product' | t }}</th><th>{{ 'accounting.col.reason' | t }}</th><th class="r">{{ 'accounting.col.qty' | t }}</th><th class="r">{{ 'reports.costValue' | t }}</th><th class="r">{{ 'accounting.impact.emsal' | t }}</th><th class="r">{{ 'accounting.col.vat' | t }}</th></tr></thead>
+          <tbody>@for (r of v.deemedSupplies; track $index) { <tr><td [attr.data-label]="'accounting.col.date' | t">{{ r.date | appDate }}</td><td class="td-primary">{{ r.productName }}</td><td [attr.data-label]="'accounting.col.reason' | t">{{ 'stockMovements.reason.' + r.reasonCode | t }}</td><td class="r" [attr.data-label]="'accounting.col.qty' | t">{{ r.quantity | num }}</td><td class="r" [attr.data-label]="'reports.costValue' | t">{{ r.costValue | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.impact.emsal' | t">{{ r.emsalValue | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.col.vat' | t">{{ r.vat | money: 'TRY' }}</td></tr> }
+            @if (!v.deemedSupplies.length) { <tr class="empty-row"><td colspan="7"><div class="empty-state"><p>{{ 'common.noData' | t }}</p></div></td></tr> }</tbody>
+        </table></div></section>
+        <section class="card"><div class="card-h"><h3>{{ 'accounting.impact.corrections' | t }}</h3></div><div class="table-scroll"><table class="tbl table-responsive">
+          <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.product' | t }}</th><th>{{ 'accounting.col.reason' | t }}</th><th class="r">{{ 'accounting.col.qty' | t }}</th><th class="r">{{ 'reports.costValue' | t }}</th><th class="r">{{ 'accounting.impact.vatToCorrect' | t }}</th></tr></thead>
+          <tbody>@for (r of v.vatCorrections; track $index) { <tr><td [attr.data-label]="'accounting.col.date' | t">{{ r.date | appDate }}</td><td class="td-primary">{{ r.productName }}</td><td [attr.data-label]="'accounting.col.reason' | t">{{ (r.reasonCode === 'WASTAGE_ABNORMAL' ? 'accounting.impact.abnormal' : 'stockMovements.reason.' + r.reasonCode) | t }}</td><td class="r" [attr.data-label]="'accounting.col.qty' | t">{{ r.quantity | num }}</td><td class="r" [attr.data-label]="'reports.costValue' | t">{{ r.costValue | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.impact.vatToCorrect' | t"><strong>{{ r.vatToCorrect | money: 'TRY' }}</strong></td></tr> }
+            @if (!v.vatCorrections.length) { <tr class="empty-row"><td colspan="6"><div class="empty-state"><p>{{ 'common.noData' | t }}</p></div></td></tr> }</tbody>
+        </table></div></section>
         @if (v.excluded.length) { <p class="lr-note">{{ 'accounting.impact.excluded' | t: { count: v.excluded.length } }}</p> }
         @if (wastage(); as w) {
-          <h3 class="lr-h">{{ 'accounting.wastage.title' | t }}</h3>
-          <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-            <thead><tr><th>{{ 'accounting.col.product' | t }}</th><th class="num">{{ 'accounting.wastage.throughput' | t }}</th><th class="num">{{ 'accounting.wastage.rate' | t }}</th><th class="num">{{ 'accounting.wastage.actual' | t }}</th><th class="num">{{ 'accounting.wastage.allowed' | t }}</th><th class="num">{{ 'accounting.wastage.abnormal' | t }}</th><th>{{ 'accounting.wastage.source' | t }}</th></tr></thead>
-            <tbody>@for (r of w.rows; track r.productId) { <tr><td>{{ r.productName }}</td><td class="num">{{ r.throughput | num }}</td><td class="num">{{ r.normalRatePct === null ? '-' : '%' + (r.normalRatePct | num) }}</td><td class="num">{{ r.wastedQuantity | num }} ({{ r.actualRatePct === null ? '-' : '%' + (r.actualRatePct | num) }})</td><td class="num">{{ r.allowedQuantity | num }}</td><td class="num">@if (r.abnormalQuantity > 0) { <span class="badge badge-warning">{{ r.abnormalQuantity | num }}</span> } @else { 0 }</td><td class="text-muted">{{ r.rateSource }}</td></tr> }
-              @if (!w.rows.length) { <tr><td colspan="7" class="text-muted">{{ 'common.noData' | t }}</td></tr> }</tbody>
-          </table></div></div>
+          <section class="card"><div class="card-h"><h3>{{ 'accounting.wastage.title' | t }}</h3></div><div class="table-scroll"><table class="tbl table-responsive">
+            <thead><tr><th>{{ 'accounting.col.product' | t }}</th><th class="r">{{ 'accounting.wastage.throughput' | t }}</th><th class="r">{{ 'accounting.wastage.rate' | t }}</th><th class="r">{{ 'accounting.wastage.actual' | t }}</th><th class="r">{{ 'accounting.wastage.allowed' | t }}</th><th class="r">{{ 'accounting.wastage.abnormal' | t }}</th><th>{{ 'accounting.wastage.source' | t }}</th></tr></thead>
+            <tbody>@for (r of w.rows; track r.productId) { <tr><td class="td-primary">{{ r.productName }}</td><td class="r" [attr.data-label]="'accounting.wastage.throughput' | t">{{ r.throughput | num }}</td><td class="r" [attr.data-label]="'accounting.wastage.rate' | t">{{ r.normalRatePct === null ? '-' : '%' + (r.normalRatePct | num) }}</td><td class="r" [attr.data-label]="'accounting.wastage.actual' | t">{{ r.wastedQuantity | num }} <span class="sec">({{ r.actualRatePct === null ? '-' : '%' + (r.actualRatePct | num) }})</span></td><td class="r" [attr.data-label]="'accounting.wastage.allowed' | t">{{ r.allowedQuantity | num }}</td><td class="r" [attr.data-label]="'accounting.wastage.abnormal' | t">@if (r.abnormalQuantity > 0) { <span class="badge badge-warning"><span class="dot"></span>{{ r.abnormalQuantity | num }}</span> } @else { 0 }</td><td class="sec" [attr.data-label]="'accounting.wastage.source' | t">{{ r.rateSource }}</td></tr> }
+              @if (!w.rows.length) { <tr class="empty-row"><td colspan="7"><div class="empty-state"><p>{{ 'common.noData' | t }}</p></div></td></tr> }</tbody>
+          </table></div></section>
         }
       }
     }
 
     <!-- Impairment candidates -->
     @if (tab() === 'impairment') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrImpD">{{ 'accounting.valuationDate' | t }}</label><input id="lrImpD" type="date" class="input" [(ngModel)]="impDate" /></div>
-        <button class="btn btn-secondary" (click)="loadImpairment()">{{ 'reports.apply' | t }}</button>
-        @if (isAdmin()) { <button class="btn btn-primary" [disabled]="!selectedImp().length" (click)="postImpairment()">{{ 'accounting.impairment.post' | t: { count: selectedImp().length } }}</button> }
-        <button class="btn btn-ghost" (click)="api.openPrintable('impairment/sheet', { date: impDate })">{{ 'accounting.impairment.sheet' | t }}</button>
+      <div class="card lr-bar">
+        <div class="fld"><label class="fld-label" for="lrImpD">{{ 'accounting.valuationDate' | t }}</label><div class="field"><input id="lrImpD" type="date" [(ngModel)]="impDate" /></div></div>
+        <button type="button" class="btn" (click)="loadImpairment()">{{ 'reports.apply' | t }}</button>
+        <span class="spacer"></span>
+        <div class="acts">
+          <button type="button" class="btn btn-ghost" (click)="api.openPrintable('impairment/sheet', { date: impDate })"><app-icon name="printer" />{{ 'accounting.impairment.sheet' | t }}</button>
+          @if (isAdmin()) { <button type="button" class="btn btn-primary" [disabled]="!selectedImp().length" (click)="postImpairment()">{{ 'accounting.impairment.post' | t: { count: selectedImp().length } }}</button> }
+        </div>
       </div>
       @if (imp(); as d) {
         <p class="lr-note">{{ 'accounting.impairment.rule' | t: { decline: d.thresholds.minDeclinePct, sales: d.thresholds.minMonthlySalesPct } }}</p>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th></th><th>{{ 'accounting.col.product' | t }}</th><th class="num">{{ 'accounting.col.qty' | t }}</th><th class="num">{{ 'accounting.col.unitCost' | t }}</th><th>{{ 'accounting.impairment.basis' | t }}</th><th class="num">{{ 'accounting.impairment.emsal' | t }}</th><th class="num">{{ 'accounting.impairment.decline' | t }}</th><th class="num">{{ 'accounting.impairment.taxValue' | t }}</th><th class="num">{{ 'accounting.impairment.provision' | t }}</th></tr></thead>
+        <section class="card"><div class="table-scroll"><table class="tbl table-responsive">
+          <thead><tr><th class="w-check"></th><th>{{ 'accounting.col.product' | t }}</th><th class="r">{{ 'accounting.col.qty' | t }}</th><th class="r">{{ 'accounting.col.unitCost' | t }}</th><th>{{ 'accounting.impairment.basis' | t }}</th><th class="r">{{ 'accounting.impairment.emsal' | t }}</th><th class="r">{{ 'accounting.impairment.decline' | t }}</th><th class="r">{{ 'accounting.impairment.taxValue' | t }}</th><th class="r">{{ 'accounting.impairment.provision' | t }}</th></tr></thead>
           <tbody>
             @for (r of d.rows; track r.productId) {
-              <tr>
-                <td><input type="checkbox" [disabled]="!r.qualifies && !r.requiresCommission" [checked]="selectedImp().includes(r.productId)" (change)="toggleImp(r.productId)" [attr.aria-label]="r.productName" /></td>
-                <td>{{ r.productName }}</td><td class="num">{{ r.quantity | num }}</td><td class="num">{{ r.unitCost | money: d.currency }}</td>
-                <td>{{ 'accounting.impairment.basis.' + r.emsalBasis | t }} @if (r.emsalMonth) { <span class="text-muted">({{ r.emsalMonth }})</span> }
-                  @if (r.qualifies) { <span class="badge badge-warning">{{ 'accounting.impairment.candidate' | t }}</span> } @if (r.requiresCommission) { <span class="badge badge-neutral">{{ 'accounting.impairment.commission' | t }}</span> @if (r.indication) { <span class="text-muted">{{ 'accounting.impairment.indication.' + r.indication | t }}</span> } }</td>
-                <td class="num">{{ r.emsalUnitPrice === null ? '-' : (r.emsalUnitPrice | money: d.currency) }}</td>
-                <td class="num">{{ r.declinePct === null ? '-' : '%' + (r.declinePct | num) }}</td>
-                <td class="num">{{ r.taxValue | money: d.currency }}</td><td class="num">{{ r.provision | money: d.currency }}</td>
+              <tr [class.is-selected]="selectedImp().includes(r.productId)">
+                <td class="w-check"><input type="checkbox" [disabled]="!r.qualifies && !r.requiresCommission" [checked]="selectedImp().includes(r.productId)" (change)="toggleImp(r.productId)" [attr.aria-label]="r.productName" /></td>
+                <td class="td-primary">{{ r.productName }}</td><td class="r" [attr.data-label]="'accounting.col.qty' | t">{{ r.quantity | num }}</td><td class="r" [attr.data-label]="'accounting.col.unitCost' | t">{{ r.unitCost | money: d.currency }}</td>
+                <td class="wrap" [attr.data-label]="'accounting.impairment.basis' | t">{{ 'accounting.impairment.basis.' + r.emsalBasis | t }} @if (r.emsalMonth) { <span class="sec">({{ r.emsalMonth }})</span> }
+                  @if (r.qualifies) { <span class="badge badge-warning"><span class="dot"></span>{{ 'accounting.impairment.candidate' | t }}</span> } @if (r.requiresCommission) { <span class="badge badge-neutral"><span class="dot"></span>{{ 'accounting.impairment.commission' | t }}</span> @if (r.indication) { <span class="sec">{{ 'accounting.impairment.indication.' + r.indication | t }}</span> } }</td>
+                <td class="r" [attr.data-label]="'accounting.impairment.emsal' | t">{{ r.emsalUnitPrice === null ? '-' : (r.emsalUnitPrice | money: d.currency) }}</td>
+                <td class="r" [attr.data-label]="'accounting.impairment.decline' | t">{{ r.declinePct === null ? '-' : '%' + (r.declinePct | num) }}</td>
+                <td class="r" [attr.data-label]="'accounting.impairment.taxValue' | t">{{ r.taxValue | money: d.currency }}</td><td class="r" [attr.data-label]="'accounting.impairment.provision' | t"><strong>{{ r.provision | money: d.currency }}</strong></td>
               </tr>
             }
+            @if (!d.rows.length) { <tr class="empty-row"><td colspan="9"><div class="empty-state"><div class="empty-art"><app-icon name="down" /></div><p>{{ 'common.noData' | t }}</p></div></td></tr> }
           </tbody>
-        </table></div></div>
+        </table></div></section>
       }
     }
 
     <!-- Traceability & recall -->
     @if (tab() === 'trace') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrLot">{{ 'accounting.trace.lotOrSerial' | t }}</label><input id="lrLot" class="input mono" [(ngModel)]="traceQ" (keyup.enter)="loadTrace()" [placeholder]="'accounting.trace.placeholder' | t" /></div>
-        <button class="btn btn-secondary" [disabled]="!traceQ.trim()" (click)="loadTrace()">{{ 'accounting.trace.search' | t }}</button>
+      <div class="card lr-bar">
+        <div class="fld wide"><label class="fld-label" for="lrLot">{{ 'accounting.trace.lotOrSerial' | t }}</label>
+          <div class="field"><span class="lead"><app-icon name="search" size="sm" /></span><input id="lrLot" class="mono" [(ngModel)]="traceQ" (keyup.enter)="loadTrace()" [placeholder]="'accounting.trace.placeholder' | t" /></div></div>
+        <button type="button" class="btn btn-primary" [disabled]="!traceQ.trim()" (click)="loadTrace()">{{ 'accounting.trace.search' | t }}</button>
       </div>
       @if (quarantine()?.items?.length) {
-        <div class="doc-alert">
-          <strong>{{ 'accounting.quarantine.title' | t: { count: quarantine().items.length } }}</strong>
-          @for (q of quarantine().items; track q.lotId) {
-            <div class="cluster" style="justify-content: space-between; margin-top: 4px;">
-              <span>{{ q.productName }} · <span class="mono">{{ q.lotNumber }}</span> · {{ q.quantity | num }} · {{ q.warehouseName }} · <span class="badge badge-warning">{{ 'accounting.quarantine.reason.' + q.reason | t }}</span></span>
-              @if (!ui.isReadonly() && quarantine().quarantineWarehouseId) { <button class="btn btn-sm btn-secondary" (click)="toQuarantine(q)">{{ 'accounting.quarantine.move' | t }}</button> }
+        <div class="notice notice-warning top">
+          <app-icon name="warn" />
+          <div class="t">
+            <b>{{ 'accounting.quarantine.title' | t: { count: quarantine().items.length } }}</b>
+            <div class="q-list">
+              @for (q of quarantine().items; track q.lotId) {
+                <div class="q-row">
+                  <span>{{ q.productName }}</span><span class="mono">{{ q.lotNumber }}</span><span>{{ q.quantity | num }}</span><span class="sec">{{ q.warehouseName }}</span>
+                  <span class="badge badge-warning"><span class="dot"></span>{{ 'accounting.quarantine.reason.' + q.reason | t }}</span>
+                  <span class="spacer"></span>
+                  @if (!ui.isReadonly() && quarantine().quarantineWarehouseId) { <button type="button" class="btn btn-sm" (click)="toQuarantine(q)">{{ 'accounting.quarantine.move' | t }}</button> }
+                </div>
+              }
             </div>
-          }
+          </div>
         </div>
       }
       @if (trace(); as t) {
-        <div class="lr-kpis">
-          <div class="lr-kpi"><div class="l">{{ 'accounting.col.product' | t }}</div><div class="v">{{ t.product.name }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.trace.inStock' | t }}</div><div class="v">{{ t.inStock | num }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.trace.customers' | t }}</div><div class="v">{{ t.customers.length }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.trace.retainUntil' | t }}</div><div class="v">{{ t.retainUntil ? (t.retainUntil | appDate) : '-' }}</div></div>
+        <div class="kpi-grid lr-kpis">
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.col.product' | t }}</div><div class="kpi-val txt"><b>{{ t.product.name }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.trace.inStock' | t }}</div><div class="kpi-val"><b>{{ t.inStock | num }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.trace.customers' | t }}</div><div class="kpi-val"><b>{{ t.customers.length | num }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.trace.retainUntil' | t }}</div><div class="kpi-val txt"><b>{{ t.retainUntil ? (t.retainUntil | appDate) : '-' }}</b></div></div>
         </div>
         @if (t.lots.length) {
-          <p class="lr-note">@for (l of t.lots; track l.id) { <span>{{ l.warehouseName }}: {{ l.quantity | num }} · {{ 'accounting.trace.expiry' | t }} {{ l.expiryDate | appDate }}@if (l.productionDate) { · {{ 'accounting.trace.production' | t }} {{ l.productionDate | appDate }} }@if (l.supplierLotNumber) { · {{ 'accounting.trace.supplierLot' | t }} {{ l.supplierLotNumber }} } · <span class="badge" [class.badge-danger]="l.status !== 'active'">{{ 'accounting.lotStatus.' + l.status | t }}</span>; </span> }</p>
+          <section class="card flush"><ul class="lr-list">
+            @for (l of t.lots; track l.id) {
+              <li><b>{{ l.warehouseName }}</b><span>{{ l.quantity | num }}</span><span class="sep">·</span><span>{{ 'accounting.trace.expiry' | t }} {{ l.expiryDate | appDate }}</span>@if (l.productionDate) { <span class="sep">·</span><span>{{ 'accounting.trace.production' | t }} {{ l.productionDate | appDate }}</span> }@if (l.supplierLotNumber) { <span class="sep">·</span><span>{{ 'accounting.trace.supplierLot' | t }} <span class="mono">{{ l.supplierLotNumber }}</span></span> }
+                <span class="spacer"></span><span class="badge" [class.badge-success]="l.status === 'active'" [class.badge-danger]="l.status !== 'active'"><span class="dot"></span>{{ 'accounting.lotStatus.' + l.status | t }}</span></li>
+            }
+          </ul></section>
         }
-        <h3 class="lr-h">{{ 'reports.recall' | t }}: {{ 'accounting.trace.customers' | t }}</h3>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'accounting.col.party' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th class="num">{{ 'accounting.trace.shipped' | t }}</th><th class="num">{{ 'accounting.trace.returned' | t }}</th><th class="num">{{ 'accounting.trace.net' | t }}</th></tr></thead>
+        <section class="card"><div class="card-h"><h3>{{ 'reports.recall' | t }}: {{ 'accounting.trace.customers' | t }}</h3></div><div class="table-scroll"><table class="tbl table-responsive">
+          <thead><tr><th>{{ 'accounting.col.party' | t }}</th><th class="r">{{ 'accounting.col.document' | t }}</th><th class="r">{{ 'accounting.trace.shipped' | t }}</th><th class="r">{{ 'accounting.trace.returned' | t }}</th><th class="r">{{ 'accounting.trace.net' | t }}</th></tr></thead>
           <tbody>
             @for (c of t.customers; track $index) {
-              <tr><td class="td-primary">{{ c.partyName }} <span class="mono text-muted">{{ c.partyTaxId }}</span></td>
-                <td><div class="lr-cust">@for (d of c.documents; track $index) { <span class="mono">{{ d.documentNo }} · {{ d.documentDate | appDate }} · {{ d.quantity | num }}</span> }</div></td>
-                <td class="num">{{ c.shipped | num }}</td><td class="num">{{ c.returned | num }}</td><td class="num"><strong>{{ c.net | num }}</strong></td></tr>
+              <tr><td class="td-primary">{{ c.partyName }} <span class="sec mono">{{ c.partyTaxId }}</span></td>
+                <td class="r" [attr.data-label]="'accounting.col.document' | t"><div class="lr-cust">@for (d of c.documents; track $index) { <span><span class="mono">{{ d.documentNo }}</span> <span class="sec">{{ d.documentDate | appDate }} · {{ d.quantity | num }}</span></span> }</div></td>
+                <td class="r" [attr.data-label]="'accounting.trace.shipped' | t">{{ c.shipped | num }}</td><td class="r" [attr.data-label]="'accounting.trace.returned' | t">{{ c.returned | num }}</td><td class="r" [attr.data-label]="'accounting.trace.net' | t"><strong>{{ c.net | num }}</strong></td></tr>
             }
-            @if (!t.customers.length) { <tr><td colspan="5" class="text-muted">{{ 'accounting.trace.noCustomers' | t }}</td></tr> }
+            @if (!t.customers.length) { <tr class="empty-row"><td colspan="5"><div class="empty-state"><div class="empty-art"><app-icon name="users" /></div><p>{{ 'accounting.trace.noCustomers' | t }}</p></div></td></tr> }
           </tbody>
-        </table></div></div>
-        <h3 class="lr-h">{{ 'accounting.trace.suppliers' | t }}</h3>
-        @for (s of t.suppliers; track $index) { <p class="lr-note">{{ s.partyName }} <span class="mono">{{ s.partyTaxId }}</span> · {{ s.documentNo }} · {{ s.documentDate | appDate }} · {{ s.quantity | num }}</p> }
+        </table></div></section>
+        <section class="card"><div class="card-h"><h3>{{ 'accounting.trace.suppliers' | t }}</h3></div>
+          @if (t.suppliers.length) {
+            <ul class="lr-list">@for (s of t.suppliers; track $index) { <li><b>{{ s.partyName }}</b><span class="mono">{{ s.partyTaxId }}</span><span class="spacer"></span><span class="mono">{{ s.documentNo }}</span><span class="sep">·</span><span>{{ s.documentDate | appDate }}</span><span class="sep">·</span><span>{{ s.quantity | num }}</span></li> }</ul>
+          } @else { <div class="empty-state"><p>{{ 'common.noData' | t }}</p></div> }
+        </section>
         @if (t.lotNumber && !ui.isReadonly()) {
-          <div class="doc-section">
-            <div class="doc-field"><label for="lrRr">{{ 'accounting.recall.reason' | t }}</label><input id="lrRr" class="input" [(ngModel)]="recallReason" /></div>
-            <div class="cluster" style="margin-top: var(--space-2);">
-              <button class="btn btn-danger" [disabled]="!recallReason.trim() || busy()" (click)="startRecall(t, false)">{{ 'accounting.recall.start' | t }}</button>
-              <button class="btn btn-secondary" [disabled]="!recallReason.trim() || busy()" (click)="startRecall(t, true)">{{ 'accounting.recall.mock' | t }}</button>
+          <section class="card">
+            <div class="card-h"><h3>{{ 'reports.recall' | t }}</h3></div>
+            <div class="card-b recall-f">
+              <div class="fld"><label class="fld-label" for="lrRr">{{ 'accounting.recall.reason' | t }}</label><div class="field"><input id="lrRr" [(ngModel)]="recallReason" /></div><div class="fld-help">{{ 'accounting.recall.hint' | t }}</div></div>
+              <div class="cluster">
+                <button type="button" class="btn btn-danger-outline" [disabled]="!recallReason.trim() || busy()" (click)="startRecall(t, false)">{{ 'accounting.recall.start' | t }}</button>
+                <button type="button" class="btn" [disabled]="!recallReason.trim() || busy()" (click)="startRecall(t, true)">{{ 'accounting.recall.mock' | t }}</button>
+              </div>
             </div>
-            <p class="lr-note">{{ 'accounting.recall.hint' | t }}</p>
-          </div>
+          </section>
         }
         @if (t.recalls.length) {
-          <h3 class="lr-h">{{ 'accounting.recall.records' | t }}</h3>
-          @for (r of t.recalls; track r.id) {
-            <p class="lr-note"><span class="mono">{{ r.recallNo }}</span> · {{ r.isMock ? ('accounting.recall.mockBadge' | t) : ('accounting.recall.realBadge' | t) }} · {{ 'accounting.recall.status.' + r.status | t }} · {{ r.createdAt | appDate }}
-              @if (!r.isMock && r.status === 'OPEN' && !ui.isReadonly()) {
-                · <input class="input" style="width: 180px; display: inline-block;" [(ngModel)]="ministryRef" [placeholder]="'accounting.recall.ministryRef' | t" [attr.aria-label]="'accounting.recall.ministryRef' | t" />
-                <button class="link-btn" (click)="ministry(r)">{{ 'accounting.recall.ministryNotified' | t }}</button>
+          <section class="card"><div class="card-h"><h3>{{ 'accounting.recall.records' | t }}</h3></div>
+            <ul class="lr-list">
+              @for (r of t.recalls; track r.id) {
+                <li><span class="mono">{{ r.recallNo }}</span>
+                  <span class="badge" [class.badge-neutral]="r.isMock" [class.badge-danger]="!r.isMock"><span class="dot"></span>{{ r.isMock ? ('accounting.recall.mockBadge' | t) : ('accounting.recall.realBadge' | t) }}</span>
+                  <span>{{ 'accounting.recall.status.' + r.status | t }}</span><span class="sep">·</span><span>{{ r.createdAt | appDate }}</span>
+                  @if (r.ministryNotifiedAt) { <span class="sep">·</span><span>{{ 'accounting.recall.ministryAt' | t }} {{ r.ministryNotifiedAt | appDate }}</span> }
+                  @if (!r.isMock && r.status === 'OPEN' && !ui.isReadonly()) {
+                    <span class="spacer"></span>
+                    <span class="ministry">
+                      <span class="field field-sm"><input [(ngModel)]="ministryRef" [placeholder]="'accounting.recall.ministryRef' | t" [attr.aria-label]="'accounting.recall.ministryRef' | t" /></span>
+                      <button type="button" class="btn btn-sm" (click)="ministry(r)">{{ 'accounting.recall.ministryNotified' | t }}</button>
+                    </span>
+                  }
+                </li>
               }
-              @if (r.ministryNotifiedAt) { · {{ 'accounting.recall.ministryAt' | t }} {{ r.ministryNotifiedAt | appDate }} }</p>
-          }
+            </ul>
+          </section>
         }
       }
-      @if (mock(); as ms) { <p class="lr-note">{{ 'accounting.recall.mockStatus' | t: { last: ms.lastMockRecall ? (ms.lastMockRecall | appDate) : '-', due: ms.dueBy ? (ms.dueBy | appDate) : '-' } }} @if (ms.overdue) { <span class="badge badge-warning">{{ 'accounting.recall.mockOverdue' | t }}</span> }</p> }
+      @if (mock(); as ms) { <p class="lr-note">{{ 'accounting.recall.mockStatus' | t: { last: ms.lastMockRecall ? (ms.lastMockRecall | appDate) : '-', due: ms.dueBy ? (ms.dueBy | appDate) : '-' } }} @if (ms.overdue) { <span class="badge badge-warning"><span class="dot"></span>{{ 'accounting.recall.mockOverdue' | t }}</span> }</p> }
     }
 
     <!-- Journal export -->
     @if (tab() === 'journal') {
-      <div class="lr-bar">
-        <div class="doc-field"><label for="lrJf">{{ 'reports.startDate' | t }}</label><input id="lrJf" type="date" class="input" [(ngModel)]="jFrom" /></div>
-        <div class="doc-field"><label for="lrJt">{{ 'reports.endDate' | t }}</label><input id="lrJt" type="date" class="input" [(ngModel)]="jTo" /></div>
-        <div class="doc-field"><label for="lrJb">{{ 'accounting.journal.batchId' | t }}</label><input id="lrJb" class="input mono" [(ngModel)]="jBatch" /></div>
-        <button class="btn btn-primary" [disabled]="busy() || ui.isReadonly()" (click)="exportJournal()">{{ 'accounting.journal.export' | t }}</button>
+      <div class="card lr-bar">
+        <div class="fld"><label class="fld-label" for="lrJf">{{ 'reports.startDate' | t }}</label><div class="field"><input id="lrJf" type="date" [(ngModel)]="jFrom" /></div></div>
+        <div class="fld"><label class="fld-label" for="lrJt">{{ 'reports.endDate' | t }}</label><div class="field"><input id="lrJt" type="date" [(ngModel)]="jTo" /></div></div>
+        <div class="fld"><label class="fld-label" for="lrJb">{{ 'accounting.journal.batchId' | t }}</label><div class="field"><span class="lead"><app-icon name="hash" size="sm" /></span><input id="lrJb" class="mono" [(ngModel)]="jBatch" /></div></div>
+        <button type="button" class="btn btn-primary" [class.is-loading]="busy()" [disabled]="busy() || ui.isReadonly()" (click)="exportJournal()"><span>{{ 'accounting.journal.export' | t }}</span></button>
       </div>
       <p class="lr-note">{{ 'accounting.journal.hint' | t }}</p>
       @if (journal(); as j) {
-        <div class="lr-kpis">
-          <div class="lr-kpi"><div class="l">{{ 'accounting.journal.batchId' | t }}</div><div class="v mono">{{ j.exportBatchId }}</div>@if (j.repeated) { <span class="badge badge-info">{{ 'accounting.journal.repeated' | t }}</span> }</div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.journal.vouchers' | t }}</div><div class="v">{{ j.vouchers.length }}</div></div>
-          <div class="lr-kpi"><div class="l">{{ 'accounting.journal.debit' | t }} / {{ 'accounting.journal.credit' | t }}</div><div class="v">{{ j.debitTotal | money: j.currency }} / {{ j.creditTotal | money: j.currency }}</div></div>
+        <div class="kpi-grid lr-kpis">
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.journal.batchId' | t }}@if (j.repeated) { <span class="badge badge-info"><span class="dot"></span>{{ 'accounting.journal.repeated' | t }}</span> }</div><div class="kpi-val"><b class="mono">{{ j.exportBatchId }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.journal.vouchers' | t }}</div><div class="kpi-val"><b>{{ j.vouchers.length | num }}</b></div></div>
+          <div class="kpi"><div class="kpi-top">{{ 'accounting.journal.debit' | t }} / {{ 'accounting.journal.credit' | t }}</div><div class="kpi-val"><b>{{ j.debitTotal | money: j.currency }}</b></div><div class="kpi-foot"><span>{{ 'accounting.journal.credit' | t }} {{ j.creditTotal | money: j.currency }}</span></div></div>
         </div>
-        <div class="cluster"><button class="btn btn-secondary btn-sm" (click)="api.download('accounting/journal-export', { from: j.from, to: j.to, exportBatchId: j.exportBatchId, format: 'csv' }, 'yevmiye.csv')">CSV</button>
-          <button class="btn btn-secondary btn-sm" (click)="api.download('accounting/journal-export', { from: j.from, to: j.to, exportBatchId: j.exportBatchId, format: 'xlsx' }, 'yevmiye.xlsx')">XLSX</button></div>
-        <div class="table-card" style="margin-top: var(--space-3);"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'accounting.journal.voucher' | t }}</th><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.journal.account' | t }}</th><th class="num">{{ 'accounting.journal.debit' | t }}</th><th class="num">{{ 'accounting.journal.credit' | t }}</th></tr></thead>
-          <tbody>
-            @for (v of j.vouchers.slice(0, 50); track v.voucherNo) {
-              @for (l of v.lines; track $index) {
-                <tr><td class="mono">{{ v.voucherNo }}</td><td>{{ v.date | appDate }}</td><td class="mono">{{ v.documentNo }} <span class="text-muted">({{ v.eDefterDocumentType }})</span></td><td class="mono">{{ l.account }} <span class="text-muted">{{ l.accountName }}</span></td><td class="num">{{ l.debit ? (l.debit | money: j.currency) : '' }}</td><td class="num">{{ l.credit ? (l.credit | money: j.currency) : '' }}</td></tr>
+        <section class="card">
+          <div class="card-h"><h3>{{ 'accounting.journal.vouchers' | t }}</h3><span class="spacer"></span>
+            <button type="button" class="btn btn-sm" (click)="api.download('accounting/journal-export', { from: j.from, to: j.to, exportBatchId: j.exportBatchId, format: 'csv' }, 'yevmiye.csv')"><app-icon name="download" size="sm" />CSV</button>
+            <button type="button" class="btn btn-sm" (click)="api.download('accounting/journal-export', { from: j.from, to: j.to, exportBatchId: j.exportBatchId, format: 'xlsx' }, 'yevmiye.xlsx')"><app-icon name="download" size="sm" />XLSX</button>
+          </div>
+          <div class="table-scroll"><table class="tbl table-responsive">
+            <thead><tr><th>{{ 'accounting.journal.voucher' | t }}</th><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.journal.account' | t }}</th><th class="r">{{ 'accounting.journal.debit' | t }}</th><th class="r">{{ 'accounting.journal.credit' | t }}</th></tr></thead>
+            <tbody>
+              @for (v of j.vouchers.slice(0, 50); track v.voucherNo) {
+                @for (l of v.lines; track $index) {
+                  <tr><td class="mono" [attr.data-label]="'accounting.journal.voucher' | t">{{ v.voucherNo }}</td><td [attr.data-label]="'accounting.col.date' | t">{{ v.date | appDate }}</td><td [attr.data-label]="'accounting.col.document' | t"><span class="mono">{{ v.documentNo }}</span> <span class="sec">({{ v.eDefterDocumentType }})</span></td><td [attr.data-label]="'accounting.journal.account' | t"><span class="mono">{{ l.account }}</span> <span class="sec">{{ l.accountName }}</span></td><td class="r" [attr.data-label]="'accounting.journal.debit' | t">{{ l.debit ? (l.debit | money: j.currency) : '' }}</td><td class="r" [attr.data-label]="'accounting.journal.credit' | t">{{ l.credit ? (l.credit | money: j.currency) : '' }}</td></tr>
+                }
               }
-            }
-          </tbody>
-        </table></div></div>
+            </tbody>
+          </table></div>
+        </section>
       }
       @if (batches().length) {
-        <h3 class="lr-h">{{ 'accounting.journal.batches' | t }}</h3>
-        @for (b of batches(); track b.id) { <p class="lr-note"><span class="mono">{{ b.exportBatchId }}</span> · {{ b.fromDate | appDate }} - {{ b.toDate | appDate }} · {{ b.voucherCount }} · {{ b.debitTotal | money }} · {{ b.createdBy }}</p> }
+        <section class="card"><div class="card-h"><h3>{{ 'accounting.journal.batches' | t }}</h3></div>
+          <ul class="lr-list">@for (b of batches(); track b.id) { <li><span class="mono">{{ b.exportBatchId }}</span><span class="sep">·</span><span>{{ b.fromDate | appDate }} – {{ b.toDate | appDate }}</span><span class="spacer"></span><span>{{ b.voucherCount | num }}</span><span class="sep">·</span><b>{{ b.debitTotal | money }}</b><span class="sep">·</span><span class="sec">{{ b.createdBy }}</span></li> }</ul>
+        </section>
       }
     }
 
     <ng-template #groupsTpl let-groups>
-      <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-        <thead><tr><th class="num">{{ 'accounting.col.rate' | t }}</th><th>{{ 'accounting.col.exemption' | t }}</th><th>{{ 'accounting.col.withholding' | t }}</th><th class="num">{{ 'accounting.col.base' | t }}</th><th class="num">{{ 'accounting.col.vat' | t }}</th><th class="num">{{ 'accounting.col.withheld' | t }}</th><th class="num">{{ 'accounting.col.documents' | t }}</th></tr></thead>
-        <tbody>@for (g of groups; track $index) { <tr><td class="num">%{{ g.rate | num }}</td><td>{{ g.exemptionCode }}</td><td>{{ g.withholdingCode }} {{ g.withholdingRate }}</td><td class="num">{{ g.base | money: 'TRY' }}</td><td class="num">{{ g.tax | money: 'TRY' }}</td><td class="num">{{ g.withheld | money: 'TRY' }}</td><td class="num">{{ g.documents }}</td></tr> }
-          @if (!groups.length) { <tr><td colspan="7" class="text-muted">{{ 'common.noData' | t }}</td></tr> }</tbody>
-      </table></div></div>
+      <div class="table-scroll"><table class="tbl table-responsive">
+        <thead><tr><th class="r">{{ 'accounting.col.rate' | t }}</th><th>{{ 'accounting.col.exemption' | t }}</th><th>{{ 'accounting.col.withholding' | t }}</th><th class="r">{{ 'accounting.col.base' | t }}</th><th class="r">{{ 'accounting.col.vat' | t }}</th><th class="r">{{ 'accounting.col.withheld' | t }}</th><th class="r">{{ 'accounting.col.documents' | t }}</th></tr></thead>
+        <tbody>@for (g of groups; track $index) { <tr><td class="r" [attr.data-label]="'accounting.col.rate' | t">%{{ g.rate | num }}</td><td [attr.data-label]="'accounting.col.exemption' | t">{{ g.exemptionCode }}</td><td [attr.data-label]="'accounting.col.withholding' | t">{{ g.withholdingCode }} {{ g.withholdingRate }}</td><td class="r" [attr.data-label]="'accounting.col.base' | t">{{ g.base | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.col.vat' | t">{{ g.tax | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.col.withheld' | t">{{ g.withheld | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.col.documents' | t">{{ g.documents | num }}</td></tr> }
+          @if (!groups.length) { <tr class="empty-row"><td colspan="7"><div class="empty-state"><p>{{ 'common.noData' | t }}</p></div></td></tr> }</tbody>
+      </table></div>
     </ng-template>
     <ng-template #docsTpl let-docs>
-      <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-        <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.col.taxId' | t }}</th><th>{{ 'accounting.col.party' | t }}</th><th class="num">{{ 'accounting.col.base' | t }}</th><th class="num">{{ 'accounting.col.vat' | t }}</th></tr></thead>
-        <tbody>@for (d of docs; track $index) { <tr><td>{{ d.documentDate | appDate }}</td><td class="mono">{{ d.documentNo }}</td><td class="mono">{{ d.partyTaxId }}</td><td>{{ d.partyName }}</td><td class="num">{{ d.base | money: 'TRY' }}</td><td class="num">{{ d.tax | money: 'TRY' }}</td></tr> }
-          @if (!docs.length) { <tr><td colspan="6" class="text-muted">{{ 'common.noData' | t }}</td></tr> }</tbody>
-      </table></div></div>
+      <div class="table-scroll"><table class="tbl table-responsive">
+        <thead><tr><th>{{ 'accounting.col.date' | t }}</th><th>{{ 'accounting.col.document' | t }}</th><th>{{ 'accounting.col.taxId' | t }}</th><th>{{ 'accounting.col.party' | t }}</th><th class="r">{{ 'accounting.col.base' | t }}</th><th class="r">{{ 'accounting.col.vat' | t }}</th></tr></thead>
+        <tbody>@for (d of docs; track $index) { <tr><td [attr.data-label]="'accounting.col.date' | t">{{ d.documentDate | appDate }}</td><td class="mono" [attr.data-label]="'accounting.col.document' | t">{{ d.documentNo }}</td><td class="mono" [attr.data-label]="'accounting.col.taxId' | t">{{ d.partyTaxId }}</td><td [attr.data-label]="'accounting.col.party' | t">{{ d.partyName }}</td><td class="r" [attr.data-label]="'accounting.col.base' | t">{{ d.base | money: 'TRY' }}</td><td class="r" [attr.data-label]="'accounting.col.vat' | t">{{ d.tax | money: 'TRY' }}</td></tr> }
+          @if (!docs.length) { <tr class="empty-row"><td colspan="6"><div class="empty-state"><p>{{ 'common.noData' | t }}</p></div></td></tr> }</tbody>
+      </table></div>
     </ng-template>
   `,
 })
@@ -370,6 +468,8 @@ export class LegalReportsComponent implements OnInit {
   tab = signal<LegalTab>('inventory');
   error = signal<string | null>(null);
   busy = signal(false);
+  /** Mobile overflow menu of the inventory-list toolbar. */
+  invMore = signal(false);
 
   asOf = today();
   breakdown: 'product' | 'warehouse' | 'lot' = 'product';

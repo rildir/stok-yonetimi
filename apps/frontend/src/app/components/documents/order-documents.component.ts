@@ -9,6 +9,7 @@ import { InventoryService } from '../../inventory.service';
 import { OrderDocuments, statusBadge } from '../../models/documents.models';
 import { Order, Warehouse } from '../../models/inventory.models';
 import { DespatchFormComponent } from './despatch-form.component';
+import { IconComponent } from '../shared/icon.component';
 
 interface ChainItem {
   kind: 'despatch' | 'invoice' | 'return';
@@ -18,6 +19,10 @@ interface ChainItem {
   date: string | null;
   sub: string;
   link: string;
+  /** Invoice only: UBL-TR type code and total, formatted in the template. */
+  typeCode?: string;
+  amount?: number | string;
+  currency?: string;
 }
 
 /**
@@ -27,44 +32,57 @@ interface ChainItem {
 @Component({
   selector: 'app-order-documents',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, MoneyPipe, DespatchFormComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, MoneyPipe, DespatchFormComponent, IconComponent],
   styleUrls: ['./documents.css'],
+  styles: [`
+    .od-actions { margin-bottom: 12px; }
+    .od-okc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 12px; }
+    .od-timeline { margin-top: 12px; }
+    .doc-section-title .badge { margin-left: 0; }
+    @media (max-width: 640px) { .od-okc { grid-template-columns: minmax(0, 1fr); } .od-okc .btn { justify-self: start; } }
+  `],
   template: `
     <div class="doc-section">
-      <h4 class="doc-section-title">{{ 'orderDocs.title' | t }}
-        @if (order.invoiceRequirement === 'REQUIRED') { <span class="badge badge-warning">{{ 'orderDocs.invoiceRequired' | t }}</span> }
+      <h3 class="doc-section-title">{{ 'orderDocs.title' | t }}
+        @if (order.invoiceRequirement === 'REQUIRED') { <span class="badge badge-warning"><span class="dot"></span>{{ 'orderDocs.invoiceRequired' | t }}</span> }
         @if (order.invoiceRequirement === 'OPTIONAL') { <span class="badge badge-neutral">{{ 'orderDocs.invoiceOptional' | t: { limit: (order.invoiceLimit | money: 'TRY') } }}</span> }
-      </h4>
-      @if (order.stockMode === 'despatch' && order.status === 'Pending') { <p class="doc-hint">{{ 'orderDocs.despatchModeInfo' | t }}</p> }
+      </h3>
+      @if (order.stockMode === 'despatch' && order.status === 'Pending') { <div class="notice notice-info od-actions"><app-icon name="info" /><span class="t">{{ 'orderDocs.despatchModeInfo' | t }}</span></div> }
       @if (order.documentsLegacy) { <p class="doc-hint">{{ 'orderDocs.legacyInfo' | t }}</p> }
 
       @if (!ui.isReadonly() && order.status !== 'Cancelled') {
-        <div class="doc-actions" style="margin-bottom: var(--space-3)">
-          @if (hasOpenDespatch()) { <button type="button" class="btn btn-primary btn-sm" (click)="formOpen.set(true)">{{ 'orderDocs.despatch' | t }}</button> }
-          @if (hasOpenInvoice()) { <button type="button" class="btn btn-secondary btn-sm" (click)="invoice()" [disabled]="busy()">{{ 'orderDocs.invoice' | t }}</button> }
-          @if (issuedInvoice(); as invId) { <a class="btn btn-secondary btn-sm" routerLink="/returns" [queryParams]="{ invoiceId: invId }">{{ 'orderDocs.return' | t }}</a> }
-          <button type="button" class="btn btn-ghost btn-sm" (click)="docs.print('orders/' + order.id + '/picking-list')">{{ 'orderDocs.pickingList' | t }}</button>
+        <div class="doc-actions od-actions">
+          @if (hasOpenDespatch()) { <button type="button" class="btn btn-primary btn-sm" (click)="formOpen.set(true)"><app-icon name="truck" />{{ 'orderDocs.despatch' | t }}</button> }
+          @if (hasOpenInvoice()) { <button type="button" class="btn btn-sm" [class.is-loading]="busy()" (click)="invoice()" [disabled]="busy()"><app-icon name="receipt" />{{ 'orderDocs.invoice' | t }}</button> }
+          @if (issuedInvoice(); as invId) { <a class="btn btn-sm" routerLink="/returns" [queryParams]="{ invoiceId: invId }"><app-icon name="return" />{{ 'orderDocs.return' | t }}</a> }
+          <button type="button" class="btn btn-ghost btn-sm" (click)="docs.print('orders/' + order.id + '/picking-list')"><app-icon name="printer" />{{ 'orderDocs.pickingList' | t }}</button>
         </div>
       }
 
       @if (order.invoiceRequirement === 'OPTIONAL' && !ui.isReadonly() && !issuedInvoice()) {
-        <div class="doc-grid">
-          <div class="doc-field"><label for="okcNo">{{ 'orderDocs.okcReceiptNo' | t }}</label><input id="okcNo" class="input mono" maxlength="50" [(ngModel)]="okcNo" /></div>
-          <div class="doc-field"><label for="okcDate">{{ 'orderDocs.okcReceiptDate' | t }}</label><input id="okcDate" type="date" class="input" [(ngModel)]="okcDate" /></div>
+        <div class="od-okc">
+          <div class="fld">
+            <label class="fld-label" for="okcNo">{{ 'orderDocs.okcReceiptNo' | t }}</label>
+            <div class="field field-sm"><input id="okcNo" class="mono" maxlength="50" [(ngModel)]="okcNo" /></div>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="okcDate">{{ 'orderDocs.okcReceiptDate' | t }}</label>
+            <div class="field field-sm"><input id="okcDate" type="date" [(ngModel)]="okcDate" /></div>
+          </div>
+          <button type="button" class="btn btn-sm" (click)="saveOkc()" [disabled]="busy()">{{ 'orderDocs.saveOkc' | t }}</button>
         </div>
-        <button type="button" class="btn btn-ghost btn-sm" (click)="saveOkc()" [disabled]="busy()">{{ 'orderDocs.saveOkc' | t }}</button>
       }
 
       @if (chain().length) {
-        <ul class="doc-timeline" style="margin-top: var(--space-3)">
+        <ul class="doc-timeline od-timeline">
           @for (c of chain(); track c.id) {
             <li [class.muted]="c.status === 'DRAFT' || c.status === 'CANCELLED'">
               <div class="tl-head">
                 <strong>{{ 'orderDocs.kind.' + c.kind | t }}</strong>
-                <a class="link mono" [routerLink]="c.link" [queryParams]="{ id: c.id }">{{ c.number }}</a>
-                <span class="badge" [ngClass]="badge(c.status)">{{ ('documents.status.' + c.status) | t }}</span>
+                <a class="link-btn mono" [routerLink]="c.link" [queryParams]="{ id: c.id }">{{ c.number }}</a>
+                <span class="badge" [ngClass]="badge(c.status)"><span class="dot"></span>{{ ('documents.status.' + c.status) | t }}</span>
               </div>
-              <div class="tl-sub">{{ c.date ? (c.date | appDate) : '-' }} · {{ c.sub }}</div>
+              <div class="tl-sub">{{ c.date ? (c.date | appDate) : '-' }} · {{ c.kind === 'invoice' ? typeLabel(c.typeCode) + ' · ' + (c.amount | money: c.currency) : c.sub }}</div>
             </li>
           }
         </ul>
@@ -110,7 +128,7 @@ export class OrderDocumentsComponent implements OnChanges {
         this.data.set(d);
         const items: ChainItem[] = [
           ...d.despatches.map((x) => ({ kind: 'despatch' as const, id: x.id, number: x.documentNo || this.i18n.t('despatches.draftNo'), status: x.status, date: x.issueDate || x.createdAt, sub: x.lines.map((l) => `${l.productName} × ${l.quantity}`).join(', '), link: '/despatches' })),
-          ...d.invoices.map((x) => ({ kind: 'invoice' as const, id: x.id, number: x.documentNo || this.i18n.t('invoices.draftNo'), status: x.status, date: x.issueDate || x.createdAt, sub: `${x.typeCode} · ${x.grandTotal} ${x.currency}`, link: '/invoices' })),
+          ...d.invoices.map((x) => ({ kind: 'invoice' as const, id: x.id, number: x.documentNo || this.i18n.t('invoices.draftNo'), status: x.status, date: x.issueDate || x.createdAt, sub: '', typeCode: x.typeCode, amount: x.grandTotal, currency: x.currency, link: '/invoices' })),
           ...d.returns.map((x) => ({ kind: 'return' as const, id: x.id, number: x.returnNo, status: x.status, date: x.createdAt, sub: this.i18n.t('returns.type.' + x.type), link: '/returns' })),
         ];
         items.sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -118,6 +136,14 @@ export class OrderDocumentsComponent implements OnChanges {
       },
       error: () => undefined,
     });
+  }
+
+  /** Sentence-case label of a UBL-TR invoice type code; unknown codes stay as the code. */
+  typeLabel(code?: string): string {
+    if (!code) return '';
+    const key = 'orderDocs.invoiceType.' + code;
+    const label = this.i18n.t(key);
+    return label === key ? code : label;
   }
 
   hasOpenDespatch(): boolean {

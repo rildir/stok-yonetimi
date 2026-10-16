@@ -11,6 +11,7 @@ import { QuantityInputDirective, productDecimals } from '../shared/quantity-inpu
 import { MOVEMENT_REASONS, MOVEMENT_DOCUMENT_TYPES, reasonAllowsDirection } from '@stok/tr-compliance';
 import { ReasonRule } from '../../models/inventory.models';
 import { toastMovementResult } from '../shared/movement-warnings';
+import { IconComponent } from '../shared/icon.component';
 
 const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
 const ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'text/plain', 'text/csv'];
@@ -26,10 +27,37 @@ const TYPE_PILLS: { type: string; key: string }[] = [
   { type: 'QUARANTINE_IN,QUARANTINE_OUT', key: 'stockMovements.type.quarantine' },
 ];
 
+/** Backend-generated (Turkish) movement notes → i18n keys with captured params. */
+const SYSTEM_NOTES: [RegExp, string, string[]][] = [
+  [/^Sayım Düzeltmesi \(Fark: ([^)]+)\)$/, 'stockMovements.sysNote.countAdjustment', ['diff']],
+  [/^Sayım farkı düzeltmesi$/, 'stockMovements.sysNote.countDiff', []],
+  [/^Yeni ürün oluşturma stok girişi$/, 'stockMovements.sysNote.newProduct', []],
+  [/^Depo transferi: (.+) -> (.+) \(([^)]+)\)$/, 'stockMovements.sysNote.transfer', ['from', 'to', 'qty']],
+  [/^Transfer teslim alındı: (.+)$/, 'stockMovements.sysNote.transferReceived', ['no']],
+  [/^Numune irsaliyesi (.+)$/, 'stockMovements.sysNote.sampleDespatch', ['no']],
+  [/^İrsaliye yerine geçen fatura (.+)$/, 'stockMovements.sysNote.invoiceAsDespatch', ['no']],
+  [/^İrsaliye (\S+) \((.+)\)$/, 'stockMovements.sysNote.despatchOrder', ['no', 'ref']],
+  [/^İrsaliye (\S+)$/, 'stockMovements.sysNote.despatch', ['no']],
+  [/^Mal kabul (\S+) \((.+)\) — alıcı taşıması$/, 'stockMovements.sysNote.receiptBuyerCarriage', ['no', 'ref']],
+  [/^Mal kabul (\S+) \((.+)\)$/, 'stockMovements.sysNote.receipt', ['no', 'ref']],
+  [/^Tesellüm fazlası \(397\) (.+)$/, 'stockMovements.sysNote.receiptSurplus', ['no']],
+  [/^Satış iadesi (\S+)(?: \(fatura (.+)\))?$/, 'stockMovements.sysNote.salesReturn', ['no', 'inv']],
+  [/^Alış iadesi (\S+)(?: \(fatura (.+)\))?$/, 'stockMovements.sysNote.purchaseReturn', ['no', 'inv']],
+  [/^İade (\S+) \(fatura (.+)\)$/, 'stockMovements.sysNote.return', ['no', 'inv']],
+  [/^İmha ([^:]+): (.*)$/, 'stockMovements.sysNote.disposal', ['no', 'reason']],
+  [/^Sipariş oluşturuldu: (.+)$/, 'stockMovements.sysNote.orderCreated', ['no']],
+  [/^Sipariş iptal edildi: (.+)$/, 'stockMovements.sysNote.orderCancelled', ['no']],
+  [/^Sipariş: (.+)$/, 'stockMovements.sysNote.order', ['no']],
+  [/^Satın alma siparişi teslim alındı: (.+)$/, 'stockMovements.sysNote.poReceived', ['no']],
+  [/^Satın alma teslim alındı: (.+)$/, 'stockMovements.sysNote.poReceived', ['no']],
+  [/^Açılış maliyeti içe aktarımı \(CSV\)$/, 'stockMovements.sysNote.openingCostImport', []],
+];
+
 @Component({
   selector: 'app-stock-movements',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, ToastComponent, ModalComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, UnitLabelPipe, QuantityInputDirective],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ToastComponent, ModalComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, UnitLabelPipe, QuantityInputDirective, IconComponent],
+  host: { '(document:click)': 'moreOpen.set(false)', '(document:keydown.escape)': 'onEscape()' },
   template: `
     <header class="page-header">
       <div>
@@ -37,59 +65,60 @@ const TYPE_PILLS: { type: string; key: string }[] = [
         <p>{{ 'stockMovements.subtitle' | t }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-secondary" (click)="refreshAll()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
-          {{ 'stockMovements.refresh' | t }}
-        </button>
-        <button class="btn btn-secondary" (click)="exportToCSV()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          {{ 'stockMovements.export' | t }}
-        </button>
+        <button type="button" class="btn d-only" (click)="refreshAll()"><app-icon name="refresh" />{{ 'stockMovements.refresh' | t }}</button>
+        <button type="button" class="btn d-only" (click)="exportToCSV()"><app-icon name="download" />{{ 'stockMovements.export' | t }}</button>
+        <span class="sm-more m-only">
+          <button type="button" class="btn btn-icon" [class.is-active]="moreOpen()" aria-haspopup="menu" [attr.aria-expanded]="moreOpen()" [attr.aria-label]="'stockMovements.moreActions' | t" (click)="moreOpen.set(!moreOpen()); $event.stopPropagation()"><app-icon name="more" /></button>
+          @if (moreOpen()) {
+            <div class="pop sm-more-pop" role="menu">
+              <button type="button" class="menu-i" role="menuitem" (click)="moreOpen.set(false); refreshAll()"><app-icon name="refresh" />{{ 'stockMovements.refresh' | t }}</button>
+              <button type="button" class="menu-i" role="menuitem" (click)="moreOpen.set(false); exportToCSV()"><app-icon name="download" />{{ 'stockMovements.export' | t }}</button>
+            </div>
+          }
+        </span>
         @if (canEdit()) {
-          <button class="btn btn-primary" (click)="openDrawer()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            {{ 'stockMovements.manualAdjustment' | t }}
-          </button>
+          <button type="button" class="btn btn-primary" (click)="openDrawer()"><app-icon name="plus" /><span class="d-only">{{ 'stockMovements.manualAdjustment' | t }}</span><span class="m-only">{{ 'stockMovements.manualAdjustmentShort' | t }}</span></button>
         }
       </div>
     </header>
 
     @if (pendingRequests().length) {
       <section class="card sm-approvals" aria-live="polite">
-        <div class="sm-approvals-head">
-          <h2 class="sm-approvals-title">{{ 'stockMovements.approvals.title' | t }}</h2>
-          <span class="badge badge-warning">{{ pendingRequests().length }}</span>
+        <div class="card-h">
+          <app-icon name="warn" size="sm" class="sm-appr-ic" />
+          <h3>{{ 'stockMovements.approvals.title' | t }}</h3>
+          <span class="badge badge-warning"><span class="dot"></span>{{ pendingRequests().length | num }}</span>
+          <span class="sub d-only">{{ 'stockMovements.approvals.hint' | t }}</span>
         </div>
-        <p class="text-sm text-muted">{{ 'stockMovements.approvals.hint' | t }}</p>
-        <ul class="sm-approval-list">
+        <ul class="sm-appr-list">
           @for (r of pendingRequests(); track r.id) {
-            <li class="sm-approval">
-              <div class="sm-approval-main">
+            <li class="sm-appr">
+              <div class="sm-appr-main">
                 @if (r.payload.kind === 'COMPANY_CONTROL') {
-                  <strong>{{ 'stockMovements.approvals.controlChange' | t }}</strong>
+                  <b>{{ 'stockMovements.approvals.controlChange' | t }}</b>
                   @if (r.payload.change?.stockLockDate !== undefined) {
-                    <span class="text-sm">{{ 'stockMovements.approvals.lockDateChange' | t: { from: r.payload.current?.stockLockDate || '—', to: r.payload.change?.stockLockDate || ('stockMovements.approvals.none' | t) } }}</span>
+                    <span class="sec">{{ 'stockMovements.approvals.lockDateChange' | t: { from: r.payload.current?.stockLockDate || '—', to: r.payload.change?.stockLockDate || ('stockMovements.approvals.none' | t) } }}</span>
                   }
                   @if (r.payload.change?.adjustmentApprovalThreshold !== undefined) {
-                    <span class="text-sm">{{ 'stockMovements.approvals.thresholdChange' | t: { from: r.payload.current?.adjustmentApprovalThreshold != null ? (r.payload.current!.adjustmentApprovalThreshold! | money: r.currency) : '—', to: r.payload.change?.adjustmentApprovalThreshold != null ? (r.payload.change!.adjustmentApprovalThreshold! | money: r.currency) : ('stockMovements.approvals.none' | t) } }}</span>
+                    <span class="sec">{{ 'stockMovements.approvals.thresholdChange' | t: { from: r.payload.current?.adjustmentApprovalThreshold != null ? (r.payload.current!.adjustmentApprovalThreshold! | money: r.currency) : '—', to: r.payload.change?.adjustmentApprovalThreshold != null ? (r.payload.change!.adjustmentApprovalThreshold! | money: r.currency) : ('stockMovements.approvals.none' | t) } }}</span>
                   }
                 } @else {
-                  <strong>{{ r.productName }}</strong>
-                  <span class="num" [class.text-success]="r.quantityDelta > 0" [class.text-danger]="r.quantityDelta < 0">{{ r.quantityDelta > 0 ? '+' : '' }}{{ r.quantityDelta | num }}</span>
+                  <b>{{ r.productName }}</b>
+                  <span class="sm-qty" [class.pos]="r.quantityDelta > 0" [class.neg]="r.quantityDelta < 0">{{ r.quantityDelta > 0 ? '+' : '' }}{{ r.quantityDelta | num }}</span>
                   @if (r.payload.kind === 'REVERSAL') { <span class="badge badge-info">{{ 'stockMovements.approvals.reversalRequest' | t }}</span> }
                   @if (r.payload.kind === 'COUNT') { <span class="badge badge-info">{{ 'stockMovements.approvals.countRequest' | t: { count: r.payload.document?.countNumber || '' } }}</span> }
                   <span class="badge badge-neutral">{{ reasonLabel(r.payload.reasonCode) }}</span>
-                  <span class="text-sm text-muted">{{ 'stockMovements.approvals.value' | t: { value: (r.estimatedValue | money: r.currency), threshold: (r.threshold | money: r.currency) } }}</span>
+                  <span class="sec">{{ 'stockMovements.approvals.value' | t: { value: (r.estimatedValue | money: r.currency), threshold: (r.threshold | money: r.currency) } }}</span>
                 }
               </div>
-              <div class="sm-approval-meta text-xs text-muted">
+              <div class="sm-appr-meta">
                 {{ 'stockMovements.approvals.requestedBy' | t: { user: r.requestedBy } }} · {{ r.createdAt | appDate: 'datetime' }}
                 @if (r.payload.note) { · “{{ r.payload.note }}” }
               </div>
               @if (isAdmin()) {
-                <div class="sm-approval-actions">
-                  <button type="button" class="btn btn-sm btn-secondary" [disabled]="decidingId() === r.id" (click)="decide(r, false)">{{ 'stockMovements.approvals.reject' | t }}</button>
-                  <button type="button" class="btn btn-sm btn-primary" [disabled]="decidingId() === r.id" (click)="decide(r, true)">{{ 'stockMovements.approvals.approve' | t }}</button>
+                <div class="sm-appr-actions">
+                  <button type="button" class="btn btn-sm btn-ghost" [disabled]="decidingId() === r.id" (click)="decide(r, false)">{{ 'stockMovements.approvals.reject' | t }}</button>
+                  <button type="button" class="btn btn-sm btn-primary" [disabled]="decidingId() === r.id" (click)="decide(r, true)"><app-icon name="check" size="sm" />{{ 'stockMovements.approvals.approve' | t }}</button>
                 </div>
               }
             </li>
@@ -98,146 +127,144 @@ const TYPE_PILLS: { type: string; key: string }[] = [
       </section>
     }
 
-    <div class="filter-bar sm-filters">
-      <div class="sm-filter-group">
-        <div class="search-box sm-search">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" [placeholder]="'stockMovements.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
+    <div class="sm-tools">
+      <div class="toolbar">
+        <div class="field field-sm sm-search">
+          <span class="lead"><app-icon name="search" size="sm" /></span>
+          <input type="text" data-page-search [placeholder]="'stockMovements.searchPlaceholderShort' | t" [title]="'stockMovements.searchPlaceholder' | t" [attr.aria-label]="'common.search' | t" [ngModel]="searchQuery()" (ngModelChange)="onSearch($event)" />
+          <span class="trail"><kbd>/</kbd></span>
         </div>
-
-        <select class="select sm-select" [ngModel]="selectedWarehouseId()" (ngModelChange)="selectedWarehouseId.set($event); loadMovements(1)" [title]="'stockMovements.filter.warehouse' | t">
-          <option value="">{{ 'stockMovements.filter.allWarehouses' | t }}</option>
-          @for (w of warehouses(); track w.id) {
-            <option [value]="w.id">{{ w.name }}</option>
-          }
-        </select>
-
-        <select class="select sm-select" [ngModel]="selectedReason()" (ngModelChange)="selectedReason.set($event); loadMovements(1)" [title]="'stockMovements.filter.reason' | t">
-          <option value="">{{ 'stockMovements.filter.allReasons' | t }}</option>
-          @for (r of allReasons; track r.code) {
-            <option [value]="r.code">{{ reasonLabel(r.code) }}</option>
-          }
-        </select>
-
-        <div class="sm-dates">
-          <select class="select sm-datefield" [ngModel]="dateField()" (ngModelChange)="dateField.set($event); loadMovements(1)" [title]="'stockMovements.filter.dateField' | t">
-            <option value="transactionDate">{{ 'stockMovements.transactionDate' | t }}</option>
-            <option value="createdAt">{{ 'stockMovements.recordedAt' | t }}</option>
+        <button type="button" class="btn btn-sm sm-ftoggle" [attr.aria-label]="'stockMovements.filter.toggle' | t" [class.is-active]="filtersOpen()" [attr.aria-expanded]="filtersOpen()" aria-controls="smFilters" (click)="filtersOpen.set(!filtersOpen())">
+          <app-icon name="sliders" size="sm" /><span class="sm-flabel">{{ 'stockMovements.filter.toggle' | t }}</span>@if (activeFilterCount()) { <span class="sm-fcount mono">{{ activeFilterCount() }}</span> }
+        </button>
+        <div class="sm-filters" id="smFilters" [class.is-open]="filtersOpen()">
+        <div class="field field-sm select sm-sel">
+          <select [ngModel]="selectedWarehouseId()" (ngModelChange)="selectedWarehouseId.set($event); loadMovements(1)" [title]="'stockMovements.filter.warehouse' | t" [attr.aria-label]="'stockMovements.filter.warehouse' | t">
+            <option value="">{{ 'stockMovements.filter.allWarehouses' | t }}</option>
+            @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
           </select>
-          <input type="date" class="input sm-date" [ngModel]="startDate()" (ngModelChange)="onStartDateChange($event)" [title]="'stockMovements.startDateTitle' | t" [attr.aria-label]="'stockMovements.startDateTitle' | t" />
-          <span class="text-muted">–</span>
-          <input type="date" class="input sm-date" [ngModel]="endDate()" (ngModelChange)="onEndDateChange($event)" [title]="'stockMovements.endDateTitle' | t" [attr.aria-label]="'stockMovements.endDateTitle' | t" />
+        </div>
+        <div class="field field-sm select sm-sel">
+          <select [ngModel]="selectedReason()" (ngModelChange)="selectedReason.set($event); loadMovements(1)" [title]="'stockMovements.filter.reason' | t" [attr.aria-label]="'stockMovements.filter.reason' | t">
+            <option value="">{{ 'stockMovements.filter.allReasons' | t }}</option>
+            @for (r of allReasons; track r.code) { <option [value]="r.code">{{ reasonLabel(r.code) }}</option> }
+          </select>
+        </div>
+        <div class="sm-dates">
+          <div class="field field-sm select sm-datefield">
+            <select [ngModel]="dateField()" (ngModelChange)="dateField.set($event); loadMovements(1)" [title]="'stockMovements.filter.dateField' | t" [attr.aria-label]="'stockMovements.filter.dateField' | t">
+              <option value="transactionDate">{{ 'stockMovements.transactionDate' | t }}</option>
+              <option value="createdAt">{{ 'stockMovements.recordedAt' | t }}</option>
+            </select>
+          </div>
+          <div class="field field-sm sm-date">
+            <input type="date" [ngModel]="startDate()" (ngModelChange)="onStartDateChange($event)" [title]="'stockMovements.startDateTitle' | t" [attr.aria-label]="'stockMovements.startDateTitle' | t" />
+          </div>
+          <span class="sm-dash" aria-hidden="true">–</span>
+          <div class="field field-sm sm-date">
+            <input type="date" [ngModel]="endDate()" (ngModelChange)="onEndDateChange($event)" [title]="'stockMovements.endDateTitle' | t" [attr.aria-label]="'stockMovements.endDateTitle' | t" />
+          </div>
           @if (startDate() || endDate()) {
-            <button class="btn btn-sm btn-ghost" (click)="clearDateFilter()">{{ 'stockMovements.clear' | t }}</button>
+            <button type="button" class="btn btn-sm btn-ghost" (click)="clearDateFilter()"><app-icon name="x" size="sm" />{{ 'stockMovements.clear' | t }}</button>
           }
+        </div>
         </div>
       </div>
-
-      <div class="filter-pills">
-        <button type="button" class="filter-pill" [class.active]="selectedTypes().length === 0" (click)="toggleType('ALL')">{{ 'stockMovements.filter.all' | t }}</button>
+      <div class="seg seg-sm sm-types" role="group" [attr.aria-label]="'stockMovements.col.type' | t">
+        <button type="button" [attr.aria-pressed]="selectedTypes().length === 0" (click)="toggleType('ALL')">{{ 'stockMovements.filter.all' | t }}</button>
         @for (p of typePills; track p.type) {
-          <button type="button" class="filter-pill" [class.active]="selectedTypes().includes(p.type)" (click)="toggleType(p.type)">{{ p.key | t }}</button>
+          <button type="button" [attr.aria-pressed]="selectedTypes().includes(p.type)" (click)="toggleType(p.type)">{{ p.key | t }}</button>
         }
       </div>
     </div>
 
     <div class="table-card">
       @if (isLoading()) {
-        <div style="padding: var(--space-4); display: grid; gap: var(--space-3);"><div class="skeleton" style="height: 20px;"></div><div class="skeleton" style="height: 20px;"></div><div class="skeleton" style="height: 20px;"></div><div class="skeleton" style="height: 20px;"></div></div>
+        <div class="card-b sm-skel">
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) { <div class="skeleton-row"></div> }
+        </div>
       } @else if (movements().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg></div>
-          <p class="empty-state-title">{{ 'stockMovements.empty' | t }}</p>
+          <div class="empty-art"><app-icon name="swap" /></div>
+          <h3>{{ 'stockMovements.empty' | t }}</h3>
         </div>
       } @else {
         <div class="table-scroll">
-          <table class="table-responsive sm-table">
+          <table class="tbl table-responsive sm-table">
             <thead>
               <tr>
                 <th>{{ 'stockMovements.transactionDate' | t }}</th>
                 <th>{{ 'stockMovements.col.productName' | t }}</th>
                 <th>{{ 'stockMovements.col.type' | t }}</th>
-                <th>{{ 'stockMovements.col.warehouse' | t }}</th>
-                <th>{{ 'stockMovements.col.lotSerial' | t }}</th>
-                <th class="num">{{ 'stockMovements.col.quantity' | t }}</th>
-                <th class="num">{{ 'stockMovements.col.newStock' | t }}</th>
+                <th>{{ 'stockMovements.col.warehouse' | t }} <span class="th-sub">· {{ 'stockMovements.col.lotSerial' | t }}</span></th>
+                <th class="r" [title]="('stockMovements.col.quantity' | t) + ' · ' + ('stockMovements.col.newStock' | t)">{{ 'stockMovements.col.quantity' | t }}</th>
                 <th>{{ 'stockMovements.col.document' | t }}</th>
                 <th>{{ 'stockMovements.col.noteRef' | t }}</th>
                 <th>{{ 'stockMovements.recordedAt' | t }}</th>
-                <th><span class="sr-only">{{ 'stockMovements.col.actions' | t }}</span></th>
+                <th class="w-act"><span class="sr-only">{{ 'stockMovements.col.actions' | t }}</span></th>
               </tr>
             </thead>
             <tbody>
               @for (m of movements(); track m.id) {
-                <tr [class.sm-row-reversed]="m.reversedByMovementId">
-                  <td class="nowrap" [attr.data-label]="'stockMovements.transactionDate' | t">
-                    <div>{{ m.transactionDate | appDate: 'datetime' }}</div>
-                    <div class="text-2xs text-muted mono" [title]="'stockMovements.sequenceNo' | t">#{{ m.sequenceNo }}</div>
+                <tr [class.is-reversed]="m.reversedByMovementId">
+                  <td class="sm-date" [attr.data-label]="'stockMovements.transactionDate' | t">
+                    <span class="cv"><span class="sm-l1">{{ m.transactionDate | appDate }}</span><span class="sm-l2">{{ m.transactionDate | appDate: 'time' }} · <span class="mono" [title]="'stockMovements.sequenceNo' | t">#{{ m.sequenceNo }}</span></span></span>
                   </td>
-                  <td class="td-primary">
-                    <strong>{{ m.productName }}</strong>
-                    @if (m.productSku) { <div class="text-xs text-muted mono">{{ m.productSku }}</div> }
+                  <td class="td-primary sm-prod">
+                    <b class="sm-l1" [title]="m.productName">{{ m.productName }}</b>@if (m.productSku) { <span class="sm-l2 mono">{{ m.productSku }}</span> }
                   </td>
-                  <td [attr.data-label]="'stockMovements.col.type' | t">
-                    <span class="badge" [ngClass]="getBadgeClass(m.type)">{{ getTypeName(m.type) }}</span>
-                    <div class="text-xs text-muted sm-reason">{{ reasonLabel(m.reasonCode) }}</div>
+                  <td class="sm-type" [attr.data-label]="'stockMovements.col.type' | t">
+                    <span class="cv"><span class="sm-l1"><span class="badge" [ngClass]="getBadgeClass(m.type)"><span class="dot"></span>{{ getTypeName(m.type) }}</span></span><span class="sm-l2" [title]="reasonLabel(m.reasonCode)">{{ reasonLabel(m.reasonCode) }}</span></span>
                   </td>
-                  <td [attr.data-label]="'stockMovements.col.warehouse' | t">{{ m.warehouseName || getWarehouseName(m.warehouseId) }}</td>
-                  <td [attr.data-label]="'stockMovements.col.lotSerial' | t">
-                    @if (m.lotNumber) {
-                      <span class="badge badge-neutral" [title]="'stockMovements.lot' | t">{{ 'stockMovements.lot' | t }}: {{ m.lotNumber }}</span>
-                    }
-                    @if (m.serials?.length) {
-                      <div class="text-xs text-muted truncate mono" [title]="m.serials!.join(', ')" style="max-width: 180px;">
-                        {{ 'stockMovements.serials' | t }}: {{ formatSerials(m.serials) }}
-                      </div>
-                    }
-                    @if (!m.lotNumber && !m.serials?.length) { <span class="text-muted">-</span> }
-                  </td>
-                  <td class="num nowrap" [attr.data-label]="'stockMovements.col.quantity' | t">
-                    <span [class.text-success]="m.quantity > 0" [class.text-danger]="m.quantity < 0">{{ m.quantity > 0 ? '+' : '' }}{{ m.quantity | num }}</span>
-                    @if (m.unitCode) { <span class="text-xs text-muted" [title]="m.unitCode"> {{ ledgerUnit(m.unitCode) }}</span> }
-                  </td>
-                  <td class="num nowrap" [attr.data-label]="'stockMovements.col.newStock' | t">
-                    <span class="text-xs text-muted">{{ m.previousQuantity | num }}&nbsp;→&nbsp;</span>
-                    <strong>{{ m.newQuantity | num }}</strong>
-                  </td>
-                  <td [attr.data-label]="'stockMovements.col.document' | t">
-                    @if (m.documentNo) {
-                      <div class="text-xs"><span class="text-muted">{{ docTypeLabel(m.documentType) }}</span></div>
-                      <div class="mono text-xs">{{ m.documentNo }}</div>
-                      @if (m.documentDate) { <div class="text-2xs text-muted">{{ m.documentDate | appDate }}</div> }
-                    } @else { <span class="text-muted">-</span> }
-                    @if (m.counterpartyTaxId) { <div class="text-2xs text-muted mono" [title]="'stockMovements.counterpartyTaxId' | t">{{ 'stockMovements.vknShort' | t }} {{ m.counterpartyTaxId }}</div> }
-                  </td>
-                  <td [attr.data-label]="'stockMovements.col.noteRef' | t">
-                    @if (m.note) { <div class="text-xs text-muted sm-note">{{ m.note }}</div> }
-                    @if (m.reversesMovementId) {
-                      <span class="badge badge-info">{{ 'stockMovements.reverse.isReversal' | t }}</span>
-                    }
-                    @if (m.reversedByMovementId) {
-                      <span class="badge badge-neutral">{{ 'stockMovements.reverse.reversedBadge' | t }}</span>
-                    }
-                    @if (m.attachmentCount) {
-                      <button type="button" class="btn btn-sm btn-ghost sm-att" (click)="openAttachments(m)">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                        {{ 'stockMovements.attachments.count' | t: { count: m.attachmentCount } }}
-                      </button>
-                    }
-                  </td>
-                  <td class="nowrap" [attr.data-label]="'stockMovements.recordedAt' | t">
-                    <div class="text-xs text-muted">{{ m.createdAt | appDate: 'datetime' }}</div>
-                    <span class="performed-badge" [class.performed-system]="isSystem(m.performedBy)" [class.performed-admin]="!isSystem(m.performedBy)">
-                      {{ isSystem(m.performedBy) ? ('stockMovements.system' | t) : m.performedBy }}
+                  <td class="sm-wh" [attr.data-label]="'stockMovements.col.warehouse' | t">
+                    <span class="cv">
+                      <span class="sm-l1" [class.sec]="!m.warehouseName && !m.warehouseId">{{ m.warehouseName || getWarehouseName(m.warehouseId) }}</span>
+                      @if (m.lotNumber) { <span class="sm-l2 mono" [title]="('stockMovements.lot' | t) + ': ' + m.lotNumber">{{ 'stockMovements.lot' | t }} {{ m.lotNumber }}</span> }
+                      @if (m.serials?.length) { <span class="sm-l2 mono" [title]="('stockMovements.serials' | t) + ': ' + m.serials!.join(', ')">{{ formatSerials(m.serials) }}</span> }
                     </span>
-                    @if (m.approvedBy) { <div class="text-2xs text-muted">{{ 'stockMovements.approvedBy' | t: { user: m.approvedBy } }}</div> }
                   </td>
-                  <td class="sm-actions">
+                  <td class="r sm-qtycell" [attr.data-label]="'stockMovements.col.quantity' | t">
+                    <span class="cv">
+                      <span class="sm-l1"><span class="sm-qty" [class.pos]="m.quantity > 0" [class.neg]="m.quantity < 0">{{ m.quantity > 0 ? '+' : '' }}{{ m.quantity | num }}</span>@if (m.unitCode) { <span class="sm-unit" [title]="m.unitCode">{{ m.unitCode | unitLabel }}</span> }</span>
+                      <span class="sm-l2" [title]="'stockMovements.col.newStock' | t">{{ m.previousQuantity | num }} → <b>{{ m.newQuantity | num }}</b></span>
+                    </span>
+                  </td>
+                  <td class="sm-doc" [attr.data-label]="'stockMovements.col.document' | t" [title]="m.counterpartyTaxId ? (('stockMovements.counterpartyTaxId' | t) + ': ' + m.counterpartyTaxId) : ''">
+                    <span class="cv">
+                      @if (m.documentNo) {
+                        <span class="sm-l1 mono">{{ m.documentNo }}</span>
+                        <span class="sm-l2"><span>{{ docTypeLabel(m.documentType) }}</span>@if (m.documentDate) { <span> · {{ m.documentDate | appDate }}</span> }@if (m.counterpartyTaxId) { <span class="mono sm-vkn"> · {{ 'stockMovements.vknShort' | t }} {{ m.counterpartyTaxId }}</span> }</span>
+                      } @else {
+                        <span class="sm-l1 sec">—</span>
+                        @if (m.counterpartyTaxId) { <span class="sm-l2 mono">{{ 'stockMovements.vknShort' | t }} {{ m.counterpartyTaxId }}</span> }
+                      }
+                    </span>
+                  </td>
+                  @let ref = noteRef(m);
+                  <td class="sm-notecell" [attr.data-label]="'stockMovements.col.noteRef' | t">
+                    <span class="cv">
+                      @if (ref) { <span class="sm-l1 sm-note" [title]="noteLabel(m.note)">{{ ref }}</span> }
+                      @if (m.reversesMovementId || m.reversedByMovementId || m.attachmentCount) {
+                        <span class="sm-chips">
+                          @if (m.reversesMovementId) { <span class="badge badge-info">{{ 'stockMovements.reverse.isReversal' | t }}</span> }
+                          @if (m.reversedByMovementId) { <span class="badge badge-neutral">{{ 'stockMovements.reverse.reversedBadge' | t }}</span> }
+                          @if (m.attachmentCount) {
+                            <button type="button" class="btn btn-xs btn-ghost sm-att" (click)="openAttachments(m)"><app-icon name="file" size="xs" />{{ 'stockMovements.attachments.count' | t: { count: m.attachmentCount } }}</button>
+                          }
+                        </span>
+                      }
+                      @if (!ref && !m.reversesMovementId && !m.reversedByMovementId && !m.attachmentCount) { <span class="sec">—</span> }
+                    </span>
+                  </td>
+                  <td class="sm-rec" [attr.data-label]="'stockMovements.recordedAt' | t">
+                    <span class="cv">
+                      <span class="sm-l1">{{ m.createdAt | appDate }}</span>
+                      <span class="sm-l2">{{ m.createdAt | appDate: 'time' }} · <span class="sm-by" [class.is-system]="isSystem(m.performedBy)">{{ isSystem(m.performedBy) ? ('stockMovements.system' | t) : m.performedBy }}</span>@if (m.approvedBy) { <span> · {{ 'stockMovements.approvedBy' | t: { user: m.approvedBy } }}</span> }</span>
+                    </span>
+                  </td>
+                  <td class="w-act td-actions">
                     @if (canEdit() && m.reversible) {
-                      <button type="button" class="btn btn-sm btn-secondary" (click)="openReverse(m)" [title]="'stockMovements.reverse.action' | t">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
-                        {{ 'stockMovements.reverse.action' | t }}
-                      </button>
+                      <button type="button" class="btn btn-ghost btn-sm btn-icon row-act" (click)="openReverse(m)" [title]="'stockMovements.reverse.action' | t" [attr.aria-label]="'stockMovements.reverse.action' | t"><app-icon name="return" /></button>
                     }
                   </td>
                 </tr>
@@ -246,16 +273,43 @@ const TYPE_PILLS: { type: string; key: string }[] = [
           </table>
         </div>
 
-        <div class="pagination-bar">
-          <div class="pagination-info">
-            {{ 'stockMovements.pagination' | t: { total: totalItems(), start: getStartCount(), end: getEndCount() } }}
-          </div>
+        <!-- Mobile ledger: 3–4 lines per movement -->
+        <div class="sm-mlist" role="list">
+          @for (m of movements(); track m.id) {
+            @let ref = noteRef(m);
+            <div class="mrow sm-mrow" role="listitem" [class.is-reversed]="m.reversedByMovementId">
+              <b [title]="m.productName + (m.productSku ? ' · ' + m.productSku : '')">{{ m.productName }}</b>
+              <span class="v"><span class="sm-qty" [class.pos]="m.quantity > 0" [class.neg]="m.quantity < 0">{{ m.quantity > 0 ? '+' : '' }}{{ m.quantity | num }}</span>@if (m.unitCode) { <span class="sm-unit">{{ m.unitCode | unitLabel }}</span> }</span>
+              <span class="s sm-m-type"><span class="badge" [ngClass]="getBadgeClass(m.type)"><span class="dot"></span>{{ getTypeName(m.type) }}</span><span class="sm-m-reason">{{ reasonLabel(m.reasonCode) }}</span></span>
+              <span class="s r" [title]="'stockMovements.col.newStock' | t">{{ m.previousQuantity | num }} → <b>{{ m.newQuantity | num }}</b></span>
+              <span class="s sm-m-meta">{{ m.warehouseName || getWarehouseName(m.warehouseId) }}@if (m.lotNumber) { · <span class="mono">{{ m.lotNumber }}</span> }@else if (m.serials?.length) { · <span class="mono">{{ formatSerials(m.serials) }}</span> } · {{ m.transactionDate | appDate }} {{ m.transactionDate | appDate: 'time' }}</span>
+              <span class="s r sm-m-act">
+                @if (canEdit() && m.reversible) {
+                  <button type="button" class="btn btn-ghost btn-xs btn-icon" (click)="openReverse(m)" [title]="'stockMovements.reverse.action' | t" [attr.aria-label]="'stockMovements.reverse.action' | t"><app-icon name="return" size="sm" /></button>
+                }
+              </span>
+              @if (m.documentNo || ref || m.reversesMovementId || m.reversedByMovementId || m.attachmentCount) {
+                <span class="s sm-m-doc">
+                  @if (m.documentNo) { <span class="mono" [title]="docTypeLabel(m.documentType)">{{ m.documentNo }}</span> }
+                  @if (ref) { <span class="sm-m-ref" [title]="noteLabel(m.note)">{{ ref }}</span> }
+                  @if (m.reversesMovementId) { <span class="badge badge-info">{{ 'stockMovements.reverse.isReversal' | t }}</span> }
+                  @if (m.reversedByMovementId) { <span class="badge badge-neutral">{{ 'stockMovements.reverse.reversedBadge' | t }}</span> }
+                  @if (m.attachmentCount) { <button type="button" class="btn btn-xs btn-ghost sm-att" (click)="openAttachments(m)"><app-icon name="file" size="xs" />{{ m.attachmentCount | num }}</button> }
+                </span>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="tbl-foot">
+          <span>{{ 'stockMovements.pagination' | t: { total: (totalItems() | num), start: (getStartCount() | num), end: (getEndCount() | num) } }}</span>
+          <span class="spacer"></span>
           <div class="pagination-actions">
-            <button class="page-btn" [disabled]="currentPage() === 1" (click)="loadMovements(currentPage() - 1)">{{ 'stockMovements.prev' | t }}</button>
+            <button type="button" class="btn btn-sm btn-icon" [disabled]="currentPage() === 1" (click)="loadMovements(currentPage() - 1)" [attr.aria-label]="'stockMovements.prev' | t"><app-icon name="chevl" size="sm" /></button>
             @for (p of getPagesArray(); track p) {
-              <button class="page-btn" [class.active]="p === currentPage()" (click)="loadMovements(p)">{{ p }}</button>
+              <button type="button" class="page-btn" [class.active]="p === currentPage()" [attr.aria-current]="p === currentPage() ? 'page' : null" (click)="loadMovements(p)">{{ p }}</button>
             }
-            <button class="page-btn" [disabled]="currentPage() >= totalPages()" (click)="loadMovements(currentPage() + 1)">{{ 'stockMovements.next' | t }}</button>
+            <button type="button" class="btn btn-sm btn-icon" [disabled]="currentPage() >= totalPages()" (click)="loadMovements(currentPage() + 1)" [attr.aria-label]="'stockMovements.next' | t"><app-icon name="chevr" size="sm" /></button>
           </div>
         </div>
       }
@@ -264,140 +318,161 @@ const TYPE_PILLS: { type: string; key: string }[] = [
     <!-- Manual adjustment drawer -->
     @if (isDrawerOpen()) {
       <div class="drawer-overlay" (click)="closeDrawer()">
-        <div class="drawer-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" [attr.aria-label]="'stockMovements.drawerTitle' | t" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'stockMovements.drawerTitle' | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button type="button" class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
 
-          <form [formGroup]="adjustForm" (ngSubmit)="saveAdjustment()" class="drawer-form">
+          <form [formGroup]="adjustForm" (ngSubmit)="saveAdjustment()" class="drawer-form sm-form">
             <div class="drawer-body">
-              <p class="text-sm text-muted sm-intro">{{ 'stockMovements.adjust.intro' | t }}</p>
+              <div class="notice notice-info sm-intro"><app-icon name="info" /><span class="t">{{ 'stockMovements.adjust.intro' | t }}</span></div>
 
-              <div class="form-field">
-                <select id="adjProduct" formControlName="productId" class="form-input form-select" [class.has-value]="hasValue('productId')" (change)="onProductSelect()">
-                  <option value="" disabled></option>
-                  @for (p of products(); track p.id) {
-                    <option [value]="p.id">{{ p.name }} (SKU: {{ p.sku }})</option>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'stockMovements.adjust.section.scope' | t }}</h3></div>
+                <div class="fld">
+                  <label class="fld-label" for="adjProduct">{{ 'stockMovements.adjust.product' | t }} <span class="req">*</span></label>
+                  <div class="field select">
+                    <select id="adjProduct" formControlName="productId" (change)="onProductSelect()" [attr.aria-invalid]="isFieldInvalid('productId')">
+                      <option value="" disabled>{{ 'stockMovements.selectProduct' | t }}</option>
+                      @for (p of products(); track p.id) { <option [value]="p.id">{{ p.name }} · {{ p.sku }}</option> }
+                    </select>
+                  </div>
+                  @if (isFieldInvalid('productId')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'stockMovements.validation.productRequired' | t }}</div> }
+                </div>
+
+                @if (selectedProduct(); as sp) {
+                  @if (sp.trackingType === 'serial') {
+                    <div class="notice notice-info"><app-icon name="info" /><span class="t">{{ 'stockMovements.adjust.serialHint' | t }}</span></div>
+                  } @else if (sp.trackingType === 'lot') {
+                    <div class="fld">
+                      <label class="fld-label" for="adjLot">{{ 'stockMovements.adjust.lot' | t }}</label>
+                      <div class="field select">
+                        <select id="adjLot" formControlName="lotId" (change)="syncCurrent()">
+                          <option value="" disabled>{{ 'stockMovements.adjust.lot' | t }}</option>
+                          @for (l of lots(); track l.id) {
+                            <option [value]="l.id">{{ l.lotNumber }} · {{ l.warehouseName }} · {{ l.quantity | num }}{{ l.expiryDate ? ' · ' + (l.expiryDate | appDate) : '' }}</option>
+                          }
+                        </select>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="fld">
+                      <label class="fld-label" for="adjWh">{{ 'stockMovements.adjust.warehouse' | t }}</label>
+                      <div class="field select">
+                        <select id="adjWh" formControlName="warehouseId" (change)="syncCurrent()">
+                          <option value="">{{ 'stockMovements.adjust.productTotal' | t }}</option>
+                          @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+                        </select>
+                      </div>
+                    </div>
                   }
-                </select>
-                <label for="adjProduct" class="form-label">{{ 'stockMovements.selectProduct' | t }}</label>
-                @if (isFieldInvalid('productId')) { <div class="form-error">{{ 'stockMovements.validation.productRequired' | t }}</div> }
-              </div>
 
-              @if (selectedProduct(); as sp) {
-                @if (sp.trackingType === 'serial') {
-                  <div class="alert-banner alert-banner--info text-sm">{{ 'stockMovements.adjust.serialHint' | t }}</div>
-                } @else if (sp.trackingType === 'lot') {
-                  <div class="form-field">
-                    <select id="adjLot" formControlName="lotId" class="form-input form-select" [class.has-value]="hasValue('lotId')" (change)="syncCurrent()">
-                      <option value="" disabled></option>
-                      @for (l of lots(); track l.id) {
-                        <option [value]="l.id">{{ l.lotNumber }} · {{ l.warehouseName }} · {{ l.quantity | num }}{{ l.expiryDate ? ' · ' + (l.expiryDate | appDate) : '' }}</option>
-                      }
-                    </select>
-                    <label for="adjLot" class="form-label">{{ 'stockMovements.adjust.lot' | t }}</label>
+                  <div class="sm-calc">
+                    <div class="sm-calc-c">
+                      <span class="fld-label">{{ 'stockMovements.currentStock' | t }}</span>
+                      <span class="sm-calc-v">{{ currentQty() | num }} <span class="sm-unit">{{ sp.baseUnit || sp.unit | unitLabel }}</span></span>
+                    </div>
+                    <div class="fld sm-calc-in">
+                      <label class="fld-label" for="adjNewQty">{{ 'stockMovements.newQuantity' | t }} <span class="req">*</span></label>
+                      <div class="field">
+                        <input id="adjNewQty" type="text" inputmode="decimal" class="num" appQty [qtyDecimals]="decimals()" formControlName="newQuantity" [attr.aria-invalid]="isFieldInvalid('newQuantity')" />
+                      </div>
+                    </div>
+                    <div class="sm-calc-c r">
+                      <span class="fld-label">{{ 'stockMovements.adjust.delta' | t }}</span>
+                      <span class="sm-calc-v sm-qty" [class.pos]="delta() > 0" [class.neg]="delta() < 0">{{ delta() > 0 ? '+' : '' }}{{ delta() | num }}</span>
+                    </div>
                   </div>
-                } @else {
-                  <div class="form-field">
-                    <select id="adjWh" formControlName="warehouseId" class="form-input form-select has-value" (change)="syncCurrent()">
-                      <option value="">{{ 'stockMovements.adjust.productTotal' | t }}</option>
-                      @for (w of warehouses(); track w.id) {
-                        <option [value]="w.id">{{ w.name }}</option>
-                      }
-                    </select>
-                    <label for="adjWh" class="form-label">{{ 'stockMovements.adjust.warehouse' | t }}</label>
-                  </div>
+                  @if (adjustForm.get('newQuantity')?.errors?.['qtyPrecision'] && adjustForm.get('newQuantity')?.touched) {
+                    <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'stockMovements.validation.precision' | t: { decimals: decimals() } }}</div>
+                  } @else if (isFieldInvalid('newQuantity')) {
+                    <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'stockMovements.validation.quantityInvalid' | t }}</div>
+                  }
                 }
+              </section>
 
-                <div class="sm-current">
-                  <span class="text-muted">{{ 'stockMovements.currentStock' | t }}:</span>
-                  <strong class="num">{{ currentQty() | num }} {{ sp.baseUnit || sp.unit | unitLabel }}</strong>
-                </div>
-
-                <div class="sm-grid-2">
-                  <div class="form-field">
-                    <input id="adjNewQty" type="text" appQty [qtyDecimals]="decimals()" formControlName="newQuantity" class="form-input" [class.has-value]="hasValue('newQuantity')" />
-                    <label for="adjNewQty" class="form-label">{{ 'stockMovements.newQuantity' | t }}</label>
-                    @if (adjustForm.get('newQuantity')?.errors?.['qtyPrecision'] && adjustForm.get('newQuantity')?.touched) {
-                      <div class="form-error">{{ 'stockMovements.validation.precision' | t: { decimals: decimals() } }}</div>
-                    } @else if (isFieldInvalid('newQuantity')) {
-                      <div class="form-error">{{ 'stockMovements.validation.quantityInvalid' | t }}</div>
-                    }
-                  </div>
-                  <div class="sm-delta" [class.text-success]="delta() > 0" [class.text-danger]="delta() < 0">
-                    <span class="text-xs text-muted">{{ 'stockMovements.adjust.delta' | t }}</span>
-                    <strong class="num">{{ delta() > 0 ? '+' : '' }}{{ delta() | num }}</strong>
-                  </div>
-                </div>
-              }
-
-              <div class="form-field">
-                <select id="adjReason" formControlName="reasonCode" class="form-input form-select" [class.has-value]="hasValue('reasonCode')">
-                  <option value="" disabled></option>
-                  @for (r of reasonOptions(); track r.code) {
-                    <option [value]="r.code">{{ reasonLabel(r.code) }}</option>
-                  }
-                </select>
-                <label for="adjReason" class="form-label">{{ 'stockMovements.adjust.reason' | t }}</label>
-                @if (isFieldInvalid('reasonCode')) { <div class="form-error">{{ 'stockMovements.validation.reasonRequired' | t }}</div> }
-                @if (reasonHint()) { <div class="field-hint">{{ reasonHint() }}</div> }
-              </div>
-
-              <div class="form-field">
-                <input id="adjTx" type="datetime-local" formControlName="transactionDate" class="form-input has-value" [max]="nowLocal()" />
-                <label for="adjTx" class="form-label">{{ 'stockMovements.transactionDate' | t }}</label>
-                <div class="field-hint">{{ 'stockMovements.adjust.transactionDateHint' | t }}</div>
-              </div>
-
-              <fieldset class="sm-fieldset">
-                <legend>{{ 'stockMovements.adjust.document' | t }}@if (needsDocument() || needsAttachment()) { <span class="text-danger"> *</span> }</legend>
-                <div class="sm-grid-2">
-                  <div class="form-field">
-                    <select id="adjDocType" formControlName="documentType" class="form-input form-select has-value">
-                      <option value="">—</option>
-                      @for (d of docTypes; track d) { <option [value]="d">{{ docTypeLabel(d) }}</option> }
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'stockMovements.adjust.section.reason' | t }}</h3></div>
+                <div class="fld">
+                  <label class="fld-label" for="adjReason">{{ 'stockMovements.adjust.reason' | t }} <span class="req">*</span></label>
+                  <div class="field select">
+                    <select id="adjReason" formControlName="reasonCode" [attr.aria-invalid]="isFieldInvalid('reasonCode')">
+                      <option value="" disabled>{{ 'stockMovements.adjust.reason' | t }}</option>
+                      @for (r of reasonOptions(); track r.code) { <option [value]="r.code">{{ reasonLabel(r.code) }}</option> }
                     </select>
-                    <label for="adjDocType" class="form-label">{{ 'stockMovements.adjust.documentType' | t }}</label>
                   </div>
-                  <div class="form-field">
-                    <input id="adjDocDate" type="date" formControlName="documentDate" class="form-input has-value" />
-                    <label for="adjDocDate" class="form-label">{{ 'stockMovements.adjust.documentDate' | t }}</label>
+                  @if (isFieldInvalid('reasonCode')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'stockMovements.validation.reasonRequired' | t }}</div> }
+                  @if (reasonHint()) { <div class="fld-help">{{ reasonHint() }}</div> }
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="adjTx">{{ 'stockMovements.transactionDate' | t }}</label>
+                  <div class="field">
+                    <input id="adjTx" type="datetime-local" formControlName="transactionDate" [max]="nowLocal()" />
+                  </div>
+                  <div class="fld-help">{{ 'stockMovements.adjust.transactionDateHint' | t }}</div>
+                </div>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">3</span><h3>{{ 'stockMovements.adjust.document' | t }}</h3>@if (needsDocument() || needsAttachment()) { <span class="aside">{{ 'stockMovements.adjust.required' | t }}</span> }</div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="adjDocType">{{ 'stockMovements.adjust.documentType' | t }}</label>
+                    <div class="field select">
+                      <select id="adjDocType" formControlName="documentType">
+                        <option value="">—</option>
+                        @for (d of docTypes; track d) { <option [value]="d">{{ docTypeLabel(d) }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="adjDocDate">{{ 'stockMovements.adjust.documentDate' | t }}@if (needsDocument()) { <span class="req">*</span> }</label>
+                    <div class="field">
+                      <input id="adjDocDate" type="date" formControlName="documentDate" />
+                    </div>
                   </div>
                 </div>
-                <div class="form-field">
-                  <input id="adjDocNo" type="text" formControlName="documentNo" maxlength="50" class="form-input" [class.has-value]="hasValue('documentNo')" />
-                  <label for="adjDocNo" class="form-label">{{ 'stockMovements.adjust.documentNo' | t }}</label>
-                  @if (documentMissing()) { <div class="form-error">{{ 'stockMovements.validation.documentRequired' | t }}</div> }
+                <div class="fld">
+                  <label class="fld-label" for="adjDocNo">{{ 'stockMovements.adjust.documentNo' | t }}@if (needsDocument()) { <span class="req">*</span> }</label>
+                  <div class="field">
+                    <input id="adjDocNo" type="text" class="mono" formControlName="documentNo" maxlength="50" [attr.aria-invalid]="documentMissing() && adjustForm.get('documentNo')?.touched" />
+                  </div>
+                  @if (documentMissing()) { <div class="fld-help">{{ 'stockMovements.validation.documentRequired' | t }}</div> }
                 </div>
-                <div class="sm-attach">
-                  <label class="btn btn-sm btn-secondary sm-attach-btn">
+                <div class="sm-attach" [class.is-missing]="needsAttachment() && !attachment()">
+                  <label class="btn btn-sm">
                     <input type="file" class="sr-only" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv" (change)="onFile($event)" />
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                    {{ 'stockMovements.adjust.attach' | t }}
+                    <app-icon name="upload" size="sm" />{{ 'stockMovements.adjust.attach' | t }}
                   </label>
                   @if (attachment(); as a) {
-                    <span class="text-sm truncate">{{ a.fileName }}</span>
-                    <button type="button" class="btn btn-sm btn-ghost" (click)="attachment.set(null)">{{ 'stockMovements.adjust.attachmentRemove' | t }}</button>
+                    <span class="sm-file"><app-icon name="file" size="sm" /><span class="truncate">{{ a.fileName }}</span></span>
+                    <button type="button" class="btn btn-xs btn-ghost" (click)="attachment.set(null)">{{ 'stockMovements.adjust.attachmentRemove' | t }}</button>
                   } @else if (needsAttachment()) {
-                    <span class="text-xs text-danger">{{ 'stockMovements.validation.attachmentRequired' | t }}</span>
+                    <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'stockMovements.validation.attachmentRequired' | t }}</span>
                   } @else {
-                    <span class="text-xs text-muted">{{ 'stockMovements.adjust.attachHint' | t }}</span>
+                    <span class="fld-help">{{ 'stockMovements.adjust.attachHint' | t }}</span>
                   }
                 </div>
-              </fieldset>
+              </section>
 
-              <div class="form-field">
-                <textarea id="adjNote" formControlName="note" maxlength="255" class="form-input" [class.has-value]="hasValue('note')"></textarea>
-                <label for="adjNote" class="form-label">{{ 'stockMovements.adjust.note' | t }}</label>
-                @if (isFieldInvalid('note')) { <div class="form-error">{{ 'stockMovements.validation.noteRequired' | t }}</div> }
-              </div>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">4</span><h3>{{ 'stockMovements.adjust.note' | t }} <span class="req">*</span></h3></div>
+                <div class="fld">
+                  <div class="field has-area">
+                    <textarea id="adjNote" formControlName="note" maxlength="255" rows="3" [attr.aria-label]="'stockMovements.adjust.note' | t" [attr.aria-invalid]="isFieldInvalid('note')"></textarea>
+                    <span class="counter">{{ (formValue()['note'] || '').length }} / 255</span>
+                  </div>
+                  @if (isFieldInvalid('note')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'stockMovements.validation.noteRequired' | t }}</div> }
+                </div>
+              </section>
             </div>
 
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="adjustForm.invalid || isSaving() || !delta() || documentMissing() || attachmentMissing()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'stockMovements.saving' | t }} } @else { {{ 'common.save' | t }} }
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSaving()" [disabled]="adjustForm.invalid || isSaving() || !delta() || documentMissing() || attachmentMissing()">
+                <span>{{ 'common.save' | t }}</span><kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </form>
@@ -408,15 +483,18 @@ const TYPE_PILLS: { type: string; key: string }[] = [
     <!-- Reversal confirmation -->
     <app-modal [isOpen]="!!reverseTarget()" [title]="'stockMovements.reverse.title' | t" (onClose)="reverseTarget.set(null)">
       @if (reverseTarget(); as m) {
-        <p class="text-sm">{{ 'stockMovements.reverse.body' | t: { qty: (-m.quantity | num), product: m.productName } }}</p>
-        <div class="form-field">
-          <textarea id="revNote" class="form-input" [class.has-value]="!!reverseNote()" maxlength="255" [ngModel]="reverseNote()" (ngModelChange)="reverseNote.set($event)"></textarea>
-          <label for="revNote" class="form-label">{{ 'stockMovements.reverse.note' | t }}</label>
+        <p>{{ 'stockMovements.reverse.body' | t: { qty: (-m.quantity | num), product: m.productName } }}</p>
+        <div class="fld sm-rev">
+          <label class="fld-label" for="revNote">{{ 'stockMovements.reverse.note' | t }}</label>
+          <div class="field has-area">
+            <textarea id="revNote" maxlength="255" rows="3" [ngModel]="reverseNote()" (ngModelChange)="reverseNote.set($event)"></textarea>
+            <span class="counter">{{ reverseNote().length }} / 255</span>
+          </div>
         </div>
       }
       <div footer class="modal-actions">
-        <button type="button" class="btn btn-secondary" (click)="reverseTarget.set(null)">{{ 'common.cancel' | t }}</button>
-        <button type="button" class="btn btn-primary" [disabled]="!reverseNote().trim() || isReversing()" (click)="confirmReverse()">{{ 'stockMovements.reverse.confirm' | t }}</button>
+        <button type="button" class="btn btn-ghost" (click)="reverseTarget.set(null)">{{ 'common.cancel' | t }}</button>
+        <button type="button" class="btn btn-primary" [class.is-loading]="isReversing()" [disabled]="!reverseNote().trim() || isReversing()" (click)="confirmReverse()"><span>{{ 'stockMovements.reverse.confirm' | t }}</span></button>
       </div>
     </app-modal>
 
@@ -425,79 +503,169 @@ const TYPE_PILLS: { type: string; key: string }[] = [
       <ul class="sm-att-list">
         @for (a of attachments(); track a.id) {
           <li>
-            <div><strong class="text-sm">{{ a.fileName }}</strong> <span class="text-xs text-muted">{{ (a.size / 1024) | num: 1 }} KB · {{ a.createdAt | appDate: 'datetime' }}</span></div>
-            <div class="text-2xs text-muted mono truncate" [title]="a.sha256">SHA-256 {{ a.sha256 }}</div>
-            <button type="button" class="btn btn-sm btn-secondary" (click)="download(a)">{{ 'stockMovements.attachments.download' | t }}</button>
+            <span class="sm-att-ic"><app-icon name="file" /></span>
+            <div class="sm-att-t">
+              <b class="truncate">{{ a.fileName }}</b>
+              <span class="sec">{{ (a.size / 1024) | num: 1 }} KB · {{ a.createdAt | appDate: 'datetime' }}</span>
+              <span class="mono sm-sha truncate" [title]="a.sha256">SHA-256 {{ a.sha256 }}</span>
+            </div>
+            <button type="button" class="btn btn-sm" (click)="download(a)"><app-icon name="download" size="sm" />{{ 'stockMovements.attachments.download' | t }}</button>
           </li>
         }
       </ul>
       <div footer class="modal-actions">
-        <button type="button" class="btn btn-secondary" (click)="attachmentTarget.set(null)">{{ 'common.close' | t }}</button>
+        <button type="button" class="btn" (click)="attachmentTarget.set(null)">{{ 'common.close' | t }}</button>
       </div>
     </app-modal>
 
     <app-toast></app-toast>
   `,
   styles: [`
-    .text-success { color: var(--color-success-text); font-weight: var(--weight-semibold); }
-    .text-danger { color: var(--color-danger-text); font-weight: var(--weight-semibold); }
-    .nowrap { white-space: nowrap; }
-    table tbody td { vertical-align: top; }
-    .sm-table .sm-reason { margin-top: 2px; }
-    .sm-note { max-width: 240px; margin-bottom: var(--space-1); }
-    .sm-row-reversed td { opacity: .72; }
-    .sm-actions { text-align: right; white-space: nowrap; }
-    .sm-filters { flex-direction: column; align-items: stretch; gap: var(--space-3); }
-    .sm-filter-group { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; min-width: 0; }
-    @media (min-width: 641px) {
-      .sm-table { min-width: 1240px; }
-      .sm-table td.td-primary { min-width: 190px; }
-    }
-    .sm-search { flex: 1 1 220px; max-width: 300px; margin: 0; }
-    .sm-select { width: auto; min-width: 150px; max-width: 220px; }
-    .sm-datefield { width: auto; }
-    .sm-dates { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .sm-date { width: auto; }
-    .sm-current { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: var(--text-sm); background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    .sm-current strong { font-size: var(--text-md); color: var(--color-text); }
-    .sm-intro { margin: 0 0 var(--space-4); }
-    .drawer-body .form-field .field-hint { order: 3; }
-    .sm-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: start; }
-    .sm-delta { display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px dashed var(--color-border); border-radius: var(--radius-md); min-height: 48px; justify-content: center; }
-    .sm-fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4) var(--space-2); margin: 0 0 var(--space-4); }
-    .sm-fieldset legend { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-text-muted); padding: 0 var(--space-1); }
-    .sm-attach { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2); min-width: 0; }
-    .sm-attach-btn { cursor: pointer; }
-    .sm-att { padding-left: 0; }
-    .sm-att-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
-    .sm-att-list li { display: grid; gap: var(--space-1); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border-subtle); }
-    .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
-    .sm-approvals { margin-bottom: var(--space-4); padding: var(--space-4); border-color: var(--color-warning-border); background: var(--color-warning-subtle); }
-    .sm-approvals-head { display: flex; align-items: center; gap: var(--space-2); }
-    .sm-approvals-title { font-size: var(--text-md); margin: 0; }
-    .sm-approval-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
-    .sm-approval { display: grid; grid-template-columns: 1fr auto; gap: var(--space-1) var(--space-3); padding: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    .sm-approval-main { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .sm-approval-meta { grid-column: 1; }
-    .sm-approval-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: var(--space-2); align-items: center; }
-    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .badge-in, .badge-return { background: var(--color-success-subtle); color: var(--color-success-text); border-color: var(--color-success-border); }
-    .badge-out, .badge-order, .badge-disposal { background: var(--color-danger-subtle); color: var(--color-danger-text); border-color: var(--color-danger-border); }
-    .badge-transfer-in, .badge-transfer-out, .badge-quarantine { background: var(--color-info-subtle); color: var(--color-info-text); border-color: var(--color-info-border); }
-    .badge-adjustment, .badge-reversal { background: var(--color-warning-subtle); color: var(--color-warning-text); border-color: var(--color-warning-border); }
-    .performed-badge { display: inline-flex; align-items: center; margin-top: 2px; padding: 2px var(--space-2); border-radius: var(--radius-xs); font-size: var(--text-2xs); font-weight: var(--weight-semibold); white-space: nowrap; }
-    .performed-system { background: var(--color-surface-muted); color: var(--color-text-muted); }
-    .performed-admin { background: var(--color-primary-subtle); color: var(--color-primary-text); }
+    /* header overflow menu (mobile) */
+    .sm-more { position: relative; }
+    .sm-more-pop { top: calc(100% + 4px); right: 0; min-width: 200px; }
+
+    /* approvals */
+    .sm-approvals { margin-bottom: 20px; }
+    .sm-approvals .card-h { flex-wrap: wrap; row-gap: 0; }
+    .sm-appr-ic { color: var(--warning); }
+    .sm-appr-list { list-style: none; margin: 0; padding: 0; }
+    .sm-appr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 12px 16px; box-shadow: inset 0 -1px 0 var(--line); }
+    .sm-appr:last-child { box-shadow: none; }
+    .sm-appr-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+    .sm-appr-main b { font-weight: 500; }
+    .sm-appr-main .badge { margin-left: 0; }
+    .sm-appr-meta { grid-column: 1; font-size: var(--text-xs); color: var(--fg-3); min-width: 0; }
+    .sm-appr-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 8px; }
+    .sec { color: var(--fg-3); }
+
+    /* toolbar */
+    .sm-tools { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .sm-search { flex: 1 1 260px; max-width: 340px; }
+    .sm-ftoggle { display: none; }
+    .sm-fcount { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: var(--text-2xs); }
+    .sm-filters { display: contents; }
+    .sm-sel { flex: 0 1 180px; min-width: 140px; }
+    .sm-dates { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+    .sm-datefield { width: 150px; }
+    .sm-date { width: 140px; }
+    .sm-dash { color: var(--fg-3); }
+    .sm-types { align-self: flex-start; }
+    .sm-types button { flex: none; }
+
+    /* ledger table: two-line rows (primary / secondary) */
+    .sm-skel { display: grid; gap: 14px; }
+    .sm-table td { height: 52px; vertical-align: middle; }
+    .sm-table th, .sm-table td { padding-left: 10px; padding-right: 10px; }
+    .sm-table th:first-child, .sm-table td:first-child { padding-left: 16px; }
+    .sm-vkn { display: none; }
+    .th-sub { font-weight: 400; color: var(--fg-3); }
+    .sm-l1, .sm-l2 { display: block; overflow: hidden; text-overflow: ellipsis; }
+    .sm-l2 { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); margin-top: 2px; }
+    .sm-l1.mono, .sm-l2.mono, .sm-l2 .mono { font-size: var(--text-xs); }
+    .sm-l2 b { font-weight: 600; color: var(--fg); }
+    .sm-prod { max-width: 200px; }
+    .sm-prod b { font-weight: 500; }
+    .sm-table td.sm-type { max-width: 136px; }
+    .sm-table td.sm-wh { max-width: 150px; }
+    .sm-table td.sm-doc { max-width: 170px; }
+    .sm-table td.sm-notecell { max-width: 170px; }
+    .sm-qty { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .sm-qty.pos { color: var(--success); }
+    .sm-qty.neg { color: var(--danger); }
+    .sm-unit { margin-left: 4px; color: var(--fg-3); font-size: var(--text-xs); }
+    .sm-note { color: var(--fg-2); }
+    .sm-chips { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+    .sm-chips .badge { margin-left: 0; }
+    .sm-att { margin-left: -4px; }
+    .sm-by { font-weight: 500; color: var(--fg-2); }
+    .sm-by.is-system { font-weight: 400; color: var(--fg-3); }
+    tr.is-reversed td { color: var(--fg-3); }
+    tr.is-reversed .sm-qty { color: var(--fg-3); text-decoration: line-through; }
+    .badge-in, .badge-return { --badge-bg: var(--success-soft); --badge-fg: var(--success); --badge-line: var(--success-line); --badge-dot: var(--success-dot); }
+    .badge-out, .badge-order { --badge-bg: var(--neutral-badge-bg); --badge-fg: var(--neutral-badge-fg); --badge-line: var(--neutral-badge-line); --badge-dot: var(--fg-3); }
+    .badge-disposal { --badge-bg: var(--danger-soft); --badge-fg: var(--danger); --badge-line: var(--danger-line); --badge-dot: var(--danger-dot); }
+    .badge-transfer-in, .badge-transfer-out, .badge-quarantine { --badge-bg: var(--info-soft); --badge-fg: var(--info); --badge-line: var(--info-line); --badge-dot: var(--accent); }
+    .badge-adjustment, .badge-reversal { --badge-bg: var(--warning-soft); --badge-fg: var(--warning); --badge-line: var(--warning-line); --badge-dot: var(--warning-dot); }
+    .tbl-foot .pagination-actions .btn-icon svg { color: var(--fg-2); }
+    .sm-mlist { display: none; }
+
+    /* adjustment drawer */
+    .drawer-body > * { flex-shrink: 0; }
+    .sm-form { flex: 1; min-height: 0; gap: 0; }
+    .sm-form .drawer-body { gap: 0; }
+    .sm-intro { margin-bottom: 4px; }
+    .sm-calc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; align-items: end; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .sm-calc-c { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .sm-calc-c.r { align-items: flex-end; text-align: right; }
+    .sm-calc-v { height: var(--h-md); display: flex; align-items: center; font-size: var(--text-md); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); white-space: nowrap; }
+    .sm-calc-in .field { background: var(--surface); }
+    .sm-attach { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+    .sm-attach > label.btn { cursor: pointer; }
+    .sm-file { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 220px; font-size: var(--text-sm); color: var(--fg-2); }
+    .sm-file app-icon { color: var(--fg-3); flex: none; }
+    .sm-rev { margin-top: 12px; }
+
+    /* attachments modal */
+    .sm-att-list { list-style: none; margin: 0; padding: 0; }
+    .sm-att-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; box-shadow: inset 0 -1px 0 var(--line); }
+    .sm-att-list li:last-child { box-shadow: none; }
+    .sm-att-ic { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line); color: var(--fg-3); }
+    .sm-att-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .sm-att-t b { font-weight: 500; color: var(--fg); }
+    .sm-att-t .sec { font-size: var(--text-xs); }
+    .sm-sha { font-size: var(--text-2xs); color: var(--fg-3); }
+
     @media (max-width: 640px) {
-      .sm-search { max-width: none; flex-basis: 100%; }
-      .sm-select { flex: 1 1 100%; max-width: none; }
-      .sm-dates { width: 100%; }
-      .sm-date { flex: 1; min-width: 0; }
-      .filter-pills { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; }
-      .sm-grid-2 { grid-template-columns: 1fr; }
-      .sm-approval { grid-template-columns: 1fr; }
-      .sm-approval-actions { grid-column: 1; grid-row: auto; }
-      .sm-actions { text-align: left; }
+      /* header: title left, "…" + primary inline right (as /products, /orders) */
+      .page-header { flex-wrap: nowrap; }
+      .page-header > :first-child { flex: 1 1 auto; }
+      .page-actions { flex-wrap: nowrap; flex: none; }
+
+      /* toolbar: search + "Filters" toggle on one row; the rest collapses */
+      .sm-tools .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+      .sm-search { max-width: none; }
+      .sm-search kbd { display: none; }
+      .sm-ftoggle { display: inline-flex; height: var(--h-md); min-width: var(--h-md); padding: 0 10px; gap: 6px; }
+      .sm-flabel { display: none; }
+      .sm-filters { display: none; }
+      .sm-filters.is-open { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      .sm-sel { min-width: 0; }
+      .sm-dates { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; }
+      .sm-datefield { width: auto; grid-column: 1 / -1; }
+      .sm-date { width: auto; min-width: 0; }
+      .sm-dates > .btn { grid-column: 1 / -1; justify-self: start; }
+      .sm-types { align-self: stretch; mask-image: linear-gradient(90deg, black calc(100% - 24px), transparent); padding-right: 20px; }
+
+      .sm-appr { grid-template-columns: minmax(0, 1fr); }
+      .sm-appr-actions { grid-column: 1; grid-row: auto; }
+
+      /* compact ledger list (table hidden):
+           product ··························· qty unit
+           [type] reason ······················ prev → new
+           warehouse · lot · date time ········ [reverse]
+           DOC-NO  reference  chips                       */
+      .table-scroll:has(.sm-table) { display: none; }
+      .sm-mlist { display: block; }
+      .sm-mrow { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; padding: 10px 14px; }
+      .sm-mrow .v { white-space: nowrap; }
+      .sm-mrow .s.r { white-space: nowrap; }
+      .sm-mrow .s.r b { font-weight: 600; color: var(--fg); overflow: visible; }
+      .sm-m-type { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--fg-2); }
+      .sm-m-type .badge { margin-left: 0; flex: none; }
+      .sm-m-reason { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .sm-m-meta .mono { font-size: var(--text-2xs); }
+      .sm-m-act { display: flex; justify-content: flex-end; min-height: 0; overflow: visible; }
+      .sm-m-act .btn { margin: -4px -6px -4px 0; }
+      .sm-m-doc { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .sm-m-doc > * { flex: none; }
+      .sm-m-doc .mono { color: var(--fg-2); }
+      .sm-m-doc .badge { margin-left: 0; }
+      .sm-m-doc .sm-m-ref { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .sm-mrow.is-reversed b, .sm-mrow.is-reversed .sm-m-reason { color: var(--fg-3); }
+      .sm-mrow.is-reversed .sm-qty { color: var(--fg-3); text-decoration: line-through; }
+      .sm-calc { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .sm-calc-in { grid-column: 1 / -1; order: 3; }
     }
   `]
 })
@@ -547,6 +715,11 @@ export class StockMovementsComponent implements OnInit {
   decidingId = signal<string | null>(null);
   attachmentTarget = signal<StockMovement | null>(null);
   attachments = signal<MovementAttachment[]>([]);
+  /** Mobile header overflow menu. */
+  moreOpen = signal(false);
+  /** Mobile: filter panel (warehouse, reason, dates) is collapsed behind a toggle. */
+  filtersOpen = signal(false);
+  activeFilterCount = computed(() => [this.selectedWarehouseId(), this.selectedReason(), this.startDate() || this.endDate()].filter(Boolean).length);
 
   /** Effective evidence rules from the server (legal parameter); library defaults until loaded. */
   reasonRules = signal<ReasonRule[]>([]);
@@ -606,7 +779,18 @@ export class StockMovementsComponent implements OnInit {
     this.route.queryParams.subscribe(params => {
       this.searchQuery.set(params['q'] || '');
       this.loadMovements(1);
+      // "N then M" / command palette: open the adjustment drawer.
+      if (params['open'] === 'new') {
+        if (this.canEdit()) this.openDrawer();
+        this.router.navigate([], { relativeTo: this.route, queryParams: { open: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      }
     });
+  }
+
+  /** Esc closes the topmost overlay. */
+  onEscape() {
+    if (this.moreOpen()) this.moreOpen.set(false);
+    else if (this.isDrawerOpen()) this.closeDrawer();
   }
 
   private searchTimeout: any;
@@ -718,8 +902,49 @@ export class StockMovementsComponent implements OnInit {
   }
 
   getWarehouseName(id: string | null | undefined): string {
-    if (!id) return '-';
-    return this.warehouseMap().get(id) || '-';
+    if (!id) return '—';
+    return this.warehouseMap().get(id) || '—';
+  }
+
+  /**
+   * System-generated movement notes are stored in Turkish by the backend.
+   * Map the known patterns to dictionary keys so every UI language reads them localized and in sentence case;
+   * free-text notes typed by users are shown as is.
+   */
+  /** Note/reference text without the document number the Document column already shows. */
+  noteRef(m: StockMovement): string {
+    const note = m.note;
+    if (!note) return '';
+    const doc = m.documentNo;
+    if (doc) {
+      for (const [re, , names] of SYSTEM_NOTES) {
+        const hit = note.match(re);
+        if (!hit) continue;
+        const p: Record<string, string> = {};
+        names.forEach((n, i) => (p[n] = hit[i + 1] ?? ''));
+        if (p['no'] !== doc) break;
+        if (p['ref']) return p['ref'];
+        if (p['reason']) return p['reason'];
+        if (p['inv']) return this.i18n.t('stockMovements.sysNote.invoiceRef', { no: p['inv'] }).trim().replace(/^\((.*)\)$/, '$1');
+        return '';
+      }
+    }
+    const label = this.noteLabel(note);
+    return label === doc ? '' : label;
+  }
+
+  noteLabel(note: string | null | undefined): string {
+    if (!note) return '';
+    for (const [re, key, names] of SYSTEM_NOTES) {
+      const m = note.match(re);
+      if (!m) continue;
+      const params: Record<string, string> = {};
+      names.forEach((n, i) => (params[n] = m[i + 1] ?? ''));
+      if (params['inv'] !== undefined) params['inv'] = params['inv'] ? this.i18n.t('stockMovements.sysNote.invoiceRef', { no: params['inv'] }) : '';
+      const t = this.i18n.t(key, params);
+      return t === key ? note : t;
+    }
+    return note;
   }
 
   isSystem(by: string | null | undefined): boolean {
@@ -945,17 +1170,6 @@ export class StockMovementsComponent implements OnInit {
   }
 
   // ─── Labels ───
-
-  /** Unit snapshot of a movement: UN/ECE code (current rows) or the internal unit code (legacy rows). */
-  ledgerUnit(code: string | null | undefined): string {
-    if (!code) return '';
-    const key = `units.unece.${code}`;
-    const t = this.i18n.t(key);
-    if (t !== key) return code;
-    const internal = `units.${code}`;
-    const u = this.i18n.t(internal);
-    return u === internal ? code : u;
-  }
 
   reasonLabel(code: string | null | undefined): string {
     if (!code) return '';

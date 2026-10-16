@@ -23,10 +23,13 @@ import { IconComponent } from '../shared/icon.component';
     .setup-skel { display: flex; flex-direction: column; gap: 10px; }
     .setup-skel .skeleton-title { width: 70%; height: 22px; }
     .policy-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--text-xs); color: var(--fg-3); }
-    .policy-list li { display: flex; align-items: center; gap: 6px; }
-    .policy-list li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--fg-disabled); }
+    .policy-list li { display: flex; align-items: center; gap: 6px; line-height: 16px; }
+    .policy-list .pi { flex: none; width: 14px; height: 14px; display: grid; place-items: center; border-radius: 50%; color: var(--fg-disabled); box-shadow: inset 0 0 0 1.5px var(--fg-disabled); }
+    .policy-list .pi::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
     .policy-list li.ok { color: var(--success); }
-    .policy-list li.ok::before { background: var(--success-dot); box-shadow: none; }
+    .policy-list li.ok .pi { background: var(--success-dot); color: var(--surface); box-shadow: none; }
+    .policy-list li.ok .pi::after { display: none; }
+    .policy-list .pi .i { width: 10px; height: 10px; stroke-width: 3; }
   `],
   template: `
     <div class="auth single">
@@ -78,8 +81,8 @@ import { IconComponent } from '../shared/icon.component';
                     <span class="trail"><button class="btn btn-ghost btn-xs btn-icon" type="button" (click)="show.set(!show())" [attr.aria-label]="(show() ? 'login.hidePassword' : 'login.showPassword') | t" [attr.aria-pressed]="show()"><app-icon [name]="show() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
                   </div>
                   <ul class="policy-list" id="setupPolicy">
-                    <li [class.ok]="password().length >= minLength">{{ 'login.policy.length' | t: { n: minLength } }}</li>
-                    <li [class.ok]="classes() >= minClasses">{{ 'login.policy.classes' | t: { n: minClasses } }}</li>
+                    <li [class.ok]="password().length >= minLength"><span class="pi" aria-hidden="true">@if (password().length >= minLength) { <app-icon name="check" size="xs" /> }</span>{{ 'login.policy.length' | t: { n: minLength } }}</li>
+                    <li [class.ok]="classes() >= minClasses"><span class="pi" aria-hidden="true">@if (classes() >= minClasses) { <app-icon name="check" size="xs" /> }</span>{{ 'login.policy.classes' | t: { n: minClasses } }}</li>
                   </ul>
                 </div>
                 <div class="fld">

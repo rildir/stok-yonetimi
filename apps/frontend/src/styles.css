@@ -129,6 +129,8 @@
   --fg-placeholder: #75757e;
   --fg-disabled: #a1a1aa;
   --fg-on-accent: #ffffff;
+  /* calendar glyph for bare date inputs (background-image cannot read currentColor): --fg-3 */
+  --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364646d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
 
   /* lines */
   --line: #e8e8eb;
@@ -341,6 +343,7 @@
   --surface-hover: #1d1d21; --surface-active: #232328; --overlay: rgba(0, 0, 0, 0.6);
   --field-bg: #0f0f11; --field-bg-readonly: #18181b;
   --fg: #ededef; --fg-2: #b4b4bc; --fg-3: #8e8e98; --fg-placeholder: #7e7e88; --fg-disabled: #5a5a63; --fg-on-accent: #ffffff;
+  --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
   --line: #222226; --line-2: #2a2a2f; --line-strong: #3a3a41;
   --ring: rgba(255, 255, 255, 0.09); --ring-hover: rgba(255, 255, 255, 0.16); --ring-strong: rgba(255, 255, 255, 0.24);
   --highlight: rgba(255, 255, 255, 0.06);
@@ -378,6 +381,7 @@
     --surface-hover: #1d1d21; --surface-active: #232328; --overlay: rgba(0, 0, 0, 0.6);
     --field-bg: #0f0f11; --field-bg-readonly: #18181b;
     --fg: #ededef; --fg-2: #b4b4bc; --fg-3: #8e8e98; --fg-placeholder: #7e7e88; --fg-disabled: #5a5a63; --fg-on-accent: #ffffff;
+    --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
     --line: #222226; --line-2: #2a2a2f; --line-strong: #3a3a41;
     --ring: rgba(255, 255, 255, 0.09); --ring-hover: rgba(255, 255, 255, 0.16); --ring-strong: rgba(255, 255, 255, 0.24);
     --highlight: rgba(255, 255, 255, 0.06);

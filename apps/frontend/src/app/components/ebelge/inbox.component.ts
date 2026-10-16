@@ -12,6 +12,7 @@ import { InventoryService } from '../../inventory.service';
 import { IncomingDocument, edocBadge } from '../../models/ebelge.models';
 import { GoodsReceipt } from '../../models/documents.models';
 import { EdocPanelComponent } from './edoc-panel.component';
+import { IconComponent } from '../shared/icon.component';
 
 interface ReceiptLineForm {
   lineId: string;
@@ -31,20 +32,58 @@ interface ReceiptLineForm {
 @Component({
   selector: 'app-ebelge-inbox',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, MoneyPipe, NumberFormatPipe, UnitLabelPipe, EdocPanelComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, MoneyPipe, NumberFormatPipe, UnitLabelPipe, EdocPanelComponent, IconComponent],
   styleUrls: ['../../drawer.css', '../documents/documents.css'],
   styles: [`
-    .inbox-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
-    .inbox-kpi { padding: var(--space-3) var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); display: flex; flex-direction: column; gap: 2px; }
-    .inbox-kpi .v { font-size: var(--text-xl); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; color: var(--color-text); }
-    .inbox-kpi .l { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .countdown { white-space: nowrap; }
-    .match-box { display: flex; flex-direction: column; gap: var(--space-1); }
-    .respond-box { border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); background: var(--color-surface-subtle); }
-    .ra-reason { min-width: 140px; }
-    .page-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-    .page-actions .select { width: auto; min-width: 180px; }
+    :host { display: block; }
+    .notice > app-icon { color: var(--tone); }
+    .inbox-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 20px; }
+    .kpi-val b.is-danger { color: var(--danger); }
+    .list-bar { margin-bottom: 12px; }
+    .list-bar .seg { max-width: 100%; }
+    .list-bar .seg button { flex: none; }
+    .list-bar .sim { display: flex; align-items: center; gap: 8px; }
+    .list-bar .sim .field { width: 200px; }
+    .doc-no { font-family: var(--font-mono); font-weight: 500; }
+    .cv { min-width: 0; }
+    .cell-sub { margin-left: 8px; font-size: var(--text-xs); color: var(--fg-3); }
+    .tbl td.c-type { max-width: 180px; }
+    .tbl td.c-dl { max-width: 130px; }
+    .tbl td.c-snd { max-width: 200px; }
+    .countdown { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+    .tbl td.empty-cell { white-space: normal; max-width: none; padding: 0; height: auto; }
+    .tbl tr.sk td { height: var(--row-h); }
+    .tbl tr.sk .skeleton-row { height: 12px; }
+    .drawer-h .t h2.dh-no { font-family: var(--font-mono); font-size: var(--text-lg); font-weight: 600; letter-spacing: -0.01em; }
+    .drawer-h .tools { gap: 8px; }
+    .drawer-body .doc-grid { margin-bottom: 0; }
+    .drawer-body > .doc-section, .drawer-body > div > .doc-section { margin-top: 0; }
+    .drawer-body .notice { align-items: flex-start; }
+    .drawer-body .notice > app-icon { margin-top: 1px; }
+    .ref-list { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+    .ref-list .sec { color: var(--fg-3); }
+    .ref-list > span { display: inline-flex; align-items: baseline; gap: 6px; }
+    .line-sub { display: block; font-size: var(--text-xs); color: var(--fg-3); margin-top: 2px; }
+    .match-form { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+    .match-form .btn { align-self: flex-start; }
+    .respond-box { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .respond-box .doc-section-title { margin: 0; }
+    .respond-box .doc-hint { margin: 0; }
+    .respond-box .doc-actions { justify-content: flex-end; }
+    .ra-tbl td { padding-top: 6px; padding-bottom: 6px; }
+    .ra-tbl .field { width: 96px; margin-left: auto; }
+    .ra-tbl .field.ra-reason { width: auto; min-width: 140px; margin-left: 0; }
     @media (max-width: 900px) { .inbox-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) {
+      .inbox-kpis { gap: 8px; }
+      .inbox-kpis .kpi { padding: 12px; gap: 6px; }
+      .inbox-kpis .kpi-val b { font-size: var(--text-xl); }
+      .list-bar .sim { width: 100%; }
+      .list-bar .sim .field { flex: 1; width: auto; }
+      .table-responsive td.empty-cell { display: block; }
+      .tbl.table-responsive td { max-width: none; }
+      .table-responsive td .cv { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    }
   `],
   template: `
     <header class="page-header">
@@ -54,64 +93,91 @@ interface ReceiptLineForm {
       </div>
       <div class="page-actions">
         @if (!ui.isReadonly()) {
-          <button class="btn btn-secondary" (click)="fetch()" [disabled]="busy()">{{ 'ebelge.inbox.fetch' | t }}</button>
-          @if (isAdmin() && provider() === 'MOCK') {
-            <select class="select" [(ngModel)]="simKind" [attr.aria-label]="'ebelge.inbox.simulate' | t">
-              @for (k of simKinds; track k) { <option [value]="k">{{ 'ebelge.inbox.sim.' + k | t }}</option> }
-            </select>
-            <button class="btn btn-secondary" (click)="simulate()" [disabled]="busy()">{{ 'ebelge.inbox.simulate' | t }}</button>
-          }
+          <button type="button" class="btn btn-primary" [class.is-loading]="busy()" (click)="fetch()" [disabled]="busy()"><app-icon name="refresh" /><span>{{ 'ebelge.inbox.fetch' | t }}</span></button>
         }
       </div>
     </header>
 
-    <div class="inbox-kpis">
-      <div class="inbox-kpi"><span class="v">{{ rows().length }}</span><span class="l">{{ 'ebelge.inbox.kpi.total' | t }}</span></div>
-      <div class="inbox-kpi"><span class="v">{{ awaiting().length }}</span><span class="l">{{ 'ebelge.inbox.kpi.awaiting' | t }}</span></div>
-      <div class="inbox-kpi"><span class="v days-left" [class.critical]="dueSoon() > 0">{{ dueSoon() }}</span><span class="l">{{ 'ebelge.inbox.kpi.dueSoon' | t }}</span></div>
-      <div class="inbox-kpi"><span class="v">{{ unmatched() }}</span><span class="l">{{ 'ebelge.inbox.kpi.unmatched' | t }}</span></div>
+    <div class="kpi-grid inbox-kpis">
+      <div class="kpi">
+        <div class="kpi-top"><app-icon name="inbox" size="sm" />{{ 'ebelge.inbox.kpi.total' | t }}</div>
+        <div class="kpi-val"><b>{{ rows().length | num }}</b></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><app-icon name="bell" size="sm" />{{ 'ebelge.inbox.kpi.awaiting' | t }}</div>
+        <div class="kpi-val"><b>{{ awaiting().length | num }}</b></div>
+      </div>
+      <div class="kpi" [class.is-alert]="dueSoon() > 0">
+        <div class="kpi-top"><app-icon [name]="dueSoon() > 0 ? 'warn' : 'calendar'" size="sm" />{{ 'ebelge.inbox.kpi.dueSoon' | t }}</div>
+        <div class="kpi-val"><b [class.is-danger]="dueSoon() > 0">{{ dueSoon() | num }}</b></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><app-icon name="link" size="sm" />{{ 'ebelge.inbox.kpi.unmatched' | t }}</div>
+        <div class="kpi-val"><b>{{ unmatched() | num }}</b></div>
+      </div>
     </div>
 
-    <div class="filter-pills" style="margin-bottom: var(--space-4)">
-      @for (f of filters; track f) {
-        <button type="button" class="filter-pill" [class.active]="filter() === f" (click)="filter.set(f)">{{ 'ebelge.inbox.filter.' + f | t }}</button>
+    <div class="toolbar list-bar">
+      <div class="seg" role="group" [attr.aria-label]="'documents.statusFilter' | t">
+        @for (f of filters; track f) {
+          <button type="button" [attr.aria-pressed]="filter() === f" (click)="filter.set(f)">{{ 'ebelge.inbox.filter.' + f | t }}</button>
+        }
+      </div>
+      @if (!ui.isReadonly() && isAdmin() && provider() === 'MOCK') {
+        <span class="spacer"></span>
+        <div class="sim">
+          <div class="field field-sm select"><select [(ngModel)]="simKind" [attr.aria-label]="'ebelge.inbox.simulate' | t">
+            @for (k of simKinds; track k) { <option [value]="k">{{ 'ebelge.inbox.sim.' + k | t }}</option> }
+          </select></div>
+          <button type="button" class="btn btn-sm" (click)="simulate()" [disabled]="busy()"><app-icon name="sparkle" size="sm" />{{ 'ebelge.inbox.simulate' | t }}</button>
+        </div>
       }
     </div>
 
     <div class="table-card">
       <div class="table-scroll">
-        <table class="table-responsive">
+        <table class="tbl table-responsive">
           <thead>
             <tr>
               <th>{{ 'ebelge.inbox.col.number' | t }}</th>
               <th>{{ 'ebelge.inbox.col.type' | t }}</th>
               <th>{{ 'ebelge.inbox.col.sender' | t }}</th>
               <th>{{ 'documents.issueDate' | t }}</th>
-              <th class="num">{{ 'ebelge.inbox.col.amount' | t }}</th>
+              <th class="r">{{ 'ebelge.inbox.col.amount' | t }}</th>
               <th>{{ 'ebelge.inbox.col.match' | t }}</th>
               <th>{{ 'ebelge.inbox.col.status' | t }}</th>
               <th>{{ 'ebelge.inbox.col.deadline' | t }}</th>
             </tr>
           </thead>
           <tbody>
+            @if (loading() && rows().length === 0) {
+              @for (i of [1, 2, 3, 4, 5]; track i) { <tr class="sk"><td colspan="8"><div class="skeleton-row"></div></td></tr> }
+            }
             @for (r of visible(); track r.id) {
-              <tr class="clickable-row" (click)="open(r)">
-                <td class="mono td-primary"><strong>{{ r.documentNo || '-' }}</strong></td>
-                <td [attr.data-label]="'ebelge.inbox.col.type' | t">{{ 'ebelge.docType.' + r.documentType | t }} <span class="text-xs text-muted">{{ r.profileId }} {{ r.typeCode }}</span></td>
-                <td [attr.data-label]="'ebelge.inbox.col.sender' | t">{{ r.senderName }} <div class="text-xs text-muted mono">{{ r.senderTaxId }}</div></td>
+              <tr class="clickable-row" [class.is-selected]="selected()?.id === r.id" (click)="open(r)">
+                <td class="td-primary"><span class="doc-no">{{ r.documentNo || '-' }}</span></td>
+                <td class="c-type" [attr.data-label]="'ebelge.inbox.col.type' | t"><span class="cv" [title]="gib(r.profileId) + ' · ' + gib(r.typeCode)">{{ 'ebelge.docType.' + r.documentType | t }}@if (r.typeCode) { <span class="cell-sub">{{ gib(r.typeCode) }}</span> }</span></td>
+                <td class="c-snd" [attr.data-label]="'ebelge.inbox.col.sender' | t"><span class="cv">{{ r.senderName }}<span class="cell-code">{{ r.senderTaxId }}</span></span></td>
                 <td [attr.data-label]="'documents.issueDate' | t">{{ r.issueDate ? (r.issueDate | appDate) : '-' }}</td>
-                <td class="num" [attr.data-label]="'ebelge.inbox.col.amount' | t">{{ r.payableAmount !== null ? (r.payableAmount | money: (r.currency || 'TRY')) : '-' }}</td>
-                <td [attr.data-label]="'ebelge.inbox.col.match' | t">@if (r.status === 'INFO') { <span class="text-muted">-</span> } @else { <span class="badge" [class.badge-success]="r.matchStatus === 'RECEIPT' || r.matchStatus === 'INVOICE'" [class.badge-warning]="r.matchStatus === 'ORDER' || r.matchStatus === 'SUPPLIER'" [class.badge-neutral]="r.matchStatus === 'UNMATCHED'">{{ 'ebelge.inbox.match.' + r.matchStatus | t }}</span> }</td>
-                <td [attr.data-label]="'ebelge.inbox.col.status' | t"><span class="badge" [ngClass]="badge(r.status)">{{ 'ebelge.inbox.status.' + r.status | t }}</span></td>
-                <td [attr.data-label]="'ebelge.inbox.col.deadline' | t">
+                <td class="r" [attr.data-label]="'ebelge.inbox.col.amount' | t">{{ r.payableAmount !== null ? (r.payableAmount | money: (r.currency || 'TRY')) : '-' }}</td>
+                <td [attr.data-label]="'ebelge.inbox.col.match' | t">@if (r.status === 'INFO') { <span class="cell-sec">-</span> } @else { <span class="badge" [class.badge-success]="r.matchStatus === 'RECEIPT' || r.matchStatus === 'INVOICE'" [class.badge-warning]="r.matchStatus === 'ORDER' || r.matchStatus === 'SUPPLIER'" [class.badge-neutral]="r.matchStatus === 'UNMATCHED'"><span class="dot"></span>{{ 'ebelge.inbox.match.' + r.matchStatus | t }}</span> }</td>
+                <td [attr.data-label]="'ebelge.inbox.col.status' | t"><span class="badge" [ngClass]="badge(r.status)"><span class="dot"></span>{{ 'ebelge.inbox.status.' + r.status | t }}</span></td>
+                <td class="c-dl" [attr.data-label]="'ebelge.inbox.col.deadline' | t">
                   @if (r.responseRequired && r.responseDueAt) {
-                    <span class="countdown days-left" [class.critical]="(r.hoursLeft ?? 0) < 24" [class.warning]="(r.hoursLeft ?? 0) < 72">{{ countdown(r) }}</span>
-                  } @else { <span class="text-muted">{{ 'ebelge.inbox.noResponse' | t }}</span> }
+                    <span class="countdown days-left" [class.critical]="(r.hoursLeft ?? 0) < 24" [class.warning]="(r.hoursLeft ?? 0) < 72">@if ((r.hoursLeft ?? 0) < 72) { <app-icon name="warn" size="xs" /> }{{ countdown(r) }}</span>
+                  } @else { <span class="cell-sec">{{ 'ebelge.inbox.noResponse' | t }}</span> }
                 </td>
               </tr>
             }
             @if (!loading() && visible().length === 0) {
-              <tr><td colspan="8"><div class="empty-state"><p class="empty-state-title">{{ 'ebelge.inbox.empty' | t }}</p></div></td></tr>
+              <tr><td colspan="8" class="empty-cell">
+                <div class="empty-state">
+                  <div class="empty-art"><app-icon name="inbox" /></div>
+                  <h3>{{ 'ebelge.inbox.empty' | t }}</h3>
+                  <p>{{ 'ebelge.inbox.emptyHint' | t }}</p>
+                  @if (!ui.isReadonly()) { <div class="actions cluster"><button type="button" class="btn btn-sm" (click)="fetch()" [disabled]="busy()"><app-icon name="refresh" size="sm" />{{ 'ebelge.inbox.fetch' | t }}</button></div> }
+                </div>
+              </td></tr>
             }
           </tbody>
         </table>
@@ -119,61 +185,69 @@ interface ReceiptLineForm {
     </div>
 
     @if (selected(); as r) {
-      <div class="drawer-overlay" (click)="selected.set(null)">
-        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-          <div class="drawer-header">
-            <div class="cluster"><span class="drawer-title">{{ 'ebelge.docType.' + r.documentType | t }}</span><span class="mono text-muted">{{ r.documentNo }}</span></div>
-            <button class="drawer-close" (click)="selected.set(null)" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <div class="drawer-overlay" (click)="selected.set(null)" (document:keydown.escape)="selected.set(null)">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" [attr.aria-label]="'ebelge.docType.' + r.documentType | t" (click)="$event.stopPropagation()">
+          <div class="drawer-h">
+            <div class="t">
+              <div class="eyebrow"><app-icon name="inbox" size="sm" />{{ 'ebelge.docType.' + r.documentType | t }}<span class="sep">/</span>{{ gib(r.profileId) }}@if (r.typeCode) { · {{ gib(r.typeCode) }} }</div>
+              <h2 class="dh-no">{{ r.documentNo }}</h2>
+            </div>
+            <div class="tools">
+              <span class="badge" [ngClass]="badge(r.status)"><span class="dot"></span>{{ 'ebelge.inbox.status.' + r.status | t }}</span>
+              <button type="button" class="drawer-close" (click)="selected.set(null)" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
+            </div>
           </div>
           <div class="drawer-body">
             @if (r.responseRequired && r.responseDueAt) {
-              <div class="doc-alert" [class.danger]="(r.hoursLeft ?? 0) < 24">
-                {{ (r.documentType === 'DESPATCH' ? 'ebelge.inbox.despatchDeadline' : 'ebelge.inbox.ticariDeadline') | t: { date: (r.responseDueAt | appDate: 'datetime'), left: countdown(r) } }}
+              <div class="notice" [class.notice-danger]="(r.hoursLeft ?? 0) < 24" [class.notice-warning]="(r.hoursLeft ?? 0) >= 24">
+                <app-icon [name]="(r.hoursLeft ?? 0) < 24 ? 'alert' : 'warn'" />
+                <span class="t">{{ (r.documentType === 'DESPATCH' ? 'ebelge.inbox.despatchDeadline' : 'ebelge.inbox.ticariDeadline') | t: { date: (r.responseDueAt | appDate: 'datetime'), left: countdown(r) } }}</span>
               </div>
             }
             <div class="doc-grid">
-              <div class="doc-field"><label>{{ 'ebelge.inbox.col.sender' | t }}</label><span>{{ r.senderName }} <span class="mono text-muted">{{ r.senderTaxId }}</span></span></div>
-              <div class="doc-field"><label>{{ 'ebelge.panel.scenario' | t }}</label><span>{{ r.profileId }} / {{ r.typeCode }}</span></div>
+              <div class="doc-field"><label>{{ 'ebelge.inbox.col.sender' | t }}</label><span>{{ r.senderName }} <span class="mono cell-sec">{{ r.senderTaxId }}</span></span></div>
+              @if (r.payableAmount !== null) { <div class="doc-field"><label>{{ 'ebelge.inbox.col.amount' | t }}</label><span>{{ r.payableAmount | money: (r.currency || 'TRY') }}</span></div> }
               <div class="doc-field"><label>{{ 'documents.issueDate' | t }}</label><span>{{ r.issueDate | appDate }}</span></div>
               <div class="doc-field"><label>{{ 'ebelge.inbox.receivedAt' | t }}</label><span>{{ r.receivedAt | appDate: 'datetime' }}</span></div>
               @if (r.actualDespatchAt) { <div class="doc-field"><label>{{ 'ebelge.inbox.actualDespatch' | t }}</label><span>{{ r.actualDespatchAt | appDate: 'datetime' }}</span></div> }
-              @if (r.payableAmount !== null) { <div class="doc-field"><label>{{ 'ebelge.inbox.col.amount' | t }}</label><span>{{ r.payableAmount | money: (r.currency || 'TRY') }}</span></div> }
               <div class="doc-field"><label>ETTN</label><span class="mono text-xs">{{ r.ettn }}</span></div>
-              <div class="doc-field"><label>{{ 'ebelge.inbox.col.status' | t }}</label><span><span class="badge" [ngClass]="badge(r.status)">{{ 'ebelge.inbox.status.' + r.status | t }}</span>@if (r.respondedBy) { <span class="text-xs text-muted"> · {{ r.respondedBy }} {{ r.respondedAt | appDate: 'datetime' }}</span> }</span></div>
+              @if (r.respondedBy) { <div class="doc-field"><label>{{ 'ebelge.inbox.col.status' | t }}</label><span>{{ r.respondedBy }} <span class="cell-sec">· {{ r.respondedAt | appDate: 'datetime' }}</span></span></div> }
             </div>
             @if (r.refs?.orderRef || r.refs?.despatchRefs?.length || r.refs?.billingRefs?.length) {
               <div class="doc-field"><label>{{ 'ebelge.inbox.refs' | t }}</label>
-                <span>
-                  @if (r.refs?.orderRef; as o) { {{ 'ebelge.inbox.orderRef' | t }}: <span class="mono">{{ o.id }}</span> }
-                  @for (d of r.refs?.despatchRefs || []; track d.id) { · {{ 'ebelge.inbox.despatchRef' | t }}: <span class="mono">{{ d.id }}</span> }
-                  @for (b of r.refs?.billingRefs || []; track b.id) { · {{ 'ebelge.inbox.billingRef' | t }}: <span class="mono">{{ b.id }}</span> }
+                <span class="ref-list">
+                  @if (r.refs?.orderRef; as o) { <span><span class="sec">{{ 'ebelge.inbox.orderRef' | t }}</span> <span class="mono">{{ o.id }}</span></span> }
+                  @for (d of r.refs?.despatchRefs || []; track d.id) { <span><span class="sec">{{ 'ebelge.inbox.despatchRef' | t }}</span> <span class="mono">{{ d.id }}</span></span> }
+                  @for (b of r.refs?.billingRefs || []; track b.id) { <span><span class="sec">{{ 'ebelge.inbox.billingRef' | t }}</span> <span class="mono">{{ b.id }}</span></span> }
                 </span>
               </div>
             }
 
             <div class="doc-section">
-              <h4 class="doc-section-title">{{ 'ebelge.inbox.matching' | t }} <span class="badge" [class.badge-success]="r.matchStatus === 'RECEIPT' || r.matchStatus === 'INVOICE'" [class.badge-warning]="r.matchStatus === 'ORDER' || r.matchStatus === 'SUPPLIER'" [class.badge-neutral]="r.matchStatus === 'UNMATCHED'">{{ 'ebelge.inbox.match.' + r.matchStatus | t }}</span></h4>
-              <div class="match-box">
-                <span>{{ 'ebelge.inbox.supplier' | t }}: @if (r.supplier) { <a class="link" routerLink="/suppliers">{{ r.supplier.name }}</a> } @else { - }</span>
-                <span>{{ 'ebelge.inbox.purchaseOrder' | t }}: @if (r.purchaseOrder) { <a class="link mono" routerLink="/purchase-orders">{{ r.purchaseOrder.poNumber }}</a> } @else { - }</span>
-                <span>{{ 'ebelge.inbox.goodsReceipt' | t }}: @if (r.goodsReceipt) { <a class="link mono" routerLink="/goods-receipts" [queryParams]="{ id: r.goodsReceipt.id }">{{ r.goodsReceipt.receiptNo }}</a> } @else { - }</span>
-                @if (r.originalInvoice) { <span>{{ 'ebelge.inbox.originalInvoice' | t }}: <a class="link mono" routerLink="/invoices" [queryParams]="{ id: r.originalInvoice.id }">{{ r.originalInvoice.documentNo }}</a></span> }
+              <h4 class="doc-section-title">{{ 'ebelge.inbox.matching' | t }} <span class="badge" [class.badge-success]="r.matchStatus === 'RECEIPT' || r.matchStatus === 'INVOICE'" [class.badge-warning]="r.matchStatus === 'ORDER' || r.matchStatus === 'SUPPLIER'" [class.badge-neutral]="r.matchStatus === 'UNMATCHED'"><span class="dot"></span>{{ 'ebelge.inbox.match.' + r.matchStatus | t }}</span></h4>
+              <div class="doc-grid">
+                <div class="doc-field"><label>{{ 'ebelge.inbox.supplier' | t }}</label><span>@if (r.supplier) { <a class="link" routerLink="/suppliers">{{ r.supplier.name }}</a> } @else { <span class="cell-sec">-</span> }</span></div>
+                <div class="doc-field"><label>{{ 'ebelge.inbox.purchaseOrder' | t }}</label><span>@if (r.purchaseOrder) { <a class="link mono" routerLink="/purchase-orders">{{ r.purchaseOrder.poNumber }}</a> } @else { <span class="cell-sec">-</span> }</span></div>
+                <div class="doc-field"><label>{{ 'ebelge.inbox.goodsReceipt' | t }}</label><span>@if (r.goodsReceipt) { <a class="link mono" routerLink="/goods-receipts" [queryParams]="{ id: r.goodsReceipt.id }">{{ r.goodsReceipt.receiptNo }}</a> } @else { <span class="cell-sec">-</span> }</span></div>
+                @if (r.originalInvoice) { <div class="doc-field"><label>{{ 'ebelge.inbox.originalInvoice' | t }}</label><span><a class="link mono" routerLink="/invoices" [queryParams]="{ id: r.originalInvoice.id }">{{ r.originalInvoice.documentNo }}</a></span></div> }
               </div>
               @if (!ui.isReadonly() && (r.documentType === 'INVOICE' || r.documentType === 'DESPATCH') && r.supplierId && !r.originalInvoiceId) {
-                <div class="doc-grid" style="margin-top: var(--space-3)">
-                  <div class="doc-field"><label for="mPo">{{ 'ebelge.inbox.purchaseOrder' | t }}</label>
-                    <select id="mPo" class="select" [(ngModel)]="matchPo" (ngModelChange)="loadReceipts()"><option value="">-</option>@for (p of supplierPos(); track p.id) { <option [value]="p.id">{{ p.poNumber }} · {{ p.status }}</option> }</select></div>
-                  <div class="doc-field"><label for="mGr">{{ 'ebelge.inbox.goodsReceipt' | t }}</label>
-                    <select id="mGr" class="select" [(ngModel)]="matchGr"><option value="">-</option>@for (g of receipts(); track g.id) { <option [value]="g.id">{{ g.receiptNo }}@if (g.supplierDespatchNo) { · {{ g.supplierDespatchNo }} }</option> }</select></div>
+                <div class="match-form">
+                  <div class="grid-2">
+                    <div class="fld"><label class="fld-label" for="mPo">{{ 'ebelge.inbox.purchaseOrder' | t }}</label>
+                      <div class="field select"><select id="mPo" [(ngModel)]="matchPo" (ngModelChange)="loadReceipts()"><option value="">-</option>@for (p of supplierPos(); track p.id) { <option [value]="p.id">{{ p.poNumber }} · {{ p.status }}</option> }</select></div></div>
+                    <div class="fld"><label class="fld-label" for="mGr">{{ 'ebelge.inbox.goodsReceipt' | t }}</label>
+                      <div class="field select"><select id="mGr" [(ngModel)]="matchGr"><option value="">-</option>@for (g of receipts(); track g.id) { <option [value]="g.id">{{ g.receiptNo }}@if (g.supplierDespatchNo) { · {{ g.supplierDespatchNo }} }</option> }</select></div></div>
+                  </div>
+                  <button type="button" class="btn btn-sm" [class.is-loading]="busy()" (click)="saveMatch(r)" [disabled]="busy()"><app-icon name="link" size="sm" /><span>{{ 'ebelge.inbox.saveMatch' | t }}</span></button>
                 </div>
-                <button class="btn btn-secondary btn-sm" (click)="saveMatch(r)" [disabled]="busy()">{{ 'ebelge.inbox.saveMatch' | t }}</button>
               }
             </div>
 
             <div class="doc-section">
               <h4 class="doc-section-title">{{ 'ebelge.inbox.lines' | t }}</h4>
               <div class="table-scroll">
-              <table class="doc-table">
+              <table class="doc-table" [class.ra-tbl]="raMode()">
                 <thead><tr><th>{{ 'despatches.product' | t }}</th><th class="num">{{ 'despatches.quantity' | t }}</th>
                   @if (r.documentType === 'INVOICE') { <th class="num hide-xs">{{ 'invoices.unitPrice' | t }}</th><th class="num">{{ 'invoices.net' | t }}</th> }
                   @if (raMode()) { <th class="num">{{ 'ebelge.receiptAdvice.accepted' | t }}</th><th class="num">{{ 'ebelge.receiptAdvice.rejectedQty' | t }}</th><th>{{ 'ebelge.receiptAdvice.reason' | t }}</th> }
@@ -184,15 +258,15 @@ interface ReceiptLineForm {
                       <tr>
                         <td>{{ l.name }}</td>
                         <td class="num">{{ l.quantity | num }} {{ l.unitCode | unitLabel }}</td>
-                        <td class="num"><input class="input qty" type="number" min="0" [max]="l.quantity" step="any" [(ngModel)]="l.accepted" [attr.aria-label]="'ebelge.receiptAdvice.accepted' | t" /></td>
-                        <td class="num"><input class="input qty" type="number" min="0" [max]="l.quantity" step="any" [(ngModel)]="l.rejected" [attr.aria-label]="'ebelge.receiptAdvice.rejectedQty' | t" /></td>
-                        <td><input class="input ra-reason" maxlength="200" [(ngModel)]="l.reason" [disabled]="!l.rejected" [attr.aria-label]="'ebelge.receiptAdvice.reason' | t" /></td>
+                        <td class="num"><div class="field field-sm"><input class="num" type="number" min="0" [max]="l.quantity" step="any" [(ngModel)]="l.accepted" [attr.aria-label]="'ebelge.receiptAdvice.accepted' | t" /></div></td>
+                        <td class="num"><div class="field field-sm"><input class="num" type="number" min="0" [max]="l.quantity" step="any" [(ngModel)]="l.rejected" [attr.aria-label]="'ebelge.receiptAdvice.rejectedQty' | t" /></div></td>
+                        <td><div class="field field-sm ra-reason"><input maxlength="200" [(ngModel)]="l.reason" [disabled]="!l.rejected" [attr.aria-label]="'ebelge.receiptAdvice.reason' | t" /></div></td>
                       </tr>
                     }
                   } @else {
                     @for (l of r.lines || []; track l.id) {
                       <tr>
-                        <td>{{ l.name }}@if (l.sellersItemId) { <div class="text-xs text-muted">{{ l.sellersItemId }}</div> }</td>
+                        <td>{{ l.name }}@if (l.sellersItemId) { <span class="cell-code">{{ l.sellersItemId }}</span> }</td>
                         <td class="num">{{ l.quantity | num }} {{ l.unitCode | unitLabel }}</td>
                         @if (r.documentType === 'INVOICE') { <td class="num hide-xs">{{ l.unitPrice | money: (r.currency || 'TRY') }}</td><td class="num">{{ l.lineExtension | money: (r.currency || 'TRY') }}</td> }
                       </tr>
@@ -208,30 +282,29 @@ interface ReceiptLineForm {
 
             @if (!ui.isReadonly() && r.status === 'RECEIVED' && !r.expired) {
               @if (r.documentType === 'INVOICE' && r.profileId === 'TICARIFATURA') {
-                <div class="doc-section respond-box">
+                <div class="respond-box">
                   <h4 class="doc-section-title">{{ 'ebelge.response.title' | t }}</h4>
-                  <div class="doc-field"><label for="respNote">{{ 'ebelge.response.note' | t }}</label><textarea id="respNote" class="textarea" rows="2" maxlength="500" [(ngModel)]="responseNote"></textarea></div>
-                  <p class="doc-hint">{{ 'ebelge.response.hint' | t }}</p>
+                  <div class="fld"><label class="fld-label" for="respNote">{{ 'ebelge.response.note' | t }}</label><div class="field has-area"><textarea id="respNote" rows="2" maxlength="500" [(ngModel)]="responseNote"></textarea></div><div class="fld-help">{{ 'ebelge.response.hint' | t }}</div></div>
                   <div class="doc-actions">
-                    <button class="btn btn-danger" (click)="respond(r, 'RED')" [disabled]="busy() || !responseNote.trim()">{{ 'ebelge.response.RED' | t }}</button>
-                    <button class="btn btn-primary" (click)="respond(r, 'KABUL')" [disabled]="busy()">{{ 'ebelge.response.KABUL' | t }}</button>
+                    <button type="button" class="btn btn-danger-outline" (click)="respond(r, 'RED')" [disabled]="busy() || !responseNote.trim()">{{ 'ebelge.response.RED' | t }}</button>
+                    <button type="button" class="btn btn-primary" (click)="respond(r, 'KABUL')" [disabled]="busy()"><app-icon name="check" />{{ 'ebelge.response.KABUL' | t }}</button>
                   </div>
                 </div>
               }
               @if (r.documentType === 'DESPATCH') {
-                <div class="doc-section respond-box">
+                <div class="respond-box">
                   <h4 class="doc-section-title">{{ 'ebelge.receiptAdvice.title' | t }}</h4>
                   <p class="doc-hint">{{ 'ebelge.receiptAdvice.hint' | t }}</p>
                   @if (!raMode()) {
                     <div class="doc-actions">
-                      <button class="btn btn-secondary" (click)="startRa(r)">{{ 'ebelge.receiptAdvice.partial' | t }}</button>
-                      <button class="btn btn-primary" (click)="startRa(r); sendRa(r)" [disabled]="busy()">{{ 'ebelge.receiptAdvice.acceptAll' | t }}</button>
+                      <button type="button" class="btn" (click)="startRa(r)">{{ 'ebelge.receiptAdvice.partial' | t }}</button>
+                      <button type="button" class="btn btn-primary" (click)="startRa(r); sendRa(r)" [disabled]="busy()"><app-icon name="check" />{{ 'ebelge.receiptAdvice.acceptAll' | t }}</button>
                     </div>
                   } @else {
-                    <div class="doc-field"><label for="raNote">{{ 'ebelge.response.note' | t }}</label><input id="raNote" class="input" maxlength="500" [(ngModel)]="responseNote" /></div>
+                    <div class="fld"><label class="fld-label" for="raNote">{{ 'ebelge.response.note' | t }}</label><div class="field"><input id="raNote" maxlength="500" [(ngModel)]="responseNote" /></div></div>
                     <div class="doc-actions">
-                      <button class="btn btn-secondary" (click)="raMode.set(false)">{{ 'common.cancel' | t }}</button>
-                      <button class="btn btn-primary" (click)="sendRa(r)" [disabled]="busy()">{{ 'ebelge.receiptAdvice.send' | t }}</button>
+                      <button type="button" class="btn btn-ghost" (click)="raMode.set(false)">{{ 'common.cancel' | t }}</button>
+                      <button type="button" class="btn btn-primary" [class.is-loading]="busy()" (click)="sendRa(r)" [disabled]="busy()"><span>{{ 'ebelge.receiptAdvice.send' | t }}</span></button>
                     </div>
                   }
                 </div>
@@ -254,6 +327,13 @@ export class EBelgeInboxComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   ui = inject(UiStateService);
   private i18n = inject(I18nService);
+  /** Human label for a GİB profile / type code (TEMELFATURA → "Temel e-Fatura"); unknown codes fall back to the raw code. */
+  gib(code: string | null | undefined): string {
+    if (!code) return '';
+    const key = 'ebelge.gib.' + code;
+    return this.i18n.has(key) ? this.i18n.t(key) : code;
+  }
+
   private sub?: Subscription;
 
   filters = ['all', 'awaiting', 'INVOICE', 'DESPATCH', 'answered'];

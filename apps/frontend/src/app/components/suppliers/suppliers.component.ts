@@ -10,11 +10,12 @@ import { I18nService, TranslatePipe } from '../../i18n';
 import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGroup } from '../shared/address-fields.component';
 import { IdentityFieldsComponent, taxIdValidator } from '../shared/identity-fields.component';
 import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
+import { IconComponent } from '../shared/icon.component';
 
 @Component({
   selector: 'app-suppliers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AddressFieldsComponent, IdentityFieldsComponent, SpecialCategoryWarningComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AddressFieldsComponent, IdentityFieldsComponent, SpecialCategoryWarningComponent, IconComponent],
   styleUrls: ['../../drawer.css'],
   template: `
     <header class="page-header">
@@ -23,192 +24,207 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
         <p>{{ 'suppliers.subtitle' | t }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          {{ 'suppliers.new' | t }}
+        <button type="button" class="btn btn-primary" (click)="openDrawer()">
+          <app-icon name="plus" /><span>{{ 'suppliers.new' | t }}</span><kbd>N</kbd><kbd>S</kbd>
         </button>
       </div>
     </header>
 
-    <div class="filter-bar">
-      <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" [placeholder]="'suppliers.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+    <div class="toolbar sup-toolbar">
+      <div class="field field-sm sup-search">
+        <span class="lead"><app-icon name="search" size="sm" /></span>
+        <input type="search" data-page-search [placeholder]="'suppliers.searchPlaceholder' | t" [attr.aria-label]="'common.search' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+        <span class="trail"><kbd>/</kbd></span>
       </div>
     </div>
 
     <div class="table-card">
       @if (isLoading()) {
-        <div class="sup-skel">
-          @for (r of [1,2,3,4,5]; track r) { <div class="skeleton skeleton-text"></div> }
+        <div class="sup-skel" aria-busy="true">
+          @for (r of [1,2,3,4,5,6]; track r) { <div class="skeleton-row"></div> }
         </div>
       } @else if (suppliers().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+          <div class="empty-art"><app-icon name="truck" /></div>
+          <h3>{{ 'suppliers.empty' | t }}</h3>
+          <div class="actions cluster">
+            <button type="button" class="btn btn-primary" (click)="openDrawer()"><app-icon name="plus" />{{ 'suppliers.addFirst' | t }}</button>
           </div>
-          <div class="empty-state-title">{{ 'suppliers.empty' | t }}</div>
-          <button class="btn btn-primary" (click)="openDrawer()">{{ 'suppliers.addFirst' | t }}</button>
         </div>
       } @else if (filteredSuppliers().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <div class="empty-art"><app-icon name="search" /></div>
+          <h3>{{ 'suppliers.noResults' | t }}</h3>
+          <div class="actions cluster">
+            <button type="button" class="btn" (click)="searchQuery.set('')"><app-icon name="x" size="sm" />{{ 'common.clear' | t }}</button>
           </div>
-          <div class="empty-state-title">{{ 'suppliers.noResults' | t }}</div>
         </div>
       } @else {
         <div class="table-scroll">
-          <table class="table-responsive">
+          <table class="tbl table-responsive sup-table">
             <thead>
               <tr>
                 <th>{{ 'suppliers.col.name' | t }}</th>
+                <th>{{ 'customers.col.taxNumber' | t }}</th>
+                <th class="lg-only">{{ 'customers.col.location' | t }}</th>
                 <th>{{ 'suppliers.col.contact' | t }}</th>
                 <th>{{ 'suppliers.col.rating' | t }}</th>
-                <th class="num">{{ 'suppliers.col.leadTime' | t }}</th>
+                <th class="r">{{ 'suppliers.col.leadTime' | t }}</th>
                 <th>{{ 'suppliers.col.email' | t }}</th>
                 <th>{{ 'suppliers.col.phone' | t }}</th>
-                <th class="th-actions">{{ 'common.actions' | t }}</th>
+                <th class="w-acts"><span class="sr">{{ 'common.actions' | t }}</span></th>
               </tr>
             </thead>
             <tbody>
               @for (s of filteredSuppliers(); track s.id) {
                 <tr>
-                  <td [attr.data-label]="'suppliers.col.name' | t">
-                    <span class="sup-name">{{ s.name }}</span>
-                    @if (s.needsReview) { <span class="badge badge-warning sup-badge" [title]="'suppliers.review.missingTaxId' | t">{{ 'customers.filter.needsReview' | t }}</span> }
-                    @if (s.identityNumber) { <div class="sup-sub">{{ s.identityType || 'VKN' }} <span class="mono">{{ s.identityNumber }}</span>@if (s.taxOfficeName) { · {{ s.taxOfficeName }} }</div> }
-                    @if (s.address?.province) { <div class="sup-sub">{{ s.address.district ? s.address.district + ' / ' : '' }}{{ s.address.province }}</div> }
+                  <td class="td-primary">
+                    <div class="cell-prod sup-name">
+                      <span class="thumb" aria-hidden="true">{{ (s.name || '?').charAt(0) }}</span>
+                      <b class="truncate" [title]="s.name">{{ s.name }}</b>
+                      @if (s.needsReview) { <span class="badge badge-warning" [title]="'suppliers.review.missingTaxId' | t"><app-icon name="warn" size="xs" />{{ 'customers.filter.needsReview' | t }}</span> }
+                    </div>
                   </td>
-                  <td [attr.data-label]="'suppliers.col.contact' | t">{{ s.contactPerson || '-' }}</td>
+                  <td class="no-xs">
+                    @if (s.identityNumber) { <span class="tag">{{ s.identityType || 'VKN' }}</span><span class="mono sup-id">{{ s.identityNumber }}</span> } @else { <span class="cell-sec">—</span> }
+                  </td>
+                  <td class="no-xs lg-only cell-sec" [title]="s.taxOfficeName || ''">@if (s.address?.province) { {{ s.address.district ? s.address.district + ' / ' : '' }}{{ s.address.province }} } @else { — }</td>
+                  <td [attr.data-label]="'suppliers.col.contact' | t">@if (s.contactPerson) { {{ s.contactPerson }} } @else { <span class="cell-sec">—</span> }</td>
                   <td [attr.data-label]="'suppliers.col.rating' | t">
-                    <span class="sup-stars" [title]="'suppliers.form.stars' | t: { n: s.rating || 5 }">
+                    <span class="sup-stars" role="img" [attr.aria-label]="'suppliers.form.stars' | t: { n: s.rating || 5 }" [title]="'suppliers.form.stars' | t: { n: s.rating || 5 }">
                       @for (star of [1, 2, 3, 4, 5]; track star) {
-                        <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" [class.on]="star <= (s.rating || 5)"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" [class.on]="star <= (s.rating || 5)"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
                       }
                     </span>
                   </td>
-                  <td class="num" [attr.data-label]="'suppliers.col.leadTime' | t">{{ 'suppliers.days' | t: { n: s.leadTimeDays ?? 3 } }}</td>
-                  <td [attr.data-label]="'suppliers.col.email' | t">
-                    @if (s.email) { <a class="sup-link" href="mailto:{{ s.email }}">{{ s.email }}</a> } @else { - }
+                  <td class="r" [attr.data-label]="'suppliers.col.leadTime' | t">{{ 'suppliers.days' | t: { n: s.leadTimeDays ?? 3 } }}</td>
+                  <td class="sup-email" [attr.data-label]="'suppliers.col.email' | t">
+                    @if (s.email) { <a class="sup-contact" href="mailto:{{ s.email }}" [title]="s.email">{{ s.email }}</a> } @else { <span class="cell-sec">—</span> }
                   </td>
                   <td [attr.data-label]="'suppliers.col.phone' | t">
-                    @if (s.phone) { <a class="sup-link num" href="tel:{{ s.phone }}">{{ normalizePhone(s.phone) }}</a> } @else { - }
+                    @if (s.phone) { <a class="sup-contact sup-phone" href="tel:{{ s.phone }}">{{ normalizePhone(s.phone) }}</a> } @else { <span class="cell-sec">—</span> }
                   </td>
-                  <td class="td-actions">
-                    <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(s)">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    </button>
-                    <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteSupplier(s.id)">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                    </button>
+                  <td class="td-actions w-acts">
+                    <div class="sup-acts">
+                      <button type="button" class="btn btn-ghost btn-sm btn-icon row-act" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t" (click)="openDrawer(s)"><app-icon name="edit" /></button>
+                      <button type="button" class="btn btn-ghost btn-sm btn-icon row-act sup-del" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" (click)="deleteSupplier(s.id)"><app-icon name="trash" /></button>
+                    </div>
                   </td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
+        <div class="tbl-foot">
+          <span>{{ 'suppliers.count' | t: { n: filteredSuppliers().length } }}@if (filteredSuppliers().length !== suppliers().length) { / {{ suppliers().length }} }</span>
+        </div>
       }
     </div>
 
     @if (isDrawerOpen()) {
-      <div class="drawer-overlay" (click)="closeDrawer()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
-          <div class="drawer-header">
-            <span class="drawer-title">{{ (editId() ? 'suppliers.editTitle' : 'suppliers.addTitle') | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()" [title]="'common.close' | t">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
+      <div class="drawer-overlay" (click)="closeDrawer()" (document:keydown.escape)="closeDrawer()">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" [attr.aria-label]="(editId() ? 'suppliers.editTitle' : 'suppliers.addTitle') | t" (click)="$event.stopPropagation()">
+          <header class="drawer-h">
+            <div class="t">
+              <div class="eyebrow"><app-icon name="truck" size="sm" /><span class="truncate">{{ 'suppliers.title' | t }}</span></div>
+              <h2>{{ (editId() ? 'suppliers.editTitle' : 'suppliers.addTitle') | t }}</h2>
+            </div>
+            <div class="tools">
+              <button type="button" class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+            </div>
+          </header>
 
           <form [formGroup]="supplierForm" (ngSubmit)="saveSupplier()" class="sup-form">
-            <div class="drawer-body">
-              <div class="form-field">
-                <input id="supplierName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" [disabled]="isSaving()" />
-                <label for="supplierName" class="form-label">{{ 'suppliers.form.name' | t }}</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">{{ 'suppliers.form.nameRequired' | t }}</div> }
-              </div>
-
-              <div class="form-row">
-                <div class="form-field">
-                  <select id="supplierType" formControlName="type" class="form-input has-value">
-                    @for (t of supplierTypes; track t) { <option [value]="t">{{ 'suppliers.type.' + t | t }}</option> }
-                  </select>
-                  <label for="supplierType" class="form-label">{{ 'suppliers.form.type' | t }}</label>
-                </div>
-                <div class="form-field sup-checks">
-                  <label><input type="checkbox" formControlName="isForeign" /> {{ 'suppliers.form.isForeign' | t }}</label>
-                </div>
-              </div>
-
-              <div class="form-section-title">{{ 'customers.section.identity' | t }}</div>
-              <app-identity-fields [form]="supplierForm" idPrefix="sup" [types]="identityTypes" [provinceCode]="addressGroup.value.provinceCode"></app-identity-fields>
-              <div class="sup-check-row">
-                <label><input type="checkbox" formControlName="isTaxpayer" /> {{ 'suppliers.form.isTaxpayer' | t }}</label>
-                <label><input type="checkbox" formControlName="isVatTaxpayer" /> {{ 'customers.form.isVatTaxpayer' | t }}</label>
-                <label [title]="'suppliers.form.isImporterOrOreProducerHint' | t"><input type="checkbox" formControlName="isImporterOrOreProducer" /> {{ 'suppliers.form.isImporterOrOreProducer' | t }}</label>
-                @if (supplierForm.value.type === 'farmer') {
-                  <label><input type="checkbox" formControlName="isRealTaxationFarmer" /> {{ 'suppliers.form.isRealTaxationFarmer' | t }}</label>
-                }
-              </div>
-
-              <div class="form-section-title">{{ 'customers.section.address' | t }}</div>
-              <app-address-fields [group]="addressGroup" idPrefix="sup"></app-address-fields>
-
-              <div class="form-section-title">{{ 'suppliers.section.contact' | t }}</div>
-              <div class="form-field">
-                <input id="supplierContact" type="text" formControlName="contactPerson" class="form-input" [class.has-value]="hasValue('contactPerson')" [disabled]="isSaving()" />
-                <label for="supplierContact" class="form-label">{{ 'suppliers.form.contact' | t }}</label>
-              </div>
-
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="supplierEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasValue('email')" [disabled]="isSaving()" />
-                  <label for="supplierEmail" class="form-label">{{ 'suppliers.form.email' | t }}</label>
-                  @if (isFieldInvalid('email')) { <div class="form-error">{{ 'suppliers.form.emailInvalid' | t }}</div> }
-                </div>
-                <div class="form-field">
-                  <input id="supplierPhone" type="tel" formControlName="phone" class="form-input" [class.has-value]="hasValue('phone')" [disabled]="isSaving()" />
-                  <label for="supplierPhone" class="form-label">{{ 'suppliers.form.phone' | t }}</label>
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="sup-rating-field">
-                  <span class="sup-rating-label">{{ 'suppliers.form.rating' | t }}</span>
-                  <div class="sup-rating">
-                    @for (star of [1, 2, 3, 4, 5]; track star) {
-                      <button type="button" class="sup-star-btn" [class.on]="supplierForm.get('rating')?.value >= star" (click)="setRating(star)" [disabled]="isSaving()" [title]="'suppliers.form.stars' | t: { n: star }">
-                        <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
-                      </button>
-                    }
-                    <span class="sup-rating-text">
-                      @if (supplierForm.get('rating')?.value) {
-                        {{ 'suppliers.form.stars' | t: { n: supplierForm.get('rating')?.value } }}
-                      } @else {
-                        {{ 'suppliers.form.noRating' | t }}
-                      }
-                    </span>
+            <div class="drawer-body drawer-b">
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'suppliers.section.general' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld span-2">
+                    <label class="fld-label" for="supplierName">{{ 'suppliers.form.name' | t }} <span class="req">*</span></label>
+                    <div class="field"><input id="supplierName" type="text" formControlName="name" [attr.aria-invalid]="isFieldInvalid('name')" [disabled]="isSaving()" /></div>
+                    @if (isFieldInvalid('name')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'suppliers.form.nameRequired' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="supplierType">{{ 'suppliers.form.type' | t }}</label>
+                    <div class="field select">
+                      <select id="supplierType" formControlName="type">
+                        @for (t of supplierTypes; track t) { <option [value]="t">{{ 'suppliers.type.' + t | t }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld sup-foreign">
+                    <label class="check"><input type="checkbox" formControlName="isForeign" />{{ 'suppliers.form.isForeign' | t }}</label>
                   </div>
                 </div>
-                <div class="form-field">
-                  <input id="supplierLeadTime" type="number" formControlName="leadTimeDays" class="form-input" [class.has-value]="hasValue('leadTimeDays')" [disabled]="isSaving()" min="0" />
-                  <label for="supplierLeadTime" class="form-label">{{ 'suppliers.form.leadTime' | t }}</label>
-                  @if (isFieldInvalid('leadTimeDays')) { <div class="form-error">{{ 'suppliers.form.leadTimeInvalid' | t }}</div> }
-                </div>
-              </div>
+              </section>
 
-              <div class="form-field">
-                <textarea id="supplierNotes" formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')" [disabled]="isSaving()"></textarea>
-                <label for="supplierNotes" class="form-label">{{ 'suppliers.form.notes' | t }}</label>
-              </div>
-              <app-special-category-warning [text]="supplierForm.get('notes')?.value" />
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'customers.section.identity' | t }}</h3></div>
+                <app-identity-fields [form]="supplierForm" idPrefix="sup" [types]="identityTypes" [provinceCode]="addressGroup.value.provinceCode"></app-identity-fields>
+                <div class="sup-checks">
+                  <label class="check"><input type="checkbox" formControlName="isTaxpayer" />{{ 'suppliers.form.isTaxpayer' | t }}</label>
+                  <label class="check"><input type="checkbox" formControlName="isVatTaxpayer" />{{ 'customers.form.isVatTaxpayer' | t }}</label>
+                  <label class="check"><input type="checkbox" formControlName="isImporterOrOreProducer" /><span>{{ 'suppliers.form.isImporterOrOreProducer' | t }}<span class="sub">{{ 'suppliers.form.isImporterOrOreProducerHint' | t }}</span></span></label>
+                  @if (supplierForm.value.type === 'farmer') {
+                    <label class="check"><input type="checkbox" formControlName="isRealTaxationFarmer" />{{ 'suppliers.form.isRealTaxationFarmer' | t }}</label>
+                  }
+                </div>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">3</span><h3>{{ 'customers.section.address' | t }}</h3></div>
+                <app-address-fields [group]="addressGroup" idPrefix="sup"></app-address-fields>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">4</span><h3>{{ 'suppliers.section.contact' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld span-2">
+                    <label class="fld-label" for="supplierContact">{{ 'suppliers.form.contact' | t }}</label>
+                    <div class="field"><span class="lead"><app-icon name="user" size="sm" /></span><input id="supplierContact" type="text" formControlName="contactPerson" [disabled]="isSaving()" /></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="supplierEmail">{{ 'suppliers.form.email' | t }}</label>
+                    <div class="field"><input id="supplierEmail" type="email" formControlName="email" [attr.aria-invalid]="isFieldInvalid('email')" [disabled]="isSaving()" /></div>
+                    @if (isFieldInvalid('email')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'suppliers.form.emailInvalid' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="supplierPhone">{{ 'suppliers.form.phone' | t }}</label>
+                    <div class="field"><input id="supplierPhone" type="tel" formControlName="phone" [disabled]="isSaving()" /></div>
+                  </div>
+                  <div class="fld">
+                    <span class="fld-label" id="supRatingLbl">{{ 'suppliers.form.rating' | t }} <span class="req">*</span></span>
+                    <div class="sup-rating" role="radiogroup" aria-labelledby="supRatingLbl">
+                      @for (star of [1, 2, 3, 4, 5]; track star) {
+                        <button type="button" class="sup-star-btn" role="radio" [attr.aria-checked]="supplierForm.get('rating')?.value === star" [class.on]="supplierForm.get('rating')?.value >= star" (click)="setRating(star)" [disabled]="isSaving()" [attr.aria-label]="'suppliers.form.stars' | t: { n: star }">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+                        </button>
+                      }
+                      <span class="sup-rating-text">
+                        @if (supplierForm.get('rating')?.value) { {{ 'suppliers.form.stars' | t: { n: supplierForm.get('rating')?.value } }} } @else { {{ 'suppliers.form.noRating' | t }} }
+                      </span>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="supplierLeadTime">{{ 'suppliers.form.leadTime' | t }}</label>
+                    <div class="field"><input id="supplierLeadTime" type="number" class="num" formControlName="leadTimeDays" min="0" [attr.aria-invalid]="isFieldInvalid('leadTimeDays')" [disabled]="isSaving()" /><span class="affix suf">{{ 'suppliers.daysUnit' | t }}</span></div>
+                    @if (isFieldInvalid('leadTimeDays')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'suppliers.form.leadTimeInvalid' | t }}</div> }
+                  </div>
+                  <div class="fld span-2">
+                    <label class="fld-label" for="supplierNotes">{{ 'suppliers.form.notes' | t }}</label>
+                    <div class="field has-area"><textarea id="supplierNotes" rows="3" formControlName="notes" [disabled]="isSaving()"></textarea></div>
+                    <app-special-category-warning [text]="supplierForm.get('notes')?.value" />
+                  </div>
+                </div>
+              </section>
             </div>
 
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="supplierForm.invalid || supplierForm.pristine || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'suppliers.saving' | t }} } @else { {{ 'common.save' | t }} }
+              <span class="hint"><kbd>Ctrl</kbd><kbd>↵</kbd></span>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSaving()" [disabled]="supplierForm.invalid || supplierForm.pristine || isSaving()">
+                <span>{{ (isSaving() ? 'suppliers.saving' : 'common.save') | t }}</span>
               </button>
             </div>
           </form>
@@ -219,29 +235,51 @@ import { SpecialCategoryWarningComponent } from '../shared/special-category-warn
     <app-toast></app-toast>
   `,
   styles: [`
-    .sup-skel { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
-    .sup-name { font-weight: var(--weight-semibold); color: var(--color-text); }
-    .sup-sub { font-size: var(--text-2xs); color: var(--color-text-muted); margin-top: 2px; }
-    .sup-badge { margin-left: var(--space-2); }
-    .sup-checks { justify-content: flex-end; font-size: var(--text-sm); }
-    .sup-checks label, .sup-check-row label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
-    .sup-check-row { display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm); }
-    .sup-link { color: var(--color-primary-text); text-decoration: none; }
-    .sup-link:hover { text-decoration: underline; }
-    .sup-stars { display: inline-flex; gap: 2px; color: var(--color-border-strong); }
-    .sup-stars svg { fill: none; }
-    .sup-stars svg.on { color: var(--color-warning); fill: currentColor; }
-    .sup-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .sup-rating-field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-4); }
-    .sup-rating-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-secondary); }
-    .sup-rating { display: flex; align-items: center; gap: 2px; min-height: 40px; }
-    .sup-star-btn { background: transparent; border: 0; padding: 4px; cursor: pointer; color: var(--color-border-strong); border-radius: var(--radius-sm); display: grid; place-items: center; transition: transform var(--duration-fast) var(--ease-standard); }
-    .sup-star-btn svg { fill: none; }
-    .sup-star-btn.on { color: var(--color-warning); }
+    .sup-toolbar { margin-bottom: 12px; }
+    .sup-search { flex: 1 1 260px; max-width: 380px; }
+    .sup-skel { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .sup-table td { max-width: 240px; }
+    .sup-table td.w-acts { overflow: visible; max-width: none; }
+    .sup-name { max-width: 240px; }
+    .sup-name b { min-width: 0; }
+    .sup-name .badge { flex: none; }
+    .sup-id { margin-left: 6px; font-size: var(--text-xs); color: var(--fg-2); }
+    .sup-table td.sup-email { max-width: 190px; }
+    .sup-email .sup-contact { display: block; overflow: hidden; text-overflow: ellipsis; }
+    /* contact values read as ink; the accent only appears on hover/focus */
+    .sup-contact { color: var(--fg); text-decoration: none; }
+    .sup-contact:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+    .sup-phone { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .sup-stars { display: inline-flex; gap: 1px; color: var(--line-strong); vertical-align: middle; }
+    .sup-stars svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+    .sup-stars svg.on { color: var(--warning-dot); fill: currentColor; }
+    .sup-table th.w-acts, .sup-table td.w-acts { width: 1%; text-align: right; padding-left: 4px; padding-right: 8px; }
+    .sup-acts { display: flex; justify-content: flex-end; gap: 2px; }
+    .sup-acts .btn { color: var(--fg-2); }
+    .sup-acts .btn:hover { color: var(--fg); }
+    .sup-acts .sup-del:hover { color: var(--danger); }
+    .sup-form { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+    .sup-foreign { justify-content: flex-end; padding-bottom: 7px; }
+    .sup-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+    .sup-rating { display: flex; align-items: center; gap: 2px; min-height: var(--h-md); }
+    .sup-star-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--line-strong); cursor: pointer; transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
+    .sup-star-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+    .sup-star-btn.on { color: var(--warning-dot); }
     .sup-star-btn.on svg { fill: currentColor; }
-    .sup-star-btn:hover:not(:disabled) { transform: scale(1.12); }
+    .sup-star-btn:hover:not(:disabled) { background: var(--surface-hover); }
     .sup-star-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-    .sup-rating-text { font-size: var(--text-xs); color: var(--color-text-muted); margin-left: var(--space-2); white-space: nowrap; }
+    .sup-rating-text { font-size: var(--text-xs); color: var(--fg-3); margin-left: 8px; white-space: nowrap; }
+    @media (min-width: 641px) and (max-width: 1500px) { .lg-only { display: none; } }
+    @media (max-width: 640px) {
+      .no-xs { display: none !important; }
+      .sup-search { flex-basis: 100%; max-width: none; }
+      .sup-table td, .sup-table td.sup-email { max-width: none; }
+      .sup-name { max-width: none; }
+      .sup-checks { grid-template-columns: minmax(0, 1fr); }
+      .sup-foreign { padding-bottom: 0; }
+      .sup-table .row-act { opacity: 1; }
+      .table-responsive td.w-acts { width: 100%; padding-top: 4px; }
+    }
   `]
 })
 export class SuppliersComponent implements OnInit {

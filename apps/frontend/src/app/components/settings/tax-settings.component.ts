@@ -6,6 +6,7 @@ import { UiStateService } from '../../services/ui-state.service';
 import { TaxRate } from '../../models/inventory.models';
 import { ExemptionCode, TaxCatalog, WithholdingCode } from '../../models/tax.models';
 import { AppDatePipe, I18nService, NumberFormatPipe, TranslatePipe } from '../../i18n';
+import { IconComponent } from '../shared/icon.component';
 
 /**
  * Settings > Tax rates for TR companies: the rates come from the legal catalog and are
@@ -15,92 +16,115 @@ import { AppDatePipe, I18nService, NumberFormatPipe, TranslatePipe } from '../..
 @Component({
   selector: 'app-tax-settings',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, NumberFormatPipe, AppDatePipe],
+  imports: [FormsModule, TranslatePipe, NumberFormatPipe, AppDatePipe, IconComponent],
   styles: [`
-    .tr-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); }
-    .src { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .codes { margin-top: var(--space-5); }
-    .codes h4 { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--color-text); }
-    .code-list { max-height: 260px; overflow: auto; border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); }
-    .code-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: var(--border-width) solid var(--color-border-subtle); font-size: var(--text-sm); align-items: center; }
-    .code-row:last-child { border-bottom: 0; }
-    .check { display: flex; gap: var(--space-2); align-items: flex-start; margin-top: var(--space-4); font-size: var(--text-sm); }
-    .check input { margin-top: 3px; }
+    :host { display: block; }
+    .card-h.sh { padding-block: 12px; min-height: 56px; flex-wrap: wrap; row-gap: 8px; }
+    .sh .hg { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .sh .hg p { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .inline-form { display: flex; flex-direction: column; gap: 14px; box-shadow: inset 0 -1px 0 var(--line); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; align-items: start; }
+    .stack-20 { display: flex; flex-direction: column; gap: 20px; }
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .grid-4 { grid-template-columns: minmax(0, 1fr); } }
+    .src { font-size: var(--text-xs); color: var(--fg-3); }
+    .codes-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+    .code-list { max-height: 320px; overflow: auto; }
+    .code-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: first baseline; min-height: 36px; padding: 9px 16px; box-shadow: inset 0 -1px 0 var(--line); font-size: var(--text-sm); line-height: 18px; }
+    .code-row .ct { min-width: 0; }
+    .code-row .kind { font-size: var(--text-xs); color: var(--fg-3); white-space: nowrap; }
+    .code-row:last-child { box-shadow: none; }
+    .code-row .mono { color: var(--fg-2); font-size: var(--text-xs); }
+    .card-f .src { padding-block: 10px; }
+    @media (max-width: 1100px) { .codes-grid { grid-template-columns: minmax(0, 1fr); } }
   `],
   template: `
-    <div class="settings-card settings-card-lg">
-      <h3 class="card-title">{{ 'settings.taxRates.title' | t }}</h3>
-      <div class="tr-head">
-        <span class="badge badge-info">{{ 'settings.taxRates.trLocked' | t }}</span>
-        @if (catalog(); as c) { <span class="src">{{ 'settings.taxRates.catalogSource' | t: { source: c.sourceRef || '' } }}</span> }
-      </div>
-      <p class="card-subtitle settings-card-sub">{{ 'settings.taxRates.trSubtitle' | t }}</p>
 
-      <div class="table-scroll settings-table">
-        <table class="table-responsive">
-          <thead>
-            <tr>
-              <th>{{ 'settings.taxRates.code' | t }}</th>
-              <th>{{ 'settings.taxRates.name' | t }}</th>
-              <th class="num">{{ 'finance.taxRate' | t }}</th>
-              <th>{{ 'settings.taxRates.kind' | t }}</th>
-              <th>{{ 'settings.taxRates.validity' | t }}</th>
-              <th>{{ 'finance.defaultTax' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (tr of rates(); track tr.id) {
+    <div class="stack-20">
+      <section class="card">
+        <div class="card-h sh">
+          <div class="hg"><h3>{{ 'settings.taxRates.title' | t }}</h3><p>{{ 'settings.taxRates.trSubtitle' | t }}</p></div>
+          <span class="badge badge-info"><app-icon name="lock" size="xs" />{{ 'settings.taxRates.trLocked' | t }}</span>
+        </div>
+        <div class="table-scroll">
+          <table class="tbl table-responsive">
+            <thead>
               <tr>
-                <td class="mono" [attr.data-label]="'settings.taxRates.code' | t">{{ tr.code || '-' }} <span class="text-muted">· {{ tr.taxTypeCode || '0015' }}</span></td>
-                <td [attr.data-label]="'settings.taxRates.name' | t"><strong>{{ tr.name }}</strong></td>
-                <td class="num" [attr.data-label]="'finance.taxRate' | t">%{{ tr.rate | num }}</td>
-                <td [attr.data-label]="'settings.taxRates.kind' | t">
-                  <span class="badge" [class.badge-warning]="tr.kind === 'EXEMPT'" [class.badge-neutral]="tr.kind !== 'EXEMPT'">{{ 'settings.taxRates.kindValue.' + (tr.kind || 'STANDARD') | t }}</span>
-                </td>
-                <td [attr.data-label]="'settings.taxRates.validity' | t">
-                  {{ tr.validFrom ? (tr.validFrom | appDate) : '…' }} – {{ tr.validTo ? (tr.validTo | appDate) : ('settings.taxRates.open' | t) }}
-                </td>
-                <td [attr.data-label]="'finance.defaultTax' | t">
-                  @if (tr.isDefault) { <span class="badge badge-instock">{{ 'finance.defaultTax' | t }}</span> }
-                  @else if (tr.kind !== 'EXEMPT' && !tr.validTo) { <button type="button" class="btn btn-secondary btn-sm" (click)="setDefault(tr)">{{ 'settings.taxRates.setDefault' | t }}</button> }
-                </td>
+                <th>{{ 'settings.taxRates.code' | t }}</th>
+                <th>{{ 'settings.taxRates.name' | t }}</th>
+                <th class="r">{{ 'finance.taxRate' | t }}</th>
+                <th>{{ 'settings.taxRates.kind' | t }}</th>
+                <th>{{ 'settings.taxRates.validity' | t }}</th>
+                <th>{{ 'finance.defaultTax' | t }}</th>
               </tr>
+            </thead>
+            <tbody>
+              @for (tr of rates(); track tr.id) {
+                <tr>
+                  <td [attr.data-label]="'settings.taxRates.code' | t"><span class="mono">{{ tr.code || '—' }}</span><span class="cell-code">{{ tr.taxTypeCode || '0015' }}</span></td>
+                  <td [attr.data-label]="'settings.taxRates.name' | t"><strong>{{ tr.name }}</strong></td>
+                  <td class="r" [attr.data-label]="'finance.taxRate' | t">%{{ tr.rate | num }}</td>
+                  <td [attr.data-label]="'settings.taxRates.kind' | t">
+                    <span class="badge" [class.badge-warning]="tr.kind === 'EXEMPT'" [class.badge-neutral]="tr.kind !== 'EXEMPT'"><span class="dot"></span>{{ 'settings.taxRates.kindValue.' + (tr.kind || 'STANDARD') | t }}</span>
+                  </td>
+                  <td [attr.data-label]="'settings.taxRates.validity' | t">
+                    @if (tr.validFrom) { {{ tr.validFrom | appDate }} – @if (tr.validTo) { {{ tr.validTo | appDate }} } @else { <span class="text-muted">{{ 'settings.taxRates.open' | t }}</span> } }
+                    @else if (tr.validTo) { {{ 'settings.taxRates.until' | t: { date: (tr.validTo | appDate) } }} }
+                    @else { <span class="text-muted">{{ 'settings.taxRates.always' | t }}</span> }
+                  </td>
+                  <td [attr.data-label]="'finance.defaultTax' | t">
+                    @if (tr.isDefault) { <span class="badge badge-success"><span class="dot"></span>{{ 'finance.defaultTax' | t }}</span> }
+                    @else if (tr.kind !== 'EXEMPT' && !tr.validTo) { <button type="button" class="btn btn-xs" (click)="setDefault(tr)">{{ 'settings.taxRates.setDefault' | t }}</button> }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (catalog(); as c) { <div class="card-f"><app-icon name="info" size="sm" /><span class="src">{{ 'settings.taxRates.catalogSource' | t: { source: c.sourceRef || '' } }}</span></div> }
+      </section>
+
+      <section class="card">
+        <div class="card-b">
+          <label class="setting-row">
+            <span class="t"><b>{{ 'settings.taxRates.importerOrOre' | t }}</b><span>{{ 'settings.taxRates.importerOrOreHint' | t }}</span></span>
+            <span class="switch"><input type="checkbox" role="switch" [ngModel]="importerOrOre()" (ngModelChange)="saveImporter($event)" /><span class="track"></span></span>
+          </label>
+          <label class="setting-row">
+            <span class="t"><b>{{ 'settings.taxRates.designatedBuyer' | t }}</b><span>{{ 'settings.taxRates.designatedBuyerHint' | t }}</span></span>
+            <span class="switch"><input type="checkbox" role="switch" [ngModel]="designatedBuyer()" (ngModelChange)="saveDesignated($event)" /><span class="track"></span></span>
+          </label>
+        </div>
+      </section>
+
+      <div class="codes-grid">
+        <section class="card">
+          <div class="card-h"><h3>{{ 'settings.taxRates.withholdingCodes' | t }}</h3><span class="spacer"></span><span class="tag">{{ withholdings().length }}</span></div>
+          <div class="code-list">
+            @for (w of withholdings(); track w.code) {
+              <div class="code-row">
+                <span class="mono">{{ w.code }}</span>
+                <span class="ct">{{ name(w) }}@if (w.requiresDesignatedBuyer) { <span class="src"> · {{ 'settings.taxRates.designatedOnly' | t }}</span> }</span>
+                <span class="tag">{{ w.numerator | num }}/{{ w.denominator }}</span>
+              </div>
             }
-          </tbody>
-        </table>
-      </div>
-
-      <label class="check">
-        <input type="checkbox" [ngModel]="importerOrOre()" (ngModelChange)="saveImporter($event)" />
-        <span>{{ 'settings.taxRates.importerOrOre' | t }}<br /><span class="src">{{ 'settings.taxRates.importerOrOreHint' | t }}</span></span>
-      </label>
-      <label class="check">
-        <input type="checkbox" [ngModel]="designatedBuyer()" (ngModelChange)="saveDesignated($event)" />
-        <span>{{ 'settings.taxRates.designatedBuyer' | t }}<br /><span class="src">{{ 'settings.taxRates.designatedBuyerHint' | t }}</span></span>
-      </label>
-
-      <div class="codes">
-        <h4>{{ 'settings.taxRates.withholdingCodes' | t }}</h4>
-        <div class="code-list">
-          @for (w of withholdings(); track w.code) {
-            <div class="code-row">
-              <span class="mono">{{ w.code }}</span>
-              <span>{{ name(w) }}@if (w.requiresDesignatedBuyer) { <span class="src"> · {{ 'settings.taxRates.designatedOnly' | t }}</span> }</span>
-              <span class="badge badge-neutral">{{ w.numerator | num }}/{{ w.denominator }}</span>
-            </div>
-          }
-        </div>
-        <h4 class="codes">{{ 'settings.taxRates.exemptionCodes' | t }}</h4>
-        <div class="code-list">
-          @for (e of exemptions(); track e.code) {
-            <div class="code-row">
-              <span class="mono">{{ e.code }}</span>
-              <span>{{ name(e) }}@if (e.confidence !== 'high') { <span class="src" [title]="e.note || ''"> · {{ 'settings.taxRates.unconfirmed' | t }}</span> }</span>
-              <span class="badge badge-neutral">{{ e.invoiceType }}</span>
-            </div>
-          }
-        </div>
-        @if (exemptions()[0]; as e) { <p class="src">{{ 'settings.taxRates.codeListVersion' | t: { version: e.codeListVersion } }}</p> }
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-h"><h3>{{ 'settings.taxRates.exemptionCodes' | t }}</h3><span class="spacer"></span><span class="tag">{{ exemptions().length }}</span></div>
+          <div class="code-list">
+            @for (e of exemptions(); track e.code) {
+              <div class="code-row">
+                <span class="mono">{{ e.code }}</span>
+                <span class="ct">{{ name(e) }}@if (e.confidence !== 'high') { <span class="src" [attr.data-tip]="e.note || null"> · {{ 'settings.taxRates.unconfirmed' | t }}</span> }</span>
+                @if (e.invoiceType && e.invoiceType !== 'ISTISNA') { <span class="kind">{{ 'orderDocs.invoiceType.' + e.invoiceType | t }}</span> } @else { <span></span> }
+              </div>
+            }
+          </div>
+          @if (exemptions()[0]; as e) { <div class="card-f"><span>{{ 'settings.taxRates.codeListVersion' | t: { version: e.codeListVersion } }}</span></div> }
+        </section>
       </div>
     </div>
   `,
@@ -166,25 +190,32 @@ export class TaxSettingsComponent implements OnInit {
 @Component({
   selector: 'app-tcmb-panel',
   standalone: true,
-  imports: [FormsModule, TranslatePipe],
+  imports: [FormsModule, TranslatePipe, IconComponent],
   styles: [`
-    .tcmb { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border: var(--border-width) solid var(--color-info-border); background: var(--color-info-subtle); border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--color-text-secondary); }
-    .tcmb input[type=date] { height: 34px; width: 170px; flex: 0 0 auto; }
-    .grow { flex: 1 1 240px; }
-    .check { display: flex; gap: var(--space-2); align-items: center; }
+    :host { display: block; }
+    .card-h.sh { padding-block: 12px; min-height: 56px; align-items: flex-start; }
+    .sh .hg { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .sh .hg p { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .tcmb-ic { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--surface-sunken); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .tcmb-ctl { display: flex; flex-wrap: wrap; gap: 12px 8px; align-items: center; }
+    .tcmb-ctl .field { width: 170px; }
+    .tcmb-ctl .spacer { flex: 1; }
+    @media (max-width: 640px) { .tcmb-ctl .field { flex: 1 1 140px; width: auto; } .tcmb-ctl .spacer { display: none; } .tcmb-ctl .switch { flex-basis: 100%; } }
   `],
   template: `
-    <div class="tcmb">
-      <div class="grow">
-        <strong>{{ 'settings.exchangeRates.tcmbTitle' | t }}</strong><br />
-        <span>{{ 'settings.exchangeRates.tcmbHint' | t }}</span>
+
+    <section class="card">
+      <div class="card-h sh">
+        <span class="tcmb-ic"><app-icon name="globe" /></span>
+        <div class="hg"><h3>{{ 'settings.exchangeRates.tcmbTitle' | t }}</h3><p>{{ 'settings.exchangeRates.tcmbHint' | t }}</p></div>
       </div>
-      <input type="date" class="form-input" [(ngModel)]="date" [attr.aria-label]="'settings.exchangeRates.date' | t" />
-      <button type="button" class="btn btn-primary btn-sm" (click)="fetch()" [disabled]="busy()">
-        @if (busy()) { <span class="spinner-sm spinner-light"></span> } {{ 'settings.exchangeRates.tcmbFetch' | t }}
-      </button>
-      <label class="check"><input type="checkbox" [ngModel]="auto()" (ngModelChange)="saveAuto($event)" /> {{ 'settings.exchangeRates.autoFetch' | t }}</label>
-    </div>
+      <div class="card-b tcmb-ctl">
+        <div class="field"><input type="date" [(ngModel)]="date" [attr.aria-label]="'settings.exchangeRates.date' | t" /></div>
+        <button type="button" class="btn" [class.is-loading]="busy()" (click)="fetch()" [disabled]="busy()"><app-icon name="download" /><span>{{ 'settings.exchangeRates.tcmbFetch' | t }}</span></button>
+        <span class="spacer"></span>
+        <label class="switch"><input type="checkbox" role="switch" [ngModel]="auto()" (ngModelChange)="saveAuto($event)" /><span class="track"></span>{{ 'settings.exchangeRates.autoFetch' | t }}</label>
+      </div>
+    </section>
   `,
 })
 export class TcmbPanelComponent implements OnInit {

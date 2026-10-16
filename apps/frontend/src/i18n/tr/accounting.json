@@ -205,5 +205,10 @@
   "accounting.disposal.addLine": "Kalem ekle",
   "accounting.disposal.create": "Dosya oluştur",
   "accounting.disposal.created": "{no} imha dosyası oluşturuldu.",
-  "accounting.disposal.updated": "İmha dosyası güncellendi."
+  "accounting.disposal.updated": "İmha dosyası güncellendi.",
+  "accounting.disposal.lineCount": "{n} kalem",
+  "accounting.disposal.lineCountOne": "{n} kalem",
+  "accounting.disposal.pickWarehouse": "Depo seçin",
+  "accounting.disposal.pickLot": "Parti seçin",
+  "accounting.disposal.pickProduct": "Ürün seçin"
 }

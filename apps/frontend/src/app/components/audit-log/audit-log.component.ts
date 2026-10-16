@@ -9,6 +9,7 @@ import { AuditLog, AuditLogMeta } from '../../models/inventory.models';
 import { UiStateService } from '../../services/ui-state.service';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { I18nService, TranslatePipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
+import { IconComponent } from '../shared/icon.component';
 
 interface DiffRow {
   field: string;
@@ -20,36 +21,76 @@ interface DiffRow {
 @Component({
   selector: 'app-audit-log',
   standalone: true,
-  imports: [CommonModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe],
+  imports: [CommonModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe, IconComponent],
   styleUrls: ['../../drawer.css'],
+  host: { '(document:keydown.escape)': 'selected.set(null)' },
   styles: [`
-    .audit-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3); align-items: end; width: 100%; }
-    .audit-filters .form-group { margin: 0; min-width: 0; }
-    .audit-filters .input, .audit-filters .select { width: 100%; min-width: 0; }
-    .audit-row { cursor: pointer; }
-    .integrity-result { margin-bottom: var(--space-4); align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
-    .integrity-body { display: grid; gap: var(--space-1); min-width: 0; font-size: var(--text-sm); }
-    .integrity-issues { margin: var(--space-1) 0 0; padding-left: var(--space-5); font-size: var(--text-xs); }
-    .sub { font-size: var(--text-2xs); color: var(--color-text-muted); }
-    .id-cell { max-width: 220px; }
-    .id-cell > .truncate { min-width: 0; }
-    td.mono::before { font-family: var(--font-sans); }
-    .page-count { padding: 0 var(--space-2); font-size: var(--text-sm); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
-    .meta-card { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); font-size: var(--text-xs); color: var(--color-text-secondary); min-width: 0; }
-    .meta-card .head { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; color: var(--color-text); font-size: var(--text-sm); min-width: 0; }
-    .meta-card .ua { word-break: break-all; color: var(--color-text-muted); }
-    .diff-wrap { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
-    .diff-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); table-layout: fixed; }
-    .diff-table th { text-align: left; padding: var(--space-2) var(--space-3); background: var(--color-surface-subtle); color: var(--color-text-muted); font-weight: var(--weight-semibold); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--color-border); }
-    .diff-table td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-subtle); vertical-align: top; word-break: break-word; color: var(--color-text); }
-    .diff-table tr:last-child td { border-bottom: 0; }
-    .diff-table th:first-child { width: 28%; }
-    .diff-table td.val { font-family: var(--font-mono, monospace); white-space: pre-wrap; }
-    .diff-changed .before-val { background: var(--color-danger-subtle); color: var(--color-danger-text); }
-    .diff-changed .after-val { background: var(--color-success-subtle); color: var(--color-success-text); }
+    .sec { color: var(--fg-3); }
+    .al-integrity { align-items: flex-start; margin-bottom: 12px; }
+    .al-integrity > app-icon { margin-top: 1px; color: var(--tone); }
+    .al-int-body { display: grid; gap: 2px; min-width: 0; flex: 1; }
+    .al-int-body b { font-weight: 600; }
+    .al-int-body .s { font-size: var(--text-xs); color: var(--fg-2); }
+    .al-int-body .h { font-size: var(--text-xs); color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .al-int-body .legal { font-size: var(--text-xs); color: var(--fg-3); margin-top: 4px; }
+    .al-issues { margin: 4px 0 0; padding-left: 18px; font-size: var(--text-xs); color: var(--fg-2); }
+
+    .al-tools { margin-bottom: 12px; }
+    .al-tools .field .affix.pre { font-size: var(--text-xs); }
+    /* bases sum to one row at ≥1366px so the record-ID search never wraps on its own */
+    .al-sel { flex: 1 1 180px; min-width: 140px; max-width: 220px; }
+    .al-date { flex: none; }
+    .al-date input { flex: none; width: 124px; }
+    .al-id { flex: 1 1 140px; min-width: 120px; max-width: 260px; }
+
+    .al-skel { display: grid; gap: 14px; }
+    .al-table tbody tr { cursor: pointer; }
+    .al-table .badge { margin-left: 0; }
+    .al-api { margin-left: 8px; }
+    .al-id-cell { max-width: 240px; }
+    .al-id-cell, .al-ip { font-size: var(--text-xs); color: var(--fg-3); }
+    .al-pages { display: flex; align-items: center; gap: 4px; }
+    .al-pages .cnt { padding: 0 8px; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+
+    /* diff drawer */
+    .drawer-body > * { flex-shrink: 0; }
+    .kv { display: grid; grid-template-columns: minmax(96px, auto) minmax(0, 1fr); gap: 10px 20px; margin: 0; font-size: var(--text-sm); }
+    .kv dt { font-size: var(--text-xs); font-weight: 500; color: var(--fg-2); padding-top: 1px; }
+    .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--fg); }
+    .kv dd .badge { margin-left: 0; }
+    .kv .ua { font-size: var(--text-xs); color: var(--fg-3); }
+    .diff { border-radius: var(--radius-md); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+    .diff table { table-layout: fixed; }
+    .diff th:first-child { width: 28%; }
+    .diff td { height: auto; padding: 8px 12px; vertical-align: top; font-size: var(--text-xs); overflow-wrap: anywhere; }
+    .diff td.k { font-weight: 500; color: var(--fg); font-family: var(--font-mono); }
+    .diff td.v { font-family: var(--font-mono); white-space: pre-wrap; color: var(--fg-2); }
+    .diff tr.is-changed td.b { background: var(--danger-soft); color: var(--danger); }
+    .diff tr.is-changed td.a { background: var(--success-soft); color: var(--success); }
+    .diff tbody tr:hover td { background: inherit; }
+    .diff tr.is-changed td.k { box-shadow: inset 2px 0 0 var(--warning-dot), inset 0 -1px 0 var(--line); }
     @media (max-width: 640px) {
-      .audit-filters { grid-template-columns: 1fr 1fr; }
-      .id-cell { max-width: none; }
+      .page-header { flex-wrap: nowrap; }
+      .page-header > :first-child { flex: 1 1 auto; }
+      .page-actions { flex: none; }
+      .al-date input { flex: 1 1 auto; width: auto; min-width: 0; }
+      /* phones open the native picker on tap; the glyph only steals room from the date */
+      .al-date input::-webkit-calendar-picker-indicator { display: none; }
+      .al-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .al-sel, .al-date, .al-id { max-width: none; min-width: 0; }
+      .al-sel:nth-child(2), .al-id, .al-tools > .btn { grid-column: 1 / -1; }
+      .al-sel:nth-child(2) { order: 1; }
+      .al-date { order: 2; }
+      .al-id { order: 3; }
+      .al-tools > .btn { order: 4; justify-self: start; }
+      .al-tools .field .affix.pre { padding: 0 8px; }
+      .al-tools .al-date.field .affix.pre { padding: 0 6px; }
+      .al-tools .al-date.field input { padding-left: 6px; padding-right: 2px; }
+      .al-table td { max-width: none; white-space: normal; }
+      .al-id-cell { overflow-wrap: anywhere; text-align: right; }
+      .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .kv dd + dt { margin-top: 10px; }
+      .diff th:first-child { width: 32%; }
     }
   `],
   template: `
@@ -59,84 +100,86 @@ interface DiffRow {
         <p>{{ 'auditLog.subtitle' | t }}</p>
       </div>
       <div class="page-actions">
-        <button type="button" class="btn btn-secondary" (click)="verifyIntegrity()" [disabled]="verifying()">
-          @if (verifying()) { <span class="spinner-sm"></span> } @else {
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
-          }
-          {{ 'auditLog.integrity.verify' | t }}
+        <button type="button" class="btn" [class.is-loading]="verifying()" (click)="verifyIntegrity()" [disabled]="verifying()">
+          <span class="cluster"><app-icon name="shield" />{{ 'auditLog.integrity.verify' | t }}</span>
         </button>
       </div>
     </div>
 
     @if (integrity(); as r) {
-      <div class="alert-banner integrity-result" [class.alert-banner--info]="r.ok" [class.alert-banner--danger]="!r.ok" role="status">
-        <div class="integrity-body">
-          <strong>{{ (r.ok ? 'auditLog.integrity.ok' : 'auditLog.integrity.broken') | t }}</strong>
-          <span>{{ 'auditLog.integrity.summary' | t: { count: (r.checked | num), seq: r.lastSequenceNo, at: (r.verifiedAt | appDate: 'datetime') } }}</span>
-          @if (r.attachmentsChecked !== undefined) { <span>{{ 'auditLog.integrity.attachments' | t: { count: (r.attachmentsChecked | num) } }}</span> }
-          <span class="mono text-2xs truncate" [title]="r.lastHash">{{ 'auditLog.integrity.head' | t }}: {{ r.lastHash }}</span>
+      <div class="notice al-integrity" [class.notice-success]="r.ok" [class.notice-danger]="!r.ok" role="status">
+        <app-icon [name]="r.ok ? 'okc' : 'alert'" />
+        <div class="al-int-body">
+          <b>{{ (r.ok ? 'auditLog.integrity.ok' : 'auditLog.integrity.broken') | t }}</b>
+          <span class="s">{{ 'auditLog.integrity.summary' | t: { count: (r.checked | num), seq: r.lastSequenceNo, at: (r.verifiedAt | appDate: 'datetime') } }}</span>
+          @if (r.attachmentsChecked !== undefined) { <span class="s">{{ 'auditLog.integrity.attachments' | t: { count: (r.attachmentsChecked | num) } }}</span> }
+          <span class="h mono" [title]="r.lastHash">{{ 'auditLog.integrity.head' | t }}: {{ r.lastHash }}</span>
           @if (!r.ok) {
-            <ul class="integrity-issues">
+            <ul class="al-issues">
               @for (i of r.issues.slice(0, 5); track $index) {
                 <li>#{{ i.sequenceNo ?? '-' }} · {{ 'auditLog.integrity.problem.' + i.problem | t }}</li>
               }
             </ul>
           }
-          <span class="text-2xs">{{ 'auditLog.integrity.legal' | t }}</span>
+          <span class="legal">{{ 'auditLog.integrity.legal' | t }}</span>
         </div>
-        <button type="button" class="btn btn-sm btn-ghost" (click)="integrity.set(null)" [attr.aria-label]="'common.close' | t">✕</button>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="integrity.set(null)" [attr.aria-label]="'common.close' | t"><app-icon name="x" size="sm" /></button>
       </div>
     }
 
-    <div class="filter-bar">
-      <div class="audit-filters">
-        <div class="form-group"><label>{{ 'auditLog.filter.user' | t }}</label>
-          <select class="select" [ngModel]="username()" (ngModelChange)="username.set($event); search()">
-            <option value="">{{ 'auditLog.filter.all' | t }}</option>
-            @for (u of meta().usernames; track u) { <option [value]="u">{{ u }}</option> }
-          </select>
-        </div>
-        <div class="form-group"><label>{{ 'auditLog.filter.entityType' | t }}</label>
-          <select class="select" [ngModel]="entityType()" (ngModelChange)="entityType.set($event); search()">
-            <option value="">{{ 'auditLog.filter.all' | t }}</option>
-            @for (e of meta().entityTypes; track e) { <option [value]="e">{{ entityLabel(e) }}</option> }
-          </select>
-        </div>
-        <div class="form-group"><label>{{ 'auditLog.filter.action' | t }}</label>
-          <select class="select" [ngModel]="action()" (ngModelChange)="action.set($event); search()">
-            <option value="">{{ 'auditLog.filter.all' | t }}</option>
-            @for (a of meta().actions; track a) { <option [value]="a">{{ actionLabel(a) }}</option> }
-          </select>
-        </div>
-        <div class="form-group"><label>{{ 'auditLog.filter.from' | t }}</label>
-          <input type="date" class="input" [ngModel]="from()" (ngModelChange)="from.set($event); search()" />
-        </div>
-        <div class="form-group"><label>{{ 'auditLog.filter.to' | t }}</label>
-          <input type="date" class="input" [ngModel]="to()" (ngModelChange)="to.set($event); search()" />
-        </div>
-        <div class="form-group"><label>{{ 'auditLog.filter.entityId' | t }}</label>
-          <input type="text" class="input mono" [ngModel]="entityId()" (ngModelChange)="entityId.set($event)" (keyup.enter)="search()" (blur)="search()" />
-        </div>
-        <button class="btn btn-ghost" (click)="clearFilters()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          {{ 'auditLog.filter.clear' | t }}
-        </button>
+    <div class="toolbar al-tools">
+      <div class="field field-sm select al-sel">
+        <span class="affix pre">{{ 'auditLog.filter.user' | t }}</span>
+        <select [ngModel]="username()" (ngModelChange)="username.set($event); search()" [attr.aria-label]="'auditLog.filter.user' | t">
+          <option value="">{{ 'auditLog.filter.all' | t }}</option>
+          @for (u of meta().usernames; track u) { <option [value]="u">{{ u }}</option> }
+        </select>
       </div>
+      <div class="field field-sm select al-sel">
+        <span class="affix pre">{{ 'auditLog.filter.entityType' | t }}</span>
+        <select [ngModel]="entityType()" (ngModelChange)="entityType.set($event); search()" [attr.aria-label]="'auditLog.filter.entityType' | t">
+          <option value="">{{ 'auditLog.filter.all' | t }}</option>
+          @for (e of meta().entityTypes; track e) { <option [value]="e">{{ entityLabel(e) }}</option> }
+        </select>
+      </div>
+      <div class="field field-sm select al-sel">
+        <span class="affix pre">{{ 'auditLog.filter.action' | t }}</span>
+        <select [ngModel]="action()" (ngModelChange)="action.set($event); search()" [attr.aria-label]="'auditLog.filter.action' | t">
+          <option value="">{{ 'auditLog.filter.all' | t }}</option>
+          @for (a of meta().actions; track a) { <option [value]="a">{{ actionLabel(a) }}</option> }
+        </select>
+      </div>
+      <div class="field field-sm al-date">
+        <span class="affix pre">{{ 'auditLog.filter.from' | t }}</span>
+        <input type="date" [ngModel]="from()" (ngModelChange)="from.set($event); search()" [attr.aria-label]="'auditLog.filter.from' | t" />
+      </div>
+      <div class="field field-sm al-date">
+        <span class="affix pre">{{ 'auditLog.filter.to' | t }}</span>
+        <input type="date" [ngModel]="to()" (ngModelChange)="to.set($event); search()" [attr.aria-label]="'auditLog.filter.to' | t" />
+      </div>
+      <div class="field field-sm al-id">
+        <span class="lead"><app-icon name="hash" size="sm" /></span>
+        <input type="text" class="mono" data-page-search [placeholder]="'auditLog.filter.entityId' | t" [attr.aria-label]="'auditLog.filter.entityId' | t" [ngModel]="entityId()" (ngModelChange)="entityId.set($event)" (keyup.enter)="search()" (blur)="search()" />
+      </div>
+      @if (username() || entityType() || action() || from() || to() || entityId()) {
+        <button type="button" class="btn btn-sm btn-ghost" (click)="clearFilters()"><app-icon name="x" size="sm" />{{ 'auditLog.filter.clear' | t }}</button>
+      }
     </div>
 
     <div class="table-card">
       @if (isLoading()) {
-        <div class="stack" style="padding: var(--space-4);">
-          @for (i of [1, 2, 3, 4, 5, 6]; track i) { <div class="skeleton" style="height: 36px;"></div> }
-        </div>
+        <div class="card-b al-skel">@for (i of [1, 2, 3, 4, 5, 6]; track i) { <div class="skeleton-row"></div> }</div>
       } @else if (logs().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
-          <div class="empty-state-title">{{ 'auditLog.empty' | t }}</div>
+          <div class="empty-art"><app-icon name="audit" /></div>
+          <h3>{{ 'auditLog.empty' | t }}</h3>
+          @if (username() || entityType() || action() || from() || to() || entityId()) {
+            <div class="actions"><button type="button" class="btn btn-sm" (click)="clearFilters()"><app-icon name="x" size="sm" />{{ 'auditLog.filter.clear' | t }}</button></div>
+          }
         </div>
       } @else {
         <div class="table-scroll">
-          <table class="table-responsive">
+          <table class="tbl table-responsive al-table">
             <thead>
               <tr>
                 <th>{{ 'auditLog.col.date' | t }}</th>
@@ -149,30 +192,28 @@ interface DiffRow {
             </thead>
             <tbody>
               @for (l of logs(); track l.id) {
-                <tr class="audit-row" (click)="openDiff(l)">
+                <tr (click)="openDiff(l)" tabindex="0" (keydown.enter)="openDiff(l)">
                   <td [attr.data-label]="'auditLog.col.date' | t">{{ l.createdAt | appDate: 'datetime' }}</td>
                   <td [attr.data-label]="'auditLog.col.user' | t">
-                    {{ l.username || '-' }}
-                    @if (l.apiKeyId) { <div class="sub">{{ 'auditLog.viaApiKey' | t }}</div> }
+                    <span>{{ l.username || '—' }}@if (l.apiKeyId) { <span class="badge badge-neutral al-api">{{ 'auditLog.viaApiKey' | t }}</span> }</span>
                   </td>
-                  <td [attr.data-label]="'auditLog.col.action' | t"><span class="badge" [ngClass]="actionBadge(l.action)">{{ actionLabel(l.action) }}</span></td>
+                  <td [attr.data-label]="'auditLog.col.action' | t"><span class="badge" [ngClass]="actionBadge(l.action)"><span class="dot"></span>{{ actionLabel(l.action) }}</span></td>
                   <td [attr.data-label]="'auditLog.col.entityType' | t">{{ entityLabel(l.entityType) }}</td>
-                  <td [attr.data-label]="'auditLog.col.entityId' | t" class="mono id-cell"><span class="truncate" style="display: block;" [title]="l.entityId || ''">{{ l.entityId || '-' }}</span></td>
-                  <td [attr.data-label]="'auditLog.col.ip' | t" class="mono">{{ l.ip || '-' }}</td>
+                  <td [attr.data-label]="'auditLog.col.entityId' | t" class="mono al-id-cell" [title]="l.entityId || ''">{{ l.entityId || '—' }}</td>
+                  <td [attr.data-label]="'auditLog.col.ip' | t" class="mono al-ip">{{ l.ip || '—' }}</td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
 
-        <div class="pagination-bar">
-          <div class="pagination-info">
-            {{ 'auditLog.pagination' | t: { total: total(), start: startCount(), end: endCount() } }}
-          </div>
-          <div class="pagination-actions">
-            <button class="page-btn" [disabled]="page() === 1" (click)="load(page() - 1)">{{ 'auditLog.prev' | t }}</button>
-            <span class="page-count">{{ page() | num }} / {{ totalPages() | num }}</span>
-            <button class="page-btn" [disabled]="page() >= totalPages()" (click)="load(page() + 1)">{{ 'auditLog.next' | t }}</button>
+        <div class="tbl-foot">
+          <span>{{ 'auditLog.pagination' | t: { total: (total() | num), start: (startCount() | num), end: (endCount() | num) } }}</span>
+          <span class="spacer"></span>
+          <div class="al-pages">
+            <button type="button" class="btn btn-sm btn-icon" [disabled]="page() === 1" (click)="load(page() - 1)" [attr.aria-label]="'auditLog.prev' | t"><app-icon name="chevl" size="sm" /></button>
+            <span class="cnt">{{ page() | num }} / {{ totalPages() | num }}</span>
+            <button type="button" class="btn btn-sm btn-icon" [disabled]="page() >= totalPages()" (click)="load(page() + 1)" [attr.aria-label]="'auditLog.next' | t"><app-icon name="chevr" size="sm" /></button>
           </div>
         </div>
       }
@@ -180,22 +221,34 @@ interface DiffRow {
 
     @if (selected(); as s) {
       <div class="drawer-overlay" (click)="selected.set(null)">
-        <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" [attr.aria-label]="'auditLog.diff.title' | t" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'auditLog.diff.title' | t }}</span>
-            <button class="drawer-close" (click)="selected.set(null)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button type="button" class="drawer-close" (click)="selected.set(null)" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
           <div class="drawer-body">
-            <div class="meta-card">
-              <div class="head"><span class="badge" [ngClass]="actionBadge(s.action)">{{ actionLabel(s.action) }}</span> <strong>{{ entityLabel(s.entityType) }}</strong> <span class="mono truncate" style="min-width: 0;">{{ s.entityId || '-' }}</span></div>
-              <div>{{ s.createdAt | appDate: 'datetime' }} · {{ s.username || '-' }} · <span class="mono">{{ s.ip || '-' }}</span></div>
-              @if (s.userAgent) { <div class="ua">{{ s.userAgent }}</div> }
-            </div>
+            <dl class="kv">
+              <dt>{{ 'auditLog.col.action' | t }}</dt>
+              <dd><span class="badge" [ngClass]="actionBadge(s.action)"><span class="dot"></span>{{ actionLabel(s.action) }}</span></dd>
+              <dt>{{ 'auditLog.col.entityType' | t }}</dt>
+              <dd>{{ entityLabel(s.entityType) }}</dd>
+              <dt>{{ 'auditLog.col.entityId' | t }}</dt>
+              <dd class="mono">{{ s.entityId || '—' }}</dd>
+              <dt>{{ 'auditLog.col.date' | t }}</dt>
+              <dd>{{ s.createdAt | appDate: 'datetime' }}</dd>
+              <dt>{{ 'auditLog.col.user' | t }}</dt>
+              <dd>{{ s.username || '—' }}@if (s.apiKeyId) { <span class="sec"> · {{ 'auditLog.viaApiKey' | t }}</span> }</dd>
+              <dt>{{ 'auditLog.col.ip' | t }}</dt>
+              <dd><span class="mono">{{ s.ip || '—' }}</span>@if (s.userAgent) { <div class="ua">{{ s.userAgent }}</div> }</dd>
+            </dl>
             @if (diffRows().length === 0) {
-              <div class="empty-state"><div class="empty-state-title">{{ 'auditLog.diff.noChanges' | t }}</div></div>
+              <div class="empty-state">
+                <div class="empty-art"><app-icon name="file" /></div>
+                <h3>{{ 'auditLog.diff.noChanges' | t }}</h3>
+              </div>
             } @else {
-              <div class="diff-wrap">
-                <table class="diff-table">
+              <div class="diff">
+                <table>
                   <thead>
                     <tr>
                       <th>{{ 'auditLog.diff.field' | t }}</th>
@@ -205,10 +258,10 @@ interface DiffRow {
                   </thead>
                   <tbody>
                     @for (r of diffRows(); track r.field) {
-                      <tr [class.diff-changed]="r.changed">
-                        <td><strong>{{ r.field }}</strong></td>
-                        <td class="val before-val">{{ r.before }}</td>
-                        <td class="val after-val">{{ r.after }}</td>
+                      <tr [class.is-changed]="r.changed">
+                        <td class="k">{{ r.field }}</td>
+                        <td class="v b">{{ r.before }}</td>
+                        <td class="v a">{{ r.after }}</td>
                       </tr>
                     }
                   </tbody>
@@ -217,9 +270,10 @@ interface DiffRow {
             }
           </div>
           <div class="drawer-footer">
-            <button class="btn btn-secondary" (click)="selected.set(null)">{{ 'common.close' | t }}</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-ghost" (click)="selected.set(null)">{{ 'common.close' | t }}</button>
             @if (s.entityId && s.entityType !== 'auth') {
-              <button class="btn btn-primary" (click)="filterEntity(s)">{{ 'auditLog.diff.entityHistory' | t }}</button>
+              <button type="button" class="btn btn-primary" (click)="filterEntity(s)"><app-icon name="audit" />{{ 'auditLog.diff.entityHistory' | t }}</button>
             }
           </div>
         </div>
@@ -355,8 +409,11 @@ export class AuditLogComponent implements OnInit {
     return this.label(`auditLog.action.${a}`, a);
   }
 
+  /** Sentence-case name first, then the legacy label, then a humanized table name — never raw snake_case. */
   entityLabel(e: string): string {
-    return this.label(`auditLog.entity.${e}`, e);
+    if (!e) return '—';
+    const humanized = e.charAt(0).toUpperCase() + e.slice(1).replace(/_/g, ' ');
+    return this.label(`auditLog.entityName.${e}`, this.label(`auditLog.entity.${e}`, humanized));
   }
 
   private label(key: string, fallback: string): string {

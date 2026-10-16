@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -11,6 +11,7 @@ import {
   TransferRow, VerbisStatus,
 } from '../../services/kvkk.service';
 import { NoticeTextComponent } from '../kvkk/notice-text.component';
+import { IconComponent } from '../shared/icon.component';
 import trKvkkSettings from '../../../i18n/tr/kvkk-settings.json';
 import enKvkkSettings from '../../../i18n/en/kvkk-settings.json';
 
@@ -26,69 +27,127 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
 @Component({
   selector: 'app-kvkk-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, NoticeTextComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, NoticeTextComponent, IconComponent],
   styleUrls: ['../../drawer.css', '../documents/documents.css'],
   styles: [`
-    .kv-tabs { margin: var(--space-4) 0 var(--space-5); }
-    .kv-row { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
+    :host { display: block; }
+    .card-h.sh { padding-block: 12px; min-height: 56px; flex-wrap: wrap; row-gap: 8px; }
+    .sh .hg { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .sh .hg p { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .inline-form { display: flex; flex-direction: column; gap: 14px; box-shadow: inset 0 -1px 0 var(--line); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; align-items: start; }
+    .stack-20 { display: flex; flex-direction: column; gap: 20px; }
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .grid-4 { grid-template-columns: minmax(0, 1fr); } }
+    .kv-body { display: flex; flex-direction: column; gap: 16px; }
+    .kv-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .kv-stats .kpi { box-shadow: 0 0 0 1px var(--line); }
+    .kv-stats .kpi:hover { box-shadow: 0 0 0 1px var(--ring-strong); }
+    .kv-stats .kpi:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .kv-date { font-size: var(--text-xl) !important; }
+    /* inner seg: never squeeze the items; the strip scrolls with faded edges instead */
+    .kv-seg-wrap { overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; mask-image: linear-gradient(90deg, transparent 0, black 16px, black calc(100% - 16px), transparent); }
+    .kv-seg-wrap::-webkit-scrollbar { display: none; }
+    .kv-seg { flex-wrap: nowrap; max-width: none; overflow: visible; }
+    .kv-seg button { flex: none; white-space: nowrap; }
+    .kv-sub-select { display: none; }
+    @media (max-width: 640px) {
+      .kv-seg-wrap { display: none; }
+      .kv-sub-select { display: flex; }
+      .kv-notices-tbl td.td-primary > .badge { margin-left: 8px; }
+      .kv-notices-tbl .row-act { opacity: 1; }
+    }
+    .kv-row { display: flex; gap: 10px 12px; align-items: flex-end; flex-wrap: wrap; }
     .kv-row .doc-field { margin-bottom: 0; min-width: 160px; }
     .kv-row .grow { flex: 1; min-width: 220px; }
-    .kv-panel { margin-top: var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
-    .kv-panel h4 { margin: 0 0 var(--space-3); font-size: var(--text-md); }
-    .kv-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
-    .kv-stat { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    .kv-stat .v { font-size: var(--text-xl); font-weight: var(--weight-semibold); }
-    .kv-stat .l { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .kv-notice { max-height: 420px; overflow-y: auto; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .kv-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .kv-panel h4 { margin: 0; font-size: var(--text-sm); font-weight: 600; }
+    .kv-panel .doc-actions { justify-content: flex-end; }
+    .kv-panel .table-card, .kv-panel .tbl { background: var(--surface); }
+    .kv-notice { max-height: 420px; overflow-y: auto; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
     textarea.input { min-height: 260px; width: 100%; font-family: var(--font-mono); font-size: var(--text-xs); }
-    .kv-response { white-space: pre-wrap; font-size: var(--text-sm); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
-    .kv-danger { border-color: var(--color-danger-border, var(--color-border)); }
+    textarea.input.kv-resp-ta { min-height: 120px; font-family: var(--font-sans); font-size: var(--text-sm); }
+    .kv-response { white-space: pre-wrap; font-size: var(--text-sm); padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+    .kv-danger { background: var(--danger-soft); box-shadow: inset 0 0 0 1px var(--danger-line); }
+    .kv-danger h4 { color: var(--danger); }
+    .kv-mt { margin-top: 4px; }
+    .kv-w80 { width: 80px; }
+    .notice .t > div { margin-top: 4px; }
+    .tbl td { white-space: normal; max-width: 420px; }
+    .tbl td:first-child, .tbl td.mono { white-space: nowrap; }
+    .tbl td.doc-hint { min-width: 220px; }
+    .tbl td.td-actions { white-space: nowrap; }
+    .tbl td.kv-nw { white-space: nowrap; }
+    .td-primary > .badge { margin-left: 8px; }
+    .td-actions { gap: 4px; }
     .clickable { cursor: pointer; }
-    tr.selected td { background: var(--color-primary-subtle); }
     @media (max-width: 760px) { .kv-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   `],
   template: `
-    <div class="settings-card settings-card-lg">
-      <h3 class="card-title">{{ 'settings.kvkk.title' | t }}</h3>
-      <p class="card-subtitle settings-card-sub">{{ 'settings.kvkk.subtitle' | t }}</p>
-      @if (!canManage()) { <div class="doc-alert info">{{ 'settings.kvkk.readOnly' | t }}</div> }
+    <section class="card">
+      <div class="card-h sh">
+        <div class="hg"><h3>{{ 'settings.kvkk.title' | t }}</h3><p>{{ 'settings.kvkk.subtitle' | t }}</p></div>
+        @if (!canManage()) { <span class="badge badge-neutral"><span class="dot"></span><app-icon name="eye" size="xs" />{{ 'settings.kvkk.readOnly' | t }}</span> }
+      </div>
+      <div class="card-b kv-body">
 
       @if (status(); as st) {
         <div class="kv-stats">
-          <div class="kv-stat"><div class="v">{{ st.dsr.open }}</div><div class="l">{{ 'settings.kvkk.stat.openRequests' | t }}@if (st.dsr.overdue) { · <span class="badge badge-danger">{{ 'kvkk.dsr.overdue' | t }}</span> }</div></div>
-          <div class="kv-stat"><div class="v">{{ st.incidents.open }}</div><div class="l">{{ 'settings.kvkk.stat.openIncidents' | t }}@if (st.incidents.nearest; as n) { · {{ 'kvkk.incident.hoursLeft' | t: { h: n.hoursLeft } }} }</div></div>
-          <div class="kv-stat"><div class="v">{{ st.destruction.due | appDate }}</div><div class="l">{{ 'settings.kvkk.stat.nextDestruction' | t }}@if (st.destruction.overdue) { · <span class="badge badge-warning">{{ 'kvkk.destruction.overdue' | t }}</span> }</div></div>
-          <div class="kv-stat"><div class="v">{{ st.notices.published }}</div><div class="l">{{ 'settings.kvkk.stat.publishedNotices' | t }}</div></div>
+          <button type="button" class="kpi" [class.is-alert]="st.dsr.overdue" (click)="go('dsr')">
+            <div class="kpi-top"><app-icon name="inbox" size="sm" />{{ 'settings.kvkk.stat.openRequests' | t }}<app-icon class="go" name="arrowur" size="sm" /></div>
+            <div class="kpi-val"><b>{{ st.dsr.open | num }}</b></div>
+            <div class="kpi-foot">@if (st.dsr.overdue) { <span class="badge badge-danger"><span class="dot"></span>{{ 'kvkk.dsr.overdue' | t }}</span> } @else { <span>30 {{ 'settings.unit.days' | t }}</span> }</div>
+          </button>
+          <button type="button" class="kpi" [class.is-alert]="st.incidents.open > 0" (click)="go('incidents')">
+            <div class="kpi-top"><app-icon name="alert" size="sm" />{{ 'settings.kvkk.stat.openIncidents' | t }}<app-icon class="go" name="arrowur" size="sm" /></div>
+            <div class="kpi-val"><b>{{ st.incidents.open | num }}</b></div>
+            <div class="kpi-foot">@if (st.incidents.nearest; as n) { <span>{{ 'kvkk.incident.hoursLeft' | t: { h: n.hoursLeft } }}</span> } @else { <span>72 h</span> }</div>
+          </button>
+          <button type="button" class="kpi" [class.is-alert]="st.destruction.overdue" (click)="go('destruction')">
+            <div class="kpi-top"><app-icon name="calendar" size="sm" />{{ 'settings.kvkk.stat.nextDestruction' | t }}<app-icon class="go" name="arrowur" size="sm" /></div>
+            <div class="kpi-val"><b class="kv-date">{{ st.destruction.due | appDate }}</b></div>
+            <div class="kpi-foot">@if (st.destruction.overdue) { <span class="badge badge-warning"><span class="dot"></span>{{ 'kvkk.destruction.overdue' | t }}</span> } @else { <span>{{ 'settings.kvkk.tab.destruction' | t }}</span> }</div>
+          </button>
+          <button type="button" class="kpi" (click)="go('notices')">
+            <div class="kpi-top"><app-icon name="file" size="sm" />{{ 'settings.kvkk.stat.publishedNotices' | t }}<app-icon class="go" name="arrowur" size="sm" /></div>
+            <div class="kpi-val"><b>{{ st.notices.published | num }}</b></div>
+            <div class="kpi-foot"><span>{{ 'settings.kvkk.tab.notices' | t }}</span></div>
+          </button>
         </div>
       }
 
-      <nav class="tabs kv-tabs" role="tablist">
-        @for (s of subs; track s) {
-          <button type="button" class="tab" role="tab" [class.active]="sub() === s" [attr.aria-selected]="sub() === s" (click)="go(s)">{{ 'settings.kvkk.tab.' + s | t }}</button>
-        }
-      </nav>
+      <div class="field select kv-sub-select"><select [attr.aria-label]="'settings.kvkk.title' | t" [ngModel]="sub()" (ngModelChange)="go($event)">@for (s of subs; track s) { <option [value]="s">{{ 'settings.kvkk.tab.' + s | t }}</option> }</select></div>
+      <div class="kv-seg-wrap">
+        <div class="seg kv-seg" role="group" [attr.aria-label]="'settings.kvkk.title' | t">
+          @for (s of subs; track s) {
+            <button type="button" [attr.aria-pressed]="sub() === s" (click)="go(s)">{{ 'settings.kvkk.tab.' + s | t }}</button>
+          }
+        </div>
+      </div>
 
       <!-- ============================================================ notices -->
       @if (sub() === 'notices') {
         <p class="doc-hint">{{ 'settings.kvkk.notices.hint' | t }}</p>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'settings.kvkk.notices.doc' | t }}</th><th>{{ 'settings.kvkk.notices.audience' | t }}</th><th>{{ 'settings.kvkk.notices.language' | t }}</th><th>{{ 'kvkk.notice.version' | t }}</th><th>{{ 'settings.kvkk.status' | t }}</th><th>{{ 'settings.kvkk.notices.published' | t }}</th><th></th></tr></thead>
+        <div class="table-card"><div class="table-scroll"><table class="tbl table-responsive kv-notices-tbl">
+          <thead><tr><th>{{ 'settings.kvkk.notices.doc' | t }}</th><th>{{ 'settings.kvkk.notices.audience' | t }}</th><th>{{ 'settings.kvkk.notices.language' | t }}</th><th>{{ 'kvkk.notice.version' | t }}</th><th>{{ 'settings.kvkk.status' | t }}</th><th>{{ 'settings.kvkk.notices.published' | t }}</th><th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th></tr></thead>
           <tbody>
             @for (n of notices(); track n.id) {
               <tr [class.selected]="selNotice()?.id === n.id">
-                <td class="td-primary">{{ 'kvkk.docType.' + n.docType | t }}@if (!n.companyId) { <span class="badge badge-neutral">{{ 'settings.kvkk.platform' | t }}</span> }</td>
-                <td>{{ 'kvkk.audience.' + n.audience | t }}</td>
-                <td>{{ n.language | uppercase }}</td>
-                <td class="mono">{{ n.version }}</td>
-                <td><span class="badge" [class.badge-success]="n.status === 'PUBLISHED'" [class.badge-neutral]="n.status !== 'PUBLISHED'">{{ 'kvkk.noticeStatus.' + n.status | t }}</span></td>
-                <td>{{ n.publishedAt ? (n.publishedAt | appDate) : '-' }}</td>
+                <td class="td-primary">{{ 'kvkk.docType.' + n.docType | t }}@if (!n.companyId) { <span class="badge badge-neutral"><span class="dot"></span>{{ 'settings.kvkk.platform' | t }}</span> }</td>
+                <td class="kv-nw" [attr.data-label]="'settings.kvkk.notices.audience' | t">{{ 'kvkk.audience.' + n.audience | t }}</td>
+                <td [attr.data-label]="'settings.kvkk.notices.language' | t">{{ n.language | uppercase }}</td>
+                <td class="mono" [attr.data-label]="'kvkk.notice.version' | t">{{ n.version }}</td>
+                <td [attr.data-label]="'settings.kvkk.status' | t"><span class="badge" [class.badge-success]="n.status === 'PUBLISHED'" [class.badge-neutral]="n.status !== 'PUBLISHED'"><span class="dot"></span>{{ 'kvkk.noticeStatus.' + n.status | t }}</span></td>
+                <td [attr.data-label]="'settings.kvkk.notices.published' | t">{{ n.publishedAt ? (n.publishedAt | appDate) : '—' }}</td>
                 <td class="td-actions">
-                  <button type="button" class="btn btn-secondary btn-sm" (click)="openNotice(n)">{{ 'settings.kvkk.view' | t }}</button>
+                  <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" (click)="openNotice(n)" [attr.aria-label]="'settings.kvkk.view' | t" [attr.data-tip]="'settings.kvkk.view' | t"><app-icon name="eye" size="sm" /></button>
                   @if (canManage() && n.companyId && n.status === 'DRAFT') {
-                    <button type="button" class="btn btn-primary btn-sm" (click)="publish(n)">{{ 'settings.kvkk.notices.publish' | t }}</button>
-                    <button type="button" class="btn btn-secondary btn-sm" (click)="removeDraft(n)">{{ 'common.delete' | t }}</button>
+                    <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" (click)="publish(n)" [attr.aria-label]="'settings.kvkk.notices.publish' | t" [attr.data-tip]="'settings.kvkk.notices.publish' | t"><app-icon name="upload" size="sm" /></button>
+                    <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" (click)="removeDraft(n)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" size="sm" /></button>
                   }
-                  @if (canManage() && n.companyId && n.status === 'PUBLISHED') { <button type="button" class="btn btn-secondary btn-sm" (click)="retire(n)">{{ 'settings.kvkk.notices.retire' | t }}</button> }
+                  @if (canManage() && n.companyId && n.status === 'PUBLISHED') { <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" (click)="retire(n)" [attr.aria-label]="'settings.kvkk.notices.retire' | t" [attr.data-tip]="'settings.kvkk.notices.retire' | t"><app-icon name="archive" size="sm" /></button> }
                 </td>
               </tr>
             }
@@ -148,7 +207,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
             <div class="doc-actions"><button type="button" class="btn btn-primary" [disabled]="busy() || !newDsr.applicantName" (click)="createDsr()">{{ 'common.save' | t }}</button></div>
           </div>
         }
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
+        <div class="table-card"><div class="table-scroll"><table class="tbl">
           <thead><tr><th>{{ 'settings.kvkk.dsr.no' | t }}</th><th>{{ 'settings.kvkk.dsr.applicant' | t }}</th><th>{{ 'settings.kvkk.dsr.type' | t }}</th><th>{{ 'settings.kvkk.dsr.channel' | t }}</th><th>{{ 'settings.kvkk.dsr.receivedAt' | t }}</th><th>{{ 'kvkk.dsr.dueIn' | t }}</th><th>{{ 'settings.kvkk.status' | t }}</th></tr></thead>
           <tbody>
             @for (r of dsr(); track r.id) {
@@ -158,10 +217,10 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
                 <td>{{ 'kvkk.dsr.type.' + r.requestType | t }}</td>
                 <td>{{ 'kvkk.dsrChannel.' + r.channel | t }}</td>
                 <td>{{ r.receivedAt | appDate }}</td>
-                <td>@if (r.daysLeft !== null) { <span class="badge" [class.badge-danger]="r.overdue || r.daysLeft <= 3" [class.badge-warning]="!r.overdue && r.daysLeft > 3 && r.daysLeft <= 7" [class.badge-neutral]="r.daysLeft > 7">{{ r.overdue ? ('kvkk.dsr.overdue' | t) : ('kvkk.dsr.daysLeft' | t: { n: r.daysLeft }) }}</span> } @else { - }</td>
-                <td><span class="badge" [class.badge-success]="r.status === 'COMPLETED'" [class.badge-warning]="r.status === 'PARTIALLY_COMPLETED'" [class.badge-neutral]="r.status !== 'COMPLETED' && r.status !== 'PARTIALLY_COMPLETED'">{{ 'kvkk.dsr.status.' + r.status | t }}</span></td>
+                <td>@if (r.daysLeft !== null) { <span class="badge" [class.badge-danger]="r.overdue || r.daysLeft <= 3" [class.badge-warning]="!r.overdue && r.daysLeft > 3 && r.daysLeft <= 7" [class.badge-neutral]="r.daysLeft > 7"><span class="dot"></span>{{ r.overdue ? ('kvkk.dsr.overdue' | t) : ('kvkk.dsr.daysLeft' | t: { n: r.daysLeft }) }}</span> } @else { - }</td>
+                <td><span class="badge" [class.badge-success]="r.status === 'COMPLETED'" [class.badge-warning]="r.status === 'PARTIALLY_COMPLETED'" [class.badge-neutral]="r.status !== 'COMPLETED' && r.status !== 'PARTIALLY_COMPLETED'"><span class="dot"></span>{{ 'kvkk.dsr.status.' + r.status | t }}</span></td>
               </tr>
-            } @empty { <tr><td colspan="7"><div class="empty-state"><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
+            } @empty { <tr><td colspan="7"><div class="empty-state"><div class="empty-art"><app-icon name="inbox" /></div><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
           </tbody>
         </table></div></div>
 
@@ -170,7 +229,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
             <h4>{{ r.requestNo }} · {{ r.applicantName }}</h4>
             <div class="doc-grid">
               <div class="doc-field"><label>{{ 'settings.kvkk.dsr.due' | t }}</label><span>{{ r.dueAt | appDate: 'datetime' }}</span></div>
-              <div class="doc-field"><label>{{ 'settings.kvkk.dsr.identity' | t }}</label><span>@if (r.identityVerifiedAt) { {{ 'settings.kvkk.dsr.verifiedBy' | t: { by: r.identityVerifiedBy, date: (r.identityVerifiedAt | appDate: 'datetime') } }} · {{ r.identityVerificationMethod }} } @else { <span class="badge badge-warning">{{ 'settings.kvkk.dsr.notVerified' | t }}</span> }</span></div>
+              <div class="doc-field"><label>{{ 'settings.kvkk.dsr.identity' | t }}</label><span>@if (r.identityVerifiedAt) { {{ 'settings.kvkk.dsr.verifiedBy' | t: { by: r.identityVerifiedBy, date: (r.identityVerifiedAt | appDate: 'datetime') } }} · {{ r.identityVerificationMethod }} } @else { <span class="badge badge-warning"><span class="dot"></span>{{ 'settings.kvkk.dsr.notVerified' | t }}</span> }</span></div>
               @if (r.description) { <div class="doc-field"><label>{{ 'settings.kvkk.dsr.description' | t }}</label><span>{{ r.description }}</span></div> }
             </div>
             @if (canManage() && (r.status === 'RECEIVED' || r.status === 'IN_PROGRESS')) {
@@ -182,24 +241,24 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
               } @else {
                 <div class="doc-actions">
                   @if (r.subjectId) {
-                    <button type="button" class="btn btn-secondary" (click)="exportJson(r)">{{ 'settings.kvkk.dsr.exportJson' | t }}</button>
-                    <button type="button" class="btn btn-secondary" (click)="exportHtml(r)">{{ 'settings.kvkk.dsr.exportPdf' | t }}</button>
+                    <button type="button" class="btn" (click)="exportJson(r)">{{ 'settings.kvkk.dsr.exportJson' | t }}</button>
+                    <button type="button" class="btn" (click)="exportHtml(r)">{{ 'settings.kvkk.dsr.exportPdf' | t }}</button>
                   }
-                  @if (r.requestType === 'ERASURE' && r.subjectId) { <button type="button" class="btn btn-danger" [disabled]="busy()" (click)="erase(r)">{{ 'settings.kvkk.dsr.erase' | t }}</button> }
+                  @if (r.requestType === 'ERASURE' && r.subjectId) { <button type="button" class="btn btn-danger-outline" [disabled]="busy()" (click)="erase(r)">{{ 'settings.kvkk.dsr.erase' | t }}</button> }
                 </div>
                 @if (lastExportMs() !== null) { <p class="doc-hint">{{ 'settings.kvkk.dsr.exportTime' | t: { ms: lastExportMs() } }}</p> }
                 <div class="doc-section">
-                  <div class="doc-field"><label for="rText">{{ 'settings.kvkk.dsr.response' | t }}</label><textarea id="rText" class="input" style="min-height: 120px; font-family: inherit; font-size: var(--text-sm)" [(ngModel)]="responseDraft"></textarea></div>
+                  <div class="doc-field"><label for="rText">{{ 'settings.kvkk.dsr.response' | t }}</label><textarea id="rText" class="input kv-resp-ta" [(ngModel)]="responseDraft"></textarea></div>
                   <div class="doc-actions">
                     <button type="button" class="btn btn-primary" [disabled]="busy() || !responseDraft" (click)="respond(r, 'COMPLETED')">{{ 'settings.kvkk.dsr.complete' | t }}</button>
-                    <button type="button" class="btn btn-secondary" [disabled]="busy() || !responseDraft" (click)="respond(r, 'REJECTED')">{{ 'settings.kvkk.dsr.reject' | t }}</button>
+                    <button type="button" class="btn" [disabled]="busy() || !responseDraft" (click)="respond(r, 'REJECTED')">{{ 'settings.kvkk.dsr.reject' | t }}</button>
                   </div>
                 </div>
               }
             }
             @if (r.responseText) {
               <div class="doc-section">
-                <h4 class="doc-section-title">{{ 'settings.kvkk.dsr.answer' | t }} @if (r.status === 'PARTIALLY_COMPLETED') { <span class="badge badge-warning">{{ 'kvkk.erase.restricted' | t }}</span> }</h4>
+                <h4 class="doc-section-title">{{ 'settings.kvkk.dsr.answer' | t }} @if (r.status === 'PARTIALLY_COMPLETED') { <span class="badge badge-warning"><span class="dot"></span>{{ 'kvkk.erase.restricted' | t }}</span> }</h4>
                 <div class="kv-response">{{ r.responseText }}</div>
               </div>
             }
@@ -213,7 +272,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
           <p class="doc-hint">{{ 'settings.kvkk.destruction.hint' | t }}</p>
           @if (canManage()) { <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="createRun()">{{ 'settings.kvkk.destruction.newRun' | t }}</button> }
         </div>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
+        <div class="table-card"><div class="table-scroll"><table class="tbl">
           <thead><tr><th>{{ 'settings.kvkk.destruction.runNo' | t }}</th><th>{{ 'settings.kvkk.destruction.trigger' | t }}</th><th>{{ 'settings.kvkk.destruction.asOf' | t }}</th><th class="num">{{ 'settings.kvkk.destruction.items' | t }}</th><th>{{ 'settings.kvkk.status' | t }}</th><th>{{ 'settings.kvkk.destruction.decided' | t }}</th></tr></thead>
           <tbody>
             @for (r of runs(); track r.id) {
@@ -222,17 +281,17 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
                 <td>{{ 'kvkk.destruction.trigger.' + r.trigger | t }}</td>
                 <td>{{ r.asOfDate | appDate }}</td>
                 <td class="num">{{ r.candidates.length | num }}</td>
-                <td><span class="badge" [class.badge-success]="r.status === 'EXECUTED'" [class.badge-warning]="r.status === 'PENDING_APPROVAL'" [class.badge-neutral]="r.status !== 'EXECUTED' && r.status !== 'PENDING_APPROVAL'">{{ 'kvkk.destruction.status.' + r.status | t }}</span></td>
+                <td><span class="badge" [class.badge-success]="r.status === 'EXECUTED'" [class.badge-warning]="r.status === 'PENDING_APPROVAL'" [class.badge-neutral]="r.status !== 'EXECUTED' && r.status !== 'PENDING_APPROVAL'"><span class="dot"></span>{{ 'kvkk.destruction.status.' + r.status | t }}</span></td>
                 <td>@if (r.decidedAt) { {{ r.decidedBy }} · {{ r.decidedAt | appDate: 'datetime' }} } @else { - }</td>
               </tr>
-            } @empty { <tr><td colspan="6"><div class="empty-state"><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
+            } @empty { <tr><td colspan="6"><div class="empty-state"><div class="empty-art"><app-icon name="inbox" /></div><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
           </tbody>
         </table></div></div>
         @if (selRun(); as r) {
           <div class="kv-panel">
             <h4>{{ r.runNo }}</h4>
-            @if (r.summary?.['awaitingApproval']?.length) { <div class="doc-alert">{{ 'settings.kvkk.destruction.awaiting' | t: { list: categoryList(r.summary?.['awaitingApproval']) } }}</div> }
-            <table class="doc-table">
+            @if (r.summary?.['awaitingApproval']?.length) { <div class="notice notice-warning"><app-icon name="warn" /><span class="t">{{ 'settings.kvkk.destruction.awaiting' | t: { list: categoryList(r.summary?.['awaitingApproval']) } }}</span></div> }
+            <table class="tbl">
               <thead><tr><th>{{ 'settings.kvkk.retention.category' | t }}</th><th>{{ 'settings.kvkk.destruction.record' | t }}</th><th>{{ 'settings.kvkk.destruction.action' | t }}</th><th class="num">{{ 'settings.kvkk.destruction.count' | t }}</th><th>{{ 'settings.kvkk.destruction.reason' | t }}</th></tr></thead>
               <tbody>
                 @for (c of r.candidates; track $index) {
@@ -241,16 +300,16 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
               </tbody>
             </table>
             @if (canManage() && r.status === 'PENDING_APPROVAL') {
-              <div class="doc-actions" style="margin-top: var(--space-3)">
-                <button type="button" class="btn btn-danger" [disabled]="busy()" (click)="approveRun(r)">{{ 'settings.kvkk.destruction.approve' | t }}</button>
-                <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="rejectRun(r)">{{ 'settings.kvkk.destruction.reject' | t }}</button>
+              <div class="doc-actions kv-mt">
+                <button type="button" class="btn btn-danger-outline" [disabled]="busy()" (click)="approveRun(r)">{{ 'settings.kvkk.destruction.approve' | t }}</button>
+                <button type="button" class="btn" [disabled]="busy()" (click)="rejectRun(r)">{{ 'settings.kvkk.destruction.reject' | t }}</button>
               </div>
             }
           </div>
         }
         <div class="doc-section">
           <h4 class="doc-section-title">{{ 'settings.kvkk.destruction.logs' | t }}</h4>
-          <div class="table-card"><div class="table-scroll"><table class="table-responsive">
+          <div class="table-card"><div class="table-scroll"><table class="tbl">
             <thead><tr><th>{{ 'settings.kvkk.destruction.performed' | t }}</th><th>{{ 'settings.kvkk.retention.category' | t }}</th><th>{{ 'settings.kvkk.destruction.record' | t }}</th><th>{{ 'settings.kvkk.destruction.method' | t }}</th><th>{{ 'settings.kvkk.destruction.result' | t }}</th><th class="num">{{ 'settings.kvkk.destruction.count' | t }}</th><th>{{ 'settings.kvkk.destruction.retainUntil' | t }}</th></tr></thead>
             <tbody>
               @for (l of logs(); track l.id) {
@@ -259,11 +318,11 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
                   <td>{{ 'kvkk.category.' + l.dataCategory | t }}</td>
                   <td class="mono">{{ l.entityType }}@if (l.entityId) { #{{ l.entityId.slice(0, 8) }} }</td>
                   <td>{{ 'kvkk.method.' + l.method | t }}</td>
-                  <td><span class="badge" [class.badge-success]="l.result === 'DONE'" [class.badge-warning]="l.result === 'RESTRICTED'">{{ 'kvkk.result.' + l.result | t }}</span>@if (l.restrictedUntil) { <span class="doc-hint"> → {{ l.restrictedUntil | appDate }}</span> }</td>
+                  <td><span class="badge" [class.badge-success]="l.result === 'DONE'" [class.badge-warning]="l.result === 'RESTRICTED'"><span class="dot"></span>{{ 'kvkk.result.' + l.result | t }}</span>@if (l.restrictedUntil) { <span class="doc-hint"> → {{ l.restrictedUntil | appDate }}</span> }</td>
                   <td class="num">{{ l.recordCount | num }}</td>
                   <td>{{ l.retainUntil | appDate }}</td>
                 </tr>
-              } @empty { <tr><td colspan="7"><div class="empty-state"><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
+              } @empty { <tr><td colspan="7"><div class="empty-state"><div class="empty-art"><app-icon name="inbox" /></div><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
             </tbody>
           </table></div></div>
         </div>
@@ -272,16 +331,16 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
       <!-- ============================================================ retention -->
       @if (sub() === 'retention') {
         <p class="doc-hint">{{ 'settings.kvkk.retention.hint' | t }}</p>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'settings.kvkk.retention.category' | t }}</th><th>{{ 'settings.kvkk.retention.period' | t }}</th><th>{{ 'settings.kvkk.retention.start' | t }}</th><th>{{ 'settings.kvkk.destruction.action' | t }}</th><th>{{ 'settings.kvkk.retention.source' | t }}</th><th></th></tr></thead>
+        <div class="table-card"><div class="table-scroll"><table class="tbl">
+          <thead><tr><th>{{ 'settings.kvkk.retention.category' | t }}</th><th>{{ 'settings.kvkk.retention.period' | t }}</th><th>{{ 'settings.kvkk.retention.start' | t }}</th><th>{{ 'settings.kvkk.destruction.action' | t }}</th><th>{{ 'settings.kvkk.retention.source' | t }}</th><th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th></tr></thead>
           <tbody>
             @for (p of policies(); track p.dataCategory) {
               <tr>
-                <td class="td-primary">{{ 'kvkk.category.' + p.dataCategory | t }}@if (p.isOverride) { <span class="badge badge-primary">{{ 'settings.kvkk.retention.override' | t }}</span> }</td>
+                <td class="td-primary">{{ 'kvkk.category.' + p.dataCategory | t }}@if (p.isOverride) { <span class="badge badge-info"><span class="dot"></span>{{ 'settings.kvkk.retention.override' | t }}</span> }</td>
                 <td>
                   @if (canManage() && editCat() === p.dataCategory) {
-                    <span class="kv-row"><input type="number" min="0" class="input" style="width: 80px" [(ngModel)]="editValue" />
-                    <select class="input" [(ngModel)]="editUnit"><option value="DAY">{{ 'kvkk.unit.DAY' | t }}</option><option value="MONTH">{{ 'kvkk.unit.MONTH' | t }}</option><option value="YEAR">{{ 'kvkk.unit.YEAR' | t }}</option></select></span>
+                    <span class="kv-row"><input type="number" min="0" class="input num kv-w80" [(ngModel)]="editValue" [attr.aria-label]="'settings.kvkk.retention.period' | t" />
+                    <select class="input" [(ngModel)]="editUnit" [attr.aria-label]="'settings.kvkk.retention.period' | t"><option value="DAY">{{ 'kvkk.unit.DAY' | t }}</option><option value="MONTH">{{ 'kvkk.unit.MONTH' | t }}</option><option value="YEAR">{{ 'kvkk.unit.YEAR' | t }}</option></select></span>
                   } @else { {{ p.periodValue }} {{ 'kvkk.unit.' + p.periodUnit | t }} }
                   @if (p.minimumValue) { <div class="doc-hint">{{ 'settings.kvkk.retention.minimum' | t: { n: p.minimumValue, unit: ('kvkk.unit.' + p.periodUnit | t) } }}</div> }
                 </td>
@@ -290,15 +349,15 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
                 <td class="doc-hint">{{ p.legalBasis }} · {{ p.sourceRef }}</td>
                 <td class="td-actions">
                   @if (p.requiresApproval) {
-                    @if (p.approved) { <span class="badge badge-success" [title]="p.approvedBy || ''">{{ 'settings.kvkk.retention.approved' | t }}</span> }
-                    @else if (canManage()) { <button type="button" class="btn btn-primary btn-sm" (click)="approvePolicy(p)">{{ 'settings.kvkk.retention.approve' | t }}</button> }
-                    @else { <span class="badge badge-warning">{{ 'settings.kvkk.retention.needsApproval' | t }}</span> }
+                    @if (p.approved) { <span class="badge badge-success" [title]="p.approvedBy || ''"><span class="dot"></span>{{ 'settings.kvkk.retention.approved' | t }}</span> }
+                    @else if (canManage()) { <button type="button" class="btn btn-xs" (click)="approvePolicy(p)">{{ 'settings.kvkk.retention.approve' | t }}</button> }
+                    @else { <span class="badge badge-warning"><span class="dot"></span>{{ 'settings.kvkk.retention.needsApproval' | t }}</span> }
                   }
                   @if (canManage()) {
                     @if (editCat() === p.dataCategory) {
-                      <button type="button" class="btn btn-primary btn-sm" (click)="savePolicy(p)">{{ 'common.save' | t }}</button>
-                      <button type="button" class="btn btn-secondary btn-sm" (click)="editCat.set(null)">{{ 'common.cancel' | t }}</button>
-                    } @else { <button type="button" class="btn btn-secondary btn-sm" (click)="startEdit(p)">{{ 'common.edit' | t }}</button> }
+                      <button type="button" class="btn btn-primary btn-xs" (click)="savePolicy(p)">{{ 'common.save' | t }}</button>
+                      <button type="button" class="btn btn-ghost btn-xs" (click)="editCat.set(null)">{{ 'common.cancel' | t }}</button>
+                    } @else { <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" (click)="startEdit(p)" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t"><app-icon name="edit" size="sm" /></button> }
                   }
                 </td>
               </tr>
@@ -310,17 +369,17 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
       <!-- ============================================================ sub-processors -->
       @if (sub() === 'processors') {
         <p class="doc-hint">{{ 'settings.kvkk.processors.hint' | t }}</p>
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
-          <thead><tr><th>{{ 'settings.kvkk.processors.name' | t }}</th><th>{{ 'settings.kvkk.processors.service' | t }}</th><th>{{ 'settings.kvkk.processors.country' | t }}</th><th>{{ 'settings.kvkk.processors.basis' | t }}</th><th>{{ 'settings.kvkk.processors.dpa' | t }}</th><th></th></tr></thead>
+        <div class="table-card"><div class="table-scroll"><table class="tbl">
+          <thead><tr><th>{{ 'settings.kvkk.processors.name' | t }}</th><th>{{ 'settings.kvkk.processors.service' | t }}</th><th>{{ 'settings.kvkk.processors.country' | t }}</th><th>{{ 'settings.kvkk.processors.basis' | t }}</th><th>{{ 'settings.kvkk.processors.dpa' | t }}</th><th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th></tr></thead>
           <tbody>
             @for (s of processors(); track s.id) {
               <tr>
-                <td class="td-primary">{{ s.name }}@if (!s.companyId) { <span class="badge badge-neutral">{{ 'settings.kvkk.platform' | t }}</span> }</td>
+                <td class="td-primary">{{ s.name }}@if (!s.companyId) { <span class="badge badge-neutral"><span class="dot"></span>{{ 'settings.kvkk.platform' | t }}</span> }</td>
                 <td>{{ s.service }}</td>
                 <td>{{ s.country }}</td>
                 <td>{{ 'kvkk.basis.' + s.transferBasis | t }}</td>
                 <td>{{ s.dpaSignedAt ? (s.dpaSignedAt | appDate) : '-' }}</td>
-                <td class="td-actions">@if (canManage() && s.companyId) { <button type="button" class="btn btn-secondary btn-sm" (click)="deleteProcessor(s)">{{ 'common.delete' | t }}</button> }</td>
+                <td class="td-actions">@if (canManage() && s.companyId) { <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" (click)="deleteProcessor(s)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" size="sm" /></button> }</td>
               </tr>
             }
           </tbody>
@@ -342,18 +401,18 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
         }
         <div class="doc-section">
           <h4 class="doc-section-title">{{ 'settings.kvkk.processors.transfers' | t }}</h4>
-          <div class="table-card"><div class="table-scroll"><table class="table-responsive">
+          <div class="table-card"><div class="table-scroll"><table class="tbl">
             <thead><tr><th>{{ 'settings.kvkk.processors.host' | t }}</th><th>{{ 'settings.kvkk.processors.country' | t }}</th><th>{{ 'settings.kvkk.processors.basis' | t }}</th><th>{{ 'settings.kvkk.processors.sccNotified' | t }}</th><th>{{ 'settings.kvkk.processors.pii' | t }}</th></tr></thead>
             <tbody>
               @for (t of transfers(); track t.id) {
                 <tr>
-                  <td class="mono td-primary">{{ t.host }}@if (!t.active) { <span class="badge badge-neutral">{{ 'settings.kvkk.inactive' | t }}</span> }</td>
-                  <td>{{ t.destinationCountry }}@if (t.abroad) { <span class="badge badge-warning">{{ 'settings.kvkk.processors.abroad' | t }}</span> }</td>
+                  <td class="mono td-primary">{{ t.host }}@if (!t.active) { <span class="badge badge-neutral"><span class="dot"></span>{{ 'settings.kvkk.inactive' | t }}</span> }</td>
+                  <td>{{ t.destinationCountry }}@if (t.abroad) { <span class="badge badge-warning"><span class="dot"></span>{{ 'settings.kvkk.processors.abroad' | t }}</span> }</td>
                   <td>{{ 'kvkk.basis.' + t.transferBasis | t }}</td>
-                  <td>{{ t.sccNotifiedAt ? (t.sccNotifiedAt | appDate) : '-' }}@if (t.sccNotice.late) { <span class="badge badge-danger">{{ 'settings.kvkk.processors.late' | t }}</span> }</td>
+                  <td>{{ t.sccNotifiedAt ? (t.sccNotifiedAt | appDate) : '-' }}@if (t.sccNotice.late) { <span class="badge badge-danger"><span class="dot"></span>{{ 'settings.kvkk.processors.late' | t }}</span> }</td>
                   <td>{{ (t.includePersonalData ? 'common.yes' : 'common.no') | t }}</td>
                 </tr>
-              } @empty { <tr><td colspan="5"><div class="empty-state"><p class="empty-state-title">{{ 'settings.kvkk.processors.noTransfers' | t }}</p></div></td></tr> }
+              } @empty { <tr><td colspan="5"><div class="empty-state"><div class="empty-art"><app-icon name="inbox" /></div><p class="empty-state-title">{{ 'settings.kvkk.processors.noTransfers' | t }}</p></div></td></tr> }
             </tbody>
           </table></div></div>
         </div>
@@ -375,7 +434,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
             <div class="doc-actions"><button type="button" class="btn btn-primary" [disabled]="busy() || !newInc.title" (click)="createIncident()">{{ 'common.save' | t }}</button></div>
           </div>
         }
-        <div class="table-card"><div class="table-scroll"><table class="table-responsive">
+        <div class="table-card"><div class="table-scroll"><table class="tbl">
           <thead><tr><th>{{ 'settings.kvkk.incidents.no' | t }}</th><th>{{ 'settings.kvkk.incidents.titleLabel' | t }}</th><th>{{ 'settings.kvkk.incidents.source' | t }}</th><th>{{ 'settings.kvkk.incidents.detected' | t }}</th><th>{{ 'settings.kvkk.incidents.deadline' | t }}</th><th>{{ 'settings.kvkk.status' | t }}</th></tr></thead>
           <tbody>
             @for (i of incidents(); track i.id) {
@@ -384,10 +443,10 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
                 <td>{{ i.title }}</td>
                 <td>{{ 'kvkk.incident.source.' + i.source | t }}</td>
                 <td>{{ i.detectedAt | appDate: 'datetime' }}</td>
-                <td>@if (i.deadlineAt) { {{ i.deadlineAt | appDate: 'datetime' }} @if (i.hoursLeft !== null) { <span class="badge" [class.badge-danger]="i.overdue || i.hoursLeft < 24" [class.badge-warning]="!i.overdue && i.hoursLeft >= 24">{{ i.overdue ? ('kvkk.incident.overdue' | t) : ('kvkk.incident.hoursLeft' | t: { h: i.hoursLeft }) }}</span> } } @else { - }</td>
-                <td><span class="badge" [class.badge-warning]="i.status === 'SUSPECTED' || i.status === 'CONFIRMED'" [class.badge-success]="i.status === 'CLOSED' || i.status === 'NOTIFIED'" [class.badge-neutral]="i.status === 'DISMISSED'">{{ 'kvkk.incident.status.' + i.status | t }}</span></td>
+                <td>@if (i.deadlineAt) { {{ i.deadlineAt | appDate: 'datetime' }} @if (i.hoursLeft !== null) { <span class="badge" [class.badge-danger]="i.overdue || i.hoursLeft < 24" [class.badge-warning]="!i.overdue && i.hoursLeft >= 24"><span class="dot"></span>{{ i.overdue ? ('kvkk.incident.overdue' | t) : ('kvkk.incident.hoursLeft' | t: { h: i.hoursLeft }) }}</span> } } @else { - }</td>
+                <td><span class="badge" [class.badge-warning]="i.status === 'SUSPECTED' || i.status === 'CONFIRMED'" [class.badge-success]="i.status === 'CLOSED' || i.status === 'NOTIFIED'" [class.badge-neutral]="i.status === 'DISMISSED'"><span class="dot"></span>{{ 'kvkk.incident.status.' + i.status | t }}</span></td>
               </tr>
-            } @empty { <tr><td colspan="6"><div class="empty-state"><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
+            } @empty { <tr><td colspan="6"><div class="empty-state"><div class="empty-art"><app-icon name="inbox" /></div><p class="empty-state-title">{{ 'settings.kvkk.empty' | t }}</p></div></td></tr> }
           </tbody>
         </table></div></div>
         @if (selInc(); as i) {
@@ -398,9 +457,9 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
             @if (canManage() && i.status === 'SUSPECTED') {
               <div class="kv-row">
                 <div class="doc-field"><label for="cAware">{{ 'settings.kvkk.incidents.awareAt' | t }}</label><input id="cAware" type="datetime-local" class="input" [(ngModel)]="confirmAware" /></div>
-                <button type="button" class="btn btn-danger" [disabled]="busy()" (click)="confirmIncident(i)">{{ 'settings.kvkk.incidents.confirm' | t }}</button>
+                <button type="button" class="btn btn-danger-outline" [disabled]="busy()" (click)="confirmIncident(i)">{{ 'settings.kvkk.incidents.confirm' | t }}</button>
                 <div class="doc-field grow"><label for="dReason">{{ 'settings.kvkk.incidents.dismissReason' | t }}</label><input id="dReason" class="input" [(ngModel)]="dismissReason" /></div>
-                <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="dismissIncident(i)">{{ 'settings.kvkk.incidents.dismiss' | t }}</button>
+                <button type="button" class="btn" [disabled]="busy()" (click)="dismissIncident(i)">{{ 'settings.kvkk.incidents.dismiss' | t }}</button>
               </div>
             }
             @if (canManage() && (i.status === 'CONFIRMED' || i.status === 'NOTIFIED')) {
@@ -413,12 +472,12 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
               <div class="doc-field"><label for="iMeas">{{ 'settings.kvkk.incidents.measures' | t }}</label><input id="iMeas" class="input" [(ngModel)]="incEdit.measures" /></div>
               <div class="doc-actions">
                 <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="saveIncident(i)">{{ 'common.save' | t }}</button>
-                <button type="button" class="btn btn-secondary" [disabled]="busy() || !i.boardNotifiedAt" (click)="closeIncident(i)">{{ 'settings.kvkk.incidents.close' | t }}</button>
+                <button type="button" class="btn" [disabled]="busy() || !i.boardNotifiedAt" (click)="closeIncident(i)">{{ 'settings.kvkk.incidents.close' | t }}</button>
               </div>
             }
             @if (i.boardNotifiedAt) { <p class="doc-hint">{{ 'settings.kvkk.incidents.notifiedNote' | t: { date: (i.boardNotifiedAt | appDate: 'datetime'), ref: i.boardNotificationRef || '-' } }}</p> }
             <div class="doc-section">
-              <button type="button" class="btn btn-secondary btn-sm" (click)="loadAffected(i)">{{ 'settings.kvkk.incidents.affected' | t }}</button>
+              <button type="button" class="btn btn-sm" (click)="loadAffected(i)">{{ 'settings.kvkk.incidents.affected' | t }}</button>
               @if (affected(); as a) {
                 <p class="doc-hint">{{ 'settings.kvkk.incidents.affectedTotal' | t: { n: a.total, date: (a.until | appDate: 'datetime') } }}</p>
                 @for (k of affectedKeys(a); track k) { <div class="doc-hint">{{ 'kvkk.subject.' + k | t }}: {{ a.bySubjectType[k].count }} · {{ sampleNames(a.bySubjectType[k].sample) }}</div> }
@@ -431,12 +490,12 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
       <!-- ============================================================ inventory, settings, chain, closure -->
       @if (sub() === 'inventory') {
         @if (verbis(); as v) {
-          <div class="doc-alert" [class.info]="!v.warning" [class.danger]="v.warning">
+          <div class="notice" [class.notice-info]="!v.warning" [class.notice-danger]="v.warning"><app-icon [name]="v.warning ? 'alert' : 'info'" /><div class="t">
             @if (v.required) { {{ 'settings.kvkk.verbis.required' | t: { reasons: reasonList(v.reasons) } }} } @else { {{ 'settings.kvkk.verbis.notRequired' | t }} }
             @if (v.inputsMissing) { {{ (v.balanceSheetApplies ? 'settings.kvkk.verbis.inputsMissing' : 'settings.kvkk.verbis.inputsMissingEmployees') | t }} }
             @if (v.thresholds.balanceSheet; as b) { <div class="doc-hint">{{ 'settings.kvkk.verbis.thresholds' | t: { emp: v.thresholds.employees?.value, bal: (b.value | money: 'TRY'), src: b.sourceRef } }}@if (b.confidence === 'low') { · <strong>{{ 'settings.kvkk.verbis.lowConfidence' | t }}</strong> }</div> }
             @else if (!v.balanceSheetApplies && v.thresholds.nonBalanceSheetEmployeesOnly; as nb) { <div class="doc-hint">{{ 'settings.kvkk.verbis.employeesOnly' | t: { emp: v.thresholds.employees?.value, src: nb.sourceRef } }}@if (nb.confidence === 'low') { · <strong>{{ 'settings.kvkk.verbis.lowConfidence' | t }}</strong> }</div> }
-          </div>
+          </div></div>
         }
         @if (settings(); as s) {
           <div class="kv-panel">
@@ -449,18 +508,18 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
             </div>
             <label class="doc-check"><input type="checkbox" [disabled]="!canManage()" [(ngModel)]="s.verbisRegistered" /> {{ 'settings.kvkk.verbis.registered' | t }}</label>
             <label class="doc-check"><input type="checkbox" [disabled]="!canManage()" [(ngModel)]="s.verbisMainActivitySpecial" /> {{ 'settings.kvkk.verbis.special' | t }}</label>
-            @if (canManage()) { <div class="doc-actions" style="margin-top: var(--space-3)"><button type="button" class="btn btn-primary" [disabled]="busy()" (click)="saveSettings(s)">{{ 'common.save' | t }}</button></div> }
+            @if (canManage()) { <div class="doc-actions kv-mt"><button type="button" class="btn btn-primary" [disabled]="busy()" (click)="saveSettings(s)">{{ 'common.save' | t }}</button></div> }
           </div>
         }
         <div class="doc-section">
           <div class="doc-toolbar">
             <h4 class="doc-section-title">{{ 'settings.kvkk.inventory.title' | t }}</h4>
             <div class="doc-actions">
-              <button type="button" class="btn btn-secondary" (click)="downloadInventory()">{{ 'settings.kvkk.inventory.csv' | t }}</button>
-              <button type="button" class="btn btn-secondary" (click)="printInventory()">{{ 'settings.kvkk.inventory.pdf' | t }}</button>
+              <button type="button" class="btn" (click)="downloadInventory()">{{ 'settings.kvkk.inventory.csv' | t }}</button>
+              <button type="button" class="btn" (click)="printInventory()">{{ 'settings.kvkk.inventory.pdf' | t }}</button>
             </div>
           </div>
-          <div class="table-card"><div class="table-scroll"><table class="table-responsive">
+          <div class="table-card"><div class="table-scroll"><table class="tbl">
             <thead><tr><th>{{ 'settings.kvkk.inventory.category' | t }}</th><th>{{ 'settings.kvkk.inventory.group' | t }}</th><th>{{ 'settings.kvkk.inventory.purposes' | t }}</th><th>{{ 'settings.kvkk.inventory.basis' | t }}</th><th>{{ 'settings.kvkk.inventory.retention' | t }}</th></tr></thead>
             <tbody>
               @for (r of inventory(); track $index) {
@@ -472,9 +531,9 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
         <div class="kv-panel">
           <h4>{{ 'settings.kvkk.chain.title' | t }}</h4>
           <p class="doc-hint">{{ 'settings.kvkk.chain.hint' | t }}</p>
-          <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="verifyChain()">{{ 'settings.kvkk.chain.verify' | t }}</button>
+          <button type="button" class="btn" [disabled]="busy()" (click)="verifyChain()">{{ 'settings.kvkk.chain.verify' | t }}</button>
           @if (chain(); as c) {
-            <div class="doc-alert" [class.info]="c.ok" [class.danger]="!c.ok" style="margin-top: var(--space-3)">{{ (c.ok ? 'settings.kvkk.chain.ok' : 'settings.kvkk.chain.broken') | t: { n: c.checked, masked: c.maskedRows, tampered: c.tampered.length } }}</div>
+            <div class="notice kv-mt" [class.notice-success]="c.ok" [class.notice-danger]="!c.ok"><app-icon [name]="c.ok ? 'okc' : 'alert'" /><span class="t">{{ (c.ok ? 'settings.kvkk.chain.ok' : 'settings.kvkk.chain.broken') | t: { n: c.checked, masked: c.maskedRows, tampered: c.tampered.length } }}</span></div>
           }
         </div>
         @if (canManage()) {
@@ -482,10 +541,10 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
             <h4>{{ 'settings.kvkk.closure.title' | t }}</h4>
             <p class="doc-hint">{{ 'settings.kvkk.closure.hint' | t }}</p>
             <div class="kv-row">
-              <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="exportAll()">{{ 'settings.kvkk.closure.export' | t }}</button>
+              <button type="button" class="btn" [disabled]="busy()" (click)="exportAll()">{{ 'settings.kvkk.closure.export' | t }}</button>
               @if (settings()?.lastFullExportAt) { <span class="doc-hint">{{ 'settings.kvkk.closure.lastExport' | t: { date: (settings()?.lastFullExportAt | appDate: 'datetime') } }}</span> }
             </div>
-            <div class="kv-row" style="margin-top: var(--space-3)">
+            <div class="kv-row kv-mt">
               <div class="doc-field"><label for="cSlug">{{ 'settings.kvkk.closure.slug' | t: { slug: companySlug() } }}</label><input id="cSlug" class="input" [(ngModel)]="closeSlug" /></div>
               <div class="doc-field"><label for="cPw">{{ 'auth.totp.password' | t }}</label><input id="cPw" type="password" class="input" [(ngModel)]="closePassword" /></div>
               <button type="button" class="btn btn-danger" [disabled]="busy() || closeSlug !== companySlug() || !closePassword" (click)="closeTenant()">{{ 'settings.kvkk.closure.close' | t }}</button>
@@ -494,6 +553,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
         }
       }
     </div>
+    </section>
   `,
 })
 export class KvkkSettingsComponent implements OnInit {
@@ -503,6 +563,7 @@ export class KvkkSettingsComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private inventoryApi = inject(InventoryService);
+  private host = inject(ElementRef<HTMLElement>);
 
   constructor() {
     // Settings > KVKK texts live in a lazy chunk (initial bundle budget).
@@ -569,7 +630,17 @@ export class KvkkSettingsComponent implements OnInit {
       const s = (SUBS as string[]).includes(q['kvkk']) ? (q['kvkk'] as Sub) : 'notices';
       this.sub.set(s);
       this.load(s);
+      setTimeout(() => this.revealActiveSeg());
     });
+  }
+
+  /** On narrow screens the inner seg scrolls: keep the pressed item in view (e.g. opened from a KPI or a link). */
+  private revealActiveSeg() {
+    const wrap = (this.host.nativeElement as HTMLElement).querySelector('.kv-seg-wrap') as HTMLElement | null;
+    const btn = wrap?.querySelector('button[aria-pressed="true"]') as HTMLElement | null;
+    if (!wrap || !btn || wrap.scrollWidth <= wrap.clientWidth) return;
+    const delta = btn.getBoundingClientRect().left - wrap.getBoundingClientRect().left;
+    wrap.scrollTo({ left: wrap.scrollLeft + delta - (wrap.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth' });
   }
 
   go(s: Sub) {

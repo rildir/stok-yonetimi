@@ -1,7 +1,8 @@
-import { Component, inject, ViewChild, signal, computed, OnInit, effect, ElementRef } from '@angular/core';
+import { Component, inject, ViewChild, signal, computed, OnInit, effect, ElementRef, untracked } from '@angular/core';
+import { retry, timeout, timer, TimeoutError } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup, FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { ToastComponent } from '../shared/toast/toast.component';
@@ -24,211 +25,161 @@ import { LegalParametersComponent } from './legal-parameters.component';
 import { KvkkSettingsComponent } from './kvkk-settings.component';
 import { TotpSettingsComponent } from './totp-settings.component';
 import { SessionService } from '../../services/session.service';
+import { IconComponent } from '../shared/icon.component';
 
 /** Empty passes (optional field); otherwise the KVKK-guide password policy. */
 const strongPasswordValidator = (c: AbstractControl): ValidationErrors | null => (c.value && !isStrongPassword(c.value) ? { weakPassword: true } : null);
 
+type NavVis = 'all' | 'kvkk' | 'admin' | 'super';
 type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | 'users' | 'company' | 'fiscal' | 'ebelge' | 'ebelgeProvider' | 'archive' | 'documents' | 'compliance' | 'legalParams' | 'taxRates' | 'exchangeRates' | 'units' | 'dashboard';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, InventoryAccountingSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent, EBelgeProviderSettingsComponent, EBelgeArchiveSettingsComponent, KvkkSettingsComponent, TotpSettingsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, FiscalSettingsComponent, EBelgeSettingsComponent, LegalParametersComponent, InventoryComplianceSettingsComponent, InventoryAccountingSettingsComponent, TaxSettingsComponent, TcmbPanelComponent, DocumentSettingsComponent, EBelgeProviderSettingsComponent, EBelgeArchiveSettingsComponent, KvkkSettingsComponent, TotpSettingsComponent, IconComponent],
   template: `
     <header class="page-header">
       <div>
-        <h1>{{ 'settings.account' | t }}</h1>
-        <p>{{ 'settings.accountDesc' | t }}</p>
+        <h1>{{ 'settings.title' | t }}</h1>
+        <p>{{ 'settings.pageDesc' | t }}</p>
       </div>
     </header>
 
-    <nav class="tabs settings-tabs" role="tablist" [attr.aria-label]="'settings.account' | t">
-      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'dashboard'" [attr.aria-selected]="activeTab() === 'dashboard'" (click)="changeTab('dashboard')">{{ 'settings.overview' | t }}</button>
-      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'profile'" [attr.aria-selected]="activeTab() === 'profile'" (click)="changeTab('profile')">{{ 'settings.tab.profile' | t }}</button>
-      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'categories'" [attr.aria-selected]="activeTab() === 'categories'" (click)="changeTab('categories')">{{ 'settings.tab.categories' | t }}</button>
-      <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'units'" [attr.aria-selected]="activeTab() === 'units'" (click)="changeTab('units')">{{ 'settings.tab.units' | t }}</button>
-      @if (ui.userProfile()?.role === 'admin' || ui.userProfile()?.role === 'auditor') {
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'kvkk'" [attr.aria-selected]="activeTab() === 'kvkk'" (click)="changeTab('kvkk')">{{ 'settings.tab.kvkk' | t }}</button>
-      }
-      @if (ui.userProfile()?.role === 'admin') {
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'users'" [attr.aria-selected]="activeTab() === 'users'" (click)="changeTab('users')">{{ 'settings.tab.users' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'company'" [attr.aria-selected]="activeTab() === 'company'" (click)="changeTab('company')">{{ 'settings.tab.company' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'fiscal'" [attr.aria-selected]="activeTab() === 'fiscal'" (click)="changeTab('fiscal')">{{ 'settings.tab.fiscal' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'ebelge'" [attr.aria-selected]="activeTab() === 'ebelge'" (click)="changeTab('ebelge')">{{ 'settings.tab.ebelge' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'ebelgeProvider'" [attr.aria-selected]="activeTab() === 'ebelgeProvider'" (click)="changeTab('ebelgeProvider')">{{ 'settings.tab.ebelgeProvider' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'archive'" [attr.aria-selected]="activeTab() === 'archive'" (click)="changeTab('archive')">{{ 'settings.tab.archive' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'documents'" [attr.aria-selected]="activeTab() === 'documents'" (click)="changeTab('documents')">{{ 'settings.tab.documents' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'compliance'" [attr.aria-selected]="activeTab() === 'compliance'" (click)="changeTab('compliance')">{{ 'settings.tab.compliance' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'inventoryAccounting'" [attr.aria-selected]="activeTab() === 'inventoryAccounting'" (click)="changeTab('inventoryAccounting')">{{ 'settings.tab.inventoryAccounting' | t }}</button>
-        @if (ui.userProfile()?.isSuperAdmin) {
-          <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'legalParams'" [attr.aria-selected]="activeTab() === 'legalParams'" (click)="changeTab('legalParams')">{{ 'settings.tab.legalParams' | t }}</button>
+    <!-- narrow screens: one scrolling tab strip -->
+    <nav class="tabs fade-edges settings-tabs" role="tablist" [attr.aria-label]="'settings.title' | t">
+      @for (g of navGroups; track g.key) {
+        @for (n of g.items; track n.tab) {
+          @if (canSee(n.vis)) {
+            <button type="button" class="tab" role="tab" [class.active]="activeTab() === n.tab" [attr.aria-selected]="activeTab() === n.tab" (click)="changeTab(n.tab)"><span>{{ n.label | t }}</span></button>
+          }
         }
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'taxRates'" [attr.aria-selected]="activeTab() === 'taxRates'" (click)="changeTab('taxRates')">{{ 'settings.tab.taxRates' | t }}</button>
-        <button type="button" class="tab" role="tab" [class.active]="activeTab() === 'exchangeRates'" [attr.aria-selected]="activeTab() === 'exchangeRates'" (click)="changeTab('exchangeRates')">{{ 'settings.tab.exchangeRates' | t }}</button>
       }
+      @if (profilePending()) { <span class="tab-skel skeleton-text" aria-hidden="true"></span><span class="tab-skel skeleton-text" aria-hidden="true"></span> }
     </nav>
 
+    <div class="settings-shell">
+      <!-- ≥1024px: grouped left sub-navigation -->
+      <nav class="subnav settings-subnav" [attr.aria-label]="'settings.title' | t">
+        @for (g of navGroups; track g.key) {
+          @if (groupVisible(g)) {
+            @if (g.label) { <div class="subnav-label">{{ g.label | t }}</div> }
+            @for (n of g.items; track n.tab) {
+              @if (canSee(n.vis)) {
+                <button type="button" [class.active]="activeTab() === n.tab" [attr.aria-current]="activeTab() === n.tab ? 'page' : null" (click)="changeTab(n.tab)">
+                  <app-icon [name]="n.icon" size="sm" /><span class="lbl">{{ n.label | t }}</span>
+                </button>
+              }
+            }
+          }
+        }
+        @if (profilePending()) {
+          <div class="subnav-skel" aria-hidden="true">
+            <span class="skeleton-text short"></span><span class="skeleton-text"></span><span class="skeleton-text"></span><span class="skeleton-text"></span>
+            <span class="skeleton-text short"></span><span class="skeleton-text"></span><span class="skeleton-text"></span>
+          </div>
+        }
+      </nav>
+
     <div class="settings-layout">
+      @if (profileGate() === 'error') {
+        <section class="card" role="alert">
+          <div class="empty-state">
+            <div class="empty-art"><app-icon name="alert" /></div>
+            <h3>{{ 'layout.profileError.title' | t }}</h3>
+            <p>{{ 'settings.profileError.desc' | t }}</p>
+            <div class="actions cluster"><button type="button" class="btn btn-primary" (click)="loadProfile()"><app-icon name="refresh" />{{ 'layout.profileError.retry' | t }}</button></div>
+          </div>
+        </section>
+      } @else if (profileGate() === 'pending') {
+        <section class="card" aria-busy="true" [attr.aria-label]="'common.loading' | t">
+          <div class="settings-skel"><div class="skeleton-title"></div><div class="skeleton-text short"></div><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+        </section>
+      } @else {
       @if (activeTab() === 'dashboard') {
-        <div class="settings-hub">
-          <button type="button" class="settings-hub-card" (click)="changeTab('profile')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.profile' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.profileDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('categories')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.categories' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.categoriesDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('units')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.units' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.unitsDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          @if (ui.userProfile()?.role === 'admin') {
-          <button type="button" class="settings-hub-card" (click)="changeTab('users')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.users' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.usersDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('company')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.company' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.companyDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('fiscal')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h8M8 17h5"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.fiscal' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.fiscalDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('ebelge')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.ebelge' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.ebelgeDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('inventoryAccounting')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M8 14h3M8 17h6"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.inventoryAccounting' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.inventoryAccountingDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('compliance')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4l4 9a2 2 0 0 1-1.8 3H6.8A2 2 0 0 1 5 16l4-9Z"/><path d="M7 12h10"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.compliance' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.complianceDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          @if (ui.userProfile()?.isSuperAdmin) {
-          <button type="button" class="settings-hub-card" (click)="changeTab('legalParams')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.legalParams' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.legalParamsDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
+        @for (g of navGroups; track g.key) {
+          @if (g.label && groupVisible(g)) {
+            <section class="hub-group">
+              <h2 class="hub-h">{{ g.label | t }}</h2>
+              <div class="settings-hub">
+                @for (n of g.items; track n.tab) {
+                  @if (canSee(n.vis)) {
+                    <button type="button" class="hub-card" (click)="changeTab(n.tab)">
+                      <span class="hub-ic"><app-icon [name]="n.icon" /></span>
+                      <span class="hub-t">
+                        <b>{{ n.label | t }}</b>
+                        <span>{{ n.desc | t }}</span>
+                      </span>
+                      <app-icon class="hub-go" name="chevr" size="sm" />
+                    </button>
+                  }
+                }
+              </div>
+            </section>
           }
-          <button type="button" class="settings-hub-card" (click)="changeTab('taxRates')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.taxRates' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.taxRatesDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button type="button" class="settings-hub-card" (click)="changeTab('exchangeRates')">
-            <span class="settings-hub-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg></span>
-            <span class="settings-hub-text">
-              <span class="settings-hub-title">{{ 'settings.tab.exchangeRates' | t }}</span>
-              <span class="settings-hub-desc">{{ 'settings.card.exchangeRatesDesc' | t }}</span>
-            </span>
-            <svg class="settings-hub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          }
-        </div>
+        }
       }
 
       <div class="settings-content">
 
         <!-- COMPANY SETTINGS TAB (Admin) -->
         @if (activeTab() === 'company') {
-          <div class="settings-card settings-card-md">
-            <h3 class="card-title">{{ 'settings.company.title' | t }}</h3>
-            <p class="card-subtitle settings-card-sub">{{ 'settings.company.subtitle' | t }}</p>
+          <section class="card settings-narrow-card">
+            <div class="card-h sh">
+              <div class="hg"><h3>{{ 'settings.company.title' | t }}</h3><p>{{ 'settings.company.subtitle' | t }}</p></div>
+            </div>
             <form [formGroup]="companyForm" (ngSubmit)="saveCompany()">
-              <div class="form-group" [class.has-error]="companyForm.get('name')?.invalid && companyForm.get('name')?.touched">
-                <label for="">{{ 'settings.company.name' | t }}</label>
-                <input type="text" formControlName="name" />
-              </div>
-              <div class="settings-form-grid">
-                <div class="form-group">
-                  <label for="">{{ 'settings.company.country' | t }}</label>
-                  <select formControlName="country">
-                    @for (c of countries; track c.code) { <option [value]="c.code">{{ 'settings.country.' + c.code | t }} ({{ c.code }})</option> }
-                  </select>
+              <div class="card-b form-stack">
+                <div class="fld">
+                  <label class="fld-label" for="coName">{{ 'settings.company.name' | t }}</label>
+                  <div class="field" [class.is-error]="companyForm.get('name')?.invalid && companyForm.get('name')?.touched"><input id="coName" type="text" formControlName="name" /></div>
                 </div>
-                <div class="form-group">
-                  <label for="">{{ 'settings.company.defaultLanguage' | t }}</label>
-                  <select formControlName="defaultLanguage">
-                    @for (l of languages; track l) { <option [value]="l">{{ 'settings.lang.' + l | t }}</option> }
-                  </select>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="coCountry">{{ 'settings.company.country' | t }}</label>
+                    <div class="field select"><select id="coCountry" formControlName="country">
+                      @for (c of countries; track c.code) { <option [value]="c.code">{{ 'settings.country.' + c.code | t }} ({{ c.code }})</option> }
+                    </select></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="coLang">{{ 'settings.company.defaultLanguage' | t }}</label>
+                    <div class="field select"><select id="coLang" formControlName="defaultLanguage">
+                      @for (l of languages; track l) { <option [value]="l">{{ 'settings.lang.' + l | t }}</option> }
+                    </select></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="coCur">{{ 'settings.company.baseCurrency' | t }}</label>
+                    <div class="field select"><select id="coCur" formControlName="baseCurrency">
+                      @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
+                    </select></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="coTz">{{ 'settings.company.timezone' | t }}</label>
+                    <div class="field select"><select id="coTz" formControlName="timezone">
+                      @for (tz of timezones; track tz) { <option [value]="tz">{{ 'settings.tz.' + tz | t }} ({{ tz }})</option> }
+                    </select></div>
+                  </div>
                 </div>
-                <div class="form-group">
-                  <label for="">{{ 'settings.company.baseCurrency' | t }}</label>
-                  <select formControlName="baseCurrency">
-                    @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
-                  </select>
+                <div class="setting-row">
+                  <span class="t"><b id="pitLbl">{{ 'settings.company.pricesIncludeTax' | t }}</b><span id="pitHint">{{ 'settings.company.pricesIncludeTaxHint' | t }}</span></span>
+                  <label class="switch"><input id="pricesIncludeTax" type="checkbox" role="switch" formControlName="pricesIncludeTax" aria-labelledby="pitLbl" aria-describedby="pitHint" /><span class="track"></span></label>
                 </div>
-                <div class="form-group">
-                  <label for="">{{ 'settings.company.timezone' | t }}</label>
-                  <select formControlName="timezone">
-                    @for (tz of timezones; track tz) { <option [value]="tz">{{ 'settings.tz.' + tz | t }} ({{ tz }})</option> }
-                  </select>
+                <div class="fld settings-narrow">
+                  <label class="fld-label" for="expiryAlertDays">{{ 'settings.company.expiryAlertDays' | t }}</label>
+                  <div class="field" [class.is-error]="companyForm.get('expiryAlertDays')?.invalid && companyForm.get('expiryAlertDays')?.touched">
+                    <input id="expiryAlertDays" class="num" type="number" min="0" max="3650" step="1" formControlName="expiryAlertDays" />
+                    <span class="affix suf">{{ 'settings.unit.days' | t }}</span>
+                  </div>
+                  <span class="fld-help">{{ 'settings.company.expiryAlertDaysHint' | t }}</span>
                 </div>
               </div>
-              <div class="form-group settings-check">
-                <input id="pricesIncludeTax" type="checkbox" formControlName="pricesIncludeTax" />
-                <label for="pricesIncludeTax">{{ 'settings.company.pricesIncludeTax' | t }}</label>
-              </div>
-              <p class="field-hint settings-check-hint">{{ 'settings.company.pricesIncludeTaxHint' | t }}</p>
-              <div class="form-group settings-narrow" [class.has-error]="companyForm.get('expiryAlertDays')?.invalid && companyForm.get('expiryAlertDays')?.touched">
-                <label for="expiryAlertDays">{{ 'settings.company.expiryAlertDays' | t }}</label>
-                <input id="expiryAlertDays" type="number" min="0" max="3650" step="1" formControlName="expiryAlertDays" />
-                <span class="field-hint">{{ 'settings.company.expiryAlertDaysHint' | t }}</span>
-              </div>
-              <div class="settings-divider">
-                <button type="submit" class="btn btn-primary" [disabled]="companyForm.invalid || companyForm.pristine || isSavingCompany()">
-                  @if (isSavingCompany()) { {{ 'settings.saving' | t }} } @else { {{ 'settings.company.save' | t }} }
+              <div class="card-f">
+                <span class="spacer"></span>
+                <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingCompany()" [disabled]="companyForm.invalid || companyForm.pristine || isSavingCompany()">
+                  <span>{{ 'settings.company.save' | t }}</span>
                 </button>
               </div>
             </form>
-          </div>
+          </section>
         }
 
         <!-- FISCAL / E-BELGE / LEGAL PARAMETERS (WP1) -->
@@ -247,68 +198,71 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
           <app-tax-settings [importerInitial]="!!ui.userProfile()?.company?.isImporterOrOreProducer" [designatedInitial]="!!ui.userProfile()?.company?.isDesignatedBuyer"></app-tax-settings>
         }
         @if (activeTab() === 'taxRates' && isAdmin() && !isTrCompany()) {
-          <div class="settings-card settings-card-lg">
-            <h3 class="card-title">{{ 'settings.taxRates.title' | t }}</h3>
-            <p class="card-subtitle settings-card-sub">{{ 'settings.taxRates.subtitle' | t }}</p>
-            <form [formGroup]="taxForm" (ngSubmit)="saveTaxRate()">
-              <div class="settings-form-grid">
-                <div class="form-group" [class.has-error]="taxForm.get('name')?.invalid && taxForm.get('name')?.touched">
-                  <label for="taxName">{{ 'settings.taxRates.name' | t }}</label>
-                  <input id="taxName" type="text" formControlName="name" [placeholder]="'settings.taxRates.namePh' | t" />
+          <section class="card">
+            <div class="card-h sh">
+              <div class="hg"><h3>{{ 'settings.taxRates.title' | t }}</h3><p>{{ 'settings.taxRates.subtitle' | t }}</p></div>
+            </div>
+            <form class="card-b inline-form" [formGroup]="taxForm" (ngSubmit)="saveTaxRate()">
+              <div class="grid-4">
+                <div class="fld">
+                  <label class="fld-label" for="taxName">{{ 'settings.taxRates.name' | t }}</label>
+                  <div class="field" [class.is-error]="taxForm.get('name')?.invalid && taxForm.get('name')?.touched"><input id="taxName" type="text" formControlName="name" [placeholder]="'settings.taxRates.namePh' | t" /></div>
                 </div>
-                <div class="form-group" [class.has-error]="taxForm.get('rate')?.invalid && taxForm.get('rate')?.touched">
-                  <label for="taxRate">{{ 'finance.taxRate' | t }} (%)</label>
-                  <input id="taxRate" type="number" min="0" max="100" step="0.01" formControlName="rate" />
-                  @if (taxForm.get('rate')?.invalid && taxForm.get('rate')?.touched) { <span class="error-msg">{{ 'settings.taxRates.rateErr' | t }}</span> }
+                <div class="fld">
+                  <label class="fld-label" for="taxRate">{{ 'finance.taxRate' | t }}</label>
+                  <div class="field" [class.is-error]="taxForm.get('rate')?.invalid && taxForm.get('rate')?.touched">
+                    <input id="taxRate" class="num" type="number" min="0" max="100" step="0.01" formControlName="rate" />
+                    <span class="affix suf">%</span>
+                  </div>
+                  @if (taxForm.get('rate')?.invalid && taxForm.get('rate')?.touched) { <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.taxRates.rateErr' | t }}</span> }
                 </div>
-                <div class="form-group">
-                  <label for="taxCountry">{{ 'settings.company.country' | t }}</label>
-                  <select id="taxCountry" formControlName="country">
+                <div class="fld">
+                  <label class="fld-label" for="taxCountry">{{ 'settings.company.country' | t }}</label>
+                  <div class="field select"><select id="taxCountry" formControlName="country">
                     <option value="">{{ 'settings.taxRates.anyCountry' | t }}</option>
                     @for (c of countries; track c.code) { <option [value]="c.code">{{ 'settings.country.' + c.code | t }} ({{ c.code }})</option> }
-                  </select>
+                  </select></div>
                 </div>
-                <div class="form-group settings-check settings-check-pad">
-                  <input id="taxDefault" type="checkbox" formControlName="isDefault" />
-                  <label for="taxDefault">{{ 'finance.defaultTax' | t }}</label>
+                <div class="fld fld-check">
+                  <label class="check"><input id="taxDefault" type="checkbox" formControlName="isDefault" />{{ 'finance.defaultTax' | t }}</label>
                 </div>
               </div>
-              <div class="settings-form-actions">
-                <button type="submit" class="btn btn-primary" [disabled]="taxForm.invalid || isSavingTax()">
-                  @if (isSavingTax()) { {{ 'settings.saving' | t }} } @else { {{ (editTaxId() ? 'common.save' : 'settings.taxRates.add') | t }} }
+              <div class="form-actions">
+                @if (editTaxId()) { <button type="button" class="btn btn-ghost" (click)="resetTaxForm()">{{ 'common.cancel' | t }}</button> }
+                <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingTax()" [disabled]="taxForm.invalid || isSavingTax()">
+                  @if (!editTaxId()) { <app-icon name="plus" /> }<span>{{ (editTaxId() ? 'common.save' : 'settings.taxRates.add') | t }}</span>
                 </button>
-                @if (editTaxId()) { <button type="button" class="btn btn-secondary" (click)="resetTaxForm()">{{ 'common.cancel' | t }}</button> }
               </div>
             </form>
-            <div class="table-scroll settings-table">
+            <div class="table-scroll">
               @if (isLoadingTax()) {
                 <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
               } @else if (taxRates().length === 0) {
-                <div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div><p class="empty-state-title">{{ 'settings.taxRates.empty' | t }}</p></div>
+                <div class="empty-state"><div class="empty-art"><app-icon name="receipt" /></div><h3>{{ 'settings.taxRates.empty' | t }}</h3></div>
               } @else {
-                <table class="table-responsive">
+                <table class="tbl table-responsive">
                   <thead>
                     <tr>
                       <th>{{ 'settings.taxRates.name' | t }}</th>
-                      <th class="num">{{ 'finance.taxRate' | t }}</th>
+                      <th class="r">{{ 'finance.taxRate' | t }}</th>
                       <th>{{ 'settings.company.country' | t }}</th>
                       <th>{{ 'finance.defaultTax' | t }}</th>
-                      <th class="th-actions">{{ 'common.actions' | t }}</th>
+                      <th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     @for (tr of taxRates(); track tr.id) {
                       <tr>
                         <td [attr.data-label]="'settings.taxRates.name' | t"><strong>{{ tr.name }}</strong></td>
-                        <td class="num" [attr.data-label]="'finance.taxRate' | t">%{{ tr.rate | num }}</td>
-                        <td [attr.data-label]="'settings.company.country' | t">{{ tr.country || '-' }}</td>
+                        <td class="r" [attr.data-label]="'finance.taxRate' | t">%{{ tr.rate | num }}</td>
+                        <td [attr.data-label]="'settings.company.country' | t">@if (tr.country) { <span class="tag">{{ tr.country }}</span> } @else { <span class="text-muted">—</span> }</td>
                         <td [attr.data-label]="'finance.defaultTax' | t">
-                          @if (tr.isDefault) { <span class="badge badge-instock">{{ 'finance.defaultTax' | t }}</span> }
-                          @else { <button type="button" class="btn btn-secondary btn-sm" (click)="setDefaultTax(tr)">{{ 'settings.taxRates.setDefault' | t }}</button> }
+                          @if (tr.isDefault) { <span class="badge badge-success"><span class="dot"></span>{{ 'finance.defaultTax' | t }}</span> }
+                          @else { <button type="button" class="btn btn-xs" (click)="setDefaultTax(tr)">{{ 'settings.taxRates.setDefault' | t }}</button> }
                         </td>
-                        <td class="td-actions">
-                          <button class="edit-btn" [title]="'common.edit' | t" (click)="editTax(tr)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                          <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteTax(tr)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                        <td class="td-actions w-act2">
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t" (click)="editTax(tr)"><app-icon name="edit" size="sm" /></button>
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" (click)="deleteTax(tr)"><app-icon name="trash" size="sm" /></button>
                         </td>
                       </tr>
                     }
@@ -316,29 +270,31 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
                 </table>
               }
             </div>
-          </div>
+          </section>
         }
 
         <!-- UNITS TAB -->
         @if (activeTab() === 'units') {
-          <div class="settings-card settings-card-lg">
-            <h3 class="card-title">{{ 'settings.units.title' | t }}</h3>
-            <p class="card-subtitle settings-card-sub">{{ 'settings.units.subtitle' | t }}</p>
+          <section class="card">
+            <div class="card-h sh">
+              <div class="hg"><h3>{{ 'settings.units.title' | t }}</h3><p>{{ 'settings.units.subtitle' | t }}</p></div>
+              @if (!isLoadingUnits() && units().length) { <span class="tag">{{ units().length | num }}</span> }
+            </div>
             @if (canManageUnits()) {
-              <form [formGroup]="unitForm" (ngSubmit)="saveUnit()">
-                <div class="settings-form-grid">
-                  <div class="form-group" [class.has-error]="unitForm.get('code')?.invalid && unitForm.get('code')?.touched">
-                    <label for="unitCode">{{ 'settings.units.code' | t }}</label>
-                    <input id="unitCode" type="text" formControlName="code" [placeholder]="'settings.units.codePh' | t" [readonly]="editUnitStandard()" />
-                    @if (editUnitStandard()) { <span class="field-hint">{{ 'settings.units.codeLocked' | t }}</span> }
+              <form class="card-b inline-form" [formGroup]="unitForm" (ngSubmit)="saveUnit()">
+                <div class="grid-4">
+                  <div class="fld">
+                    <label class="fld-label" for="unitCode">{{ 'settings.units.code' | t }}</label>
+                    <div class="field" [class.is-error]="unitForm.get('code')?.invalid && unitForm.get('code')?.touched"><input id="unitCode" class="mono" type="text" formControlName="code" [placeholder]="'settings.units.codePlaceholder' | t" [readonly]="editUnitStandard()" /></div>
+                    @if (editUnitStandard()) { <span class="fld-help">{{ 'settings.units.codeLocked' | t }}</span> }
                   </div>
-                  <div class="form-group" [class.has-error]="unitForm.get('name')?.invalid && unitForm.get('name')?.touched">
-                    <label for="unitName">{{ 'settings.units.name' | t }}</label>
-                    <input id="unitName" type="text" formControlName="name" [placeholder]="'settings.units.namePh' | t" />
+                  <div class="fld">
+                    <label class="fld-label" for="unitName">{{ 'settings.units.name' | t }}</label>
+                    <div class="field" [class.is-error]="unitForm.get('name')?.invalid && unitForm.get('name')?.touched"><input id="unitName" type="text" formControlName="name" [placeholder]="'settings.units.namePlaceholder' | t" /></div>
                   </div>
-                  <div class="form-group">
-                    <label for="unitUnece">{{ 'units.uneceCode' | t }}</label>
-                    <select id="unitUnece" formControlName="uneceCode" (change)="onUneceChange()">
+                  <div class="fld">
+                    <label class="fld-label" for="unitUnece">{{ 'units.uneceCode' | t }}</label>
+                    <div class="field select"><select id="unitUnece" formControlName="uneceCode" (change)="onUneceChange()">
                       <option value="">—</option>
                       @for (g of uneceGroups; track g.group) {
                         <optgroup [label]="('units.uneceGroup.' + g.group) | t">
@@ -347,40 +303,52 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
                           }
                         </optgroup>
                       }
-                    </select>
-                    <span class="field-hint">{{ 'units.uneceHint' | t }}</span>
+                    </select></div>
+                    <span class="fld-help">{{ 'units.uneceHint' | t }}</span>
                   </div>
-                  <div class="form-group">
-                    <label for="unitDecimals">{{ 'units.decimals' | t }}</label>
-                    <select id="unitDecimals" formControlName="decimals">
+                  <div class="fld">
+                    <label class="fld-label" for="unitDecimals">{{ 'units.decimals' | t }}</label>
+                    <div class="field select"><select id="unitDecimals" formControlName="decimals">
                       @for (d of [0, 1, 2, 3]; track d) { <option [ngValue]="d" [disabled]="d > maxUnitDecimals()">{{ ('units.decimalsOption.' + d) | t }}</option> }
-                    </select>
-                    <span class="field-hint">{{ (maxUnitDecimals() === 0 ? 'units.decimalsCountHint' : 'units.decimalsHint') | t }}</span>
+                    </select></div>
+                    <span class="fld-help">{{ (maxUnitDecimals() === 0 ? 'units.decimalsCountHint' : 'units.decimalsHint') | t }}</span>
                   </div>
                 </div>
-                <div class="settings-form-actions">
-                  <button type="submit" class="btn btn-primary" [disabled]="unitForm.invalid || isSavingUnit()">
-                    @if (isSavingUnit()) { {{ 'settings.saving' | t }} } @else { {{ (editUnitId() ? 'common.save' : 'settings.units.add') | t }} }
+                <div class="form-actions">
+                  @if (editUnitId()) { <button type="button" class="btn btn-ghost" (click)="resetUnitForm()">{{ 'common.cancel' | t }}</button> }
+                  <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingUnit()" [disabled]="unitForm.invalid || isSavingUnit()">
+                    @if (!editUnitId()) { <app-icon name="plus" /> }<span>{{ (editUnitId() ? 'common.save' : 'settings.units.add') | t }}</span>
                   </button>
-                  @if (editUnitId()) { <button type="button" class="btn btn-secondary" (click)="resetUnitForm()">{{ 'common.cancel' | t }}</button> }
                 </div>
               </form>
             }
-            <div class="table-scroll settings-table">
+            <div class="table-scroll">
               @if (isLoadingUnits()) {
                 <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+              } @else if (unitsError()) {
+                <div class="empty-state" role="alert">
+                  <div class="empty-art"><app-icon name="alert" /></div>
+                  <h3>{{ 'settings.units.loadErrorTitle' | t }}</h3>
+                  <p>{{ 'settings.units.loadErrorDesc' | t }}</p>
+                  <div class="actions"><button type="button" class="btn" (click)="loadUnits()"><app-icon name="refresh" />{{ 'settings.units.retry' | t }}</button></div>
+                </div>
               } @else if (units().length === 0) {
-                <div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div><p class="empty-state-title">{{ 'settings.units.empty' | t }}</p></div>
+                <div class="empty-state">
+                  <div class="empty-art"><app-icon name="hash" /></div>
+                  <h3>{{ 'settings.units.empty' | t }}</h3>
+                  <p>{{ 'settings.units.emptyDesc' | t }}</p>
+                  @if (canManageUnits()) { <div class="actions"><button type="button" class="btn btn-primary" (click)="focusUnitForm()"><app-icon name="plus" />{{ 'settings.units.add' | t }}</button></div> }
+                </div>
               } @else {
-                <table class="table-responsive">
+                <table class="tbl table-responsive">
                   <thead>
                     <tr>
                       <th>{{ 'settings.units.code' | t }}</th>
                       <th>{{ 'settings.units.name' | t }}</th>
                       <th>{{ 'units.uneceCode' | t }}</th>
-                      <th class="num">{{ 'units.decimals' | t }}</th>
+                      <th class="r">{{ 'units.decimals' | t }}</th>
                       <th>{{ 'settings.units.type' | t }}</th>
-                      @if (canManageUnits()) { <th class="th-actions">{{ 'common.actions' | t }}</th> }
+                      @if (canManageUnits()) { <th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th> }
                     </tr>
                   </thead>
                   <tbody>
@@ -388,19 +356,19 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
                       <tr>
                         <td class="mono" [attr.data-label]="'settings.units.code' | t">{{ u.code }}</td>
                         <td [attr.data-label]="'settings.units.name' | t"><strong>{{ u | unitLabel }}</strong></td>
-                        <td class="mono" [attr.data-label]="'units.uneceCode' | t">
-                          @if (u.uneceCode) { {{ u.uneceCode }} } @else { <span class="badge badge-warning" [title]="'units.uneceMissingHint' | t">{{ 'units.uneceMissing' | t }}</span> }
+                        <td [attr.data-label]="'units.uneceCode' | t">
+                          @if (u.uneceCode) { <span class="tag">{{ u.uneceCode }}</span> } @else { <span class="badge badge-warning" [attr.data-tip]="'units.uneceMissingHint' | t"><span class="dot"></span>{{ 'units.uneceMissing' | t }}</span> }
                         </td>
-                        <td class="num" [attr.data-label]="'units.decimals' | t">{{ u.decimals ?? 0 }}</td>
+                        <td class="r" [attr.data-label]="'units.decimals' | t">{{ u.decimals ?? 0 }}</td>
                         <td [attr.data-label]="'settings.units.type' | t">
-                          @if (u.isStandard) { <span class="badge badge-instock">{{ 'settings.units.standard' | t }}</span> }
-                          @else { <span class="badge badge-neutral">{{ 'settings.units.custom' | t }}</span> }
-                          @if (u.deprecated) { <span class="badge badge-warning" [title]="'units.deprecatedHint' | t">{{ 'units.deprecated' | t }}</span> }
+                          @if (u.isStandard) { <span class="badge badge-info"><span class="dot"></span>{{ 'settings.units.standard' | t }}</span> }
+                          @else { <span class="badge badge-neutral"><span class="dot"></span>{{ 'settings.units.custom' | t }}</span> }
+                          @if (u.deprecated) { <span class="badge badge-warning" [attr.data-tip]="'units.deprecatedHint' | t"><span class="dot"></span>{{ 'units.deprecated' | t }}</span> }
                         </td>
                         @if (canManageUnits()) {
-                          <td class="td-actions">
-                            <button class="edit-btn" [title]="'common.edit' | t" (click)="editUnit(u)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                            <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteUnit(u)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                          <td class="td-actions w-act2">
+                            <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t" (click)="editUnit(u)"><app-icon name="edit" size="sm" /></button>
+                            <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" (click)="deleteUnit(u)"><app-icon name="trash" size="sm" /></button>
                           </td>
                         }
                       </tr>
@@ -409,66 +377,67 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
                 </table>
               }
             </div>
-          </div>
+          </section>
         }
 
         <!-- EXCHANGE RATES TAB (Admin) -->
         @if (activeTab() === 'exchangeRates' && isAdmin()) {
-          <div class="settings-card settings-card-lg">
-            <h3 class="card-title">{{ 'settings.exchangeRates.title' | t }}</h3>
-            <p class="card-subtitle settings-card-sub">{{ 'settings.exchangeRates.subtitle' | t }}</p>
-            @if (isTrCompany()) {
-              <app-tcmb-panel [autoInitial]="!!ui.userProfile()?.company?.fxAutoFetch" (fetched)="loadExchangeRates()"></app-tcmb-panel>
-            }
-            <form [formGroup]="fxForm" (ngSubmit)="saveExchangeRate()">
-              <div class="settings-form-grid">
-                <div class="form-group">
-                  <label for="fxBase">{{ 'settings.exchangeRates.base' | t }}</label>
-                  <select id="fxBase" formControlName="baseCurrency">
+          @if (isTrCompany()) {
+            <app-tcmb-panel [autoInitial]="!!ui.userProfile()?.company?.fxAutoFetch" (fetched)="loadExchangeRates()"></app-tcmb-panel>
+          }
+          <section class="card">
+            <div class="card-h sh">
+              <div class="hg"><h3>{{ 'settings.exchangeRates.title' | t }}</h3><p>{{ 'settings.exchangeRates.subtitle' | t }}</p></div>
+            </div>
+            <form class="card-b inline-form" [formGroup]="fxForm" (ngSubmit)="saveExchangeRate()">
+              <div class="grid-4">
+                <div class="fld">
+                  <label class="fld-label" for="fxBase">{{ 'settings.exchangeRates.base' | t }}</label>
+                  <div class="field select"><select id="fxBase" formControlName="baseCurrency">
                     @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
-                  </select>
+                  </select></div>
                 </div>
-                <div class="form-group">
-                  <label for="fxQuote">{{ 'settings.exchangeRates.quote' | t }}</label>
-                  <select id="fxQuote" formControlName="quoteCurrency">
+                <div class="fld">
+                  <label class="fld-label" for="fxQuote">{{ 'settings.exchangeRates.quote' | t }}</label>
+                  <div class="field select" [class.is-error]="fxSameCurrency()"><select id="fxQuote" formControlName="quoteCurrency">
                     @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
-                  </select>
+                  </select></div>
                 </div>
-                <div class="form-group" [class.has-error]="fxForm.get('rate')?.invalid && fxForm.get('rate')?.touched">
-                  <label for="fxRate">{{ 'settings.exchangeRates.rate' | t }}</label>
-                  <input id="fxRate" type="number" min="0" step="any" formControlName="rate" />
-                  @if (fxForm.get('rate')?.invalid && fxForm.get('rate')?.touched) { <span class="error-msg">{{ 'settings.exchangeRates.rateErr' | t }}</span> }
+                <div class="fld">
+                  <label class="fld-label" for="fxRate">{{ 'settings.exchangeRates.rate' | t }}</label>
+                  <div class="field" [class.is-error]="fxForm.get('rate')?.invalid && fxForm.get('rate')?.touched"><input id="fxRate" class="num" type="number" min="0" step="any" formControlName="rate" /></div>
+                  @if (fxForm.get('rate')?.invalid && fxForm.get('rate')?.touched) { <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.exchangeRates.rateErr' | t }}</span> }
                 </div>
-                <div class="form-group">
-                  <label for="fxDate">{{ 'settings.exchangeRates.date' | t }}</label>
-                  <input id="fxDate" type="date" formControlName="date" />
+                <div class="fld">
+                  <label class="fld-label" for="fxDate">{{ 'settings.exchangeRates.date' | t }}</label>
+                  <div class="field"><input id="fxDate" type="date" formControlName="date" /></div>
                 </div>
               </div>
-              @if (fxForm.getRawValue().rate > 0) {
-                <p class="field-hint">{{ 'settings.exchangeRates.preview' | t: { base: fxForm.getRawValue().baseCurrency, rate: (fxForm.getRawValue().rate | num: 4), quote: fxForm.getRawValue().quoteCurrency } }}</p>
-              }
-              @if (fxSameCurrency()) { <p class="error-msg">{{ 'settings.exchangeRates.sameErr' | t }}</p> }
-              <div class="settings-form-actions">
-                <button type="submit" class="btn btn-primary" [disabled]="fxForm.invalid || fxSameCurrency() || isSavingFx()">
-                  @if (isSavingFx()) { {{ 'settings.saving' | t }} } @else { {{ (editFxId() ? 'common.save' : 'settings.exchangeRates.add') | t }} }
+              <div class="form-actions">
+                <span class="form-actions-note">
+                  @if (fxSameCurrency()) { <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.exchangeRates.sameErr' | t }}</span> }
+                  @else if (fxForm.getRawValue().rate > 0) { <span class="fld-help">{{ 'settings.exchangeRates.preview' | t: { base: fxForm.getRawValue().baseCurrency, rate: (fxForm.getRawValue().rate | num: 4), quote: fxForm.getRawValue().quoteCurrency } }}</span> }
+                </span>
+                @if (editFxId()) { <button type="button" class="btn btn-ghost" (click)="resetFxForm()">{{ 'common.cancel' | t }}</button> }
+                <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingFx()" [disabled]="fxForm.invalid || fxSameCurrency() || isSavingFx()">
+                  @if (!editFxId()) { <app-icon name="plus" /> }<span>{{ (editFxId() ? 'common.save' : 'settings.exchangeRates.add') | t }}</span>
                 </button>
-                @if (editFxId()) { <button type="button" class="btn btn-secondary" (click)="resetFxForm()">{{ 'common.cancel' | t }}</button> }
               </div>
             </form>
-            <div class="table-scroll settings-table">
+            <div class="table-scroll">
               @if (isLoadingFx()) {
                 <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
               } @else if (sortedExchangeRates().length === 0) {
-                <div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div><p class="empty-state-title">{{ 'settings.exchangeRates.empty' | t }}</p></div>
+                <div class="empty-state"><div class="empty-art"><app-icon name="swap" /></div><h3>{{ 'settings.exchangeRates.empty' | t }}</h3></div>
               } @else {
-                <table class="table-responsive">
+                <table class="tbl table-responsive">
                   <thead>
                     <tr>
                       <th>{{ 'settings.exchangeRates.date' | t }}</th>
                       <th>{{ 'settings.exchangeRates.pair' | t }}</th>
-                      <th class="num">{{ 'settings.exchangeRates.rate' | t }}</th>
+                      <th class="r">{{ 'settings.exchangeRates.rate' | t }}</th>
                       <th>{{ 'settings.exchangeRates.source' | t }}</th>
-                      <th class="th-actions">{{ 'common.actions' | t }}</th>
+                      <th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -476,14 +445,16 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
                       <tr>
                         <td [attr.data-label]="'settings.exchangeRates.date' | t">{{ fx.date | appDate }}</td>
                         <td class="mono" [attr.data-label]="'settings.exchangeRates.pair' | t">{{ fx.baseCurrency }}/{{ fx.quoteCurrency }}</td>
-                        <td class="num" [attr.data-label]="'settings.exchangeRates.rate' | t">{{ 'settings.exchangeRates.preview' | t: { base: fx.baseCurrency, rate: (fx.rate | num: 4), quote: fx.quoteCurrency } }}</td>
+                        <td class="r" [attr.data-label]="'settings.exchangeRates.rate' | t">{{ 'settings.exchangeRates.preview' | t: { base: fx.baseCurrency, rate: (fx.rate | num: 4), quote: fx.quoteCurrency } }}</td>
                         <td [attr.data-label]="'settings.exchangeRates.source' | t">
-                          <span class="badge" [class.badge-info]="fx.source === 'TCMB'" [class.badge-warning]="fx.source !== 'TCMB'">{{ 'finance.fxSource.' + (fx.source || 'MANUAL') | t }}</span>
-                          <span class="text-muted"> {{ 'finance.rateType.' + (fx.rateType || 'FOREX_BUYING') | t }}@if (fx.bulletinNo) { · {{ fx.bulletinNo }} }</span>
+                          <span class="src-cell">
+                            <span class="badge" [class.badge-info]="fx.source === 'TCMB'" [class.badge-neutral]="fx.source !== 'TCMB'"><span class="dot"></span>{{ 'finance.fxSource.' + (fx.source || 'MANUAL') | t }}</span>
+                            <span class="text-muted">{{ 'finance.rateType.' + (fx.rateType || 'FOREX_BUYING') | t }}@if (fx.bulletinNo) { · <span class="mono">{{ fx.bulletinNo }}</span> }</span>
+                          </span>
                         </td>
-                        <td class="td-actions">
-                          <button class="edit-btn" [title]="'common.edit' | t" (click)="editFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                          <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteFx(fx)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                        <td class="td-actions w-act2">
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t" (click)="editFx(fx)"><app-icon name="edit" size="sm" /></button>
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" (click)="deleteFx(fx)"><app-icon name="trash" size="sm" /></button>
                         </td>
                       </tr>
                     }
@@ -491,7 +462,7 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
                 </table>
               }
             </div>
-          </div>
+          </section>
         }
 
         <!-- PROFILE & SECURITY TAB -->
@@ -499,374 +470,313 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
           <div class="settings-container">
             <div class="settings-left-col">
               <app-totp-settings></app-totp-settings>
-              <div class="settings-card" >
-                <h3 class="card-title">{{ 'settings.profile.title' | t }}</h3>
-                <p class="card-subtitle settings-card-sub">{{ 'settings.profile.subtitle' | t }}</p>
-                
-                <div class="settings-avatar-section">
-                  <div class="settings-avatar">
-                    @if (ui.userProfile()?.avatar) {
-                      <img [src]="ui.userProfile().avatar" class="settings-avatar-img" alt="" />
-                    } @else {
-                      {{ getAvatarInitials() }}
-                    }
-                  </div>
-                  <div class="settings-avatar-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" (click)="fileInput.click()">{{ 'settings.profile.uploadPhoto' | t }}</button>
-                    <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="image/*" />
-                    <a class="link-remove" (click)="removeAvatar()">{{ 'settings.profile.removePhoto' | t }}</a>
-                  </div>
+              <section class="card">
+                <div class="card-h sh">
+                  <div class="hg"><h3>{{ 'settings.profile.title' | t }}</h3><p>{{ 'settings.profile.subtitle' | t }}</p></div>
                 </div>
-
                 <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
-                  <div class="settings-form-grid">
-                    <div class="form-group" [class.has-error]="isProfileFieldInvalid('fullName')">
-                      <label for="">{{ 'settings.profile.fullName' | t }}</label>
-                      <input type="text" formControlName="fullName" [placeholder]="'settings.profile.fullNamePh' | t" />
-                      @if (isProfileFieldInvalid('fullName')) { <span class="error-msg">{{ 'settings.profile.fullNameErr' | t }}</span> }
+                  <div class="card-b form-stack">
+                    <div class="settings-avatar-section">
+                      <div class="settings-avatar">
+                        @if (ui.userProfile()?.avatar) {
+                          <img [src]="ui.userProfile().avatar" class="settings-avatar-img" alt="" />
+                        } @else {
+                          {{ getAvatarInitials() }}
+                        }
+                      </div>
+                      <div class="settings-avatar-actions">
+                        <button type="button" class="btn btn-sm" (click)="fileInput.click()"><app-icon name="upload" size="sm" />{{ 'settings.profile.uploadPhoto' | t }}</button>
+                        <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="image/*" />
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="removeAvatar()">{{ 'settings.profile.removePhoto' | t }}</button>
+                      </div>
                     </div>
-                    <div class="form-group" [class.has-error]="isProfileFieldInvalid('email')">
-                      <label for="">{{ 'settings.profile.email' | t }}</label>
-                      <input type="email" formControlName="email" [placeholder]="'settings.profile.emailPh' | t" />
-                      @if (isProfileFieldInvalid('email')) { <span class="error-msg">{{ 'settings.profile.emailErr' | t }}</span> }
+                    <div class="grid-2">
+                      <div class="fld">
+                        <label class="fld-label" for="pfName">{{ 'settings.profile.fullName' | t }}</label>
+                        <div class="field" [class.is-error]="isProfileFieldInvalid('fullName')"><input id="pfName" type="text" formControlName="fullName" [placeholder]="'settings.profile.fullNamePh' | t" /></div>
+                        @if (isProfileFieldInvalid('fullName')) { <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.profile.fullNameErr' | t }}</span> }
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="pfEmail">{{ 'settings.profile.email' | t }}</label>
+                        <div class="field" [class.is-error]="isProfileFieldInvalid('email')"><input id="pfEmail" type="email" formControlName="email" [placeholder]="'settings.profile.emailPh' | t" /></div>
+                        @if (isProfileFieldInvalid('email')) { <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.profile.emailErr' | t }}</span> }
+                      </div>
+                      <div class="fld span-all">
+                        <label class="fld-label" for="pfDept">{{ 'settings.profile.department' | t }}</label>
+                        <div class="field"><input id="pfDept" type="text" formControlName="department" [placeholder]="'settings.profile.departmentPh' | t" /></div>
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="pfLang">{{ 'settings.profile.language' | t }}</label>
+                        <div class="field select"><select id="pfLang" formControlName="language">
+                          <option value="">{{ 'settings.profile.companyDefault' | t: { value: ui.userProfile()?.company?.defaultLanguage } }}</option>
+                          @for (l of languages; track l) { <option [value]="l">{{ 'settings.lang.' + l | t }}</option> }
+                        </select></div>
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="pfTz">{{ 'settings.profile.timezone' | t }}</label>
+                        <div class="field select"><select id="pfTz" formControlName="timezone">
+                          <option value="">{{ 'settings.profile.companyDefault' | t: { value: ui.userProfile()?.company?.timezone ? ('settings.tz.' + ui.userProfile()?.company?.timezone | t) : '—' } }}</option>
+                          @for (tz of timezones; track tz) { <option [value]="tz">{{ 'settings.tz.' + tz | t }} ({{ tz }})</option> }
+                        </select></div>
+                      </div>
                     </div>
                   </div>
-                  <div class="form-group">
-                    <label for="">{{ 'settings.profile.department' | t }}</label>
-                    <input type="text" formControlName="department" [placeholder]="'settings.profile.departmentPh' | t" />
-                  </div>
-                  <div class="settings-form-grid">
-                    <div class="form-group">
-                      <label for="">{{ 'settings.profile.language' | t }}</label>
-                      <select formControlName="language">
-                        <option value="">{{ 'settings.profile.companyDefault' | t: { value: ui.userProfile()?.company?.defaultLanguage } }}</option>
-                        @for (l of languages; track l) { <option [value]="l">{{ 'settings.lang.' + l | t }}</option> }
-                      </select>
-                    </div>
-                    <div class="form-group">
-                      <label for="">{{ 'settings.profile.timezone' | t }}</label>
-                      <select formControlName="timezone">
-                        <option value="">{{ 'settings.profile.companyDefault' | t: { value: ui.userProfile()?.company?.timezone } }}</option>
-                        @for (tz of timezones; track tz) { <option [value]="tz">{{ 'settings.tz.' + tz | t }} ({{ tz }})</option> }
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div class="settings-divider">
-                    <button type="submit" class="btn btn-primary" [disabled]="profileForm.invalid || profileForm.pristine || isSavingProfile">
-                      @if (isSavingProfile) { <span class="spinner-sm spinner-light"></span> {{ 'settings.saving' | t }} } @else { {{ 'settings.profile.save' | t }} }
+                  <div class="card-f">
+                    <span class="spacer"></span>
+                    <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingProfile" [disabled]="profileForm.invalid || profileForm.pristine || isSavingProfile">
+                      <span>{{ 'settings.profile.save' | t }}</span>
                     </button>
                   </div>
                 </form>
-              </div>
+              </section>
 
-              <div class="settings-card" >
-                <h3 class="card-title">{{ 'settings.password.title' | t }}</h3>
-                <p class="card-subtitle settings-card-sub">{{ 'settings.password.subtitle' | t }}</p>
-                
+              <section class="card">
+                <div class="card-h sh">
+                  <div class="hg"><h3>{{ 'settings.password.title' | t }}</h3><p>{{ 'settings.password.subtitle' | t }}</p></div>
+                </div>
                 <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()">
-                  <div class="form-group" [class.has-error]="isPasswordFieldInvalid('currentPassword')">
-                    <label for="">{{ 'settings.password.current' | t }}</label>
-                    <div class="password-input-wrapper">
-                      <input [type]="showCurrent() ? 'text' : 'password'" formControlName="currentPassword" placeholder="••••••••" />
-                      <button type="button" class="password-toggle-btn" (click)="showCurrent.set(!showCurrent())">
-                        @if (showCurrent()) { <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg> }
-                        @else { <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg> }
-                      </button>
-                    </div>
-                    @if (isPasswordFieldInvalid('currentPassword')) { <span class="error-msg">{{ 'settings.password.currentErr' | t }}</span> }
-                  </div>
-                  
-                  <div class="settings-form-grid">
-                    <div class="form-group" [class.has-error]="isPasswordFieldInvalid('newPassword')">
-                      <label for="">{{ 'settings.password.new' | t }}</label>
-                      <div class="password-input-wrapper">
-                        <input [type]="showNew() ? 'text' : 'password'" formControlName="newPassword" [placeholder]="'settings.password.newPh' | t" (input)="evaluatePasswordStrength()"/>
-                        <button type="button" class="password-toggle-btn" (click)="showNew.set(!showNew())">
-                          @if (showNew()) { <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg> }
-                          @else { <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg> }
-                        </button>
+                  <div class="card-b form-stack">
+                    <div class="fld">
+                      <label class="fld-label" for="pwCur">{{ 'settings.password.current' | t }}</label>
+                      <div class="field" [class.is-error]="isPasswordFieldInvalid('currentPassword')">
+                        <span class="lead"><app-icon name="lock" size="sm" /></span>
+                        <input id="pwCur" [type]="showCurrent() ? 'text' : 'password'" formControlName="currentPassword" placeholder="••••••••" autocomplete="current-password" />
+                        <span class="trail"><button type="button" class="eye-btn" (click)="showCurrent.set(!showCurrent())" [attr.aria-label]="(showCurrent() ? 'login.hidePassword' : 'login.showPassword') | t"><app-icon [name]="showCurrent() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
                       </div>
-                      <div class="password-strength-container" *ngIf="passwordForm.get('newPassword')?.value">
-                        <div class="password-strength-bars">
-                          <div [style.background]="pwdStrength() >= 1 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
-                          <div [style.background]="pwdStrength() >= 2 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
-                          <div [style.background]="pwdStrength() >= 3 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
-                          <div [style.background]="pwdStrength() >= 4 ? strengthColors[pwdStrength()-1] : 'var(--color-border)'"></div>
+                      @if (isPasswordFieldInvalid('currentPassword')) { <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.password.currentErr' | t }}</span> }
+                    </div>
+                    <div class="grid-2">
+                      <div class="fld">
+                        <label class="fld-label" for="pwNew">{{ 'settings.password.new' | t }}</label>
+                        <div class="field" [class.is-error]="isPasswordFieldInvalid('newPassword')">
+                          <input id="pwNew" [type]="showNew() ? 'text' : 'password'" formControlName="newPassword" [placeholder]="'settings.password.newPh' | t" (input)="evaluatePasswordStrength()" autocomplete="new-password" />
+                          <span class="trail"><button type="button" class="eye-btn" (click)="showNew.set(!showNew())" [attr.aria-label]="(showNew() ? 'login.hidePassword' : 'login.showPassword') | t"><app-icon [name]="showNew() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
                         </div>
-                        <div class="strength-label" [style.color]="pwdStrength() > 0 ? strengthColors[pwdStrength()-1] : 'inherit'">{{ strengthLabels[pwdStrength()] ? (strengthLabels[pwdStrength()] | t) : '' }}</div>
+                        <div class="password-strength-container" *ngIf="passwordForm.get('newPassword')?.value">
+                          <div class="password-strength-bars">
+                            <div [style.background]="pwdStrength() >= 1 ? strengthColors[pwdStrength()-1] : null"></div>
+                            <div [style.background]="pwdStrength() >= 2 ? strengthColors[pwdStrength()-1] : null"></div>
+                            <div [style.background]="pwdStrength() >= 3 ? strengthColors[pwdStrength()-1] : null"></div>
+                            <div [style.background]="pwdStrength() >= 4 ? strengthColors[pwdStrength()-1] : null"></div>
+                          </div>
+                          <div class="strength-label" [style.color]="pwdStrength() > 0 ? strengthColors[pwdStrength()-1] : 'inherit'">{{ strengthLabels[pwdStrength()] ? (strengthLabels[pwdStrength()] | t) : '' }}</div>
+                        </div>
+                        @if (isPasswordFieldInvalid('newPassword')) { <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.password.newErr' | t }}</span> }
                       </div>
-                      @if (isPasswordFieldInvalid('newPassword')) { <span class="error-msg">{{ 'settings.password.newErr' | t }}</span> }
-                    </div>
-                    
-                    <div class="form-group" [class.has-error]="passwordForm.errors?.['mismatch'] && (passwordForm.get('confirmPassword')?.dirty || passwordForm.get('confirmPassword')?.touched)">
-                      <label for="">{{ 'settings.password.confirm' | t }}</label>
-                      <div class="password-input-wrapper">
-                        <input [type]="showConfirm() ? 'text' : 'password'" formControlName="confirmPassword" [placeholder]="'settings.password.confirmPh' | t" />
-                        <button type="button" class="password-toggle-btn" (click)="showConfirm.set(!showConfirm())">
-                          @if (showConfirm()) { <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg> }
-                          @else { <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg> }
-                        </button>
+                      <div class="fld">
+                        <label class="fld-label" for="pwConf">{{ 'settings.password.confirm' | t }}</label>
+                        <div class="field" [class.is-error]="passwordForm.errors?.['mismatch'] && (passwordForm.get('confirmPassword')?.dirty || passwordForm.get('confirmPassword')?.touched)">
+                          <input id="pwConf" [type]="showConfirm() ? 'text' : 'password'" formControlName="confirmPassword" [placeholder]="'settings.password.confirmPh' | t" autocomplete="new-password" />
+                          <span class="trail"><button type="button" class="eye-btn" (click)="showConfirm.set(!showConfirm())" [attr.aria-label]="(showConfirm() ? 'login.hidePassword' : 'login.showPassword') | t"><app-icon [name]="showConfirm() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
+                        </div>
+                        @if (passwordForm.errors?.['mismatch'] && (passwordForm.get('confirmPassword')?.dirty || passwordForm.get('confirmPassword')?.touched)) {
+                          <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.password.mismatch' | t }}</span>
+                        } @else if (!passwordForm.errors?.['mismatch'] && passwordForm.get('confirmPassword')?.value) {
+                          <span class="fld-ok"><app-icon name="check" size="sm" />{{ 'settings.password.match' | t }}</span>
+                        }
                       </div>
-                      @if (passwordForm.errors?.['mismatch'] && (passwordForm.get('confirmPassword')?.dirty || passwordForm.get('confirmPassword')?.touched)) { 
-                        <span class="error-msg">{{ 'settings.password.mismatch' | t }}</span> 
-                      } @else if (!passwordForm.errors?.['mismatch'] && passwordForm.get('confirmPassword')?.value) {
-                        <span class="error-msg settings-ok-msg">
-                          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                          {{ 'settings.password.match' | t }}
-                        </span>
-                      }
                     </div>
                   </div>
-                  
-                  <div class="settings-divider">
-                    <button type="submit" class="btn btn-primary" [disabled]="passwordForm.invalid || !passwordForm.get('currentPassword')?.value || isSavingPassword">
-                      @if (isSavingPassword) { <span class="spinner-sm spinner-light"></span> {{ 'settings.updating' | t }} } @else { {{ 'settings.password.update' | t }} }
+                  <div class="card-f">
+                    <span class="spacer"></span>
+                    <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingPassword" [disabled]="passwordForm.invalid || !passwordForm.get('currentPassword')?.value || isSavingPassword">
+                      <span>{{ 'settings.password.update' | t }}</span>
                     </button>
                   </div>
                 </form>
-              </div>
+              </section>
             </div>
 
             <div class="settings-right-col">
-              <div class="settings-card" >
-                <div class="side-card-title">{{ 'settings.summary.title' | t }}</div>
-                <div class="summary-row">
-                  <span class="summary-label">{{ 'settings.summary.accountType' | t }}</span>
-                  <span class="summary-value">{{ roleLabel(ui.userProfile()?.role) | t }}</span>
-                </div>
-                <div class="summary-row">
-                  <span class="summary-label">{{ 'settings.summary.memberSince' | t }}</span>
-                  <span class="summary-value">{{ (ui.userProfile()?.createdAt | appDate) || (defaultMemberSince | appDate) }}</span>
-                </div>
-                <div class="summary-row">
-                  <span class="summary-label">{{ 'settings.summary.lastLogin' | t }}</span>
-                  <span class="summary-value">{{ demoLastLogin | appDate: 'datetime' }}</span>
-                </div>
-                <div class="summary-row">
-                  <span class="summary-label">{{ 'settings.summary.status' | t }}</span>
-                  <span class="badge badge-instock">{{ 'settings.summary.active' | t }}</span>
-                </div>
-              </div>
+              <section class="card">
+                <div class="card-h"><h3>{{ 'settings.summary.title' | t }}</h3></div>
+                <dl class="kv card-b">
+                  <div><dt>{{ 'settings.summary.accountType' | t }}</dt><dd>{{ roleLabel(ui.userProfile()?.role) | t }}</dd></div>
+                  <div><dt>{{ 'settings.summary.memberSince' | t }}</dt><dd>{{ (ui.userProfile()?.createdAt | appDate) || (defaultMemberSince | appDate) }}</dd></div>
+                  <div><dt>{{ 'settings.summary.lastLogin' | t }}</dt><dd>{{ demoLastLogin | appDate: 'datetime' }}</dd></div>
+                  <div><dt>{{ 'settings.summary.status' | t }}</dt><dd><span class="badge badge-success"><span class="dot"></span>{{ 'settings.summary.active' | t }}</span></dd></div>
+                </dl>
+              </section>
 
-              <div class="settings-card" >
-                <div class="side-card-title">{{ 'settings.security.title' | t }}</div>
-                <div class="security-row">
-                  <div class="security-icon-text"><span class="security-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> {{ 'settings.security.passwordUpdate' | t }}</div>
-                  <span class="field-hint">{{ 'settings.security.daysAgo' | t: { n: 30 } }}</span>
+              <section class="card">
+                <div class="card-h"><h3>{{ 'settings.security.title' | t }}</h3></div>
+                <div class="card-b">
+                  <div class="kv-row"><span class="kv-ic"><app-icon name="lock" size="sm" /></span><span class="kv-t">{{ 'settings.security.passwordUpdate' | t }}</span><span class="kv-v text-muted">{{ 'settings.security.daysAgo' | t: { n: 30 } }}</span></div>
+                  <div class="kv-row"><span class="kv-ic"><app-icon name="globe" size="sm" /></span><span class="kv-t">{{ 'settings.security.activeSession' | t }}</span><span class="badge badge-info"><span class="dot"></span>{{ 'settings.security.sessions' | t: { n: 1 } }}</span></div>
+                  <div class="kv-row"><span class="kv-ic"><app-icon name="okc" size="sm" /></span><span class="kv-t">{{ 'settings.security.emailVerification' | t }}</span><span class="badge badge-success"><span class="dot"></span>{{ 'settings.security.verified' | t }}</span></div>
                 </div>
-                <div class="security-row">
-                  <div class="security-icon-text"><span class="security-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span> {{ 'settings.security.activeSession' | t }}</div>
-                  <span class="badge badge-lowstock">{{ 'settings.security.sessions' | t: { n: 1 } }}</span>
-                </div>
-                <div class="security-row">
-                  <div class="security-icon-text"><span class="security-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span> {{ 'settings.security.emailVerification' | t }}</div>
-                  <span class="badge badge-instock">{{ 'settings.security.verified' | t }}</span>
-                </div>
-                <button type="button" class="btn-terminate" (click)="terminateAllSessions()">{{ 'settings.security.terminateAll' | t }}</button>
-              </div>
+                <div class="card-f"><button type="button" class="btn btn-danger-outline btn-block" (click)="terminateAllSessions()"><app-icon name="logout" size="sm" />{{ 'settings.security.terminateAll' | t }}</button></div>
+              </section>
 
-              <div class="settings-card tips-card" >
-                <div class="side-card-title">{{ 'settings.tips.title' | t }}</div>
-                <ul class="tips-list">
-                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> {{ 'settings.tips.strong' | t }}</li>
-                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> {{ 'settings.tips.rotate' | t }}</li>
-                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> {{ 'settings.tips.keepUpdated' | t }}</li>
-                </ul>
-              </div>
+              <section class="card tips">
+                <div class="card-h"><h3>{{ 'settings.tips.title' | t }}</h3></div>
+                <div class="card-b"><ul class="tips-list">
+                  <li><app-icon name="check" size="sm" />{{ 'settings.tips.strong' | t }}</li>
+                  <li><app-icon name="check" size="sm" />{{ 'settings.tips.rotate' | t }}</li>
+                  <li><app-icon name="check" size="sm" />{{ 'settings.tips.keepUpdated' | t }}</li>
+                </ul></div>
+              </section>
             </div>
           </div>
         </ng-container>
 
         <!-- CATEGORY MANAGEMENT TAB -->
         <ng-container *ngIf="activeTab() === 'categories'">
-          <div class="settings-section">
-            
-            <div class="settings-section-head">
-              <div>
-                <h2 class="settings-section-title">{{ 'settings.categories.title' | t }}</h2>
-                <p class="settings-section-sub">{{ 'settings.categories.subtitle' | t }}</p>
+          <section class="card">
+            <div class="card-h sh">
+              <div class="hg"><h3>{{ 'settings.categories.title' | t }}</h3><p>{{ 'settings.categories.subtitle' | t }}</p></div>
+              <button type="button" class="btn btn-primary" (click)="openCategoryDrawer()"><app-icon name="plus" /><span>{{ 'settings.categories.add' | t }}</span></button>
+            </div>
+            @if (isLoadingCategories()) {
+              <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+            } @else if (categories().length === 0) {
+              <div class="empty-state">
+                <div class="empty-art"><app-icon name="tag" /></div>
+                <h3>{{ 'settings.categories.empty' | t }}</h3>
+                <div class="actions cluster"><button type="button" class="btn btn-primary" (click)="openCategoryDrawer()"><app-icon name="plus" />{{ 'settings.categories.addFirst' | t }}</button></div>
               </div>
-              <button class="btn btn-primary" (click)="openCategoryDrawer()">
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                {{ 'settings.categories.add' | t }}
-              </button>
-            </div>
-
-            <div class="table-card">
-              @if (isLoadingCategories()) {
-                <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
-              } @else if (categories().length === 0) {
-                <div class="empty-state">
-                  <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div>
-                  <p class="empty-state-title">{{ 'settings.categories.empty' | t }}</p>
-                  <button class="btn btn-secondary" (click)="openCategoryDrawer()">{{ 'settings.categories.addFirst' | t }}</button>
-                </div>
-              } @else {
-                <div class="table-scroll">
-                  <table class="table-responsive">
-                    <thead>
+            } @else {
+              <div class="table-scroll">
+                <table class="tbl table-responsive">
+                  <thead>
+                    <tr>
+                      <th>{{ 'settings.categories.name' | t }}</th>
+                      <th>{{ 'settings.categories.slug' | t }}</th>
+                      <th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (cat of categories(); track cat.id) {
                       <tr>
-                        <th>{{ 'settings.categories.name' | t }}</th>
-                        <th>{{ 'settings.categories.slug' | t }}</th>
-                        <th class="th-actions">{{ 'common.actions' | t }}</th>
+                        <td [attr.data-label]="'settings.categories.name' | t"><div class="cell-prod"><span class="thumb">{{ (cat.name || '?').charAt(0) }}</span><b>{{ cat.name }}</b></div></td>
+                        <td class="mono text-muted" [attr.data-label]="'settings.categories.slug' | t">{{ cat.slug }}</td>
+                        <td class="td-actions w-act2">
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t" (click)="openCategoryDrawer(cat)"><app-icon name="edit" size="sm" /></button>
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" (click)="promptDeleteCategory(cat)"><app-icon name="trash" size="sm" /></button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      @for (cat of categories(); track cat.id) {
-                        <tr>
-                          <td [attr.data-label]="'settings.categories.name' | t"><strong>{{ cat.name }}</strong></td>
-                          <td class="mono text-muted" [attr.data-label]="'settings.categories.slug' | t">{{ cat.slug }}</td>
-                          <td class="td-actions">
-                            <button class="edit-btn" [title]="'common.edit' | t" (click)="openCategoryDrawer(cat)">
-                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                            </button>
-                            <button class="delete-btn" [title]="'common.delete' | t" (click)="promptDeleteCategory(cat)">
-                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            </div>
-          </div>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <div class="tbl-foot"><span><strong class="mono">{{ categories().length | num }}</strong> {{ (categories().length === 1 ? 'settings.categories.countOne' : 'settings.categories.countMany') | t }}</span></div>
+            }
+          </section>
         </ng-container>
 
         <!-- USER MANAGEMENT TAB -->
         <ng-container *ngIf="activeTab() === 'users'">
-          <div class="settings-section">
-            
-            <div class="settings-section-head">
-              <div>
-                <h2 class="settings-section-title">{{ 'settings.tab.users' | t }}</h2>
-                <p class="settings-section-sub">{{ 'settings.users.subtitle' | t }}</p>
-              </div>
-              
-              <div class="page-actions">
-                <button class="btn btn-primary" (click)="openUserDrawer()">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                  {{ 'settings.users.add' | t }}
-                </button>
-              </div>
+          @if (inviteLink(); as link) {
+            <div class="notice notice-info settings-invite" role="status">
+              <app-icon name="link" />
+              <span class="t">{{ 'settings.users.inviteCreated' | t: { name: link.name } }} <code class="mono invite-url">{{ link.url }}</code></span>
+              <button type="button" class="btn btn-sm" (click)="copyInvite(link.url)"><app-icon name="copy" size="sm" />{{ 'settings.users.copyLink' | t }}</button>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="inviteLink.set(null)" [attr.aria-label]="'common.close' | t"><app-icon name="x" size="sm" /></button>
             </div>
-
-            @if (inviteLink(); as link) {
-              <div class="alert-banner alert-banner--info settings-invite" role="status">
-                <span class="settings-invite-text">{{ 'settings.users.inviteCreated' | t: { name: link.name } }} <code class="mono">{{ link.url }}</code></span>
-                <button type="button" class="btn btn-secondary btn-sm" (click)="copyInvite(link.url)">{{ 'settings.users.copyLink' | t }}</button>
-                <button type="button" class="btn btn-ghost btn-sm" (click)="inviteLink.set(null)" [attr.aria-label]="'common.close' | t">×</button>
+          }
+          <section class="card">
+            <div class="card-h sh">
+              <div class="hg"><h3>{{ 'settings.tab.users' | t }}</h3><p>{{ 'settings.users.subtitle' | t }}</p></div>
+              <button type="button" class="btn btn-primary" (click)="openUserDrawer()"><app-icon name="plus" /><span>{{ 'settings.users.add' | t }}</span></button>
+            </div>
+            @if (usersError() && !isLoadingUsers()) {
+              <div class="empty-state" role="alert">
+                <div class="empty-art"><app-icon name="alert" /></div>
+                <h3>{{ 'settings.toast.usersLoadFailed' | t }}</h3>
+                <div class="actions cluster"><button type="button" class="btn" (click)="loadUsers()"><app-icon name="refresh" />{{ 'layout.profileError.retry' | t }}</button></div>
               </div>
-            }
-            <div class="table-card">
-              @if (isLoadingUsers()) {
-                <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
-              } @else if (users().length === 0) {
-                <div class="empty-state">
-                  <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></div>
-                  <p class="empty-state-title">{{ 'settings.users.empty' | t }}</p>
-                  <button class="btn btn-secondary" (click)="openUserDrawer()">{{ 'settings.users.addFirst' | t }}</button>
-                </div>
-              } @else {
-                <div class="table-scroll">
-                  <table class="table-responsive">
-                    <thead>
+            } @else if (isLoadingUsers() || (isAdmin() && !usersLoaded())) {
+              <div class="settings-skel" [attr.aria-label]="'common.loading' | t"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>
+            } @else if (users().length === 0) {
+              <div class="empty-state">
+                <div class="empty-art"><app-icon name="users" /></div>
+                <h3>{{ 'settings.users.empty' | t }}</h3>
+                <div class="actions cluster"><button type="button" class="btn btn-primary" (click)="openUserDrawer()"><app-icon name="plus" />{{ 'settings.users.addFirst' | t }}</button></div>
+              </div>
+            } @else {
+              <div class="table-scroll">
+                <table class="tbl table-responsive">
+                  <thead>
+                    <tr>
+                      <th>{{ 'settings.users.fullName' | t }}</th>
+                      <th>{{ 'settings.users.role' | t }}</th>
+                      <th>{{ 'settings.users.department' | t }}</th>
+                      <th>{{ 'settings.users.email' | t }}</th>
+                      <th>{{ 'settings.users.status' | t }}</th>
+                      <th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (user of users(); track user.id) {
                       <tr>
-                        <th>{{ 'settings.users.fullName' | t }}</th>
-                        <th>{{ 'settings.users.username' | t }}</th>
-                        <th>{{ 'settings.users.role' | t }}</th>
-                        <th>{{ 'settings.users.department' | t }}</th>
-                        <th>{{ 'settings.users.email' | t }}</th>
-                        <th>{{ 'settings.users.status' | t }}</th>
-                        <th class="th-actions">{{ 'common.actions' | t }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (user of users(); track user.id) {
-                        <tr>
-                          <td [attr.data-label]="'settings.users.fullName' | t">
-                            <div class="settings-user-cell">
-                              <div class="user-avatar-sm">
-                                @if (user.avatar) {
-                                  <img [src]="user.avatar" alt="" />
-                                } @else {
-                                  {{ getInitials(user.fullName) }}
-                                }
-                              </div>
-                              <strong>{{ user.fullName }}</strong>
-                            </div>
-                          </td>
-                          <td class="mono text-muted" [attr.data-label]="'settings.users.username' | t">{{ user.username }}</td>
-                          <td [attr.data-label]="'settings.users.role' | t">
-                            <span class="badge" [class.badge-instock]="user.role === 'admin'" [class.badge-lowstock]="user.role === 'manager'" [class.badge-outstock]="user.role === 'viewer'">
-                              {{ roleLabel(user.role) | t }}
+                        <td class="td-primary" [attr.data-label]="'settings.users.fullName' | t">
+                          <div class="cell-prod">
+                            <span class="thumb av">
+                              @if (user.avatar) { <img [src]="user.avatar" alt="" /> } @else { {{ getInitials(user.fullName) }} }
                             </span>
-                          </td>
-                          <td [attr.data-label]="'settings.users.department' | t">{{ user.department || '-' }}</td>
-                          <td [attr.data-label]="'settings.users.email' | t">{{ user.email }}</td>
-                          <td [attr.data-label]="'settings.users.status' | t">
-                            @if (user.locked) { <span class="badge badge-danger">{{ 'settings.users.statusLocked' | t }}</span> }
-                            @else if (user.invitePending) { <span class="badge badge-info">{{ 'settings.users.statusInvited' | t }}</span> }
-                            @else if (user.mustChangePassword) { <span class="badge badge-warning">{{ 'settings.users.statusMustChange' | t }}</span> }
-                            @else { <span class="badge badge-success">{{ 'settings.users.statusActive' | t }}</span> }
-                          </td>
-                          <td class="td-actions">
-                            @if (user.locked) {
-                              <button class="edit-btn" [title]="'settings.users.unlock' | t" (click)="unlockUser(user)">
-                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                              </button>
-                            }
-                            <button class="edit-btn" [title]="'settings.users.reinvite' | t" (click)="reinviteUser(user)">
-                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                            </button>
-                            <button class="edit-btn" [title]="'common.edit' | t" (click)="openUserDrawer(user)">
-                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                            </button>
-                            <button class="delete-btn" [title]="'common.delete' | t" [disabled]="user.role === 'admin'" (click)="promptDeleteUser(user)">
-                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            </div>
-          </div>
+                            <b>{{ user.fullName }}</b><span class="cell-code">{{ user.username }}</span>
+                          </div>
+                        </td>
+                        <td [attr.data-label]="'settings.users.role' | t">
+                          <span class="badge" [class.badge-info]="user.role === 'admin'" [class.badge-neutral]="user.role !== 'admin'"><span class="dot"></span>{{ roleLabel(user.role) | t }}</span>
+                        </td>
+                        <td [attr.data-label]="'settings.users.department' | t">@if (user.department) { {{ user.department }} } @else { <span class="text-muted">—</span> }</td>
+                        <td class="text-muted" [attr.data-label]="'settings.users.email' | t">{{ user.email }}</td>
+                        <td [attr.data-label]="'settings.users.status' | t">
+                          @if (user.locked) { <span class="badge badge-danger"><span class="dot"></span>{{ 'settings.users.statusLocked' | t }}</span> }
+                          @else if (user.invitePending) { <span class="badge badge-info"><span class="dot"></span>{{ 'settings.users.statusInvited' | t }}</span> }
+                          @else if (user.mustChangePassword) { <span class="badge badge-warning"><span class="dot"></span>{{ 'settings.users.statusMustChange' | t }}</span> }
+                          @else { <span class="badge badge-success"><span class="dot"></span>{{ 'settings.users.statusActive' | t }}</span> }
+                        </td>
+                        <td class="td-actions w-act4">
+                          @if (user.locked) {
+                            <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.aria-label]="'settings.users.unlock' | t" [attr.data-tip]="'settings.users.unlock' | t" (click)="unlockUser(user)"><app-icon name="lock" size="sm" /></button>
+                          }
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.aria-label]="'settings.users.reinvite' | t" [attr.data-tip]="'settings.users.reinvite' | t" (click)="reinviteUser(user)"><app-icon name="link" size="sm" /></button>
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t" (click)="openUserDrawer(user)"><app-icon name="edit" size="sm" /></button>
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act danger-ic" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t" [disabled]="user.role === 'admin'" (click)="promptDeleteUser(user)"><app-icon name="trash" size="sm" /></button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <div class="tbl-foot"><span><strong class="mono">{{ users().length | num }}</strong> {{ (users().length === 1 ? 'settings.users.countOne' : 'settings.users.countMany') | t }}</span></div>
+            }
+          </section>
         </ng-container>
       </div>
+      }
+    </div>
     </div>
 
     <!-- Category Drawer -->
     @if (isCategoryDrawerOpen()) {
       <div class="drawer-overlay" (click)="closeCategoryDrawer()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="catDrawerTitle" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ (editCategoryId() ? 'settings.categories.edit' : 'settings.categories.add') | t }}</span>
-            <button type="button" class="drawer-close" (click)="closeCategoryDrawer()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <span class="drawer-title" id="catDrawerTitle">{{ (editCategoryId() ? 'settings.categories.edit' : 'settings.categories.add') | t }}</span>
+            <button type="button" class="drawer-close" (click)="closeCategoryDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
           </div>
 
           <form [formGroup]="categoryForm" (ngSubmit)="saveCategory()" class="drawer-form">
             <div class="drawer-body">
-              <div class="form-field">
-                <input id="catName" type="text" formControlName="name" class="form-input" [class.has-value]="hasCategoryValue('name')" [disabled]="isSavingCategory()" />
-                <label for="catName" class="form-label">{{ 'settings.categories.nameLabel' | t }}</label>
-                @if (isCategoryFieldInvalid('name')) { <div class="form-error">{{ 'settings.categories.nameErr' | t }}</div> }
+              <div class="fld">
+                <label class="fld-label" for="catName">{{ 'settings.categories.nameLabel' | t }} <span class="req">*</span></label>
+                <div class="field" [class.is-error]="isCategoryFieldInvalid('name')"><input id="catName" type="text" formControlName="name" [disabled]="isSavingCategory()" /></div>
+                @if (isCategoryFieldInvalid('name')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.categories.nameErr' | t }}</div> }
               </div>
-
-              <div class="form-field">
-                <input id="catSlug" type="text" formControlName="slug" class="form-input" [class.has-value]="hasCategoryValue('slug')" [disabled]="isSavingCategory()" [placeholder]="'settings.categories.slugPh' | t" />
-                <label for="catSlug" class="form-label">{{ 'settings.categories.slugLabel' | t }}</label>
+              <div class="fld">
+                <label class="fld-label" for="catSlug">{{ 'settings.categories.slugLabel' | t }}</label>
+                <div class="field"><span class="affix pre mono">/</span><input id="catSlug" class="mono" type="text" formControlName="slug" [disabled]="isSavingCategory()" [placeholder]="'settings.categories.slugPh' | t" /></div>
               </div>
             </div>
-            
+
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeCategoryDrawer()" [disabled]="isSavingCategory()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="categoryForm.invalid || isSavingCategory()">
-                @if (isSavingCategory()) { <span class="spinner-sm spinner-light"></span> {{ 'settings.saving' | t }} } @else { {{ 'common.save' | t }} }
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeCategoryDrawer()" [disabled]="isSavingCategory()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingCategory()" [disabled]="categoryForm.invalid || isSavingCategory()">
+                <span>{{ 'common.save' | t }}</span><kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </form>
@@ -877,21 +787,19 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
     <!-- Category Delete Confirmation Modal -->
     @if (showCategoryDeleteModal()) {
       <div class="modal-backdrop">
-        <div class="modal-panel modal-panel-sm">
+        <div class="modal-panel modal-panel-sm" role="alertdialog" aria-modal="true" aria-labelledby="catDelTitle">
           <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="cancelDeleteCategory()" [disabled]="isSavingCategory()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-            <div class="delete-icon">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <h3 class="delete-modal-title">{{ 'settings.categories.deleteTitle' | t }}</h3>
+            <button type="button" class="delete-modal-close" (click)="cancelDeleteCategory()" [disabled]="isSavingCategory()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
+            <div class="delete-icon"><app-icon name="trash" /></div>
+            <h3 class="delete-modal-title" id="catDelTitle">{{ 'settings.categories.deleteTitle' | t }}</h3>
             <p class="delete-modal-desc">
               <strong>{{ categoryToDelete()?.name }}</strong> {{ 'settings.categories.deleteConfirm' | t }}
             </p>
           </div>
           <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="cancelDeleteCategory()" [disabled]="isSavingCategory()">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-danger" (click)="confirmDeleteCategory()" [disabled]="isSavingCategory()">
-              @if (isSavingCategory()) { <span class="spinner-sm spinner-light"></span> {{ 'settings.deleting' | t }} } @else { {{ 'common.delete' | t }} }
+            <button type="button" class="btn btn-ghost" (click)="cancelDeleteCategory()" [disabled]="isSavingCategory()">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-danger" [class.is-loading]="isSavingCategory()" (click)="confirmDeleteCategory()" [disabled]="isSavingCategory()">
+              <span>{{ 'common.delete' | t }}</span>
             </button>
           </div>
         </div>
@@ -901,62 +809,69 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
     <!-- User Drawer -->
     @if (isUserDrawerOpen()) {
       <div class="drawer-overlay" (click)="closeUserDrawer()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="userDrawerTitle" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ (editUserId() ? 'settings.users.edit' : 'settings.users.add') | t }}</span>
-            <button type="button" class="drawer-close" (click)="closeUserDrawer()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <span class="drawer-title" id="userDrawerTitle">{{ (editUserId() ? 'settings.users.edit' : 'settings.users.add') | t }}</span>
+            <button type="button" class="drawer-close" (click)="closeUserDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
           </div>
 
           <form [formGroup]="userForm" (ngSubmit)="saveUser()" class="drawer-form">
             <div class="drawer-body">
-              <div class="form-field">
-                <input id="userFullName" type="text" formControlName="fullName" class="form-input" [class.has-value]="hasUserValue('fullName')" [disabled]="isSavingUser()" />
-                <label for="userFullName" class="form-label">{{ 'settings.users.fullNameLabel' | t }}</label>
-                @if (isUserFieldInvalid('fullName')) { <div class="form-error">{{ 'settings.users.fullNameErr' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <input id="userEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasUserValue('email')" [disabled]="isSavingUser()" />
-                <label for="userEmail" class="form-label">{{ 'settings.users.emailLabel' | t }}</label>
-                @if (isUserFieldInvalid('email')) { <div class="form-error">{{ 'settings.profile.emailErr' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <input id="userUsername" type="text" formControlName="username" class="form-input" [class.has-value]="hasUserValue('username')" [disabled]="isSavingUser() || !!editUserId()" />
-                <label for="userUsername" class="form-label">{{ 'settings.users.usernameLabel' | t }}</label>
-                @if (isUserFieldInvalid('username')) { <div class="form-error">{{ 'settings.users.usernameErr' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <input id="userPassword" type="password" formControlName="password" class="form-input" [class.has-value]="hasUserValue('password')" [disabled]="isSavingUser()" />
-                <label for="userPassword" class="form-label">{{ (editUserId() ? 'settings.users.passwordEdit' : 'settings.users.passwordNew') | t }}</label>
-                @if (isUserFieldInvalid('password')) { <div class="form-error">{{ 'settings.users.passwordErr' | t }}</div> }
-                <span class="field-hint" style="order: 3">{{ (editUserId() ? 'settings.users.passwordEditHint' : 'settings.users.passwordNewHint') | t }}</span>
-              </div>
-
-              <div class="form-field">
-                <input id="userDepartment" type="text" formControlName="department" class="form-input" [class.has-value]="hasUserValue('department')" [disabled]="isSavingUser()" />
-                <label for="userDepartment" class="form-label">{{ 'settings.users.department' | t }}</label>
-              </div>
-
-              <div class="form-field select-field">
-                <label for="userRole" class="form-label">{{ 'settings.users.role' | t }}</label>
-                <select id="userRole" formControlName="role" class="form-select has-value" [disabled]="isSavingUser()">
-                  <option value="manager">{{ 'settings.users.roleManagerOpt' | t }}</option>
-                  <option value="viewer">{{ 'settings.users.roleViewerOpt' | t }}</option>
-                  <option value="auditor">{{ 'settings.users.roleAuditorOpt' | t }}</option>
-                </select>
-              </div>
-              @if (userForm.value.role === 'viewer' || userForm.value.role === 'auditor') {
-                <label class="check-row"><input type="checkbox" formControlName="piiRead" /> {{ 'settings.users.piiRead' | t }}</label>
-                <span class="field-hint">{{ 'settings.users.piiReadHint' | t }}</span>
-              }
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'settings.profile.title' | t }}</h3></div>
+                <div class="fld">
+                  <label class="fld-label" for="userFullName">{{ 'settings.users.fullNameLabel' | t }} <span class="req">*</span></label>
+                  <div class="field" [class.is-error]="isUserFieldInvalid('fullName')"><input id="userFullName" type="text" formControlName="fullName" [disabled]="isSavingUser()" /></div>
+                  @if (isUserFieldInvalid('fullName')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.users.fullNameErr' | t }}</div> }
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="userEmail">{{ 'settings.users.emailLabel' | t }}</label>
+                  <div class="field" [class.is-error]="isUserFieldInvalid('email')"><input id="userEmail" type="email" formControlName="email" [disabled]="isSavingUser()" /></div>
+                  @if (isUserFieldInvalid('email')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.profile.emailErr' | t }}</div> }
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="userDepartment">{{ 'settings.users.department' | t }}</label>
+                  <div class="field"><input id="userDepartment" type="text" formControlName="department" [disabled]="isSavingUser()" /></div>
+                </div>
+              </section>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'settings.password.title' | t }}</h3></div>
+                <div class="fld">
+                  <label class="fld-label" for="userUsername">{{ 'settings.users.usernameLabel' | t }} <span class="req">*</span></label>
+                  <div class="field" [class.is-error]="isUserFieldInvalid('username')"><span class="lead"><app-icon name="user" size="sm" /></span><input id="userUsername" class="mono" type="text" formControlName="username" [disabled]="isSavingUser() || !!editUserId()" /></div>
+                  @if (isUserFieldInvalid('username')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.users.usernameErr' | t }}</div> }
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="userPassword">{{ (editUserId() ? 'settings.users.passwordEdit' : 'settings.users.passwordNew') | t }}</label>
+                  <div class="field" [class.is-error]="isUserFieldInvalid('password')"><span class="lead"><app-icon name="lock" size="sm" /></span><input id="userPassword" type="password" formControlName="password" [disabled]="isSavingUser()" autocomplete="new-password" /></div>
+                  @if (isUserFieldInvalid('password')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.users.passwordErr' | t }}</div> }
+                  <span class="fld-help">{{ (editUserId() ? 'settings.users.passwordEditHint' : 'settings.users.passwordNewHint') | t }}</span>
+                </div>
+              </section>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">3</span><h3>{{ 'settings.users.role' | t }}</h3></div>
+                <div class="fld">
+                  <label class="fld-label" for="userRole">{{ 'settings.users.role' | t }}</label>
+                  <div class="field select"><select id="userRole" formControlName="role" [disabled]="isSavingUser()">
+                    <option value="manager">{{ 'settings.users.roleManagerOpt' | t }}</option>
+                    <option value="viewer">{{ 'settings.users.roleViewerOpt' | t }}</option>
+                    <option value="auditor">{{ 'settings.users.roleAuditorOpt' | t }}</option>
+                  </select></div>
+                </div>
+                @if (userForm.value.role === 'viewer' || userForm.value.role === 'auditor') {
+                  <div class="setting-row">
+                    <span class="t"><b id="piiLbl">{{ 'settings.users.piiRead' | t }}</b><span id="piiHint">{{ 'settings.users.piiReadHint' | t }}</span></span>
+                    <label class="switch"><input type="checkbox" role="switch" formControlName="piiRead" aria-labelledby="piiLbl" aria-describedby="piiHint" /><span class="track"></span></label>
+                  </div>
+                }
+              </section>
             </div>
-            
+
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeUserDrawer()" [disabled]="isSavingUser()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="userForm.invalid || isSavingUser()">
-                @if (isSavingUser()) { <span class="spinner-sm spinner-light"></span> {{ 'settings.saving' | t }} } @else { {{ 'common.save' | t }} }
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeUserDrawer()" [disabled]="isSavingUser()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSavingUser()" [disabled]="userForm.invalid || isSavingUser()">
+                <span>{{ 'common.save' | t }}</span><kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </form>
@@ -967,21 +882,19 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
     <!-- User Delete Confirmation Modal -->
     @if (showUserDeleteModal()) {
       <div class="modal-backdrop">
-        <div class="modal-panel modal-panel-sm">
+        <div class="modal-panel modal-panel-sm" role="alertdialog" aria-modal="true" aria-labelledby="userDelTitle">
           <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="cancelDeleteUser()" [disabled]="isSavingUser()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-            <div class="delete-icon">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <h3 class="delete-modal-title">{{ 'settings.users.deleteTitle' | t }}</h3>
+            <button type="button" class="delete-modal-close" (click)="cancelDeleteUser()" [disabled]="isSavingUser()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
+            <div class="delete-icon"><app-icon name="trash" /></div>
+            <h3 class="delete-modal-title" id="userDelTitle">{{ 'settings.users.deleteTitle' | t }}</h3>
             <p class="delete-modal-desc">
               <strong>{{ userToDelete()?.fullName }}</strong> {{ 'settings.users.deleteConfirm' | t }}
             </p>
           </div>
           <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="cancelDeleteUser()" [disabled]="isSavingUser()">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-danger" (click)="confirmDeleteUser()" [disabled]="isSavingUser()">
-              @if (isSavingUser()) { <span class="spinner-sm spinner-light"></span> {{ 'settings.deleting' | t }} } @else { {{ 'common.delete' | t }} }
+            <button type="button" class="btn btn-ghost" (click)="cancelDeleteUser()" [disabled]="isSavingUser()">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-danger" [class.is-loading]="isSavingUser()" (click)="confirmDeleteUser()" [disabled]="isSavingUser()">
+              <span>{{ 'common.delete' | t }}</span>
             </button>
           </div>
         </div>
@@ -992,66 +905,105 @@ type SettingsTab = 'kvkk' | 'inventoryAccounting' | 'profile' | 'categories' | '
   `,
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .settings-invite { margin-bottom: var(--space-4); flex-wrap: wrap; }
-    .settings-invite-text { flex: 1; min-width: 0; word-break: break-all; }
     :host { display: block; }
-    .settings-tabs { margin-bottom: var(--space-6); }
-    .settings-layout, .settings-content { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; min-width: 0; }
-    .settings-hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4); }
-    .settings-hub-card {
-      display: flex; align-items: center; gap: var(--space-4); width: 100%; text-align: left;
-      padding: var(--space-4) var(--space-5); background: var(--color-surface);
-      border: 1px solid var(--color-border); border-radius: var(--radius-lg); cursor: pointer; font: inherit; color: inherit;
-      transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+    /* shell: tab strip on narrow screens, grouped sub-nav at 1024px and up */
+    .settings-tabs { margin: -4px 0 20px; }
+    .settings-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: start; }
+    .settings-subnav { display: none; }
+    @media (min-width: 1024px) {
+      .settings-tabs { display: none; }
+      .settings-shell { grid-template-columns: 200px minmax(0, 1fr); }
+      .settings-subnav { display: flex; position: sticky; top: 0; }
     }
-    .settings-hub-card:hover { border-color: var(--color-primary-border); box-shadow: var(--shadow-sm); }
-    .settings-hub-card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-    .settings-hub-icon { flex-shrink: 0; width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--color-primary-subtle); color: var(--color-primary-text); }
-    .settings-hub-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .settings-hub-title { font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--color-text); }
-    .settings-hub-desc { font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.45; }
-    .settings-hub-chevron { flex-shrink: 0; color: var(--color-text-subtle); }
-    .settings-hub-card:hover .settings-hub-chevron { color: var(--color-primary-text); }
-    .settings-card-md { max-width: 760px; }
-    .settings-card-lg { max-width: 960px; }
-    .settings-card-sub { margin: var(--space-1) 0 var(--space-6); }
-    .settings-check { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); }
-    .settings-check input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--color-primary); }
-    .settings-check label { margin: 0; }
-    .settings-check-pad { padding-top: var(--space-6); }
-    .settings-check-hint { margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
-    .settings-narrow { max-width: 260px; }
-    .settings-card form > .form-group, .settings-card .settings-form-grid { margin-bottom: var(--space-4); }
-    .settings-card .settings-form-grid > .form-group { margin-bottom: 0; }
-    .settings-form-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-    .settings-table { margin-top: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
-    .settings-skel { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5); }
+    .subnav-label { padding: 16px 8px 6px; font-size: var(--text-xs); font-weight: 500; color: var(--fg-3); }
+    .settings-subnav app-icon { color: var(--fg-3); }
+    .settings-subnav button.active app-icon, .settings-subnav button:hover app-icon { color: var(--fg-2); }
+    .settings-subnav .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .subnav-skel { display: flex; flex-direction: column; gap: 14px; padding: 18px 8px 0; }
+    .tab-skel { flex: none; align-self: center; width: 88px; margin: 0 8px; }
+    .settings-layout, .settings-content { display: flex; flex-direction: column; gap: 20px; width: 100%; min-width: 0; }
+    .settings-content:empty { display: none; }
+
+    /* overview hub */
+    .hub-h { margin: 0 0 8px; font-size: var(--text-xs); font-weight: 500; color: var(--fg-3); }
+    .settings-hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .hub-card {
+      display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px 16px; border: 0; text-align: left;
+      background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); font: inherit; color: inherit; cursor: pointer;
+      transition: box-shadow var(--dur-1) var(--ease-out);
+    }
+    .hub-card:hover { box-shadow: var(--shadow-card-hover); }
+    .hub-card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .hub-ic { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--surface-sunken); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .hub-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .hub-t b { font-weight: 500; color: var(--fg); }
+    .hub-t span { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .hub-go { flex: none; margin-top: 2px; color: var(--fg-3); opacity: 0; transform: translateX(-2px); transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+    .hub-card:hover .hub-go, .hub-card:focus-visible .hub-go { opacity: 1; transform: none; }
+
+    /* card header with title + description */
+    .card-h.sh { padding-block: 12px; min-height: 56px; flex-wrap: wrap; row-gap: 8px; }
+    .sh .hg { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .sh .hg p { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .form-actions-note { margin-right: auto; min-width: 0; }
+    .inline-form { display: flex; flex-direction: column; gap: 14px; box-shadow: inset 0 -1px 0 var(--line); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; align-items: start; }
+    .fld-check { padding-top: 29px; }
+    .settings-narrow-card { max-width: 760px; }
+    .settings-narrow { max-width: 240px; }
+    .settings-skel { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+    .w-act2 { width: 76px; }
+    .w-act4 { width: 136px; }
+    .src-cell { display: inline-flex; align-items: center; gap: 8px; }
+    :host ::ng-deep .danger-ic:hover:not(:disabled) svg { color: var(--danger); }
+    .thumb.av { border-radius: 50%; overflow: hidden; }
+    .thumb.av img { width: 100%; height: 100%; object-fit: cover; }
+    .settings-invite { flex-wrap: wrap; }
+    .invite-url { word-break: break-all; font-size: var(--text-xs); }
+
+    /* profile */
+    .settings-avatar-section { margin-bottom: 0; }
+    .settings-avatar { overflow: hidden; }
     .settings-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-    .settings-avatar { overflow: hidden; background: var(--color-primary) !important; color: var(--color-on-primary) !important; }
-    .settings-ok-msg { color: var(--color-success-text) !important; display: inline-flex; align-items: center; gap: 4px; }
-    .security-icon { display: inline-flex; color: var(--color-text-muted); }
-    .tips-list li { display: flex; align-items: flex-start; gap: var(--space-2); }
-    .tips-list li svg { flex-shrink: 0; margin-top: 2px; color: var(--color-success); }
-    .settings-section { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; }
-    .settings-section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; }
-    .settings-section-title { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--color-text); margin: 0; }
-    .settings-section-sub { margin: var(--space-1) 0 0; font-size: var(--text-md); color: var(--color-text-muted); }
-    .settings-user-cell { display: flex; align-items: center; gap: var(--space-2); }
-    .user-avatar-sm { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--color-primary-subtle); color: var(--color-primary-text); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
-    .user-avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
-    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .drawer-body { display: flex; flex-direction: column; gap: var(--space-5); }
+    .settings-avatar-actions { gap: 4px; }
+    .eye-btn { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--fg-3); cursor: pointer; }
+    .eye-btn:hover { color: var(--fg); background: var(--surface-hover); }
+    .eye-btn:focus-visible { outline: none; box-shadow: var(--focus-ring-field); }
+    .kv { margin: 0; padding-block: 4px; }
+    .kv > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; box-shadow: inset 0 -1px 0 var(--line); }
+    .kv > div:last-child { box-shadow: none; }
+    .kv dt { font-size: var(--text-xs); font-weight: 500; color: var(--fg-2); }
+    .kv dd { margin: 0; text-align: right; color: var(--fg); }
+    .card-b:has(> .kv-row) { padding-block: 4px; }
+    .kv-row { display: flex; align-items: center; gap: 10px; min-height: 40px; box-shadow: inset 0 -1px 0 var(--line); }
+    .kv-row:last-child { box-shadow: none; }
+    .kv-ic { display: flex; color: var(--fg-3); }
+    .kv-t { flex: 1; min-width: 0; }
+    .kv-v { font-size: var(--text-xs); }
+    .card-f .btn-block { margin-block: 10px; }
+    .tips-list { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-xs); color: var(--fg-2); }
+    .tips-list li { display: flex; align-items: flex-start; gap: 8px; }
+    .tips-list app-icon { flex: none; margin-top: 1px; color: var(--success); }
+
+    /* drawers */
+    .drawer-form { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+    .drawer-body { display: flex; flex-direction: column; gap: 16px; }
+    .drawer-body:has(> .fsec) { gap: 0; }
+
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
-      .settings-hub, .settings-form-grid { grid-template-columns: 1fr; gap: var(--space-4); }
-      .settings-tabs { margin-left: calc(-1 * var(--space-4)); margin-right: calc(-1 * var(--space-4)); padding: 0 var(--space-4); }
+      .settings-tabs { margin-inline: -16px; padding-inline: 12px; margin-bottom: 16px; }
       .settings-tabs .tab { flex-shrink: 0; }
-      .settings-card { padding: var(--space-4) !important; }
-      .settings-section-head .page-actions, .settings-section-head .btn { width: 100%; }
-      .settings-check-pad { padding-top: 0; }
+      .settings-hub, .grid-4 { grid-template-columns: minmax(0, 1fr); }
+      .hub-go { opacity: 1; transform: none; }
+      .fld-check { padding-top: 0; }
       .settings-narrow { max-width: none; }
       .settings-avatar-section { flex-wrap: wrap; }
-      .settings-table { border: 0; }
-      td.mono::before { font-family: var(--font-sans); }
+      .w-act2, .w-act4 { width: auto; }
+      /* stacked rows have no hover: keep their actions visible instead of leaving a blank gap */
+      :host ::ng-deep .table-responsive .row-act { opacity: 1; }
     }
   `]
 })
@@ -1076,6 +1028,46 @@ export class SettingsComponent implements OnInit {
   @ViewChild(ToastComponent) toast!: ToastComponent;
 
   activeTab = signal<SettingsTab>('dashboard');
+
+  /** Navigation model shared by the tab strip, the grouped sub-nav and the overview hub (presentation only). */
+  readonly navGroups: { key: string; label: string; items: { tab: SettingsTab; icon: string; label: string; desc: string; vis: NavVis }[] }[] = [
+    { key: 'home', label: '', items: [{ tab: 'dashboard', icon: 'home', label: 'settings.overview', desc: '', vis: 'all' }] },
+    { key: 'account', label: 'settings.group.account', items: [{ tab: 'profile', icon: 'user', label: 'settings.tab.profile', desc: 'settings.card.profileDesc', vis: 'all' }] },
+    { key: 'catalog', label: 'settings.group.catalog', items: [
+      { tab: 'categories', icon: 'tag', label: 'settings.tab.categories', desc: 'settings.card.categoriesDesc', vis: 'all' },
+      { tab: 'units', icon: 'hash', label: 'settings.tab.units', desc: 'settings.card.unitsDesc', vis: 'all' },
+    ] },
+    { key: 'company', label: 'settings.group.company', items: [
+      { tab: 'users', icon: 'users', label: 'settings.tab.users', desc: 'settings.card.usersDesc', vis: 'admin' },
+      { tab: 'company', icon: 'building', label: 'settings.tab.company', desc: 'settings.card.companyDesc', vis: 'admin' },
+      { tab: 'fiscal', icon: 'file', label: 'settings.tab.fiscal', desc: 'settings.card.fiscalDesc', vis: 'admin' },
+    ] },
+    { key: 'ebelge', label: 'settings.group.ebelge', items: [
+      { tab: 'ebelge', icon: 'shield', label: 'settings.tab.ebelge', desc: 'settings.card.ebelgeDesc', vis: 'admin' },
+      { tab: 'ebelgeProvider', icon: 'link', label: 'settings.tab.ebelgeProvider', desc: 'settings.card.ebelgeProviderDesc', vis: 'admin' },
+      { tab: 'archive', icon: 'archive', label: 'settings.tab.archive', desc: 'settings.card.archiveDesc', vis: 'admin' },
+      { tab: 'documents', icon: 'printer', label: 'settings.tab.documents', desc: 'settings.card.documentsDesc', vis: 'admin' },
+    ] },
+    { key: 'compliance', label: 'settings.group.compliance', items: [
+      { tab: 'kvkk', icon: 'lock', label: 'settings.tab.kvkk', desc: 'settings.card.kvkkDesc', vis: 'kvkk' },
+      { tab: 'compliance', icon: 'okc', label: 'settings.tab.compliance', desc: 'settings.card.complianceDesc', vis: 'admin' },
+      { tab: 'inventoryAccounting', icon: 'bars', label: 'settings.tab.inventoryAccounting', desc: 'settings.card.inventoryAccountingDesc', vis: 'admin' },
+      { tab: 'legalParams', icon: 'audit', label: 'settings.tab.legalParams', desc: 'settings.card.legalParamsDesc', vis: 'super' },
+    ] },
+    { key: 'finance', label: 'settings.group.finance', items: [
+      { tab: 'taxRates', icon: 'receipt', label: 'settings.tab.taxRates', desc: 'settings.card.taxRatesDesc', vis: 'admin' },
+      { tab: 'exchangeRates', icon: 'swap', label: 'settings.tab.exchangeRates', desc: 'settings.card.exchangeRatesDesc', vis: 'admin' },
+    ] },
+  ];
+  /** Same visibility rules the tab strip used before (admin / auditor / super admin). */
+  canSee(vis: NavVis): boolean {
+    const p = this.ui.userProfile();
+    if (vis === 'all') return true;
+    if (vis === 'kvkk') return p?.role === 'admin' || p?.role === 'auditor';
+    if (vis === 'admin') return p?.role === 'admin';
+    return p?.role === 'admin' && !!p?.isSuperAdmin;
+  }
+  groupVisible(g: { items: { vis: NavVis }[] }): boolean { return g.items.some((i) => this.canSee(i.vis)); }
 
   private host = inject(ElementRef<HTMLElement>);
   /** On narrow screens the tab bar scrolls horizontally: keep the active tab visible (e.g. opened via ?tab= link). */
@@ -1117,6 +1109,28 @@ export class SettingsComponent implements OnInit {
   });
 
   isAdmin(): boolean { return this.ui.userProfile()?.role === 'admin'; }
+
+  /** Own GET /user/profile state: a slow or throttled profile shows a skeleton or a retry card, never a false empty state. */
+  profileState = signal<'loading' | 'ready' | 'error'>(this.ui.userProfile() ? 'ready' : 'loading');
+  /** No profile yet (neither ours nor the shell's) and the request is still running. */
+  profilePending = computed(() => !this.ui.userProfile() && this.profileState() !== 'error');
+  /** Catalog tabs work without the profile; every other pane depends on it (role, company, forms). */
+  profileGate = computed<'ok' | 'pending' | 'error'>(() => {
+    if (this.ui.userProfile() || this.activeTab() === 'categories' || this.activeTab() === 'units') return 'ok';
+    return this.profileState() === 'error' ? 'error' : 'pending';
+  });
+  private formsPatched = false;
+  private adminDataRequested = false;
+  /** The shell may deliver the profile before (or instead of) our own request: fill the forms and admin lists from it. */
+  private adoptShellProfile = effect(() => {
+    const p = this.ui.userProfile();
+    const state = this.profileState();
+    if (!p) return;
+    untracked(() => {
+      if (!this.formsPatched) this.patchForms(p);
+      if (p.role === 'admin' && state === 'error' && !this.adminDataRequested) this.loadAdminData();
+    });
+  });
   /** Company base currency (falls back to the effective locale currency). */
   companyBaseCurrency(): string { return this.ui.userProfile()?.company?.baseCurrency || this.i18n.currency(); }
   private today(): string {
@@ -1208,7 +1222,8 @@ export class SettingsComponent implements OnInit {
 
   // Units of measure
   units = signal<Unit[]>([]);
-  isLoadingUnits = signal(false);
+  isLoadingUnits = signal(true);
+  unitsError = signal(false);
   isSavingUnit = signal(false);
   editUnitId = signal<string | null>(null);
   editUnitStandard = signal(false);
@@ -1240,10 +1255,15 @@ export class SettingsComponent implements OnInit {
 
   loadUnits() {
     this.isLoadingUnits.set(true);
+    this.unitsError.set(false);
     this.inventoryService.getUnits().subscribe({
       next: (list) => { this.units.set(list); this.isLoadingUnits.set(false); },
-      error: (err) => { this.isLoadingUnits.set(false); this.toast.show(this.errMsg(err, 'settings.units.loadFailed'), 'error'); },
+      error: (err) => { this.isLoadingUnits.set(false); this.unitsError.set(!this.units().length); this.toast.show(this.errMsg(err, 'settings.units.loadFailed'), 'error'); },
     });
+  }
+
+  focusUnitForm() {
+    document.getElementById('unitCode')?.focus();
   }
 
   resetUnitForm() {
@@ -1412,7 +1432,7 @@ export class SettingsComponent implements OnInit {
   showNew = signal(false);
   showConfirm = signal(false);
   pwdStrength = signal(0);
-  strengthColors = ['var(--color-danger)', 'var(--color-warning)', 'var(--color-warning)', 'var(--color-success)'];
+  strengthColors = ['var(--danger-dot)', 'var(--warning-dot)', 'var(--warning-dot)', 'var(--success-dot)'];
   strengthLabels = ['', 'settings.strength.weak', 'settings.strength.medium', 'settings.strength.good', 'settings.strength.strong'];
 
   passwordForm: FormGroup = this.fb.group({
@@ -1438,6 +1458,8 @@ export class SettingsComponent implements OnInit {
   // User Management fields
   users = signal<any[]>([]);
   isLoadingUsers = signal(false);
+  usersLoaded = signal(false);
+  usersError = signal(false);
   isUserDrawerOpen = signal(false);
   isSavingUser = signal(false);
   editUserId = signal<string | null>(null);
@@ -1477,33 +1499,56 @@ export class SettingsComponent implements OnInit {
   }
 
   loadProfile() {
-    this.http.get(`${environment.apiUrl}/user/profile`).subscribe({
+    this.profileState.set('loading');
+    this.http.get(`${environment.apiUrl}/user/profile`).pipe(
+      // Same back-off as the shell: one longer retry for 429 / 5xx / timeout, then the retry card.
+      timeout(12000),
+      retry({
+        count: 1,
+        delay: (err: HttpErrorResponse) => {
+          if (!(err instanceof TimeoutError) && err?.status && err.status !== 429 && err.status < 500) throw err;
+          const after = Number(err?.headers?.get?.('Retry-After'));
+          return timer(after > 0 ? Math.min(after, 10) * 1000 : 2500);
+        },
+      }),
+    ).subscribe({
       next: (profile: any) => {
         this.ui.userProfile.set(profile);
         this.i18n.applyLocale(profile?.locale);
-        this.profileForm.patchValue({
-          fullName: profile.fullName,
-          email: profile.email,
-          department: profile.department,
-          language: profile.language || '',
-          timezone: profile.timezone || ''
-        });
-        if (profile.company) {
-          this.companyForm.patchValue({ ...profile.company, pricesIncludeTax: !!profile.company.pricesIncludeTax, expiryAlertDays: profile.company.expiryAlertDays ?? 30 });
-          this.companyForm.markAsPristine();
-        }
-        if (profile.role === 'admin') {
-          this.loadUsers();
-          this.loadTaxRates();
-          this.loadExchangeRates();
-          if (!this.editTaxId() && !this.taxForm.dirty) this.resetTaxForm();
-          if (!this.editFxId() && !this.fxForm.dirty) this.resetFxForm();
-        }
+        this.patchForms(profile);
+        this.profileState.set('ready');
+        if (profile.role === 'admin') this.loadAdminData();
       },
       error: () => {
-        this.toast.show(this.i18n.t('settings.toast.profileLoadFailed'), 'error');
+        this.profileState.set('error');
+        // Without any profile the retry card already says so; a toast only when stale data stays on screen.
+        if (this.ui.userProfile()) this.toast?.show(this.i18n.t('settings.toast.profileLoadFailed'), 'error');
       }
     });
+  }
+
+  private patchForms(profile: any) {
+    this.formsPatched = true;
+    this.profileForm.patchValue({
+      fullName: profile.fullName,
+      email: profile.email,
+      department: profile.department,
+      language: profile.language || '',
+      timezone: profile.timezone || ''
+    });
+    if (profile.company) {
+      this.companyForm.patchValue({ ...profile.company, pricesIncludeTax: !!profile.company.pricesIncludeTax, expiryAlertDays: profile.company.expiryAlertDays ?? 30 });
+      this.companyForm.markAsPristine();
+    }
+  }
+
+  private loadAdminData() {
+    this.adminDataRequested = true;
+    this.loadUsers();
+    this.loadTaxRates();
+    this.loadExchangeRates();
+    if (!this.editTaxId() && !this.taxForm.dirty) this.resetTaxForm();
+    if (!this.editFxId() && !this.fxForm.dirty) this.resetFxForm();
   }
 
   getAvatarInitials(): string {
@@ -1812,13 +1857,16 @@ export class SettingsComponent implements OnInit {
   loadUsers() {
     if (this.ui.userProfile()?.role !== 'admin') return;
     this.isLoadingUsers.set(true);
+    this.usersError.set(false);
     this.http.get<any[]>(`${environment.apiUrl}/user/users`).subscribe({
       next: (data) => {
         this.users.set(data);
+        this.usersLoaded.set(true);
         this.isLoadingUsers.set(false);
       },
       error: () => {
         this.isLoadingUsers.set(false);
+        if (!this.usersLoaded()) this.usersError.set(true);
         this.toast.show(this.i18n.t('settings.toast.usersLoadFailed'), 'error');
       }
     });

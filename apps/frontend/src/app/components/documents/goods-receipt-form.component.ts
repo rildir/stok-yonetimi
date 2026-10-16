@@ -8,6 +8,7 @@ import { GoodsReceipt } from '../../models/documents.models';
 import { Product, PurchaseOrder, Warehouse } from '../../models/inventory.models';
 import { receiptSplit, REJECT_REASONS } from '@stok/tr-compliance';
 import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
+import { IconComponent } from '../shared/icon.component';
 
 interface ReceiptLine {
   purchaseOrderItemId: string;
@@ -33,72 +34,163 @@ interface ReceiptLine {
 @Component({
   selector: 'app-goods-receipt-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe, SpecialCategoryWarningComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe, SpecialCategoryWarningComponent, IconComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
-  styles: [`.drawer-overlay.stacked { z-index: 1150; } .diff { font-size: var(--text-xs); font-variant-numeric: tabular-nums; } .diff.neg { color: var(--color-danger-text); } .diff.pos { color: var(--color-warning-text); }`],
+  styles: [`
+    .drawer-h .eyebrow .mono { flex: none; white-space: nowrap; }
+    .drawer-h .eyebrow .truncate { min-width: 0; }
+    .drawer-overlay.stacked { z-index: 1150; }
+    .drawer-overlay.stacked .drawer-panel { z-index: 1151; }
+    .grf-scroll { overflow-x: auto; border-radius: var(--radius-md); }
+    .grf-table td { vertical-align: top; padding-top: 8px; padding-bottom: 8px; }
+    .grf-table td.num { white-space: nowrap; }
+    .grf-pname { font-weight: 500; }
+    .grf-sub { margin-top: 2px; font-size: var(--text-xs); color: var(--fg-3); }
+    .grf-ord { color: var(--fg-2); padding-top: 14px !important; }
+    .grf-in .field { width: 104px; margin-left: auto; }
+    .grf-reason { margin-top: 6px; width: 104px; margin-left: auto; }
+    .grf-acc { padding-top: 14px !important; }
+    .grf-acc b { font-weight: 600; font-size: var(--text-sm); }
+    .diff { margin-top: 6px; }
+    .grf-track td { background: var(--surface-2); }
+    .grf-track-in { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding: 2px 0 4px; }
+    .grf-track-in .fld { flex: 0 1 220px; min-width: 0; }
+    .grf-track-in .grf-serials { flex: 1 1 320px; }
+    @media (max-width: 640px) {
+      .grf-scroll { overflow: visible; }
+      .grf-table thead { display: none; }
+      .grf-table, .grf-table tbody { display: block; }
+      .grf-table tr.grf-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; padding: 12px; box-shadow: inset 0 -1px 0 var(--line); }
+      .grf-table tr.grf-row td { display: block; height: auto; padding: 0 !important; box-shadow: none; text-align: left; }
+      .grf-table td.grf-prod { grid-column: 1 / -1; }
+      .grf-table td.grf-in::before { content: attr(data-label); display: block; margin-bottom: 4px; font: 500 var(--text-xs)/1.3 var(--font-sans); color: var(--fg-3); white-space: normal; }
+      .grf-table tr.grf-row td.grf-ord, .grf-table tr.grf-row td.grf-acc { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 8px; }
+      .grf-table td.grf-ord::before, .grf-table td.grf-acc::before { content: attr(data-label); font: 500 var(--text-xs)/1.3 var(--font-sans); color: var(--fg-3); }
+      .grf-table tr.grf-row td.grf-acc { padding-top: 8px !important; box-shadow: inset 0 1px 0 var(--line); }
+      .grf-table td.grf-acc .diff { flex-basis: 100%; text-align: right; margin-top: 0; }
+      .grf-in .field, .grf-reason { width: 100%; }
+      .grf-table tr.grf-track { display: block; }
+      .grf-table tr.grf-track td { display: block; height: auto; padding: 10px 12px; }
+      .grf-track-in .fld { flex: 1 1 100%; }
+    }
+  `],
   template: `
-    <div class="drawer-overlay stacked" (click)="closed.emit()">
-      <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-        <div class="drawer-header">
-          <div class="cluster"><span class="drawer-title">{{ 'goodsReceipt.formTitle' | t }}</span><span class="mono text-muted">{{ po.poNumber }}</span></div>
-          <button type="button" class="drawer-close" (click)="closed.emit()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-        </div>
-        <div class="drawer-body">
-          <div class="doc-grid">
-            <div class="doc-field"><label for="grWh">{{ 'goodsReceipt.warehouse' | t }}</label>
-              <select id="grWh" class="select" [(ngModel)]="warehouseId">@for (w of warehouses; track w.id) { <option [value]="w.id">{{ w.name }}</option> }</select>
+    <div class="drawer-overlay stacked" (click)="closed.emit()" (document:keydown.escape)="closed.emit()">
+      <div class="drawer-panel drawer-panel-xl" role="dialog" aria-modal="true" [attr.aria-label]="'goodsReceipt.formTitle' | t" (click)="$event.stopPropagation()">
+        <header class="drawer-h">
+          <div class="t">
+            <div class="eyebrow"><app-icon name="box-in" size="sm" /><span class="mono">{{ po.poNumber }}</span><span class="sep">/</span><span class="truncate">{{ po.supplierName }}</span></div>
+            <h2>{{ 'goodsReceipt.formTitle' | t }}</h2>
+          </div>
+          <div class="tools">
+            <button type="button" class="drawer-close" (click)="closed.emit()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+          </div>
+        </header>
+        <div class="drawer-body drawer-b">
+          <section class="fsec">
+            <div class="fsec-h"><span class="n">1</span><h3>{{ 'goodsReceipt.section.docs' | t }}</h3><p>{{ 'goodsReceipt.section.docsSub' | t }}</p></div>
+            <div class="grid-3">
+              <div class="fld">
+                <label class="fld-label" for="grWh">{{ 'goodsReceipt.warehouse' | t }}</label>
+                <div class="field select"><span class="lead"><app-icon name="warehouse" size="sm" /></span>
+                  <select id="grWh" [(ngModel)]="warehouseId">@for (w of warehouses; track w.id) { <option [value]="w.id">{{ w.name }}</option> }</select>
+                </div>
+              </div>
+              <div class="fld">
+                <label class="fld-label" for="grAt">{{ 'goodsReceipt.receivedAt' | t }}</label>
+                <div class="field"><input id="grAt" type="datetime-local" [(ngModel)]="receivedAt" /></div>
+              </div>
+              <div class="fld">
+                <label class="fld-label" for="grDn">{{ 'goodsReceipt.supplierDespatchNo' | t }}</label>
+                <div class="field"><input id="grDn" class="mono" [(ngModel)]="supplierDespatchNo" /></div>
+              </div>
+              <div class="fld">
+                <label class="fld-label" for="grDd">{{ 'goodsReceipt.supplierDespatchDate' | t }}</label>
+                <div class="field"><input id="grDd" type="date" [(ngModel)]="supplierDespatchDate" /></div>
+              </div>
+              <div class="fld">
+                <label class="fld-label" for="grIn">{{ 'goodsReceipt.supplierInvoiceNo' | t }}<span class="opt">{{ 'goodsReceipt.optional' | t }}</span></label>
+                <div class="field"><input id="grIn" class="mono" [(ngModel)]="supplierInvoiceNo" /></div>
+              </div>
+              <div class="fld">
+                <label class="fld-label" for="grId">{{ 'goodsReceipt.supplierInvoiceDate' | t }}<span class="opt">{{ 'goodsReceipt.optional' | t }}</span></label>
+                <div class="field"><input id="grId" type="date" [(ngModel)]="supplierInvoiceDate" /></div>
+              </div>
             </div>
-            <div class="doc-field"><label for="grAt">{{ 'goodsReceipt.receivedAt' | t }}</label><input id="grAt" type="datetime-local" class="input" [(ngModel)]="receivedAt" /></div>
-            <div class="doc-field"><label for="grDn">{{ 'goodsReceipt.supplierDespatchNo' | t }}</label><input id="grDn" class="input mono" [(ngModel)]="supplierDespatchNo" /></div>
-            <div class="doc-field"><label for="grDd">{{ 'goodsReceipt.supplierDespatchDate' | t }}</label><input id="grDd" type="date" class="input" [(ngModel)]="supplierDespatchDate" /></div>
-            <div class="doc-field"><label for="grIn">{{ 'goodsReceipt.supplierInvoiceNo' | t }}</label><input id="grIn" class="input mono" [(ngModel)]="supplierInvoiceNo" /></div>
-            <div class="doc-field"><label for="grId">{{ 'goodsReceipt.supplierInvoiceDate' | t }}</label><input id="grId" type="date" class="input" [(ngModel)]="supplierInvoiceDate" /></div>
-          </div>
-          <label class="doc-check"><input type="checkbox" [(ngModel)]="buyerCarries" /> {{ 'goodsReceipt.buyerCarries' | t }}</label>
+            <label class="check"><input type="checkbox" [(ngModel)]="buyerCarries" />{{ 'goodsReceipt.buyerCarries' | t }}</label>
+          </section>
 
-          <div class="doc-section" style="overflow-x: auto">
-            <table class="doc-table">
-              <thead><tr>
-                <th>{{ 'despatches.product' | t }}</th><th class="num hide-xs">{{ 'goodsReceipt.ordered' | t }}</th><th class="num">{{ 'goodsReceipt.despatchQty' | t }}</th>
-                <th class="num">{{ 'goodsReceipt.counted' | t }}</th><th class="num">{{ 'goodsReceipt.rejected' | t }}</th><th class="num">{{ 'goodsReceipt.accepted' | t }}</th>
-              </tr></thead>
-              <tbody>
-                @for (l of lines(); track l.purchaseOrderItemId) {
-                  <tr>
-                    <td>{{ l.name }}<div class="text-xs text-muted">{{ 'goodsReceipt.alreadyReceived' | t: { qty: (l.received | num) } }}</div></td>
-                    <td class="num hide-xs">{{ l.ordered | num }}</td>
-                    <td class="num"><input type="number" min="0" step="any" class="input qty" [(ngModel)]="l.despatchQuantity" /></td>
-                    <td class="num"><input type="number" min="0" step="any" class="input qty" [(ngModel)]="l.countedQuantity" /></td>
-                    <td class="num"><input type="number" min="0" step="any" class="input qty" [(ngModel)]="l.rejectedQuantity" />
-                      @if (Number(l.rejectedQuantity) > 0) { <select class="select" style="margin-top: 4px" [(ngModel)]="l.rejectReason">@for (r of rejectReasons; track r) { <option [value]="r">{{ 'goodsReceipt.reject.' + r | t }}</option> }</select> }
-                    </td>
-                    <td class="num"><strong>{{ split(l).accepted | num }}</strong>
-                      @if (split(l).surplus) { <div class="diff pos">{{ 'goodsReceipt.surplus' | t: { qty: (split(l).surplus | num) } }}</div> }
-                      @if (split(l).shortage) { <div class="diff neg">{{ 'goodsReceipt.shortage' | t: { qty: (split(l).shortage | num) } }}</div> }
-                    </td>
-                  </tr>
-                  @if (l.tracking === 'lot' && split(l).accepted > 0) {
-                    <tr><td colspan="6">
-                      <div class="doc-grid">
-                        <div class="doc-field"><label>{{ 'documents.lot' | t }}</label><input class="input mono" [(ngModel)]="l.lotNumber" /></div>
-                        <div class="doc-field"><label>{{ 'goodsReceipt.expiry' | t }}</label><input type="date" class="input" [(ngModel)]="l.expiryDate" [required]="l.hasExpiry" /></div>
-                      </div>
-                    </td></tr>
+          <section class="fsec">
+            <div class="fsec-h"><span class="n">2</span><h3>{{ 'purchaseOrders.items' | t }}</h3><p>{{ 'goodsReceipt.formHint' | t }}</p></div>
+            <div class="grf-scroll">
+              <table class="doc-table grf-table">
+                <thead><tr>
+                  <th>{{ 'despatches.product' | t }}</th><th class="num">{{ 'goodsReceipt.ordered' | t }}</th><th class="num">{{ 'goodsReceipt.despatchQty' | t }}</th>
+                  <th class="num">{{ 'goodsReceipt.counted' | t }}</th><th class="num">{{ 'goodsReceipt.rejected' | t }}</th><th class="num">{{ 'goodsReceipt.accepted' | t }}</th>
+                </tr></thead>
+                <tbody>
+                  @for (l of lines(); track l.purchaseOrderItemId) {
+                    <tr class="grf-row">
+                      <td class="grf-prod"><div class="grf-pname">{{ l.name }}</div><div class="grf-sub">{{ 'goodsReceipt.alreadyReceived' | t: { qty: (l.received | num) } }}</div></td>
+                      <td class="num grf-ord" [attr.data-label]="'goodsReceipt.ordered' | t">{{ l.ordered | num }}</td>
+                      <td class="num grf-in" [attr.data-label]="'goodsReceipt.despatchQty' | t"><div class="field field-sm"><input type="number" min="0" step="any" class="num" [(ngModel)]="l.despatchQuantity" [attr.aria-label]="('goodsReceipt.despatchQty' | t) + ' · ' + l.name" /></div></td>
+                      <td class="num grf-in" [attr.data-label]="'goodsReceipt.counted' | t"><div class="field field-sm"><input type="number" min="0" step="any" class="num" [(ngModel)]="l.countedQuantity" [attr.aria-label]="('goodsReceipt.counted' | t) + ' · ' + l.name" /></div></td>
+                      <td class="num grf-in" [attr.data-label]="'goodsReceipt.rejected' | t">
+                        <div class="field field-sm"><input type="number" min="0" step="any" class="num" [(ngModel)]="l.rejectedQuantity" [attr.aria-label]="('goodsReceipt.rejected' | t) + ' · ' + l.name" /></div>
+                        @if (Number(l.rejectedQuantity) > 0) {
+                          <div class="field field-sm select grf-reason"><select [(ngModel)]="l.rejectReason" [attr.aria-label]="'goodsReceipt.rejected' | t">@for (r of rejectReasons; track r) { <option [value]="r">{{ 'goodsReceipt.reject.' + r | t }}</option> }</select></div>
+                        }
+                      </td>
+                      <td class="num grf-acc" [attr.data-label]="'goodsReceipt.accepted' | t">
+                        <b>{{ split(l).accepted | num }}</b>
+                        @if (split(l).surplus) { <div class="diff"><span class="badge badge-warning"><span class="dot"></span>{{ 'goodsReceipt.surplus' | t: { qty: (split(l).surplus | num) } }}</span></div> }
+                        @if (split(l).shortage) { <div class="diff"><span class="badge badge-danger"><span class="dot"></span>{{ 'goodsReceipt.shortage' | t: { qty: (split(l).shortage | num) } }}</span></div> }
+                      </td>
+                    </tr>
+                    @if (l.tracking === 'lot' && split(l).accepted > 0) {
+                      <tr class="grf-track"><td colspan="6">
+                        <div class="grf-track-in">
+                          <div class="fld">
+                            <label class="fld-label" [for]="'grLot' + $index">{{ 'documents.lot' | t }}</label>
+                            <div class="field field-sm"><input [id]="'grLot' + $index" class="mono" [(ngModel)]="l.lotNumber" /></div>
+                          </div>
+                          <div class="fld">
+                            <label class="fld-label" [for]="'grExp' + $index">{{ 'goodsReceipt.expiry' | t }} @if (l.hasExpiry) { <span class="req">*</span> }</label>
+                            <div class="field field-sm"><input [id]="'grExp' + $index" type="date" [(ngModel)]="l.expiryDate" [required]="l.hasExpiry" /></div>
+                          </div>
+                        </div>
+                      </td></tr>
+                    }
+                    @if (l.tracking === 'serial' && split(l).accepted > 0) {
+                      <tr class="grf-track"><td colspan="6">
+                        <div class="grf-track-in">
+                          <div class="fld grf-serials">
+                            <label class="fld-label" [for]="'grSer' + $index">{{ 'goodsReceipt.serials' | t }}</label>
+                            <div class="field has-area"><textarea [id]="'grSer' + $index" class="mono" rows="2" [(ngModel)]="l.serials" [placeholder]="'goodsReceipt.serialsHint' | t"></textarea></div>
+                          </div>
+                        </div>
+                      </td></tr>
+                    }
                   }
-                  @if (l.tracking === 'serial' && split(l).accepted > 0) {
-                    <tr><td colspan="6"><div class="doc-field"><label>{{ 'goodsReceipt.serials' | t }}</label><textarea class="textarea mono" rows="2" [(ngModel)]="l.serials" [placeholder]="'goodsReceipt.serialsHint' | t"></textarea></div></td></tr>
-                  }
-                }
-              </tbody>
-            </table>
-          </div>
-          <div class="doc-field doc-section"><label for="grNote">{{ 'despatches.note' | t }}</label><textarea id="grNote" class="textarea" rows="2" [(ngModel)]="note"></textarea><app-special-category-warning [text]="note" /></div>
-          <p class="doc-hint">{{ 'goodsReceipt.formHint' | t }}</p>
-          @if (error()) { <div class="doc-alert danger">{{ error() }}</div> }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="fsec">
+            <div class="fsec-h"><span class="n">3</span><h3>{{ 'despatches.note' | t }}</h3></div>
+            <div class="fld">
+              <div class="field has-area"><textarea id="grNote" rows="2" [(ngModel)]="note" [attr.aria-label]="'despatches.note' | t"></textarea></div>
+              <app-special-category-warning [text]="note" />
+            </div>
+            @if (error()) { <div class="notice notice-danger" role="alert"><app-icon name="alert" /><span class="t">{{ error() }}</span></div> }
+          </section>
         </div>
         <div class="drawer-footer">
-          <button type="button" class="btn btn-secondary" (click)="closed.emit()">{{ 'common.cancel' | t }}</button>
-          <button type="button" class="btn btn-primary" (click)="submit()" [disabled]="saving()">@if (saving()) { <span class="spinner-sm spinner-light"></span> } {{ 'goodsReceipt.complete' | t }}</button>
+          <span class="hint"><kbd>Ctrl</kbd><kbd>↵</kbd></span>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-ghost" (click)="closed.emit()">{{ 'common.cancel' | t }}</button>
+          <button type="button" class="btn btn-primary" (click)="submit()" [disabled]="saving()" [class.is-loading]="saving()"><app-icon name="box-in" /><span>{{ 'goodsReceipt.complete' | t }}</span></button>
         </div>
       </div>
     </div>

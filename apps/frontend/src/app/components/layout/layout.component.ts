@@ -1,7 +1,8 @@
 import { Component, inject, signal, computed, effect, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { retry, timeout, timer, TimeoutError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { UiStateService } from '../../services/ui-state.service';
 import { SocketService } from '../../services/socket.service';
@@ -22,6 +23,9 @@ import { CommandPaletteComponent, PaletteCommand } from './command-palette.compo
 import { NoticeCenterComponent } from './notice-center.component';
 import { CREATE_ACTIONS, visibleSections } from './nav.config';
 
+const WS_CACHE_KEY = 'ecelon_ws';
+const PROFILE_TIMEOUT_MS = 12000;
+
 /**
  * App shell (Precision): 232px canvas sidebar (workspace, ⌘K trigger, sectioned nav, user row),
  * 48px topbar (breadcrumbs · compliance notice pill · TR/EN · theme · bell), scrolling main column,
@@ -40,10 +44,22 @@ import { CREATE_ACTIONS, visibleSections } from './nav.config';
       <aside class="sidebar" [attr.aria-label]="'layout.group.main' | t">
         <div class="sidebar-inner">
           <div class="sb-top">
-            <a routerLink="/dashboard" class="ws" [attr.title]="companyName()">
-              <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
-              <b>{{ companyName() }}</b>
-            </a>
+            @if (companyName()) {
+              <a routerLink="/dashboard" class="ws" [attr.title]="companyName()">
+                <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
+                <b>{{ companyName() }}</b>
+              </a>
+            } @else if (profileState() === 'error') {
+              <button type="button" class="ws ws-error" (click)="loadProfile()" [attr.title]="'layout.profileError.retry' | t">
+                <span class="logo-mark is-muted" aria-hidden="true"><app-icon name="warn" size="xs" /></span>
+                <span class="ws-err-t"><b>{{ 'layout.profileError.title' | t }}</b><span><app-icon name="refresh" size="xs" />{{ 'layout.profileError.retry' | t }}</span></span>
+              </button>
+            } @else {
+              <div class="ws ws-loading" role="status" [attr.aria-label]="'common.loading' | t">
+                <span class="skeleton ws-skel-mark" aria-hidden="true"></span>
+                <span class="skeleton-text short" aria-hidden="true"></span>
+              </div>
+            }
             <button type="button" class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.aria-label]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t">
               <app-icon name="sidebar" />
             </button>
@@ -54,7 +70,7 @@ import { CREATE_ACTIONS, visibleSections } from './nav.config';
 
           <button type="button" class="search-trigger" (click)="openPalette()" [attr.aria-label]="'layout.palette.trigger' | t">
             <app-icon name="search" size="sm" />
-            <span class="st-label">{{ 'layout.palette.trigger' | t }}</span>
+            <span class="st-label">{{ 'layout.palette.short' | t }}</span>
             <span class="kbd-group"><kbd>{{ isMac ? '⌘' : 'Ctrl' }}</kbd><kbd>K</kbd></span>
           </button>
 
@@ -119,7 +135,15 @@ import { CREATE_ACTIONS, visibleSections } from './nav.config';
             <b aria-current="page">{{ getBreadcrumbs().page }}</b>
           </nav>
           <div class="mcrumb">
-            <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
+            @if (companyName()) {
+              <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
+            } @else if (profileState() === 'error') {
+              <button type="button" class="logo-mark is-muted mcrumb-retry" (click)="loadProfile()"
+                      [attr.aria-label]="('layout.profileError.title' | t) + ' · ' + ('layout.profileError.retry' | t)"
+                      [attr.data-tip]="'layout.profileError.retry' | t"><app-icon name="refresh" size="xs" /></button>
+            } @else {
+              <span class="skeleton ws-skel-mark" aria-hidden="true"></span>
+            }
             <b>{{ getBreadcrumbs().page }}</b>
           </div>
           <span class="spacer"></span>
@@ -280,8 +304,26 @@ export class LayoutComponent implements OnInit {
   }
 
   navSections = computed(() => visibleSections(this.currentUser().role));
-  companyName = computed(() => this.ui.userProfile()?.company?.name || 'ecelon');
-  companyInitial = computed(() => (this.companyName().trim().charAt(0) || 'e').toLocaleUpperCase(this.i18n.locale()));
+  /** Last workspace name seen for this browser, keyed by company id, so the shell shows the tenant (not a
+   *  product fallback) while /user/profile is still loading or throttled. Per-viewer convenience only. */
+  private cachedWs = signal<{ id: string; name: string } | null>(LayoutComponent.readWs());
+  private static readWs(): { id: string; name: string } | null {
+    try {
+      const v = JSON.parse(localStorage.getItem(WS_CACHE_KEY) || 'null');
+      return v && typeof v.id === 'string' && typeof v.name === 'string' ? v : null;
+    } catch {
+      return null;
+    }
+  }
+  /** Tenant name: the loaded profile, else the cached name when it belongs to the signed-in company, else '' (skeleton / retry). */
+  companyName = computed(() => {
+    const live = this.ui.userProfile()?.company?.name;
+    if (live) return String(live);
+    const c = this.cachedWs();
+    const cid = SessionService.payload()?.['companyId'];
+    return c && cid && c.id === cid ? c.name : '';
+  });
+  companyInitial = computed(() => this.companyName().trim().charAt(0).toLocaleUpperCase(this.i18n.locale()));
   initials = computed(() => {
     const parts = String(this.currentUser().name || '').trim().split(/\s+/).filter(Boolean);
     return ((parts[0]?.charAt(0) || '') + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toLocaleUpperCase(this.i18n.locale());
@@ -458,21 +500,47 @@ export class LayoutComponent implements OnInit {
     });
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
-    if (token) {
-      this.http.get(`${environment.apiUrl}/user/profile`).subscribe({
-        next: (profile: any) => {
-          this.ui.userProfile.set(profile);
-          this.i18n.applyLocale(profile?.locale);
-        },
-        error: () => {}
-      });
-    }
+    if (token) this.loadProfile();
 
     // Keep the browser tab title in sync with the active page + language
     effect(() => {
       this.i18n.lang();
       this.currentUrl();
       this.titleService.setTitle(this.i18n.t('layout.documentTitle', { page: this.getActivePageTitle() }));
+    });
+  }
+
+  /** Workspace profile load state: drives the sidebar skeleton / retry row instead of a silent fallback name. */
+  profileState = signal<'loading' | 'ready' | 'error'>('loading');
+
+  /** GET /user/profile. The auth interceptor already retries GETs twice; add one longer back-off round for a throttled
+   *  (429) or unavailable API (honours Retry-After), then show a retry row instead of a fallback name. */
+  loadProfile() {
+    this.profileState.set('loading');
+    this.http.get(`${environment.apiUrl}/user/profile`).pipe(
+      // A hung request must end in the retry row, never an endless skeleton.
+      timeout(PROFILE_TIMEOUT_MS),
+      retry({
+        count: 1,
+        delay: (err: HttpErrorResponse) => {
+          if (!(err instanceof TimeoutError) && err?.status && err.status !== 429 && err.status < 500) throw err;
+          const after = Number(err?.headers?.get?.('Retry-After'));
+          return timer(after > 0 ? Math.min(after, 10) * 1000 : 2500);
+        },
+      }),
+    ).subscribe({
+      next: (profile: any) => {
+        this.ui.userProfile.set(profile);
+        this.i18n.applyLocale(profile?.locale);
+        const id = profile?.company?.id || SessionService.payload()?.['companyId'];
+        const name = profile?.company?.name;
+        if (id && name) {
+          this.cachedWs.set({ id: String(id), name: String(name) });
+          try { localStorage.setItem(WS_CACHE_KEY, JSON.stringify({ id: String(id), name: String(name) })); } catch { /* ignore */ }
+        }
+        this.profileState.set('ready');
+      },
+      error: () => this.profileState.set(this.ui.userProfile() ? 'ready' : 'error'),
     });
   }
 

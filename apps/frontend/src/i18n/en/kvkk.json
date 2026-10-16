@@ -157,9 +157,9 @@
   "kvkk.accept.check.DPA": "I accept the data processing agreement on behalf of the company (controller).",
   "kvkk.accept.submit": "Confirm and continue",
   "kvkk.accept.done": "Your acknowledgement was recorded.",
-  "kvkk.footer.notice": "Privacy Notice",
-  "kvkk.footer.tos": "Terms of Service",
-  "kvkk.footer.dpa": "Data Processing Agreement",
+  "kvkk.footer.notice": "Privacy notice",
+  "kvkk.footer.tos": "Terms of service",
+  "kvkk.footer.dpa": "Data processing agreement",
   "kvkk.register.noticeText": "By registering you accept the following on behalf of your company:",
   "kvkk.session.idleLogout": "You were signed out after a period of inactivity.",
   "kvkk.auditor.title": "Auditor view:",
@@ -200,7 +200,7 @@
   "settings.users.roleAuditorOpt": "Auditor (read-only)",
   "settings.role.auditor": "Auditor",
   "settings.users.piiRead": "May view personal data in clear (identity no, contact)",
-  "settings.users.piiReadHint": "Default for administrators and managers; every \"Show\" is logged.",
+  "settings.users.piiReadHint": "Default for administrators and managers; every \"show\" is logged.",
   "integrations.hooks.form.transfer": "Transfer (KVKK art. 9)",
   "integrations.hooks.form.country": "Receiver country (ISO)",
   "integrations.hooks.form.basis": "Transfer basis",
@@ -214,5 +214,6 @@
   "kvkk.socket.dsrOverdue": "The 30-day answer period of request {no} has passed.",
   "kvkk.socket.alert": "Security alert ({no}): {title}. Assess whether it is a breach.",
   "kvkk.socket.destruction": "Periodic destruction list {no} ({n} items) awaits your approval.",
-  "kvkk.notesSensitiveWarning": "This note may contain special-category personal data ({categories}). Such data must not be written in notes (KVKK art. 6)."
+  "kvkk.notesSensitiveWarning": "This note may contain special-category personal data ({categories}). Such data must not be written in notes (KVKK art. 6).",
+  "kvkk.accept.progress": "{n} of {total} acknowledged"
 }

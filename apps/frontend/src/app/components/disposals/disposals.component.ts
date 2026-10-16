@@ -8,6 +8,7 @@ import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService } from '../../inventory.service';
 import { apiError } from '../../services/documents.service';
 import { Product, StockLot, Warehouse } from '../../models/inventory.models';
+import { IconComponent } from '../shared/icon.component';
 
 interface LineForm { productId: string; lotId: string; warehouseId: string; quantity: number | null; lots: StockLot[] }
 
@@ -18,125 +19,248 @@ interface LineForm { productId: string; lotId: string; warehouseId: string; quan
 @Component({
   selector: 'app-disposals',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe],
-  styleUrls: ['../../drawer.css', '../documents/documents.css'],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, IconComponent],
+  styleUrls: ['../../drawer.css'],
+  host: { '(document:keydown.escape)': 'onEscape()' },
+  styles: [`
+    .sec { color: var(--fg-3); }
+    .ds-notices { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .ds-notices .badge { margin-left: 8px; }
+    .ds-table tbody tr { cursor: pointer; }
+    .ds-reason { max-width: 360px; color: var(--fg-2); }
+    .ds-acts { width: 1%; }
+    /* subtitle runs the full header width so the primary lines up with other page headers */
+    .page-header p { max-width: none; }
+
+    /* detail drawer */
+    .drawer-body > * { flex-shrink: 0; }
+    .ds-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .ds-head .mono { font-size: var(--text-sm); color: var(--fg-3); }
+    .kv { display: grid; grid-template-columns: minmax(120px, auto) minmax(0, 1fr); gap: 10px 20px; margin: 0; font-size: var(--text-sm); }
+    .kv dt { font-size: var(--text-xs); font-weight: 500; color: var(--fg-2); padding-top: 1px; }
+    .kv dd { margin: 0; color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
+    .kv dd .badge { margin-left: 0; }
+    .ds-lines { border-radius: var(--radius-md); box-shadow: 0 0 0 1px var(--line); overflow-x: auto; }
+    .ds-lines .mono { font-size: var(--text-xs); }
+    .ds-lines td.ds-lp { max-width: 150px; }
+    .ds-lines td.ds-ll { max-width: 130px; }
+
+    /* new disposal drawer: line editor */
+    .drawer-body { gap: 0; }
+    .ln-head, .ln { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr) 104px 32px; gap: 8px; align-items: center; }
+    .ln-head { font-size: var(--text-xs); font-weight: 500; color: var(--fg-3); padding: 0 2px; }
+    .ln-head .r { text-align: right; }
+    .ln-list { display: flex; flex-direction: column; gap: 8px; }
+    .ln-add { justify-self: start; }
+    @media (max-width: 640px) {
+      .ds-table td { max-width: none; white-space: normal; }
+      .ds-reason { text-align: right; }
+      .ds-acts { width: 100%; }
+      .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .kv dd + dt { margin-top: 10px; }
+      .ln-head { display: none; }
+      .ds-exp { display: none; }
+      .ds-lines td.ds-lp { max-width: 120px; }
+      .ln { grid-template-columns: minmax(0, 1fr) 96px 32px; padding: 10px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+      .ln > .ln-prod { grid-column: 1 / -1; }
+    }
+  `],
   template: `
     <header class="page-header">
       <div><h1>{{ 'accounting.disposal.title' | t }}</h1><p>{{ 'accounting.disposal.subtitle' | t }}</p></div>
-      <div class="page-actions">@if (!ui.isReadonly()) { <button class="btn btn-primary" (click)="openForm()">{{ 'accounting.disposal.new' | t }}</button> }</div>
+      <div class="page-actions">
+        @if (!ui.isReadonly()) { <button type="button" class="btn btn-primary" (click)="openForm()"><app-icon name="plus" />{{ 'accounting.disposal.new' | t }}</button> }
+      </div>
     </header>
 
-    @if (ratio(); as r) {
-      <div class="doc-alert" [class.danger]="r.exceeded" [class.info]="!r.exceeded">
-        {{ 'accounting.disposal.ratio' | t: { year: r.year, ratio: (r.overallRatioPct | num), rate: r.assignedRatePct === null ? '-' : (r.assignedRatePct | num) } }}
-        @if (r.rateRef) { <span class="text-muted"> · {{ r.rateRef }}</span> }
-        @if (r.rateExpired) { <span class="badge badge-warning">{{ 'accounting.disposal.rateExpired' | t }}</span> }
+    @if (ratio() || error()) {
+      <div class="ds-notices">
+        @if (ratio(); as r) {
+          <div class="notice" [class.notice-danger]="r.exceeded" [class.notice-info]="!r.exceeded" role="status">
+            <app-icon [name]="r.exceeded ? 'alert' : 'info'" />
+            <span class="t">
+              {{ 'accounting.disposal.ratio' | t: { year: r.year, ratio: (r.overallRatioPct | num), rate: r.assignedRatePct === null ? '-' : (r.assignedRatePct | num) } }}
+              @if (r.rateRef) { <span class="sec"> · {{ r.rateRef }}</span> }
+              @if (r.rateExpired) { <span class="badge badge-warning"><span class="dot"></span>{{ 'accounting.disposal.rateExpired' | t }}</span> }
+            </span>
+          </div>
+        }
+        @if (error()) { <div class="notice notice-danger" role="alert"><app-icon name="alert" /><span class="t">{{ error() }}</span></div> }
       </div>
     }
-    @if (error()) { <div class="doc-alert danger">{{ error() }}</div> }
 
     <div class="table-card">
-      <div class="table-scroll">
-        <table class="table-responsive">
-          <thead><tr><th>{{ 'accounting.disposal.no' | t }}</th><th>{{ 'accounting.disposal.basis' | t }}</th><th>{{ 'accounting.disposal.reason' | t }}</th><th class="num">{{ 'reports.costValue' | t }}</th><th>{{ 'accounting.disposal.status' | t }}</th><th class="th-actions">{{ 'common.actions' | t }}</th></tr></thead>
-          <tbody>
-            @for (b of rows(); track b.id) {
-              <tr class="clickable-row" (click)="selected.set(b)">
-                <td class="mono td-primary"><strong>{{ b.batchNo }}</strong></td>
-                <td [attr.data-label]="'accounting.disposal.basis' | t">{{ 'accounting.disposal.basis.' + b.basis | t }}@if (b.disaster) { <span class="badge badge-info">{{ 'accounting.disposal.disaster' | t }}</span> }</td>
-                <td [attr.data-label]="'accounting.disposal.reason' | t">{{ b.reason }}</td>
-                <td class="num" [attr.data-label]="'reports.costValue' | t">{{ b.totalCost | money }}</td>
-                <td [attr.data-label]="'accounting.disposal.status' | t"><span class="badge" [class.badge-success]="b.status === 'DESTROYED'" [class.badge-warning]="b.status === 'REQUESTED' || b.status === 'APPLIED'" [class.badge-info]="b.status === 'DECIDED'">{{ 'accounting.disposal.status.' + b.status | t }}</span></td>
-                <td class="td-actions" (click)="$event.stopPropagation()"><button class="btn btn-secondary btn-sm" (click)="api.openPrintable('disposals/' + b.id + '/tutanak')">{{ 'accounting.disposal.tutanak' | t }}</button></td>
-              </tr>
-            }
-            @if (!rows().length) { <tr><td colspan="6"><div class="empty-state"><p class="empty-state-title">{{ 'accounting.disposal.empty' | t }}</p></div></td></tr> }
-          </tbody>
-        </table>
-      </div>
+      @if (!rows().length) {
+        <div class="empty-state">
+          <div class="empty-art"><app-icon name="trash" /></div>
+          <h3>{{ 'accounting.disposal.empty' | t }}</h3>
+          <p>{{ 'accounting.disposal.subtitle' | t }}</p>
+          @if (!ui.isReadonly()) { <div class="actions"><button type="button" class="btn btn-primary" (click)="openForm()"><app-icon name="plus" />{{ 'accounting.disposal.new' | t }}</button></div> }
+        </div>
+      } @else {
+        <div class="table-scroll">
+          <table class="tbl table-responsive ds-table">
+            <thead><tr>
+              <th>{{ 'accounting.disposal.no' | t }}</th>
+              <th>{{ 'accounting.disposal.basis' | t }}</th>
+              <th>{{ 'accounting.disposal.reason' | t }}</th>
+              <th class="r">{{ 'reports.costValue' | t }}</th>
+              <th>{{ 'accounting.disposal.status' | t }}</th>
+              <th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
+            </tr></thead>
+            <tbody>
+              @for (b of rows(); track b.id) {
+                <tr (click)="selected.set(b)">
+                  <td class="td-primary mono">{{ b.batchNo }}</td>
+                  <td [attr.data-label]="'accounting.disposal.basis' | t">{{ 'accounting.disposal.basis.' + b.basis | t }}@if (b.disaster) { <span class="badge badge-info">{{ 'accounting.disposal.disaster' | t }}</span> }</td>
+                  <td class="ds-reason" [attr.data-label]="'accounting.disposal.reason' | t" [title]="b.reason">{{ b.reason }}</td>
+                  <td class="r" [attr.data-label]="'reports.costValue' | t"><b>{{ b.totalCost | money }}</b></td>
+                  <td [attr.data-label]="'accounting.disposal.status' | t"><span class="badge" [class.badge-success]="b.status === 'DESTROYED'" [class.badge-warning]="b.status === 'REQUESTED' || b.status === 'APPLIED'" [class.badge-info]="b.status === 'DECIDED'"><span class="dot"></span>{{ 'accounting.disposal.status.' + b.status | t }}</span></td>
+                  <td class="td-actions ds-acts" (click)="$event.stopPropagation()"><button type="button" class="btn btn-ghost btn-sm" (click)="api.openPrintable('disposals/' + b.id + '/tutanak')"><app-icon name="printer" size="sm" />{{ 'accounting.disposal.tutanak' | t }}</button></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </div>
 
     @if (selected(); as b) {
       <div class="drawer-overlay" (click)="selected.set(null)">
-        <div class="drawer-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" [attr.aria-label]="'accounting.disposal.title' | t" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <div class="cluster"><span class="drawer-title">{{ 'accounting.disposal.title' | t }}</span><span class="mono text-muted">{{ b.batchNo }}</span></div>
-            <button class="drawer-close" (click)="selected.set(null)" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <div class="ds-head">
+              <span class="drawer-title">{{ 'accounting.disposal.title' | t }}</span>
+              <span class="mono">{{ b.batchNo }}</span>
+            </div>
+            <button type="button" class="drawer-close" (click)="selected.set(null)" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
           <div class="drawer-body">
-            <div class="doc-grid">
-              <div class="doc-field"><label>{{ 'accounting.disposal.basis' | t }}</label><span>{{ 'accounting.disposal.basis.' + b.basis | t }}</span></div>
-              <div class="doc-field"><label>{{ 'accounting.disposal.status' | t }}</label><span>{{ 'accounting.disposal.status.' + b.status | t }}</span></div>
-              <div class="doc-field"><label>{{ 'accounting.disposal.application' | t }}</label><span>{{ b.applicationDate ? (b.applicationDate | appDate) : '-' }} {{ b.applicationRef }}</span></div>
-              <div class="doc-field"><label>{{ 'accounting.disposal.decision' | t }}</label><span>{{ b.decisionDate ? (b.decisionDate | appDate) : '-' }} {{ b.decisionRef }}</span></div>
-              @if (b.destroyedAt) { <div class="doc-field"><label>{{ 'accounting.disposal.destroyedAt' | t }}</label><span>{{ b.destroyedAt | appDate: 'datetime' }} · {{ b.destructionPlace }}</span></div> }
-            </div>
-            <table class="doc-table">
-              <thead><tr><th>{{ 'accounting.col.product' | t }}</th><th>{{ 'accounting.col.lot' | t }}</th><th class="num">{{ 'accounting.col.qty' | t }}</th><th class="num">{{ 'reports.costValue' | t }}</th></tr></thead>
-              <tbody>@for (l of b.lines; track $index) { <tr><td>{{ l.productName }}</td><td class="mono">{{ l.lotNumber }} @if (l.expiryDate) { · {{ l.expiryDate | appDate }} }</td><td class="num">{{ l.quantity | num }}</td><td class="num">{{ l.totalCost | money }}</td></tr> }</tbody>
-            </table>
+            <section class="fsec">
+              <dl class="kv">
+                <dt>{{ 'accounting.disposal.status' | t }}</dt>
+                <dd><span class="badge" [class.badge-success]="b.status === 'DESTROYED'" [class.badge-warning]="b.status === 'REQUESTED' || b.status === 'APPLIED'" [class.badge-info]="b.status === 'DECIDED'"><span class="dot"></span>{{ 'accounting.disposal.status.' + b.status | t }}</span></dd>
+                <dt>{{ 'accounting.disposal.basis' | t }}</dt>
+                <dd>{{ 'accounting.disposal.basis.' + b.basis | t }}@if (b.disaster) { <span class="badge badge-info">{{ 'accounting.disposal.disaster' | t }}</span> }</dd>
+                <dt>{{ 'accounting.disposal.reason' | t }}</dt>
+                <dd>{{ b.reason }}</dd>
+                <dt>{{ 'accounting.disposal.application' | t }}</dt>
+                <dd>{{ b.applicationDate ? (b.applicationDate | appDate) : '—' }} @if (b.applicationRef) { <span class="sec">· {{ b.applicationRef }}</span> }</dd>
+                <dt>{{ 'accounting.disposal.decision' | t }}</dt>
+                <dd>{{ b.decisionDate ? (b.decisionDate | appDate) : '—' }} @if (b.decisionRef) { <span class="sec">· {{ b.decisionRef }}</span> }</dd>
+                @if (b.destroyedAt) {
+                  <dt>{{ 'accounting.disposal.destroyedAt' | t }}</dt>
+                  <dd>{{ b.destroyedAt | appDate: 'datetime' }} · {{ b.destructionPlace }}</dd>
+                }
+                <dt>{{ 'reports.costValue' | t }}</dt>
+                <dd><b>{{ b.totalCost | money }}</b></dd>
+              </dl>
+            </section>
+            <section class="fsec">
+              <div class="fsec-h"><h3>{{ 'invoices.lines' | t }}</h3><span class="aside">{{ ((b.lines?.length || 0) === 1 ? 'accounting.disposal.lineCountOne' : 'accounting.disposal.lineCount') | t: { n: (b.lines?.length || 0 | num) } }}</span></div>
+              <div class="ds-lines">
+                <table class="tbl">
+                  <thead><tr><th>{{ 'accounting.col.product' | t }}</th><th>{{ 'accounting.col.lot' | t }}</th><th class="r">{{ 'accounting.col.qty' | t }}</th><th class="r">{{ 'reports.costValue' | t }}</th></tr></thead>
+                  <tbody>@for (l of b.lines; track $index) { <tr><td class="ds-lp" [title]="l.productName">{{ l.productName }}</td><td class="ds-ll"><span class="mono">{{ l.lotNumber || '—' }}</span>@if (l.expiryDate) { <span class="ds-exp sec"> · {{ l.expiryDate | appDate }}</span> }</td><td class="r">{{ l.quantity | num }}</td><td class="r">{{ l.totalCost | money }}</td></tr> }</tbody>
+                </table>
+              </div>
+            </section>
             @if (!ui.isReadonly() && next(b).length) {
-              <div class="doc-section">
-                <div class="doc-section-title">{{ 'accounting.disposal.nextStep' | t }}</div>
-                <div class="doc-grid">
-                  <div class="doc-field"><label for="dsTo">{{ 'accounting.disposal.status' | t }}</label>
-                    <select id="dsTo" class="select" [(ngModel)]="toStatus">@for (s of next(b); track s) { <option [value]="s">{{ 'accounting.disposal.status.' + s | t }}</option> }</select></div>
-                  @if (toStatus === 'APPLIED') { <div class="doc-field"><label for="dsAr">{{ 'accounting.disposal.applicationRef' | t }}</label><input id="dsAr" class="input" [(ngModel)]="ref" /></div> }
+              <section class="fsec">
+                <div class="fsec-h"><h3>{{ 'accounting.disposal.nextStep' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld" [class.span-2]="toStatus !== 'DECIDED' && toStatus !== 'DESTROYED' && toStatus !== 'APPLIED'">
+                    <label class="fld-label" for="dsTo">{{ 'accounting.disposal.status' | t }}</label>
+                    <div class="field select">
+                      <select id="dsTo" [(ngModel)]="toStatus"><option value="" disabled>{{ 'accounting.disposal.nextStep' | t }}</option>@for (s of next(b); track s) { <option [value]="s">{{ 'accounting.disposal.status.' + s | t }}</option> }</select>
+                    </div>
+                  </div>
+                  @if (toStatus === 'APPLIED') {
+                    <div class="fld"><label class="fld-label" for="dsAr">{{ 'accounting.disposal.applicationRef' | t }}</label><div class="field"><input id="dsAr" [(ngModel)]="ref" /></div></div>
+                  }
                   @if (toStatus === 'DECIDED') {
-                    <div class="doc-field"><label for="dsDr">{{ 'accounting.disposal.decisionRef' | t }}</label><input id="dsDr" class="input" [(ngModel)]="ref" /></div>
-                    <div class="doc-field"><label for="dsDv">{{ 'accounting.disposal.decisionValue' | t }}</label><input id="dsDv" type="number" min="0" step="0.01" class="input" [(ngModel)]="decisionValue" /></div>
+                    <div class="fld"><label class="fld-label" for="dsDr">{{ 'accounting.disposal.decisionRef' | t }}</label><div class="field"><input id="dsDr" [(ngModel)]="ref" /></div></div>
+                    <div class="fld"><label class="fld-label" for="dsDv">{{ 'accounting.disposal.decisionValue' | t }}</label><div class="field"><input id="dsDv" type="number" min="0" step="0.01" class="num" [(ngModel)]="decisionValue" /></div></div>
                   }
                   @if (toStatus === 'DESTROYED') {
-                    <div class="doc-field"><label for="dsPl">{{ 'accounting.disposal.place' | t }}</label><input id="dsPl" class="input" [(ngModel)]="place" /></div>
-                    <div class="doc-field"><label for="dsW">{{ 'accounting.disposal.witnesses' | t }}</label><input id="dsW" class="input" [(ngModel)]="witnesses" [placeholder]="'accounting.disposal.witnessesHint' | t" /></div>
+                    <div class="fld"><label class="fld-label" for="dsPl">{{ 'accounting.disposal.place' | t }}</label><div class="field"><input id="dsPl" [(ngModel)]="place" /></div></div>
+                    <div class="fld span-2"><label class="fld-label" for="dsW">{{ 'accounting.disposal.witnesses' | t }}</label><div class="field"><input id="dsW" [(ngModel)]="witnesses" [placeholder]="'accounting.disposal.witnessesHint' | t" /></div><div class="fld-help">{{ 'accounting.disposal.witnessesHint' | t }}</div></div>
                   }
                 </div>
-                @if (toStatus === 'DESTROYED') { <p class="doc-hint">{{ 'accounting.disposal.destroyHint' | t }}</p> }
-                <button class="btn btn-primary btn-sm" [disabled]="busy() || !toStatus" (click)="transition(b)">{{ 'common.save' | t }}</button>
-              </div>
+                @if (toStatus === 'DESTROYED') { <div class="notice notice-warning"><app-icon name="warn" /><span class="t">{{ 'accounting.disposal.destroyHint' | t }}</span></div> }
+              </section>
             }
           </div>
-          <div class="drawer-footer"><button class="btn btn-secondary" (click)="api.openPrintable('disposals/' + b.id + '/tutanak')">{{ 'accounting.disposal.tutanak' | t }}</button></div>
+          <div class="drawer-footer">
+            <button type="button" class="btn btn-ghost" (click)="api.openPrintable('disposals/' + b.id + '/tutanak')"><app-icon name="printer" />{{ 'accounting.disposal.tutanak' | t }}</button>
+            <span class="spacer"></span>
+            @if (!ui.isReadonly() && next(b).length) {
+              <button type="button" class="btn btn-primary" [class.is-loading]="busy()" [disabled]="busy() || !toStatus" (click)="transition(b)"><span>{{ 'common.save' | t }}</span><kbd>Ctrl ↵</kbd></button>
+            } @else {
+              <button type="button" class="btn" (click)="selected.set(null)">{{ 'common.close' | t }}</button>
+            }
+          </div>
         </div>
       </div>
     }
 
     @if (formOpen()) {
       <div class="drawer-overlay" (click)="formOpen.set(false)">
-        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-          <div class="drawer-header"><span class="drawer-title">{{ 'accounting.disposal.new' | t }}</span>
-            <button class="drawer-close" (click)="formOpen.set(false)" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" [attr.aria-label]="'accounting.disposal.new' | t" (click)="$event.stopPropagation()">
+          <div class="drawer-header">
+            <span class="drawer-title">{{ 'accounting.disposal.new' | t }}</span>
+            <button type="button" class="drawer-close" (click)="formOpen.set(false)" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+          </div>
           <div class="drawer-body">
-            <div class="doc-grid">
-              <div class="doc-field"><label for="dnB">{{ 'accounting.disposal.basis' | t }}</label>
-                <select id="dnB" class="select" [(ngModel)]="basis">@for (b of bases; track b) { <option [value]="b">{{ 'accounting.disposal.basis.' + b | t }}</option> }</select></div>
-              <div class="doc-field"><label class="doc-check"><input type="checkbox" [(ngModel)]="disaster" /> {{ 'accounting.disposal.disasterLabel' | t }}</label></div>
-            </div>
-            <div class="doc-field"><label for="dnR">{{ 'accounting.disposal.reason' | t }}</label><input id="dnR" class="input" maxlength="500" [(ngModel)]="reason" /></div>
-            <table class="doc-table">
-              <thead><tr><th>{{ 'accounting.col.product' | t }}</th><th>{{ 'accounting.col.lot' | t }} / {{ 'accounting.col.warehouse' | t }}</th><th class="num">{{ 'accounting.col.qty' | t }}</th><th></th></tr></thead>
-              <tbody>
+            <section class="fsec">
+              <div class="fsec-h"><span class="n">1</span><h3>{{ 'documents.section.general' | t }}</h3></div>
+              <div class="fld">
+                <label class="fld-label" for="dnB">{{ 'accounting.disposal.basis' | t }}</label>
+                <div class="field select">
+                  <select id="dnB" [(ngModel)]="basis">@for (b of bases; track b) { <option [value]="b">{{ 'accounting.disposal.basis.' + b | t }}</option> }</select>
+                </div>
+              </div>
+              <label class="check"><input type="checkbox" [(ngModel)]="disaster" /><span>{{ 'accounting.disposal.disasterLabel' | t }}</span></label>
+              <div class="fld">
+                <label class="fld-label" for="dnR">{{ 'accounting.disposal.reason' | t }} <span class="req">*</span></label>
+                <div class="field has-area">
+                  <textarea id="dnR" maxlength="500" rows="2" [(ngModel)]="reason"></textarea>
+                  <span class="counter">{{ reason.length }} / 500</span>
+                </div>
+              </div>
+            </section>
+            <section class="fsec">
+              <div class="fsec-h"><span class="n">2</span><h3>{{ 'invoices.lines' | t }}</h3><span class="aside">{{ (lines().length === 1 ? 'accounting.disposal.lineCountOne' : 'accounting.disposal.lineCount') | t: { n: (lines().length | num) } }}</span></div>
+              @if (lines().length) {
+                <div class="ln-head" aria-hidden="true"><span>{{ 'accounting.col.product' | t }}</span><span>{{ 'accounting.col.lot' | t }} / {{ 'accounting.col.warehouse' | t }}</span><span class="r">{{ 'accounting.col.qty' | t }}</span><span></span></div>
+              }
+              <div class="ln-list">
                 @for (l of lines(); track $index) {
-                  <tr>
-                    <td><select class="select" [(ngModel)]="l.productId" (ngModelChange)="pickProduct(l)" [attr.aria-label]="'accounting.col.product' | t"><option value="">-</option>@for (p of products(); track p.id) { <option [value]="p.id">{{ p.sku }} · {{ p.name }}</option> }</select></td>
-                    <td>
-                      @if (isLot(l.productId)) {
-                        <select class="select" [(ngModel)]="l.lotId" [attr.aria-label]="'accounting.col.lot' | t"><option value="">-</option>@for (lot of l.lots; track lot.id) { <option [value]="lot.id">{{ lot.lotNumber }} · {{ lot.quantity | num }}@if (lot.expiryDate) { · {{ lot.expiryDate | appDate }} }</option> }</select>
-                      } @else {
-                        <select class="select" [(ngModel)]="l.warehouseId" [attr.aria-label]="'accounting.col.warehouse' | t">@for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }</select>
-                      }
-                    </td>
-                    <td class="num"><input type="number" min="0" step="any" class="input qty" [(ngModel)]="l.quantity" [attr.aria-label]="'accounting.col.qty' | t" /></td>
-                    <td><button class="btn btn-ghost btn-sm" (click)="removeLine($index)">×</button></td>
-                  </tr>
+                  <div class="ln">
+                    <div class="field select ln-prod">
+                      <select [(ngModel)]="l.productId" (ngModelChange)="pickProduct(l)" [attr.aria-label]="'accounting.col.product' | t"><option value="" disabled>{{ 'accounting.disposal.pickProduct' | t }}</option>@for (p of products(); track p.id) { <option [value]="p.id">{{ p.sku }} · {{ p.name }}</option> }</select>
+                    </div>
+                    @if (isLot(l.productId)) {
+                      <div class="field select">
+                        <select [(ngModel)]="l.lotId" [attr.aria-label]="'accounting.col.lot' | t"><option value="" disabled>{{ 'accounting.disposal.pickLot' | t }}</option>@for (lot of l.lots; track lot.id) { <option [value]="lot.id">{{ lot.lotNumber }} · {{ lot.quantity | num }}@if (lot.expiryDate) { · {{ lot.expiryDate | appDate }} }</option> }</select>
+                      </div>
+                    } @else {
+                      <div class="field select">
+                        <select [(ngModel)]="l.warehouseId" [attr.aria-label]="'accounting.col.warehouse' | t"><option value="" disabled>{{ 'accounting.disposal.pickWarehouse' | t }}</option>@for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }</select>
+                      </div>
+                    }
+                    <div class="field"><input type="number" min="0" step="any" class="num" [(ngModel)]="l.quantity" [attr.aria-label]="'accounting.col.qty' | t" placeholder="0" /></div>
+                    <button type="button" class="btn btn-ghost btn-icon" (click)="removeLine($index)" [attr.aria-label]="'common.delete' | t"><app-icon name="trash" /></button>
+                  </div>
                 }
-              </tbody>
-            </table>
-            <button class="btn btn-secondary btn-sm" (click)="addLine()">{{ 'accounting.disposal.addLine' | t }}</button>
+              </div>
+              <button type="button" class="btn btn-subtle btn-sm ln-add" (click)="addLine()"><app-icon name="plus" size="sm" />{{ 'accounting.disposal.addLine' | t }}</button>
+            </section>
           </div>
           <div class="drawer-footer">
-            <button class="btn btn-secondary" (click)="formOpen.set(false)">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" [disabled]="busy() || !reason.trim() || !validLines()" (click)="create()">{{ 'accounting.disposal.create' | t }}</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-ghost" (click)="formOpen.set(false)">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-primary" [class.is-loading]="busy()" [disabled]="busy() || !reason.trim() || !validLines()" (click)="create()"><span>{{ 'accounting.disposal.create' | t }}</span><kbd>Ctrl ↵</kbd></button>
           </div>
         </div>
       </div>
@@ -169,6 +293,12 @@ export class DisposalsComponent implements OnInit {
   witnesses = '';
 
   validLines = computed(() => this.lines().length > 0 && this.lines().every((l) => l.productId && Number(l.quantity) > 0 && (this.isLot(l.productId) ? !!l.lotId : !!l.warehouseId)));
+
+  /** Esc closes the open drawer. */
+  onEscape() {
+    if (this.formOpen()) this.formOpen.set(false);
+    else if (this.selected()) this.selected.set(null);
+  }
 
   ngOnInit() {
     this.load();

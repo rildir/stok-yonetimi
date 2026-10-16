@@ -14,96 +14,136 @@ import { TaxRate, Warehouse, Unit, StockLot, SerialNumber, BarcodeType } from '.
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import JsBarcode from 'jsbarcode';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
-import { tap } from 'rxjs';
+import { tap, timeout, retry, finalize } from 'rxjs';
 import { TaxService } from '../../services/tax.service';
 import { ExemptionCode, OtvCode, WithholdingCode } from '../../models/tax.models';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
+import { IconComponent } from '../shared/icon.component';
 
 @Component({
   selector: 'app-products',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, IconComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
-.tracking-badge { display: inline-flex; align-items: center; font-size: var(--text-2xs); font-weight: var(--weight-semibold); padding: 1px 6px; border-radius: var(--radius-full); background: var(--color-primary-subtle); color: var(--color-primary-text); border: 1px solid var(--color-primary-border); white-space: nowrap; }
-.btn-scan { flex-shrink: 0; justify-content: center; }
-.pr-toolbar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
-.pr-toolbar .segmented button { display: inline-flex; align-items: center; gap: var(--space-1); }
-.btn.is-active { background: var(--color-surface-muted); border-color: var(--color-border-strong); }
-.pr-sort { position: relative; width: 224px; }
-.pr-sort-trigger { width: 100%; justify-content: flex-start; }
-.pr-menu { position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; right: 0; background: var(--color-surface-raised, var(--color-surface)); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: var(--space-1); }
-.pr-menu-item { display: block; width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: 0; background: none; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--color-text); cursor: pointer; }
-.pr-menu-item:hover { background: var(--color-surface-muted); }
-.pr-menu-item.active { color: var(--color-primary-text); font-weight: var(--weight-semibold); }
-.pr-stats-toggle { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer; }
-.pr-kpis { margin-bottom: var(--space-4); }
-.pr-kpi { flex-direction: column; gap: var(--space-2); }
-.pr-kpi-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); width: 100%; }
-.pr-layout { display: flex; gap: var(--space-4); align-items: flex-start; }
-.pr-refiner { width: 232px; flex-shrink: 0; gap: var(--space-5); }
-.pr-ref-group h4 { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 var(--space-2); }
-.pr-ref-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
-.pr-ref-list a { display: block; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); color: var(--color-text-secondary); text-decoration: none; }
-.pr-ref-list a:hover { background: var(--color-surface-muted); color: var(--color-text); }
-.pr-ref-list a.active { background: var(--color-primary-subtle); color: var(--color-primary-text); font-weight: var(--weight-medium); }
-.pr-radio { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); cursor: pointer; color: var(--color-text); }
-.pr-radio input, .pr-check-label input, .pr-col-check input, .pr-card-top input { accent-color: var(--color-primary); width: 16px; height: 16px; cursor: pointer; }
-.pr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-.pr-resultbar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-sm); }
-.pr-strong { color: var(--color-text); font-weight: var(--weight-semibold); }
-.pr-chip-x { display: inline-grid; place-items: center; border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 var(--space-1); }
-.pr-check-label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; color: var(--color-text-secondary); }
-.pr-table td { vertical-align: middle; }
-.pr-table .num { white-space: nowrap; }
-.pr-col-check { width: 44px; text-align: center; }
-.pr-table tr.is-selected td { background: var(--color-primary-subtle); }
-.pr-table tr.is-highlighted td { box-shadow: inset 0 2px 0 var(--color-primary), inset 0 -2px 0 var(--color-primary); }
-.pr-prod { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.pr-prod-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
-.pr-thumb { width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; overflow: hidden; border-radius: var(--radius-sm); background: var(--color-surface-subtle); border: 1px solid var(--color-border-subtle); color: var(--color-text-subtle); }
-.pr-thumb-lg { width: 56px; height: 56px; border-radius: var(--radius-md); }
-.pr-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.pr-name { font-weight: var(--weight-semibold); color: var(--color-text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
-.pr-name:hover { color: var(--color-primary-text); }
-.pr-meta { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
-.pr-stock-cell { position: relative; }
-.pr-stock { display: inline-flex; align-items: center; gap: var(--space-1); cursor: default; font-weight: var(--weight-semibold); }
-.pr-rating { display: inline-flex; align-items: center; gap: 2px; color: var(--color-warning); }
-.pr-rating-val { margin-left: var(--space-1); font-size: var(--text-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
-.warehouse-tooltip { position: absolute; z-index: 60; bottom: calc(100% - 4px); right: var(--space-3); min-width: 180px; text-align: left; background: var(--color-surface-raised, var(--color-surface)); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); box-shadow: var(--shadow-lg); }
-.wh-tooltip-title { font-size: var(--text-2xs); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); padding-bottom: var(--space-1); margin-bottom: var(--space-1); border-bottom: 1px solid var(--color-border-subtle); }
-.wh-tooltip-row { display: flex; justify-content: space-between; gap: var(--space-3); padding: 2px 0; font-size: var(--text-xs); color: var(--color-text); }
-.wh-tooltip-row strong { font-variant-numeric: tabular-nums; }
-.pr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
-.pr-card { gap: var(--space-3); padding: var(--space-4); }
-.pr-card.is-selected { border-color: var(--color-primary-border); background: var(--color-primary-subtle); }
-.pr-card.is-highlighted { box-shadow: 0 0 0 2px var(--color-primary); }
+.pr-hdr-more { position: relative; }
+.pr-hdr-pop { right: 0; top: calc(100% + 6px); width: 232px; }
+.pr-toolbar { margin-bottom: 12px; }
+.pr-search { width: 300px; }
+.pr-cat { width: 196px; }
+.pr-sort { position: relative; }
+.pr-sort-pop { right: 0; top: calc(100% + 6px); width: 208px; }
+.pr-sort .btn .lbl { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.pr-view button { padding: 0 8px; }
+.pr-kpis { margin-bottom: 20px; }
+.pr-kpis .distbar { margin-top: -2px; }
+.pr-kpis .kpi-val b.is-warn { color: var(--warning); }
+.pr-kpis .kpi-val b.is-danger { color: var(--danger); }
+.pr-kpis .kpi.is-danger .kpi-top { color: var(--danger); }
+.pr-kpis .kpi-foot { flex-wrap: wrap; white-space: normal; row-gap: 2px; }
+.pr-kpis .kpi-foot > span:not(.delta) { overflow: visible; text-overflow: clip; }
+.pr-cat-pending { display: inline-block; width: 72px; max-width: 100%; vertical-align: middle; }
+.field.select { padding: 0; }
+.pr-table .pr-name-cell { max-width: 340px; }
+.pr-table td.pr-cat-cell { max-width: 160px; }
+.pr-name { color: var(--fg); font-weight: 500; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pr-name:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.cell-prod .thumb { overflow: hidden; }
+.cell-prod .thumb img, .pr-thumb img, .mrow .thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cell-prod .cell-code { margin-left: 0; flex: none; }
+.cell-prod .badge { flex: none; margin-left: 0; }
+.pr-table tr.is-highlighted td { box-shadow: inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent); background: var(--accent-soft); }
+.pr-table td.pr-stock-cell { position: relative; overflow: visible; }
+.pr-stock-qty .u { color: var(--fg-3); margin-left: 3px; }
+.pr-stock-sub { display: block; font-size: var(--text-2xs); color: var(--fg-3); line-height: 14px; }
+.pr-stock-cell .cell-stock .meter { width: 36px; }
+.pr-rating { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-2); }
+.pr-rating svg { width: 12px; height: 12px; color: var(--fg-3); }
+.tbl .w-act.pr-acts { width: 1%; white-space: nowrap; overflow: visible; padding: 0 8px; }
+.pr-acts .row-act { vertical-align: middle; }
+.warehouse-tooltip { position: absolute; z-index: var(--z-dropdown); top: calc(100% - 6px); right: 12px; min-width: 200px; text-align: left; background: var(--pop-bg); border-radius: var(--radius-md); padding: 6px 10px 8px; box-shadow: var(--shadow-pop); }
+.wh-tooltip-title { font-size: var(--text-xs); font-weight: 500; color: var(--fg-3); padding: 2px 0 6px; margin-bottom: 4px; box-shadow: inset 0 -1px 0 var(--line); }
+.wh-tooltip-row { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; font-size: var(--text-xs); color: var(--fg); }
+.wh-tooltip-row strong { font-weight: 500; font-variant-numeric: tabular-nums; }
+.pr-mlist .mrow { grid-template-columns: auto minmax(0, 1fr) auto auto; position: relative; }
+.pr-mlist .mrow .thumb { grid-column: 1; grid-row: 1 / span 2; overflow: hidden; }
+.pr-mlist .mrow b { grid-column: 2; grid-row: 1; cursor: pointer; }
+.pr-mlist .mrow .v { grid-column: 3; grid-row: 1; white-space: nowrap; }
+.pr-mlist .mrow .v .u { color: var(--fg-3); font-weight: 400; margin-left: 3px; }
+.pr-mlist .mrow .s { grid-column: 2; grid-row: 2; }
+.pr-mlist .mrow .s.r { grid-column: 3; grid-row: 2; }
+.pr-mlist .mrow .pr-mmore { grid-column: 4; grid-row: 1 / span 2; margin-right: -6px; }
+.pr-mlist .mrow.is-highlighted { background: var(--accent-soft); }
+.pr-rowpop { right: 8px; top: calc(100% - 8px); width: 220px; }
+.pr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(264px, 1fr)); gap: 12px; }
+.pr-card { gap: 14px; }
+.pr-card.is-selected { box-shadow: 0 0 0 1px var(--accent-line), var(--shadow-card); background: var(--accent-soft); }
+.pr-card.is-highlighted { box-shadow: var(--focus-ring-field), var(--shadow-card); }
 .pr-card-top { display: flex; justify-content: space-between; align-items: center; }
-.pr-serial-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--color-surface); }
-.pr-serial-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; cursor: pointer; font-size: var(--text-sm); }
-.pr-serial-block { display: flex; flex-direction: column; gap: var(--space-2); }
-.pr-serial-title { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text); }
-.pr-tr-hint { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: calc(-1 * var(--space-2)); }
-.pr-serial-block .pr-tr-hint { margin-top: 0; }
-.pr-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
-.pr-card-stats dt { font-size: var(--text-xs); color: var(--color-text-muted); }
-.pr-card-stats dd { margin: 0; font-weight: var(--weight-semibold); color: var(--color-text); font-variant-numeric: tabular-nums; }
-.pr-card-actions { display: flex; gap: var(--space-2); margin-top: auto; }
-.pr-card-actions .btn { flex: 1; }
-.pr-range, .pr-perpage { font-size: var(--text-sm); }
-.pr-perpage .select { width: auto; height: 32px; padding-top: 0; padding-bottom: 0; }
-.pr-pages { gap: var(--space-1); }
+.pr-card-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pr-card-id > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pr-thumb { width: 44px; height: 44px; flex: none; display: grid; place-items: center; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line); color: var(--fg-3); }
+.pr-card-meta { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--fg-3); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); }
+.pr-card-stats dt { font-size: var(--text-xs); color: var(--fg-3); }
+.pr-card-stats dd { margin: 2px 0 0; font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+.pr-card-actions { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.pr-card-actions .spacer { flex: 1; }
+.pr-foot-card { margin-top: 12px; }
+.pr-foot .pr-range { color: var(--fg); font-weight: 500; }
+.pr-foot .pr-pp { width: 72px; }
+.pr-foot .pr-pages { display: flex; align-items: center; gap: 4px; }
+.pr-empty-card { padding: 0; }
+.pr-form { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.pr-form .drawer-body { gap: 0; padding-top: 0; }
+.pr-bc-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 14px; align-items: start; }
+.pr-bc-prev { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.pr-bc-prev .cap { font-size: var(--text-xs); color: var(--fg-3); }
+.pr-bc-prev .svg { max-width: 100%; overflow: hidden; }
+.pr-csel { position: relative; }
+.pr-csel .field { cursor: pointer; }
+.pr-csel-pop { left: 0; right: 0; top: calc(100% + 4px); max-height: 240px; overflow-y: auto; z-index: 2000; }
+.pr-subblock { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.pr-subblock-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pr-subblock-h b { font-size: var(--text-sm); font-weight: 500; }
+.pr-alt-row { display: grid; grid-template-columns: minmax(0, 1.2fr) 88px minmax(0, 1.4fr) auto; gap: 6px; align-items: center; }
+.pr-alt-eq { font-size: var(--text-xs); color: var(--fg-3); margin-top: -4px; }
+.pr-check-cell { display: flex; align-items: center; min-height: var(--h-md); padding-top: 18px; }
+.pr-lots { width: 100%; }
+.pr-lots td, .pr-lots th { padding-left: 8px; padding-right: 8px; }
+.pr-serials { display: flex; flex-wrap: wrap; gap: 4px; max-height: 160px; overflow-y: auto; }
+.pr-lbl-list { display: flex; flex-direction: column; border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line); max-height: 340px; overflow-y: auto; }
+.pr-lbl-item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px; box-shadow: inset 0 -1px 0 var(--line); font-size: var(--text-sm); }
+.pr-lbl-item:last-child { box-shadow: none; }
+.pr-lbl-item b { font-weight: 500; }
+.pr-lbl-item .fld-help { flex-basis: 100%; color: var(--warning); }
+.pr-xfer-prod { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.pr-xfer-prod > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pr-xfer-prod b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-xfer-prod .cap { font-size: var(--text-xs); color: var(--fg-3); }
+.pr-xfer-prod .pr-thumb { width: 36px; height: 36px; }
+.pr-xfer-prod .cell-code { margin-left: auto; }
+.pr-serial-list { max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--ring); background: var(--surface); }
+.pr-serial-list .mono { font-size: var(--text-xs); }
+.pr-hidden { display: none; }
+@media (max-width: 1500px) {
+  .pr-table .pr-col-rating { display: none; }
+}
 @media (max-width: 900px) {
-  .pr-layout { flex-direction: column; align-items: stretch; }
-  .pr-refiner { width: 100%; }
+  .pr-search { flex: 1 1 220px; width: auto; }
 }
 @media (max-width: 640px) {
-  .pr-sort { flex: 1 1 auto; width: auto; }
-  .pr-stats-toggle { margin-left: 0; }
-  .pr-table td.pr-col-check { display: none; }
-  .pr-table td.pr-actions-cell .td-actions { justify-content: flex-start; }
-  .pr-name { max-width: none; white-space: normal; }
+  .pr-toolbar { gap: 8px; }
+  .pr-search { flex: 1 1 100%; }
+  .pr-toolbar .pr-status { flex: 1 1 100%; max-width: 100%; overflow-x: auto; }
+  .pr-cat { flex: 1 1 0; width: auto; min-width: 0; }
+  .pr-sort .btn .lbl { display: none; }
+  .pr-toolbar > .spacer { display: none; }
+  .pr-foot .pr-pp-label, .pr-foot .pr-pages .page-btn { display: none; }
+  .pr-bc-row { grid-template-columns: minmax(0, 1fr); }
+  .pr-alt-row { grid-template-columns: minmax(0, 1fr) 72px auto; }
+  .pr-alt-row .pr-alt-bc { grid-column: 1 / span 2; }
+  .pr-grid { grid-template-columns: minmax(0, 1fr); }
   .warehouse-tooltip { right: 0; }
 }
   `],
@@ -114,785 +154,734 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
         <p>{{ 'products.page.subtitle' | t }}</p>
       </div>
       <div class="page-actions">
-        <button type="button" class="btn btn-secondary" (click)="fileInput.click()">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-          {{ 'products.import' | t }}
+        <button type="button" class="btn d-only" (click)="fileInput.click()">
+          <app-icon name="upload" />{{ 'products.import' | t }}
         </button>
-        <input type="file" #fileInput accept=".csv" style="display: none" (change)="importFromCSV($event)" />
-        <button type="button" class="btn btn-secondary" (click)="exportToCSV()">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-          {{ 'products.export' | t }}
-        </button>
-        <button type="button" class="btn btn-secondary" (click)="printProducts()">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          {{ 'products.printAction' | t }}
-        </button>
+        <input type="file" #fileInput accept=".csv" class="pr-hidden" (change)="importFromCSV($event)" />
+        <span class="pr-hdr-more" (click)="$event.stopPropagation()">
+          <button type="button" class="btn btn-icon" [class.is-active]="isMoreMenuOpen()" [attr.aria-label]="'products.ui.more' | t" aria-haspopup="menu" [attr.aria-expanded]="isMoreMenuOpen()" (click)="isMoreMenuOpen.update(v => !v); isSortDropdownOpen.set(false)">
+            <app-icon name="more" />
+          </button>
+          @if (isMoreMenuOpen()) {
+            <div class="pop pr-hdr-pop" role="menu">
+              <button type="button" class="menu-i m-only" role="menuitem" (click)="isMoreMenuOpen.set(false); fileInput.click()"><app-icon name="upload" />{{ 'products.import' | t }}</button>
+              <button type="button" class="menu-i" role="menuitem" (click)="isMoreMenuOpen.set(false); exportToCSV()"><app-icon name="download" />{{ 'products.export' | t }}<span class="meta">.csv</span></button>
+              <button type="button" class="menu-i" role="menuitem" (click)="isMoreMenuOpen.set(false); printProducts()"><app-icon name="printer" />{{ 'products.printAction' | t }}</button>
+              <button type="button" class="menu-i" role="menuitem" (click)="isMoreMenuOpen.set(false); openScanner()"><app-icon name="scan" />{{ 'products.scanBarcode' | t }}</button>
+              <div class="menu-sep"></div>
+              <button type="button" class="menu-i" role="menuitemcheckbox" [attr.aria-checked]="showStats()" (click)="isMoreMenuOpen.set(false); toggleStats()">
+                <app-icon [name]="showStats() ? 'eyeoff' : 'eye'" />{{ (showStats() ? 'products.ui.hideStats' : 'products.ui.showStats') | t }}
+              </button>
+            </div>
+          }
+        </span>
         <button type="button" class="btn btn-primary" (click)="openAddProduct()">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          {{ 'products.addNew' | t }}
+          <app-icon name="plus" /><span class="d-only">{{ 'products.ui.new' | t }}</span><span class="m-only">{{ 'products.ui.newShort' | t }}</span><kbd>N</kbd>
         </button>
       </div>
-    </div>
-
-    <div class="toolbar pr-toolbar">
-      <div class="segmented" role="group">
-        <button type="button" [class.active]="isTableView()" (click)="isTableView.set(true); isViewDropdownOpen.set(false)">
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-          <span>{{ 'products.view.table' | t }}</span>
-        </button>
-        <button type="button" [class.active]="!isTableView()" (click)="isTableView.set(false); isViewDropdownOpen.set(false)">
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-          <span>{{ 'products.view.card' | t }}</span>
-        </button>
-      </div>
-
-      <button type="button" class="btn btn-secondary" [class.is-active]="showFilters()" (click)="toggleFilters()">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
-        {{ 'products.filter' | t }}
-      </button>
-
-      <div class="custom-select-wrapper pr-sort" (click)="$event.stopPropagation()">
-        <button type="button" class="btn btn-secondary pr-sort-trigger" (click)="isSortDropdownOpen.update(v => !v); isViewDropdownOpen.set(false)" [class.open]="isSortDropdownOpen()">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h9M3 18h6M17 8l4-4 4 4M21 4v16" transform="translate(-3 0)"/></svg>
-          <span class="truncate">{{ ('products.sort.' + productSortOption()) | t }}</span>
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto; color: var(--color-text-muted);"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        @if (isSortDropdownOpen()) {
-          <div class="pr-menu">
-            @for (opt of [
-              {id: 'default', label: 'products.sort.default'},
-              {id: 'stock-desc', label: 'products.sort.stock-desc'},
-              {id: 'stock-asc', label: 'products.sort.stock-asc'},
-              {id: 'price-asc', label: 'products.sort.price-asc'},
-              {id: 'price-desc', label: 'products.sort.price-desc'},
-              {id: 'name-asc', label: 'products.sort.name-asc'}
-            ]; track opt.id) {
-              <button type="button" class="pr-menu-item" [class.active]="productSortOption() === opt.id" (click)="productSortOption.set(opt.id); isSortDropdownOpen.set(false)">{{ opt.label | t }}</button>
-            }
-          </div>
-        }
-      </div>
-
-      <label class="pr-stats-toggle">
-        <span class="switch"><input type="checkbox" [checked]="showStats()" (change)="toggleStats()" /><span class="slider"></span></span>
-        <span>{{ 'products.showStats' | t }}</span>
-      </label>
     </div>
 
     @if (showStats()) {
       <div class="kpi-grid pr-kpis">
-        <div class="stat-card pr-kpi">
-          <span class="stat-label">{{ 'products.stats.totalProducts' | t }}</span>
-          <div class="pr-kpi-row">
-            <span class="stat-value">{{ state.products().length }}</span>
-            @if (newProductCount() > 0) {
-              <span class="badge badge-success">{{ 'products.stats.newCount' | t: { count: newProductCount() } }}</span>
-            }
+        <div class="kpi">
+          <div class="kpi-top"><app-icon name="box" size="sm" />{{ 'products.stats.totalProducts' | t }}</div>
+          <div class="kpi-val"><b>{{ state.products().length | num }}</b></div>
+          @if (state.products().length > 0) {
+            <div class="distbar" aria-hidden="true">
+              <i class="ok" [style.width.%]="(state.products().length - state.lowStockCount() - state.outOfStockCount()) / state.products().length * 100"></i>
+              <i class="warn" [style.width.%]="state.lowStockCount() / state.products().length * 100"></i>
+              <i class="danger" [style.width.%]="state.outOfStockCount() / state.products().length * 100"></i>
+            </div>
+          }
+          <div class="kpi-foot">
+            @if (newProductCount() > 0) { <span class="delta up"><app-icon name="up" size="xs" />{{ 'products.stats.newCount' | t: { count: newProductCount() } }}</span> }
+            <span>{{ 'products.stats.last30Days' | t }}</span>
           </div>
-          <span class="kpi-meta">{{ 'products.stats.last30Days' | t }}</span>
         </div>
-        <div class="stat-card pr-kpi">
-          <span class="stat-label">{{ 'products.stats.totalValue' | t }}</span>
-          <div class="pr-kpi-row">
-            <span class="stat-value">{{ totalValue().amount | money: totalValue().currency : 0 }}</span>
-          </div>
-          <span class="kpi-meta">
+        <div class="kpi">
+          <div class="kpi-top"><app-icon name="chart" size="sm" />{{ 'products.stats.totalValue' | t }}</div>
+          <div class="kpi-val"><b>{{ totalValue().amount | money: totalValue().currency : 0 }}</b></div>
+          <div class="kpi-foot">
             @if (totalValue().unconverted.length) {
-              {{ 'products.stats.unconverted' | t: { list: totalValue().unconverted.join(', ') } }}
+              <span class="delta down"><app-icon name="warn" size="xs" /></span><span>{{ 'products.stats.unconverted' | t: { list: totalValue().unconverted.join(', ') } }}</span>
             } @else {
-              {{ 'products.stats.inBaseCurrency' | t: { currency: totalValue().currency } }}
+              <span>{{ 'products.stats.inBaseCurrency' | t: { currency: totalValue().currency } }}</span>
             }
-          </span>
-        </div>
-        <div class="stat-card pr-kpi">
-          <span class="stat-label">{{ 'products.stats.criticalStock' | t }}</span>
-          <div class="pr-kpi-row">
-            <span class="stat-value low">{{ state.lowStockCount() }}</span>
           </div>
-          <span class="kpi-meta">{{ 'products.stats.criticalMeta' | t }}</span>
         </div>
-        <div class="stat-card pr-kpi">
-          <span class="stat-label">{{ 'products.stats.outOfStock' | t }}</span>
-          <div class="pr-kpi-row">
-            <span class="stat-value out">{{ state.outOfStockCount() }}</span>
-          </div>
-          <span class="kpi-meta">{{ 'products.stats.outMeta' | t }}</span>
-        </div>
+        <button type="button" class="kpi" [class.is-alert]="state.lowStockCount() > 0" (click)="productFilterStatus.set('Low stock')">
+          <div class="kpi-top"><app-icon name="warn" size="sm" />{{ 'products.stats.criticalStock' | t }}<app-icon class="go" name="arrowur" size="sm" /></div>
+          <div class="kpi-val"><b [class.is-warn]="state.lowStockCount() > 0">{{ state.lowStockCount() | num }}</b></div>
+          <div class="kpi-foot"><span>{{ 'products.stats.criticalMeta' | t }}</span></div>
+        </button>
+        <button type="button" class="kpi" [class.is-danger]="state.outOfStockCount() > 0" (click)="productFilterStatus.set('Out of stock')">
+          <div class="kpi-top"><app-icon name="alert" size="sm" />{{ 'products.stats.outOfStock' | t }}<app-icon class="go" name="arrowur" size="sm" /></div>
+          <div class="kpi-val"><b [class.is-danger]="state.outOfStockCount() > 0">{{ state.outOfStockCount() | num }}</b></div>
+          <div class="kpi-foot"><span>{{ 'products.stats.outMeta' | t }}</span></div>
+        </button>
       </div>
     }
 
-    <div class="pr-layout">
-      @if (showFilters()) {
-        <aside class="card pr-refiner">
-          <div class="pr-ref-group">
-            <h4>{{ 'products.filters.search' | t }}</h4>
-            <div class="search-box">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              <input type="text" [placeholder]="'products.filters.searchPlaceholder' | t" [value]="productSearch()" (input)="onSearchInput($event)" />
-            </div>
-          </div>
-          <div class="pr-ref-group">
-            <h4>{{ 'products.filters.categories' | t }}</h4>
-            <ul class="pr-ref-list">
-              <li><a href="#" [class.active]="!productSearch()" (click)="productSearch.set(''); $event.preventDefault()">{{ 'products.filters.allCategories' | t }}</a></li>
-              @for (cat of categories(); track cat.id) {
-                <li><a href="#" [class.active]="productSearch() === cat.name" (click)="productSearch.set(cat.name); $event.preventDefault()">{{ cat.name }}</a></li>
-              }
-            </ul>
-          </div>
-          <div class="pr-ref-group">
-            <h4>{{ 'products.filters.stockStatus' | t }}</h4>
-            <ul class="pr-ref-list">
-              @for (st of [{id:'all', label:'products.status.all'}, {id:'In stock', label:'products.status.inStock'}, {id:'Low stock', label:'products.status.lowStock'}, {id:'Out of stock', label:'products.status.outOfStock'}]; track st.id) {
-                <li>
-                  <label class="pr-radio">
-                    <input type="radio" name="stockFilter" [checked]="productFilterStatus() === st.id" (change)="productFilterStatus.set($any(st.id))" />
-                    <span>{{ st.label | t }}</span>
-                  </label>
-                </li>
-              }
-            </ul>
-          </div>
-          <button type="button" class="btn btn-secondary btn-scan" (click)="openScanner()" [title]="'products.scanBarcode' | t">
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8M18 8v8"/></svg>
-            {{ 'products.scanBarcode' | t }}
-          </button>
-        </aside>
+    <div class="toolbar pr-toolbar">
+      <div class="field pr-search">
+        <span class="lead"><app-icon name="search" size="sm" /></span>
+        <input type="search" data-page-search [attr.aria-label]="'common.search' | t" [placeholder]="'products.ui.searchPlaceholder' | t" [value]="productSearch()" (input)="onSearchInput($event)" />
+        <span class="trail">
+          <button type="button" class="inner-btn" (click)="openScanner()" [attr.aria-label]="'products.scanBarcode' | t" [attr.data-tip]="'products.scanBarcode' | t"><app-icon name="scan" size="sm" /></button>
+          <kbd>/</kbd>
+        </span>
+      </div>
+      <div class="seg pr-status" role="group" [attr.aria-label]="'products.filters.stockStatus' | t">
+        <button type="button" [attr.aria-pressed]="productFilterStatus() === 'all'" (click)="productFilterStatus.set('all')">{{ 'products.status.all' | t }} <span class="count">{{ state.products().length | num }}</span></button>
+        <button type="button" [attr.aria-pressed]="productFilterStatus() === 'In stock'" (click)="productFilterStatus.set('In stock')">{{ 'products.status.inStock' | t }} <span class="count">{{ (state.products().length - state.lowStockCount() - state.outOfStockCount()) | num }}</span></button>
+        <button type="button" [attr.aria-pressed]="productFilterStatus() === 'Low stock'" (click)="productFilterStatus.set('Low stock')">{{ 'products.status.lowStock' | t }} <span class="count">{{ state.lowStockCount() | num }}</span></button>
+        <button type="button" [attr.aria-pressed]="productFilterStatus() === 'Out of stock'" (click)="productFilterStatus.set('Out of stock')">{{ 'products.status.outOfStock' | t }} <span class="count">{{ state.outOfStockCount() | num }}</span></button>
+      </div>
+      <div class="field select pr-cat">
+        <select [attr.aria-label]="'products.filters.categories' | t" [ngModel]="activeCategory()" (ngModelChange)="productSearch.set($event || '')">
+          <option value="">{{ 'products.filters.allCategories' | t }}</option>
+          @for (cat of categories(); track cat.id) { <option [value]="cat.name">{{ cat.name }}</option> }
+        </select>
+      </div>
+      @if (selectedWarehouseFilter()) {
+        <span class="chip-filter">
+          <span><app-icon name="warehouse" size="xs" /><span class="k">{{ 'products.lots.warehouse' | t }}</span></span>
+          <span><span class="op">=</span> <span class="v">{{ selectedWarehouseFilter() }}</span></span>
+          <button type="button" class="x" (click)="clearWarehouseFilter()" [attr.aria-label]="'common.clear' | t"><app-icon name="x" size="xs" /></button>
+        </span>
       }
-
-      <div class="pr-main">
-        <div class="pr-resultbar">
-          <div class="cluster">
-            <span class="text-muted">
-              {{ 'products.results.prefix' | t }} <strong class="pr-strong">{{ 'products.results.count' | t: { count: filteredProducts().length } }}</strong> {{ 'products.results.suffix' | t }}
-            </span>
-            @if (selectedWarehouseFilter()) {
-              <span class="badge badge-warning">
-                {{ 'products.warehouseFilter' | t: { name: selectedWarehouseFilter() } }}
-                <button type="button" class="pr-chip-x" (click)="clearWarehouseFilter()" [title]="'common.clear' | t">
-                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                </button>
-              </span>
+      <span class="spacer"></span>
+      <div class="pr-sort" (click)="$event.stopPropagation()">
+        <button type="button" class="btn btn-ghost" [class.is-active]="isSortDropdownOpen()" aria-haspopup="menu" [attr.aria-expanded]="isSortDropdownOpen()" [attr.aria-label]="'products.ui.sort' | t" (click)="isSortDropdownOpen.update(v => !v); isMoreMenuOpen.set(false)">
+          <app-icon name="sort" /><span class="lbl">{{ ('products.sort.' + productSortOption()) | t }}</span><app-icon name="chevd" size="sm" />
+        </button>
+        @if (isSortDropdownOpen()) {
+          <div class="pop pr-sort-pop" role="menu">
+            <div class="menu-label">{{ 'products.ui.sort' | t }}</div>
+            @for (opt of ['default', 'stock-desc', 'stock-asc', 'price-asc', 'price-desc', 'name-asc']; track opt) {
+              <button type="button" class="menu-i" role="menuitemradio" [attr.aria-checked]="productSortOption() === opt" [class.is-active]="productSortOption() === opt" (click)="productSortOption.set(opt); isSortDropdownOpen.set(false)">
+                {{ ('products.sort.' + opt) | t }}
+                @if (productSortOption() === opt) { <span class="meta"><app-icon name="check" size="sm" /></span> }
+              </button>
             }
           </div>
-          <label class="pr-check-label">
-            <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" />
-            <span>{{ 'products.selectAll' | t }}</span>
-          </label>
+        }
+      </div>
+      <div class="seg pr-view" role="group" [attr.aria-label]="'products.ui.view' | t">
+        <button type="button" [attr.aria-pressed]="isTableView()" [attr.aria-label]="'products.view.table' | t" [attr.data-tip]="'products.view.table' | t" (click)="isTableView.set(true)"><app-icon name="rows" size="sm" /></button>
+        <button type="button" [attr.aria-pressed]="!isTableView()" [attr.aria-label]="'products.view.card' | t" [attr.data-tip]="'products.view.card' | t" (click)="isTableView.set(false)"><app-icon name="columns" size="sm" /></button>
+      </div>
+    </div>
+
+    <ng-template #pager>
+      <div class="tbl-foot pr-foot">
+        <span><span class="pr-range">{{ (currentPage() - 1) * itemsPerPage() + 1 }}–{{ Math.min(currentPage() * itemsPerPage(), filteredProducts().length) }}</span> / {{ 'products.pagination.showing' | t: { count: filteredProducts().length } }}</span>
+        <span class="spacer"></span>
+        <span class="pr-pp-label">{{ 'products.pagination.perPage' | t }}</span>
+        <div class="field field-sm select pr-pp">
+          <select [attr.aria-label]="'products.pagination.perPage' | t" [ngModel]="itemsPerPage()" (ngModelChange)="itemsPerPage.set(+$event); currentPage.set(1)">
+            <option [ngValue]="10">10</option>
+            <option [ngValue]="25">25</option>
+            <option [ngValue]="50">50</option>
+          </select>
         </div>
+        <div class="pr-pages">
+          <button type="button" class="btn btn-sm btn-icon" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)" [attr.aria-label]="'products.ui.prev' | t"><app-icon name="chevl" size="sm" /></button>
+          @for (pNum of getPagesArray(); track pNum) {
+            <button type="button" class="page-btn" [class.active]="currentPage() === pNum" [attr.aria-current]="currentPage() === pNum ? 'page' : null" (click)="goToPage(pNum)">{{ pNum }}</button>
+          }
+          <button type="button" class="btn btn-sm btn-icon" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)" [attr.aria-label]="'products.ui.next' | t"><app-icon name="chevr" size="sm" /></button>
+        </div>
+      </div>
+    </ng-template>
 
-        @if (isTableView()) {
-          <div class="table-card">
-            <div class="table-scroll">
-              <table class="table-responsive pr-table">
-                <thead>
-                  <tr>
-                    <th class="pr-col-check"><span class="sr-only">{{ 'products.col.select' | t }}</span></th>
-                    <th>{{ 'products.col.product' | t }}</th>
-                    <th class="num">{{ 'products.col.price' | t }}</th>
-                    <th class="num">{{ 'products.col.sales' | t }}</th>
-                    <th class="num">{{ 'products.col.revenue' | t }}</th>
-                    <th class="num">{{ 'products.col.stock' | t }}</th>
-                    <th>{{ 'products.col.status' | t }}</th>
-                    <th>{{ 'products.col.rating' | t }}</th>
-                    <th class="num">{{ 'common.actions' | t }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (p of paginatedProducts(); track p.id) {
-                    <tr [class.is-selected]="isProductSelected(p.id)" [class.is-highlighted]="highlightedProductId() === p.id">
-                      <td class="pr-col-check">
-                        <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" />
-                      </td>
-                      <td class="td-primary">
-                        <div class="pr-prod">
-                          <div class="pr-thumb">
-                            @if (p.imageUrl) {
-                              <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" />
-                            } @else {
-                              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                            }
-                          </div>
-                          <div class="pr-prod-text">
-                            <a href="#" class="pr-name" (click)="$event.preventDefault(); openEditProduct(p)">{{ p.name }}</a>
-                            <span class="pr-meta"><span class="mono">{{ p.sku }}</span> · {{ getCategoryName(p.category) }}</span>
-                            @if (p.barcode || isTracked(p)) {
-                              <span class="pr-meta">
-                                @if (p.barcode) { <span class="mono">{{ p.barcode }}</span> }
-                                @if (isTracked(p)) { <span class="tracking-badge">{{ trackingBadgeLabel(p) }}</span> }
-                              </span>
-                            }
-                          </div>
-                        </div>
-                      </td>
-                      <td class="num pr-strong" [attr.data-label]="'products.col.price' | t">{{ p.price | money: p.currency }}</td>
-                      <td class="num text-muted" [attr.data-label]="'products.col.sales' | t">{{ getMockSales(p) }}</td>
-                      <td class="num" [attr.data-label]="'products.col.revenue' | t">{{ getMockRevenue(p) | money: null : 0 }}</td>
-                      <td class="num pr-stock-cell" [attr.data-label]="'products.col.stock' | t">
-                        <span class="pr-stock" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
-                          @if (p.status === 'Low stock') {
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-warning);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
-                          } @else if (p.status === 'Out of stock') {
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-danger);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
-                          }
-                          {{ p.quantity | num }} <span class="text-muted">{{ productUnitLabel(p) }}</span>
-                        </span>
-                        @if (sellableQuantity(p) !== null && sellableQuantity(p) !== p.quantity) {
-                          <div class="text-2xs text-muted" [title]="'products.availableHint' | t">{{ 'products.available' | t: { qty: (sellableQuantity(p) | num) } }}</div>
-                        }
-                        @if (p.reservedQuantity) {
-                          <div class="text-2xs text-muted" [title]="'products.reservedHint' | t">{{ 'products.reservedFree' | t: { reserved: (p.reservedQuantity | num), free: (freeQuantity(p) | num) } }}</div>
-                        }
-                        @if (p.warehouses && hoveredProductId() === p.id) {
-                          <div class="warehouse-tooltip">
-                            <div class="wh-tooltip-title">{{ 'products.warehouseDistribution' | t }}</div>
-                            @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
-                              <div class="wh-tooltip-row"><span>{{ wh.name }}</span><strong>{{ wh.qty }}</strong></div>
-                            }
-                          </div>
-                        }
-                      </td>
-                      <td [attr.data-label]="'products.col.status' | t">
-                        <span class="badge badge-dot" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">{{ statusLabel(p.status) }}</span>
-                      </td>
-                      <td [attr.data-label]="'products.col.rating' | t">
-                        <span class="pr-rating">
-                          @for (star of getMockStarsArray(p); track $index) {
-                            <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                          }
-                          @if (getMockStarsRemainder(p)) {
-                            <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                          }
-                          <span class="pr-rating-val">{{ getMockRatingValue(p) }}</span>
-                        </span>
-                      </td>
-                      <td class="pr-actions-cell">
-                        <div class="td-actions">
-                          <button type="button" class="icon-btn" (click)="openLabelModal([p])" [title]="'products.label.print' | t">
-                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12"/></svg>
-                          </button>
-                          <button type="button" class="edit-btn" (click)="openEditProduct(p)" [title]="'common.edit' | t">
-                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-                          </button>
-                          <button type="button" class="icon-btn" (click)="openTransferModal(p)" [title]="'products.warehouseTransfer' | t">
-                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                          </button>
-                          <button type="button" class="delete-btn" (click)="promptDeleteProduct(p)" [title]="'common.delete' | t">
-                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-            @if (filteredProducts().length === 0) {
-              <div class="empty-state">
-                <div class="empty-state-icon"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
-                <div class="empty-state-title">{{ 'products.results.count' | t: { count: 0 } }}</div>
-              </div>
+    @if (filteredProducts().length === 0) {
+      <div class="card pr-empty-card">
+        <div class="empty-state">
+          <div class="empty-art"><app-icon name="box" /></div>
+          <h3>{{ 'products.empty.title' | t }}</h3>
+          <p>{{ 'products.empty.body' | t }}</p>
+          <div class="cluster actions">
+            @if (productSearch() || productFilterStatus() !== 'all' || selectedWarehouseFilter()) {
+              <button type="button" class="btn" (click)="productSearch.set(''); productFilterStatus.set('all'); selectedWarehouseFilter() ? clearWarehouseFilter() : null">{{ 'products.empty.clear' | t }}</button>
             }
+            <button type="button" class="btn btn-primary" (click)="openAddProduct()"><app-icon name="plus" />{{ 'products.ui.new' | t }}</button>
           </div>
-        } @else {
-          <div class="pr-grid">
-            @for (p of paginatedProducts(); track p.id) {
-              <div class="card pr-card" [class.is-selected]="isProductSelected(p.id)" [class.is-highlighted]="highlightedProductId() === p.id">
-                <div class="pr-card-top">
-                  <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" />
-                  <span class="badge badge-dot" [class.badge-instock]="p.status === 'In stock'" [class.badge-lowstock]="p.status === 'Low stock'" [class.badge-outstock]="p.status === 'Out of stock'">{{ statusLabel(p.status) }}</span>
-                </div>
-                <div class="pr-prod">
-                  <div class="pr-thumb pr-thumb-lg">
-                    @if (p.imageUrl) {
-                      <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" />
-                    } @else {
-                      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+      </div>
+    } @else if (isTableView()) {
+      <div class="table-card d-only">
+        <div class="table-scroll">
+          <table class="tbl pr-table">
+            <thead>
+              <tr>
+                <th class="w-check"><input type="checkbox" [checked]="isAllSelected()" [indeterminate]="selectedProductIds().length > 0 && !isAllSelected()" (change)="toggleSelectAll()" [attr.aria-label]="'products.selectAll' | t" /></th>
+                <th>{{ 'products.col.product' | t }}</th>
+                <th>{{ 'products.form.category' | t }}</th>
+                <th class="r">{{ 'products.col.price' | t }}</th>
+                <th class="r">{{ 'products.col.sales' | t }}</th>
+                <th class="r">{{ 'products.col.revenue' | t }}</th>
+                <th class="r">{{ 'products.col.stock' | t }}</th>
+                <th>{{ 'products.col.status' | t }}</th>
+                <th class="r pr-col-rating">{{ 'products.col.rating' | t }}</th>
+                <th class="w-act pr-acts"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of paginatedProducts(); track p.id) {
+                <tr [class.is-selected]="isProductSelected(p.id)" [class.is-highlighted]="highlightedProductId() === p.id">
+                  <td class="w-check"><input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" [attr.aria-label]="('products.col.select' | t) + ': ' + p.name" /></td>
+                  <td class="pr-name-cell">
+                    <div class="cell-prod">
+                      <span class="thumb">
+                        @if (p.imageUrl) { <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" /> } @else { <app-icon name="box" size="sm" /> }
+                      </span>
+                      <a href="#" class="pr-name" [title]="p.barcode ? p.name + ' · ' + p.barcode : p.name" (click)="$event.preventDefault(); openEditProduct(p)">{{ p.name }}</a>
+                      <span class="cell-code">{{ p.sku }}</span>
+                      @if (isTracked(p)) { <span class="badge badge-neutral">{{ trackingBadgeLabel(p) }}</span> }
+                    </div>
+                  </td>
+                  <td class="sec pr-cat-cell">@if (categoriesLoaded()) { {{ getCategoryName(p.category) }} } @else { <span class="skeleton-text pr-cat-pending" aria-hidden="true"></span> }</td>
+                  <td class="r">{{ p.price | money: p.currency }}</td>
+                  <td class="r sec">{{ getMockSales(p) | num }}</td>
+                  <td class="r">{{ getMockRevenue(p) | money: p.currency : 0 }}</td>
+                  <td class="r pr-stock-cell" (mouseenter)="hoveredProductId.set(p.id)" (mouseleave)="hoveredProductId.set(null)">
+                    <span class="cell-stock">
+                      <span class="pr-stock-qty">{{ p.quantity | num }}<span class="u">{{ productUnitLabel(p) }}</span></span>
+                      <span class="meter" [class.warn]="p.status === 'Low stock'" [class.danger]="p.status === 'Out of stock'" [class.ok]="p.status === 'In stock'"><i [style.width.%]="p.status === 'Out of stock' ? 0 : Math.min(100, (p.quantity / ((p.minQuantity || 1) * 2)) * 100)"></i></span>
+                    </span>
+                    @if (sellableQuantity(p) !== null && sellableQuantity(p) !== p.quantity) {
+                      <span class="pr-stock-sub" [title]="'products.availableHint' | t">{{ 'products.available' | t: { qty: (sellableQuantity(p) | num) } }}</span>
                     }
-                  </div>
-                  <div class="pr-prod-text">
-                    <a href="#" class="pr-name" (click)="$event.preventDefault(); openEditProduct(p)">{{ p.name }}</a>
-                    <span class="pr-meta">{{ getCategoryName(p.category) }}</span>
-                    <span class="pr-meta mono">{{ p.sku }}</span>
-                    @if (p.barcode) { <span class="pr-meta mono">{{ p.barcode }}</span> }
-                    @if (isTracked(p)) { <span class="tracking-badge" style="align-self: flex-start;">{{ trackingBadgeLabel(p) }}</span> }
-                  </div>
-                </div>
-                <dl class="pr-card-stats">
-                  <div><dt>{{ 'products.card.unitPrice' | t }}</dt><dd>{{ p.price | money: p.currency }}</dd></div>
-                  <div><dt>{{ 'products.card.currentStock' | t }}</dt><dd>{{ p.quantity | num }} {{ productUnitLabel(p) }}</dd></div>
-                  <div><dt>{{ 'products.card.salesQty' | t }}</dt><dd>{{ getMockSales(p) }}</dd></div>
-                  <div><dt>{{ 'products.card.totalRevenue' | t }}</dt><dd>{{ getMockRevenue(p) | money: null : 0 }}</dd></div>
-                </dl>
-                <span class="pr-rating">
-                  @for (star of getMockStarsArray(p); track $index) {
-                    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                  }
-                  @if (getMockStarsRemainder(p)) {
-                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                  }
-                  <span class="pr-rating-val">{{ getMockRatingValue(p) }} / 5.0</span>
-                </span>
-                <div class="pr-card-actions">
-                  <button type="button" class="btn btn-secondary btn-sm" (click)="openEditProduct(p)">{{ 'common.edit' | t }}</button>
-                  <button type="button" class="btn btn-secondary btn-sm" (click)="openTransferModal(p)">{{ 'products.transfer' | t }}</button>
-                  <button type="button" class="icon-btn" (click)="openLabelModal([p])" [title]="'products.label.print' | t">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12"/></svg>
-                  </button>
-                  <button type="button" class="delete-btn" (click)="promptDeleteProduct(p)" [title]="'common.delete' | t">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                  </button>
-                </div>
+                    @if (p.reservedQuantity) {
+                      <span class="pr-stock-sub" [title]="'products.reservedHint' | t">{{ 'products.reservedFree' | t: { reserved: (p.reservedQuantity | num), free: (freeQuantity(p) | num) } }}</span>
+                    }
+                    @if (p.warehouses && hoveredProductId() === p.id) {
+                      <div class="warehouse-tooltip">
+                        <div class="wh-tooltip-title">{{ 'products.warehouseDistribution' | t }}</div>
+                        @for (wh of getWarehouseEntries(p.warehouses); track wh.name) {
+                          <div class="wh-tooltip-row"><span>{{ wh.name }}</span><strong>{{ wh.qty | num }}</strong></div>
+                        }
+                      </div>
+                    }
+                  </td>
+                  <td>
+                    <span class="badge" [class.badge-success]="p.status === 'In stock'" [class.badge-warning]="p.status === 'Low stock'" [class.badge-danger]="p.status === 'Out of stock'"><span class="dot"></span>{{ statusLabel(p.status) }}</span>
+                  </td>
+                  <td class="r pr-col-rating">
+                    <span class="pr-rating"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.05 2.93c.3-.92 1.6-.92 1.9 0l1.07 3.29a1 1 0 0 0 .95.69h3.46c.97 0 1.37 1.24.59 1.81l-2.8 2.03a1 1 0 0 0-.36 1.12l1.07 3.29c.3.92-.76 1.69-1.54 1.12l-2.8-2.03a1 1 0 0 0-1.18 0l-2.8 2.03c-.78.57-1.84-.2-1.54-1.12l1.07-3.29a1 1 0 0 0-.36-1.12L2.98 8.72c-.78-.57-.38-1.81.59-1.81h3.46a1 1 0 0 0 .95-.69l1.07-3.29z"/></svg>{{ getMockRatingValue(p) | num }}</span>
+                  </td>
+                  <td class="w-act pr-acts">
+                    <button type="button" class="icon-btn row-act" (click)="openLabelModal([p])" [attr.aria-label]="'products.label.print' | t" [attr.data-tip]="'products.label.print' | t"><app-icon name="barcode" /></button>
+                    <button type="button" class="icon-btn row-act" (click)="openTransferModal(p)" [attr.aria-label]="'products.warehouseTransfer' | t" [attr.data-tip]="'products.warehouseTransfer' | t"><app-icon name="swap" /></button>
+                    <button type="button" class="edit-btn row-act" (click)="openEditProduct(p)" [attr.aria-label]="'common.edit' | t" [attr.data-tip]="'common.edit' | t"><app-icon name="edit" /></button>
+                    <button type="button" class="delete-btn row-act" (click)="promptDeleteProduct(p)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" /></button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <ng-container *ngTemplateOutlet="pager" />
+      </div>
+
+      <div class="mlist pr-mlist m-only">
+        @for (p of paginatedProducts(); track p.id) {
+          <div class="mrow" [class.is-selected]="isProductSelected(p.id)" [class.is-highlighted]="highlightedProductId() === p.id">
+            <span class="thumb">
+              @if (p.imageUrl) { <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" /> } @else { <app-icon name="box" size="sm" /> }
+            </span>
+            <b role="button" tabindex="0" (click)="openEditProduct(p)" (keydown.enter)="openEditProduct(p)">{{ p.name }}</b>
+            <span class="v">{{ p.quantity | num }}<span class="u">{{ productUnitLabel(p) }}</span></span>
+            <span class="pr-mmore" (click)="$event.stopPropagation()">
+              <button type="button" class="btn btn-ghost btn-icon btn-sm" [attr.aria-label]="'products.ui.rowActions' | t" aria-haspopup="menu" [attr.aria-expanded]="rowMenuId() === p.id" (click)="rowMenuId.set(rowMenuId() === p.id ? null : p.id)"><app-icon name="more" /></button>
+            </span>
+            <span class="s"><span class="mono">{{ p.sku }}</span> · {{ p.price | money: p.currency }}</span>
+            <span class="s r"><span class="badge" [class.badge-success]="p.status === 'In stock'" [class.badge-warning]="p.status === 'Low stock'" [class.badge-danger]="p.status === 'Out of stock'"><span class="dot"></span>{{ statusLabel(p.status) }}</span></span>
+            @if (rowMenuId() === p.id) {
+              <div class="pop pr-rowpop" role="menu" (click)="$event.stopPropagation()">
+                <button type="button" class="menu-i" role="menuitem" (click)="rowMenuId.set(null); openEditProduct(p)"><app-icon name="edit" />{{ 'common.edit' | t }}</button>
+                <button type="button" class="menu-i" role="menuitem" (click)="rowMenuId.set(null); openTransferModal(p)"><app-icon name="swap" />{{ 'products.warehouseTransfer' | t }}</button>
+                <button type="button" class="menu-i" role="menuitem" (click)="rowMenuId.set(null); openLabelModal([p])"><app-icon name="barcode" />{{ 'products.label.print' | t }}</button>
+                <button type="button" class="menu-i" role="menuitemcheckbox" [attr.aria-checked]="isProductSelected(p.id)" (click)="rowMenuId.set(null); toggleSelectProduct(p.id)"><app-icon [name]="isProductSelected(p.id) ? 'x' : 'check'" />{{ (isProductSelected(p.id) ? 'products.ui.deselect' : 'products.col.select') | t }}</button>
+                <div class="menu-sep"></div>
+                <button type="button" class="menu-i danger" role="menuitem" (click)="rowMenuId.set(null); promptDeleteProduct(p)"><app-icon name="trash" />{{ 'common.delete' | t }}</button>
               </div>
             }
           </div>
         }
-
-        @if (filteredProducts().length > 0) {
-          <div class="pagination-bar">
-            <div class="text-muted pr-range">
-              <strong class="pr-strong">{{ (currentPage() - 1) * itemsPerPage() + 1 }}–{{ Math.min(currentPage() * itemsPerPage(), filteredProducts().length) }}</strong> / {{ 'products.pagination.showing' | t: { count: filteredProducts().length } }}
+        <ng-container *ngTemplateOutlet="pager" />
+      </div>
+    } @else {
+      <div class="pr-grid">
+        @for (p of paginatedProducts(); track p.id) {
+          <div class="card pr-card" [class.is-selected]="isProductSelected(p.id)" [class.is-highlighted]="highlightedProductId() === p.id">
+            <div class="pr-card-top">
+              <input type="checkbox" [checked]="isProductSelected(p.id)" (change)="toggleSelectProduct(p.id)" [attr.aria-label]="('products.col.select' | t) + ': ' + p.name" />
+              <span class="badge" [class.badge-success]="p.status === 'In stock'" [class.badge-warning]="p.status === 'Low stock'" [class.badge-danger]="p.status === 'Out of stock'"><span class="dot"></span>{{ statusLabel(p.status) }}</span>
             </div>
-            <div class="cluster">
-              <label class="cluster text-muted pr-perpage">
-                <span>{{ 'products.pagination.perPage' | t }}</span>
-                <select class="select" [ngModel]="itemsPerPage()" (ngModelChange)="itemsPerPage.set(+$event); currentPage.set(1)">
-                  <option [value]="10">10</option>
-                  <option [value]="25">25</option>
-                  <option [value]="50">50</option>
-                </select>
-              </label>
-              <div class="cluster pr-pages">
-                <button type="button" class="page-btn" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-                </button>
-                @for (pNum of getPagesArray(); track pNum) {
-                  <button type="button" class="page-btn" [class.active]="currentPage() === pNum" (click)="goToPage(pNum)">{{ pNum }}</button>
-                }
-                <button type="button" class="page-btn" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-                </button>
+            <div class="pr-card-id">
+              <span class="pr-thumb">
+                @if (p.imageUrl) { <img [src]="p.imageUrl" [alt]="'products.imageAlt' | t" /> } @else { <app-icon name="box" /> }
+              </span>
+              <div>
+                <a href="#" class="pr-name" (click)="$event.preventDefault(); openEditProduct(p)">{{ p.name }}</a>
+                <span class="pr-card-meta"><span class="mono">{{ p.sku }}</span>·@if (categoriesLoaded()) { <span>{{ getCategoryName(p.category) }}</span> } @else { <span class="skeleton-text pr-cat-pending" aria-hidden="true"></span> }@if (isTracked(p)) { <span class="badge badge-neutral">{{ trackingBadgeLabel(p) }}</span> }</span>
               </div>
+            </div>
+            <dl class="pr-card-stats">
+              <div><dt>{{ 'products.card.unitPrice' | t }}</dt><dd>{{ p.price | money: p.currency }}</dd></div>
+              <div><dt>{{ 'products.card.currentStock' | t }}</dt><dd>{{ p.quantity | num }} <span class="muted">{{ productUnitLabel(p) }}</span></dd></div>
+              <div><dt>{{ 'products.card.salesQty' | t }}</dt><dd>{{ getMockSales(p) | num }}</dd></div>
+              <div><dt>{{ 'products.card.totalRevenue' | t }}</dt><dd>{{ getMockRevenue(p) | money: p.currency : 0 }}</dd></div>
+            </dl>
+            <div class="pr-card-actions">
+              <button type="button" class="btn btn-sm" (click)="openEditProduct(p)"><app-icon name="edit" />{{ 'common.edit' | t }}</button>
+              <button type="button" class="btn btn-sm" (click)="openTransferModal(p)"><app-icon name="swap" />{{ 'products.transfer' | t }}</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="openLabelModal([p])" [attr.aria-label]="'products.label.print' | t" [attr.data-tip]="'products.label.print' | t"><app-icon name="barcode" /></button>
+              <button type="button" class="btn btn-danger-ghost btn-sm btn-icon" (click)="promptDeleteProduct(p)" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t"><app-icon name="trash" /></button>
             </div>
           </div>
         }
       </div>
-    </div>
+      <div class="table-card pr-foot-card">
+        <ng-container *ngTemplateOutlet="pager" />
+      </div>
+    }
 
     <!-- ─── Product Drawer ─── -->
     @if (showProductFormModal()) {
       <div class="drawer-overlay" (click)="closeProductForm()">
-        <div class="drawer-panel" (click)="$event.stopPropagation(); closeDropdowns()">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" aria-labelledby="prDrawerTitle" (click)="$event.stopPropagation(); closeDropdowns()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ (editingProductId() ? 'products.form.editTitle' : 'products.addNew') | t }}</span>
-            @if (editingProductId() && ui.userProfile()?.role === 'admin') {
-              <button type="button" class="btn btn-outline btn-sm" style="margin-left: auto; margin-right: 8px;" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'products', entityId: editingProductId() } })">{{ 'auditLog.history' | t }}</button>
-            }
-            <button class="drawer-close" (click)="closeProductForm()">×</button>
+            <span class="drawer-title" id="prDrawerTitle">{{ (editingProductId() ? 'products.form.editTitle' : 'products.addNew') | t }}</span>
+            <div class="drawer-tools">
+              @if (editingProductId() && ui.userProfile()?.role === 'admin') {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'products', entityId: editingProductId() } })"><app-icon name="audit" />{{ 'auditLog.history' | t }}</button>
+              }
+              <button type="button" class="drawer-close" (click)="closeProductForm()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+            </div>
           </div>
-          
-          <form [formGroup]="productForm" (ngSubmit)="saveProduct()" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
+
+          <form [formGroup]="productForm" (ngSubmit)="saveProduct()" class="pr-form">
             <div class="drawer-body">
-              <div class="form-field">
-                <input id="productName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" [disabled]="isSaveLoading()" />
-                <label for="productName" class="form-label">{{ 'products.form.name' | t }}</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">⚠ {{ 'products.form.nameMin' | t }}</div> }
-              </div>
-              
-              <div class="form-field">
-                <input id="productSku" type="text" formControlName="sku" class="form-input" [class.has-value]="hasValue('sku')" [disabled]="isSaveLoading()" />
-                <label for="productSku" class="form-label">SKU</label>
-                @if (isFieldInvalid('sku')) { <div class="form-error">⚠ {{ 'products.form.required' | t }}</div> }
-              </div>
-
-              <!-- Barcode -->
-              <div style="display: flex; gap: 8px; align-items: flex-start;">
-                <div class="form-field" style="flex: 1;">
-                  <input id="productBarcode" type="text" formControlName="barcode" class="form-input" [class.has-value]="hasValue('barcode')" autocomplete="off" />
-                  <label for="productBarcode" class="form-label">{{ 'products.barcode.label' | t }}</label>
+              <!-- 1 · Basics -->
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'products.form.sec.basic' | t }}</h3><p>{{ 'products.form.sec.basicHint' | t }}</p></div>
+                <div class="fld">
+                  <label class="fld-label" for="productName">{{ 'products.form.name' | t }} <span class="req">*</span></label>
+                  <div class="field"><input id="productName" type="text" formControlName="name" [attr.aria-invalid]="isFieldInvalid('name')" [disabled]="isSaveLoading()" /></div>
+                  @if (isFieldInvalid('name')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.form.nameMin' | t }}</div> }
                 </div>
-                <div class="form-field" style="width: 130px;">
-                  <select id="productBarcodeType" formControlName="barcodeType" class="form-input form-select has-value">
-                    <option value="">{{ 'products.barcode.auto' | t }}</option>
-                    @for (bt of barcodeTypes; track bt) { <option [value]="bt">{{ bt }}</option> }
-                  </select>
-                  <label for="productBarcodeType" class="form-label">{{ 'products.barcode.type' | t }}</label>
+                <div class="fld">
+                  <label class="fld-label" for="productSku">SKU <span class="req">*</span></label>
+                  <div class="field"><input id="productSku" type="text" class="mono" formControlName="sku" [attr.aria-invalid]="isFieldInvalid('sku')" [disabled]="isSaveLoading()" /></div>
+                  @if (isFieldInvalid('sku')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.form.required' | t }}</div> }
                 </div>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: -8px; gap: 8px;">
+                <div class="pr-bc-row">
+                  <div class="fld">
+                    <label class="fld-label" for="productBarcode">{{ 'products.barcode.label' | t }}</label>
+                    <div class="field">
+                      <span class="lead"><app-icon name="barcode" size="sm" /></span>
+                      <input id="productBarcode" type="text" class="mono" formControlName="barcode" autocomplete="off" />
+                      <span class="trail"><button type="button" class="inner-btn" (click)="generateEan13()">{{ 'products.barcode.generate' | t }}</button></span>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="productBarcodeType">{{ 'products.barcode.type' | t }}</label>
+                    <div class="field select">
+                      <select id="productBarcodeType" formControlName="barcodeType">
+                        <option value="">{{ 'products.barcode.auto' | t }}</option>
+                        @for (bt of barcodeTypes; track bt) { <option [value]="bt">{{ bt }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                </div>
                 @if (barcodeHint(); as hint) {
-                  <span style="font-size: 12px;" [style.color]="hint.ok ? 'var(--color-success)' : 'var(--color-danger)'">{{ hint.ok ? '✓' : '⚠' }} {{ hint.key | t }}</span>
-                } @else { <span></span> }
-                <button type="button" class="btn btn-outline" style="padding: 2px 10px; font-size: 12px;" (click)="generateEan13()">{{ 'products.barcode.generate' | t }}</button>
-              </div>
-              @if (barcodePreview(); as svg) {
-                <div class="barcode-container" style="background: var(--color-surface); border: 1.5px solid var(--color-border); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; align-items: center;">
-                  <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 4px;">{{ 'products.form.visualBarcode' | t }}</div>
-                  <div [innerHTML]="svg" style="max-width: 100%; overflow: hidden;"></div>
-                </div>
-              }
-
-              <div class="form-field">
-                <div class="custom-select-wrapper" (click)="toggleCategoryDropdown($event)">
-                  <div class="custom-select-trigger" [class.open]="isCategoryDropdownOpen()" [class.disabled]="isSaveLoading()">
-                    <span class="selected-text">
-                      {{ getCategoryName(productForm.get('category')?.value) }}
-                    </span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                  @if (hint.ok) { <div class="fld-ok"><app-icon name="check" size="sm" />{{ hint.key | t }}</div> }
+                  @else { <div class="fld-error"><app-icon name="alert" size="sm" />{{ hint.key | t }}</div> }
+                }
+                @if (barcodePreview(); as svg) {
+                  <div class="pr-bc-prev">
+                    <span class="cap">{{ 'products.form.visualBarcode' | t }}</span>
+                    <div class="svg" [innerHTML]="svg"></div>
                   </div>
-                  @if (isCategoryDropdownOpen()) {
-                    <div class="custom-select-dropdown" style="z-index: 2000;">
-                      @for (cat of categories(); track cat.slug) {
-                        <div class="custom-option" (click)="selectCategory(cat.slug); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
-                          <span class="opt-name">{{ cat.name }}</span>
-                        </div>
-                      }
-                    </div>
-                  }
-                </div>
-                <label class="form-label">{{ 'products.form.category' | t }}</label>
-              </div>
-
-              <div class="form-field">
-                <div class="custom-select-wrapper" (click)="toggleSupplierDropdown($event)">
-                  <div class="custom-select-trigger" [class.open]="isSupplierDropdownOpen()" [class.disabled]="isSaveLoading()">
-                    <span class="selected-text">
-                      {{ getSupplierName(productForm.get('supplierId')?.value) }}
-                    </span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                  </div>
-                  @if (isSupplierDropdownOpen()) {
-                    <div class="custom-select-dropdown" style="z-index: 2000;">
-                      <div class="custom-option" (click)="selectSupplier(null); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
-                        <span class="opt-name text-muted">{{ 'products.form.noSupplier' | t }}</span>
+                }
+                <div class="grid-2">
+                  <div class="fld">
+                    <span class="fld-label">{{ 'products.form.category' | t }}</span>
+                    <div class="pr-csel" (click)="toggleCategoryDropdown($event)">
+                      <div class="field select" [class.is-disabled]="isSaveLoading()" role="button" tabindex="0" aria-haspopup="listbox" [attr.aria-expanded]="isCategoryDropdownOpen()">
+                        <span class="val">{{ getCategoryName(productForm.get('category')?.value) }}</span>
                       </div>
-                      @for (sup of suppliers(); track sup.id) {
-                        <div class="custom-option" (click)="selectSupplier(sup.id); $event.stopPropagation()" style="padding: 0.75rem 1rem;">
-                          <span class="opt-name">{{ sup.name }}</span>
+                      @if (isCategoryDropdownOpen()) {
+                        <div class="pop pr-csel-pop" role="listbox">
+                          @for (cat of categories(); track cat.slug) {
+                            <button type="button" class="menu-i" role="option" [class.is-active]="productForm.get('category')?.value === cat.slug" [attr.aria-selected]="productForm.get('category')?.value === cat.slug" (click)="selectCategory(cat.slug); $event.stopPropagation()">{{ cat.name }}</button>
+                          }
                         </div>
                       }
                     </div>
-                  }
-                </div>
-                <label class="form-label">{{ 'products.form.supplier' | t }}</label>
-              </div>
-
-              <div class="form-field">
-                <input id="productPrice" type="number" formControlName="price" class="form-input form-input--prefix" [class.has-value]="hasValue('price')" min="0" step="0.01" [disabled]="isSaveLoading()" />
-                <label for="productPrice" class="form-label">{{ 'products.form.unitPrice' | t }}</label>
-                <span class="form-prefix">{{ productForm.get('currency')?.value }}</span>
-                @if (isFieldInvalid('price')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
-              </div>
-              
-              <div class="form-field">
-                <select id="productCurrency" formControlName="currency" class="form-input form-select" [class.has-value]="hasValue('currency')">
-                  @for (c of currencyOptions(); track c) {
-                    <option [value]="c">{{ c }}</option>
-                  }
-                </select>
-                <label for="productCurrency" class="form-label">{{ 'finance.currency' | t }}</label>
-              </div>
-
-              <div class="form-field">
-                <select id="productTaxRate" formControlName="taxRateId" class="form-input form-select has-value">
-                  <option [ngValue]="null">{{ defaultTaxLabel() }}</option>
-                  @for (tr of taxRates(); track tr.id) {
-                    <option [ngValue]="tr.id">{{ tr.name }} (%{{ tr.rate | num }})</option>
-                  }
-                </select>
-                <label for="productTaxRate" class="form-label">{{ 'finance.taxRate' | t }}</label>
-                @if (productRateIsExempt() && !productForm.get('exemptionCode')?.value) { <div class="form-error">⚠ {{ 'finance.exemptionRequired' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <select id="productExemption" formControlName="exemptionCode" class="form-input form-select has-value">
-                  <option [ngValue]="null">{{ 'finance.noExemption' | t }}</option>
-                  @for (e of exemptionCodes(); track e.code) { <option [ngValue]="e.code">{{ e.code }} · {{ codeName(e) }}</option> }
-                </select>
-                <label for="productExemption" class="form-label">{{ 'finance.defaultExemptionCode' | t }}</label>
-              </div>
-
-              <div class="form-field">
-                <select id="productWithholding" formControlName="withholdingCode" class="form-input form-select has-value">
-                  <option [ngValue]="null">{{ 'finance.noWithholding' | t }}</option>
-                  @for (w of withholdingCodes(); track w.code) { <option [ngValue]="w.code">{{ w.code }} · {{ w.numerator }}/{{ w.denominator }} · {{ codeName(w) }}</option> }
-                </select>
-                <label for="productWithholding" class="form-label">{{ 'finance.defaultWithholdingCode' | t }}</label>
-                <div class="field-hint">ⓘ {{ 'finance.withholdingProductHint' | t }}</div>
-              </div>
-
-              <div class="form-field">
-                <select id="productOtv" formControlName="otvCode" class="form-input form-select has-value">
-                  <option [ngValue]="null">{{ 'finance.noOtv' | t }}</option>
-                  @for (o of otvCodes(); track o.code) { <option [ngValue]="o.code">{{ o.code }} · {{ o.list }} · {{ codeName(o) }}</option> }
-                </select>
-                <label for="productOtv" class="form-label">{{ 'finance.otvCode' | t }}</label>
-              </div>
-              @if (productForm.get('otvCode')?.value) {
-                <div class="form-field">
-                  <input id="productOtvRate" type="number" min="0" step="0.01" formControlName="otvRate" class="form-input has-value num" />
-                  <label for="productOtvRate" class="form-label">{{ 'finance.otvRate' | t }}</label>
-                </div>
-              }
-
-              <div class="form-field">
-                <input id="productQuantity" type="text" appQty [qtyDecimals]="formDecimals()" formControlName="quantity" class="form-input" [class.has-value]="hasValue('quantity')" />
-                <label for="productQuantity" class="form-label">{{ (editingProductId() ? 'products.form.currentStock' : 'products.form.openingStock') | t }}</label>
-                @if (productForm.get('quantity')?.errors?.['qtyPrecision']) { <div class="form-error">⚠ {{ 'products.form.precision' | t: { decimals: formDecimals() } }}</div> }
-                @else if (isFieldInvalid('quantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
-                @if (editingProductId()) { <div class="field-hint">ⓘ {{ 'products.form.qtyEditHint' | t }}</div> }
-                @else if (formTracked()) { <div class="field-hint">ⓘ {{ 'products.tracking.qtyLockedHint' | t }}</div> }
-              </div>
-
-              @if (!editingProductId()) {
-                <div class="form-field">
-                  <select id="productWarehouse" formControlName="warehouseId" class="form-input form-select has-value">
-                    @for (wh of allWarehouses(); track wh.id) {
-                      <option [ngValue]="wh.id">{{ wh.name }}{{ wh.isDefault ? ' (' + ('products.form.defaultWarehouse' | t) + ')' : '' }}</option>
-                    }
-                  </select>
-                  <label for="productWarehouse" class="form-label">{{ 'products.form.initialWarehouse' | t }}</label>
-                </div>
-              }
-
-              <div class="form-field">
-                <select id="productBaseUnit" formControlName="baseUnitId" class="form-input form-select has-value">
-                  <option [ngValue]="null">{{ unitLabel(productForm.get('unit')?.value) }}</option>
-                  @for (u of unitsList(); track u.id) {
-                    <option [ngValue]="u.id">{{ u | unitLabel }}</option>
-                  }
-                </select>
-                <label for="productBaseUnit" class="form-label">{{ 'products.form.unit' | t }}</label>
-              </div>
-
-              <!-- Tracking -->
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <div class="form-field" style="flex: 1;">
-                  <select id="productTracking" formControlName="trackingType" class="form-input form-select has-value">
-                    <option value="none">{{ 'products.tracking.none' | t }}</option>
-                    <option value="lot">{{ 'products.tracking.lot' | t }}</option>
-                    <option value="serial">{{ 'products.tracking.serial' | t }}</option>
-                  </select>
-                  <label for="productTracking" class="form-label">{{ 'products.tracking.label' | t }}</label>
-                </div>
-                @if (productForm.get('trackingType')?.value === 'lot') {
-                  <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; white-space: nowrap;">
-                    <input type="checkbox" formControlName="hasExpiry" style="accent-color: var(--color-primary);" />
-                    {{ 'products.tracking.hasExpiry' | t }}
-                  </label>
-                }
-              </div>
-
-              <!-- Alternate units -->
-              <div style="border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <strong style="font-size: 13px;">{{ 'products.altUnits.title' | t }}</strong>
-                  <button type="button" class="btn btn-outline" style="padding: 2px 10px; font-size: 12px;" (click)="addAltUnit()">+ {{ 'products.altUnits.add' | t }}</button>
-                </div>
-                @if (altUnits().length === 0) {
-                  <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'products.altUnits.empty' | t }}</span>
-                }
-                @for (au of altUnits(); track $index; let i = $index) {
-                  <div style="display: flex; gap: 6px; align-items: center;">
-                    <select class="form-input form-select" style="flex: 1.2; height: 34px; padding: 4px 8px;" (change)="updateAltUnit(i, 'unitId', $any($event.target).value)">
-                      <option value="" [selected]="!au.unitId">{{ 'products.altUnits.selectUnit' | t }}</option>
-                      @for (u of unitsList(); track u.id) {
-                        <option [value]="u.id" [selected]="u.id === au.unitId">{{ u | unitLabel }}</option>
+                  </div>
+                  <div class="fld">
+                    <span class="fld-label">{{ 'products.form.supplier' | t }}</span>
+                    <div class="pr-csel" (click)="toggleSupplierDropdown($event)">
+                      <div class="field select" [class.is-disabled]="isSaveLoading()" role="button" tabindex="0" aria-haspopup="listbox" [attr.aria-expanded]="isSupplierDropdownOpen()">
+                        <span class="val">{{ getSupplierName(productForm.get('supplierId')?.value) }}</span>
+                      </div>
+                      @if (isSupplierDropdownOpen()) {
+                        <div class="pop pr-csel-pop" role="listbox">
+                          <button type="button" class="menu-i" role="option" [attr.aria-selected]="!productForm.get('supplierId')?.value" (click)="selectSupplier(null); $event.stopPropagation()"><span class="muted">{{ 'products.form.noSupplier' | t }}</span></button>
+                          @for (sup of suppliers(); track sup.id) {
+                            <button type="button" class="menu-i" role="option" [class.is-active]="productForm.get('supplierId')?.value === sup.id" [attr.aria-selected]="productForm.get('supplierId')?.value === sup.id" (click)="selectSupplier(sup.id); $event.stopPropagation()">{{ sup.name }}</button>
+                          }
+                        </div>
                       }
-                    </select>
-                    <input type="number" min="0.0001" step="any" class="form-input" style="width: 80px; height: 34px; padding: 4px 8px;" [value]="au.factor" (input)="updateAltUnit(i, 'factor', $any($event.target).value)" [title]="'products.altUnits.factorHint' | t" [placeholder]="'products.altUnits.factor' | t" />
-                    <input type="text" class="form-input" style="flex: 1.4; height: 34px; padding: 4px 8px;" [value]="au.barcode || ''" (input)="updateAltUnit(i, 'barcode', $any($event.target).value)" [placeholder]="'products.altUnits.barcode' | t" />
-                    <button type="button" (click)="removeAltUnit(i)" style="border: 1px solid var(--color-danger-border); background: var(--color-surface); color: var(--color-danger); width: 28px; height: 28px; border-radius: 6px; cursor: pointer;" [title]="'common.delete' | t">✕</button>
+                    </div>
                   </div>
-                  @if (au.unitId && au.factor > 0) {
-                    <span style="font-size: 11px; color: var(--color-text-muted); margin-top: -4px;">1 {{ unitNameById(au.unitId) }} = {{ au.factor | num }} {{ baseUnitName() }}</span>
-                  }
-                }
-              </div>
-              
-              <div class="form-field">
-                <input id="productMinQuantity" type="text" appQty [qtyDecimals]="formDecimals()" formControlName="minQuantity" class="form-input" [class.has-value]="hasValue('minQuantity')" />
-                <label for="productMinQuantity" class="form-label">{{ 'products.form.minQuantity' | t }}</label>
-                @if (productForm.get('minQuantity')?.errors?.['qtyPrecision']) { <div class="form-error">⚠ {{ 'products.form.precision' | t: { decimals: formDecimals() } }}</div> }
-                @else if (isFieldInvalid('minQuantity')) { <div class="form-error">⚠ {{ 'products.form.invalidValue' | t }}</div> }
-              </div>
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="productImageUrl">{{ 'products.form.imageLink' | t }}<span class="opt">{{ 'common.optional' | t }}</span></label>
+                  <div class="field"><span class="lead"><app-icon name="img" size="sm" /></span><input id="productImageUrl" type="text" formControlName="imageUrl" [disabled]="isSaveLoading()" /></div>
+                </div>
+              </section>
 
-              <!-- Regulatory category / inventory class / GTIN (WP2) -->
-              <div class="form-section-title">{{ 'products.regulatory.section' | t }}</div>
-              <div class="form-row">
-                <div class="form-field">
-                  <select id="productRegCat" formControlName="regulatoryCategory" class="form-input form-select has-value">
-                    @for (c of regulatoryCategories; track c) {
-                      <option [value]="c" [disabled]="c !== 'none' && !enabledModules().includes(c)">{{ 'products.regulatory.' + c | t }}{{ c !== 'none' && !enabledModules().includes(c) ? ' (' + ('products.regulatory.moduleOff' | t) + ')' : '' }}</option>
+              <!-- 2 · Price & tax -->
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'products.form.sec.pricing' | t }}</h3><p>{{ 'products.form.sec.pricingHint' | t }}</p></div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productPrice">{{ 'products.form.unitPrice' | t }}</label>
+                    <div class="field">
+                      <span class="affix pre">{{ productForm.get('currency')?.value }}</span>
+                      <input id="productPrice" type="number" class="num" formControlName="price" min="0" step="0.01" [attr.aria-invalid]="isFieldInvalid('price')" [disabled]="isSaveLoading()" />
+                    </div>
+                    @if (isFieldInvalid('price')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.form.invalidValue' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="productCurrency">{{ 'finance.currency' | t }}</label>
+                    <div class="field select">
+                      <select id="productCurrency" formControlName="currency">
+                        @for (c of currencyOptions(); track c) { <option [value]="c">{{ c }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="productTaxRate">{{ 'finance.taxRate' | t }}</label>
+                  <div class="field select" [class.is-error]="productRateIsExempt() && !productForm.get('exemptionCode')?.value">
+                    <select id="productTaxRate" formControlName="taxRateId">
+                      <option [ngValue]="null">{{ defaultTaxLabel() }}</option>
+                      @for (tr of taxRates(); track tr.id) { <option [ngValue]="tr.id">{{ taxRateLabel(tr) }}</option> }
+                    </select>
+                  </div>
+                  @if (productRateIsExempt() && !productForm.get('exemptionCode')?.value) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'finance.exemptionRequired' | t }}</div> }
+                </div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productExemption">{{ 'finance.defaultExemptionCode' | t }}</label>
+                    <div class="field select">
+                      <select id="productExemption" formControlName="exemptionCode">
+                        <option [ngValue]="null">{{ 'finance.noExemption' | t }}</option>
+                        @for (e of exemptionCodes(); track e.code) { <option [ngValue]="e.code">{{ e.code }} · {{ codeName(e) }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="productWithholding">{{ 'finance.defaultWithholdingCode' | t }}</label>
+                    <div class="field select">
+                      <select id="productWithholding" formControlName="withholdingCode">
+                        <option [ngValue]="null">{{ 'finance.noWithholding' | t }}</option>
+                        @for (w of withholdingCodes(); track w.code) { <option [ngValue]="w.code">{{ w.code }} · {{ w.numerator }}/{{ w.denominator }} · {{ codeName(w) }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="fld-help">{{ 'finance.withholdingProductHint' | t }}</div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productOtv">{{ 'finance.otvCode' | t }}</label>
+                    <div class="field select">
+                      <select id="productOtv" formControlName="otvCode">
+                        <option [ngValue]="null">{{ 'finance.noOtv' | t }}</option>
+                        @for (o of otvCodes(); track o.code) { <option [ngValue]="o.code">{{ o.code }} · {{ o.list }} · {{ codeName(o) }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  @if (productForm.get('otvCode')?.value) {
+                    <div class="fld">
+                      <label class="fld-label" for="productOtvRate">{{ 'finance.otvRate' | t }}</label>
+                      <div class="field"><input id="productOtvRate" type="number" min="0" step="0.01" formControlName="otvRate" class="num" /><span class="affix inline-suf">%</span></div>
+                    </div>
+                  }
+                </div>
+              </section>
+
+              <!-- 3 · Stock & units -->
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">3</span><h3>{{ 'products.form.sec.stock' | t }}</h3><p>{{ 'products.form.sec.stockHint' | t }}</p></div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productQuantity">{{ (editingProductId() ? 'products.form.currentStock' : 'products.form.openingStock') | t }}</label>
+                    <div class="field"><input id="productQuantity" type="text" class="num" appQty [qtyDecimals]="formDecimals()" formControlName="quantity" [attr.aria-invalid]="isFieldInvalid('quantity') || !!productForm.get('quantity')?.errors?.['qtyPrecision']" /></div>
+                    @if (productForm.get('quantity')?.errors?.['qtyPrecision']) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.form.precision' | t: { decimals: formDecimals() } }}</div> }
+                    @else if (isFieldInvalid('quantity')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.form.invalidValue' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="productMinQuantity">{{ 'products.form.minQuantity' | t }}</label>
+                    <div class="field"><input id="productMinQuantity" type="text" class="num" appQty [qtyDecimals]="formDecimals()" formControlName="minQuantity" [attr.aria-invalid]="isFieldInvalid('minQuantity') || !!productForm.get('minQuantity')?.errors?.['qtyPrecision']" /></div>
+                    @if (productForm.get('minQuantity')?.errors?.['qtyPrecision']) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.form.precision' | t: { decimals: formDecimals() } }}</div> }
+                    @else if (isFieldInvalid('minQuantity')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.form.invalidValue' | t }}</div> }
+                  </div>
+                </div>
+                @if (editingProductId()) { <div class="fld-help">{{ 'products.form.qtyEditHint' | t }}</div> }
+                @else if (formTracked()) { <div class="fld-help">{{ 'products.tracking.qtyLockedHint' | t }}</div> }
+                <div class="grid-2">
+                  @if (!editingProductId()) {
+                    <div class="fld">
+                      <label class="fld-label" for="productWarehouse">{{ 'products.form.initialWarehouse' | t }}</label>
+                      <div class="field select">
+                        <select id="productWarehouse" formControlName="warehouseId">
+                          @for (wh of allWarehouses(); track wh.id) { <option [ngValue]="wh.id">{{ wh.name }}{{ wh.isDefault ? ' (' + ('products.form.defaultWarehouse' | t) + ')' : '' }}</option> }
+                        </select>
+                      </div>
+                    </div>
+                  }
+                  <div class="fld">
+                    <label class="fld-label" for="productBaseUnit">{{ 'products.form.unit' | t }}</label>
+                    <div class="field select">
+                      <select id="productBaseUnit" formControlName="baseUnitId">
+                        <option [ngValue]="null">{{ unitLabel(productForm.get('unit')?.value) }}</option>
+                        @for (u of unitsList(); track u.id) { <option [ngValue]="u.id">{{ u | unitLabel }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productTracking">{{ 'products.tracking.label' | t }}</label>
+                    <div class="field select">
+                      <select id="productTracking" formControlName="trackingType">
+                        <option value="none">{{ 'products.tracking.none' | t }}</option>
+                        <option value="lot">{{ 'products.tracking.lot' | t }}</option>
+                        <option value="serial">{{ 'products.tracking.serial' | t }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  @if (productForm.get('trackingType')?.value === 'lot') {
+                    <div class="pr-check-cell"><label class="check"><input type="checkbox" formControlName="hasExpiry" />{{ 'products.tracking.hasExpiry' | t }}</label></div>
+                  }
+                </div>
+                @if (productForm.get('trackingType')?.value === 'lot' && (productForm.get('hasExpiry')?.value || productForm.get('regulatoryCategory')?.value === 'food')) {
+                  <div class="grid-2">
+                    <div class="fld">
+                      <label class="fld-label" for="productExpType">{{ 'products.expiryType.label' | t }}</label>
+                      <div class="field select">
+                        <select id="productExpType" formControlName="expiryType">
+                          <option [ngValue]="null">{{ 'products.expiryType.none' | t }}</option>
+                          <option value="use_by">{{ 'products.expiryType.use_by' | t }}</option>
+                          <option value="best_before">{{ 'products.expiryType.best_before' | t }}</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="fld">
+                      <label class="fld-label" for="productExpPrec">{{ 'products.expiryPrecision.label' | t }}</label>
+                      <div class="field select">
+                        <select id="productExpPrec" formControlName="expiryPrecision">
+                          <option value="day">{{ 'products.expiryPrecision.day' | t }}</option><option value="month">{{ 'products.expiryPrecision.month' | t }}</option><option value="year">{{ 'products.expiryPrecision.year' | t }}</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="fld-help">{{ 'products.expiryType.hint' | t }}</div>
+                }
+                <div class="pr-subblock">
+                  <div class="pr-subblock-h">
+                    <b>{{ 'products.altUnits.title' | t }}</b>
+                    <button type="button" class="btn btn-subtle btn-xs" (click)="addAltUnit()"><app-icon name="plus" size="sm" />{{ 'products.altUnits.add' | t }}</button>
+                  </div>
+                  @if (altUnits().length === 0) { <span class="fld-help">{{ 'products.altUnits.empty' | t }}</span> }
+                  @for (au of altUnits(); track $index; let i = $index) {
+                    <div class="pr-alt-row">
+                      <div class="field field-sm select">
+                        <select [attr.aria-label]="'products.altUnits.selectUnit' | t" (change)="updateAltUnit(i, 'unitId', $any($event.target).value)">
+                          <option value="" [selected]="!au.unitId">{{ 'products.altUnits.selectUnit' | t }}</option>
+                          @for (u of unitsList(); track u.id) { <option [value]="u.id" [selected]="u.id === au.unitId">{{ u | unitLabel }}</option> }
+                        </select>
+                      </div>
+                      <div class="field field-sm"><input type="number" class="num" min="0.0001" step="any" [value]="au.factor" (input)="updateAltUnit(i, 'factor', $any($event.target).value)" [title]="'products.altUnits.factorHint' | t" [placeholder]="'products.altUnits.factor' | t" [attr.aria-label]="'products.altUnits.factor' | t" /></div>
+                      <div class="field field-sm pr-alt-bc"><input type="text" class="mono" [value]="au.barcode || ''" (input)="updateAltUnit(i, 'barcode', $any($event.target).value)" [placeholder]="'products.altUnits.barcode' | t" [attr.aria-label]="'products.altUnits.barcode' | t" /></div>
+                      <button type="button" class="btn btn-danger-ghost btn-sm btn-icon" (click)="removeAltUnit(i)" [attr.aria-label]="'common.delete' | t"><app-icon name="trash" size="sm" /></button>
+                    </div>
+                    @if (au.unitId && au.factor > 0) {
+                      <span class="pr-alt-eq">1 {{ unitNameById(au.unitId) }} = {{ au.factor | num }} {{ baseUnitName() }}</span>
                     }
-                  </select>
-                  <label for="productRegCat" class="form-label">{{ 'products.regulatory.category' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <select id="productInvClass" formControlName="inventoryClass" class="form-input form-select has-value">
-                    @for (c of inventoryClasses; track c) { <option [value]="c">{{ 'products.inventoryClass.' + c | t }}</option> }
-                  </select>
-                  <label for="productInvClass" class="form-label">{{ 'products.inventoryClass.label' | t }}</label>
-                </div>
-              </div>
-              <div class="form-field">
-                <input id="productGtin" type="text" inputmode="numeric" maxlength="14" formControlName="gtin14" class="form-input mono" [class.has-value]="hasValue('gtin14')" />
-                <label for="productGtin" class="form-label">{{ 'products.regulatory.gtin' | t }}</label>
-                @if (isFieldInvalid('gtin14')) { <div class="form-error">⚠ {{ 'products.regulatory.gtinInvalid' | t }}</div> }
-                @if (categoryHints().length) {
-                  @for (h of categoryHints(); track h.code) {
-                    <div class="field-hint" [class.text-danger]="h.severity === 'error'" [class.text-warning]="h.severity === 'warning'">ⓘ {{ 'products.regulatory.issue.' + h.code | t: h.params }}</div>
                   }
+                </div>
+              </section>
+
+              <!-- 4 · Regulatory -->
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">4</span><h3>{{ 'products.regulatory.section' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productRegCat">{{ 'products.regulatory.category' | t }}</label>
+                    <div class="field select">
+                      <select id="productRegCat" formControlName="regulatoryCategory">
+                        @for (c of regulatoryCategories; track c) {
+                          <option [value]="c" [disabled]="c !== 'none' && !enabledModules().includes(c)">{{ 'products.regulatory.' + c | t }}{{ c !== 'none' && !enabledModules().includes(c) ? ' (' + ('products.regulatory.moduleOff' | t) + ')' : '' }}</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="productInvClass">{{ 'products.inventoryClass.label' | t }}</label>
+                    <div class="field select">
+                      <select id="productInvClass" formControlName="inventoryClass">
+                        @for (c of inventoryClasses; track c) { <option [value]="c">{{ 'products.inventoryClass.' + c | t }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="productGtin">{{ 'products.regulatory.gtin' | t }}</label>
+                  <div class="field"><input id="productGtin" type="text" inputmode="numeric" maxlength="14" formControlName="gtin14" class="mono" [attr.aria-invalid]="isFieldInvalid('gtin14')" /></div>
+                  @if (isFieldInvalid('gtin14')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.regulatory.gtinInvalid' | t }}</div> }
+                  @for (h of categoryHints(); track h.code) {
+                    @if (h.severity === 'error') { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'products.regulatory.issue.' + h.code | t: h.params }}</div> }
+                    @else { <div class="fld-help" [class.text-warning]="h.severity === 'warning'">{{ 'products.regulatory.issue.' + h.code | t: h.params }}</div> }
+                  }
+                  @if (gtinRestricted()) { <div class="fld-help text-warning">{{ 'products.gs1.restricted' | t }}</div> }
+                </div>
+              </section>
+
+              <!-- 5 · Cost, wastage, warranty, label, export -->
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">5</span><h3>{{ 'products.wp6.section' | t }}</h3></div>
+                @if (editingProductId()) {
+                  <div class="fld-help">{{ 'products.wp6.unitCost' | t }}: <strong>{{ editingCost() === null ? '-' : (editingCost() | money) }}</strong> · {{ 'products.wp6.costReadonly' | t }}</div>
+                } @else if (productForm.get('quantity')?.value > 0) {
+                  <div class="fld">
+                    <label class="fld-label" for="productOpenCost">{{ 'products.wp6.openingUnitCost' | t }}</label>
+                    <div class="field"><input id="productOpenCost" type="number" class="num" min="0" step="0.000001" formControlName="openingUnitCost" /></div>
+                  </div>
                 }
-                @if (gtinRestricted()) { <div class="field-hint text-warning">ⓘ {{ 'products.gs1.restricted' | t }}</div> }
-              </div>
-
-              <!-- WP6: expiry (STT / TETT), cost, wastage, warranty, shelf label, export data -->
-              @if (productForm.get('trackingType')?.value === 'lot' && (productForm.get('hasExpiry')?.value || productForm.get('regulatoryCategory')?.value === 'food')) {
-                <div class="form-row">
-                  <div class="form-field">
-                    <select id="productExpType" formControlName="expiryType" class="form-input form-select has-value">
-                      <option [ngValue]="null">{{ 'products.expiryType.none' | t }}</option>
-                      <option value="use_by">{{ 'products.expiryType.use_by' | t }}</option>
-                      <option value="best_before">{{ 'products.expiryType.best_before' | t }}</option>
-                    </select>
-                    <label for="productExpType" class="form-label">{{ 'products.expiryType.label' | t }}</label>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productWaste">{{ 'products.wp6.wastageRate' | t }}</label>
+                    <div class="field"><input id="productWaste" type="number" class="num" min="0" max="100" step="0.01" formControlName="normalWastageRatePct" /><span class="affix inline-suf">%</span></div>
                   </div>
-                  <div class="form-field">
-                    <select id="productExpPrec" formControlName="expiryPrecision" class="form-input form-select has-value">
-                      <option value="day">{{ 'products.expiryPrecision.day' | t }}</option><option value="month">{{ 'products.expiryPrecision.month' | t }}</option><option value="year">{{ 'products.expiryPrecision.year' | t }}</option>
-                    </select>
-                    <label for="productExpPrec" class="form-label">{{ 'products.expiryPrecision.label' | t }}</label>
+                  <div class="fld">
+                    <label class="fld-label" for="productWasteSrc">{{ 'products.wp6.wastageSource' | t }}</label>
+                    <div class="field"><input id="productWasteSrc" type="text" maxlength="255" formControlName="normalWastageSource" /></div>
                   </div>
                 </div>
-                <div class="field-hint">ⓘ {{ 'products.expiryType.hint' | t }}</div>
-              }
-              <div class="form-section-title">{{ 'products.wp6.section' | t }}</div>
-              @if (editingProductId()) {
-                <div class="field-hint">{{ 'products.wp6.unitCost' | t }}: <strong>{{ editingCost() === null ? '-' : (editingCost() | money) }}</strong> · {{ 'products.wp6.costReadonly' | t }}</div>
-              } @else if (productForm.get('quantity')?.value > 0) {
-                <div class="form-field">
-                  <input id="productOpenCost" type="number" min="0" step="0.000001" formControlName="openingUnitCost" class="form-input" [class.has-value]="hasValue('openingUnitCost')" />
-                  <label for="productOpenCost" class="form-label">{{ 'products.wp6.openingUnitCost' | t }}</label>
-                </div>
-              }
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="productWaste" type="number" min="0" max="100" step="0.01" formControlName="normalWastageRatePct" class="form-input" [class.has-value]="hasValue('normalWastageRatePct')" />
-                  <label for="productWaste" class="form-label">{{ 'products.wp6.wastageRate' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <input id="productWasteSrc" type="text" maxlength="255" formControlName="normalWastageSource" class="form-input" [class.has-value]="hasValue('normalWastageSource')" />
-                  <label for="productWasteSrc" class="form-label">{{ 'products.wp6.wastageSource' | t }}</label>
-                </div>
-              </div>
-              <div class="form-row">
-                <label class="form-check" style="display:flex; gap: var(--space-2); align-items:center; font-size: var(--text-sm);">
-                  <input type="checkbox" formControlName="warrantyRequired" style="accent-color: var(--color-primary);" /> {{ 'products.wp6.warrantyRequired' | t }}
-                </label>
-                <div class="form-field">
-                  <input id="productWarranty" type="number" min="0" step="1" formControlName="warrantyMonths" class="form-input" [class.has-value]="hasValue('warrantyMonths')" />
-                  <label for="productWarranty" class="form-label">{{ 'products.wp6.warrantyMonths' | t }}</label>
-                </div>
-              </div>
-              <div class="form-row">
-                <label class="form-check" style="display:flex; gap: var(--space-2); align-items:center; font-size: var(--text-sm);">
-                  <input type="checkbox" formControlName="perishable" style="accent-color: var(--color-primary);" /> {{ 'products.wp6.perishable' | t }}
-                </label>
-                <div class="form-field">
-                  <input id="productOrigin" type="text" maxlength="2" formControlName="originCountry" class="form-input mono" [class.has-value]="hasValue('originCountry')" />
-                  <label for="productOrigin" class="form-label">{{ 'products.wp6.originCountry' | t }}</label>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="productLblQty" type="number" min="0" step="0.001" formControlName="labelNetQuantity" class="form-input" [class.has-value]="hasValue('labelNetQuantity')" />
-                  <label for="productLblQty" class="form-label">{{ 'products.wp6.labelNetQuantity' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <select id="productLblUnit" formControlName="labelNetUnit" class="form-input form-select has-value">
-                    <option [ngValue]="null">-</option>@for (u of labelUnits; track u) { <option [value]="u">{{ u }}</option> }
-                  </select>
-                  <label for="productLblUnit" class="form-label">{{ 'products.wp6.labelNetUnit' | t }}</label>
-                </div>
-              </div>
-              @if (exportEnabled()) {
-                <div class="form-row">
-                  <div class="form-field">
-                    <input id="productGtip" type="text" inputmode="numeric" maxlength="12" formControlName="gtipCode" class="form-input mono" [class.has-value]="hasValue('gtipCode')" />
-                    <label for="productGtip" class="form-label">{{ 'products.wp6.gtip' | t }}</label>
-                  </div>
-                  <div class="form-field">
-                    <input id="productNetW" type="number" min="0" step="0.001" formControlName="netWeightKg" class="form-input" [class.has-value]="hasValue('netWeightKg')" />
-                    <label for="productNetW" class="form-label">{{ 'products.wp6.netWeight' | t }}</label>
+                <div class="grid-2">
+                  <div class="pr-check-cell"><label class="check"><input type="checkbox" formControlName="warrantyRequired" />{{ 'products.wp6.warrantyRequired' | t }}</label></div>
+                  <div class="fld">
+                    <label class="fld-label" for="productWarranty">{{ 'products.wp6.warrantyMonths' | t }}</label>
+                    <div class="field"><input id="productWarranty" type="number" class="num" min="0" step="1" formControlName="warrantyMonths" /></div>
                   </div>
                 </div>
-              }
-
-              <div class="form-field">
-                <input id="productImageUrl" type="text" formControlName="imageUrl" class="form-input" [class.has-value]="hasValue('imageUrl')" [disabled]="isSaveLoading()" />
-                <label for="productImageUrl" class="form-label">{{ 'products.form.imageUrl' | t }}</label>
-              </div>
+                <div class="grid-2">
+                  <div class="pr-check-cell"><label class="check"><input type="checkbox" formControlName="perishable" />{{ 'products.wp6.perishable' | t }}</label></div>
+                  <div class="fld">
+                    <label class="fld-label" for="productOrigin">{{ 'products.wp6.originCountry' | t }}</label>
+                    <div class="field"><input id="productOrigin" type="text" maxlength="2" formControlName="originCountry" class="mono" /></div>
+                  </div>
+                </div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="productLblQty">{{ 'products.wp6.labelNetQuantity' | t }}</label>
+                    <div class="field"><input id="productLblQty" type="number" class="num" min="0" step="0.001" formControlName="labelNetQuantity" /></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="productLblUnit">{{ 'products.wp6.labelNetUnit' | t }}</label>
+                    <div class="field select">
+                      <select id="productLblUnit" formControlName="labelNetUnit">
+                        <option [ngValue]="null">-</option>@for (u of labelUnits; track u) { <option [value]="u">{{ u }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                @if (exportEnabled()) {
+                  <div class="grid-2">
+                    <div class="fld">
+                      <label class="fld-label" for="productGtip">{{ 'products.wp6.gtip' | t }}</label>
+                      <div class="field"><input id="productGtip" type="text" inputmode="numeric" maxlength="12" formControlName="gtipCode" class="mono" /></div>
+                    </div>
+                    <div class="fld">
+                      <label class="fld-label" for="productNetW">{{ 'products.wp6.netWeight' | t }}</label>
+                      <div class="field"><input id="productNetW" type="number" class="num" min="0" step="0.001" formControlName="netWeightKg" /><span class="affix inline-suf">kg</span></div>
+                    </div>
+                  </div>
+                }
+              </section>
 
               @if (editingProductId() && editingTrackingType() !== 'none') {
-                <div style="border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px;">
-                  <strong style="font-size: 13px; display: block; margin-bottom: 8px;">
-                    {{ (editingTrackingType() === 'lot' ? 'products.lots.title' : 'products.serials.title') | t }}
-                  </strong>
+                <section class="fsec">
+                  <div class="fsec-h"><span class="n">6</span><h3>{{ (editingTrackingType() === 'lot' ? 'products.lots.title' : 'products.serials.title') | t }}</h3>
+                    @if (editingTrackingType() === 'serial' && productSerials().length) { <span class="aside">{{ 'products.serials.count' | t: { count: productSerials().length } }}</span> }
+                  </div>
                   @if (isLoadingTracking()) {
-                    <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'common.loading' | t }}</span>
+                    <div class="skeleton-text"></div><div class="skeleton-text short"></div>
                   } @else if (editingTrackingType() === 'lot') {
                     @if (productLots().length === 0) {
-                      <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'products.lots.empty' | t }}</span>
+                      <span class="fld-help">{{ 'products.lots.empty' | t }}</span>
                     } @else {
-                      <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
-                        <thead>
-                          <tr style="color: var(--color-text-muted); text-align: left;">
-                            <th style="padding: 4px;">{{ 'products.lots.lot' | t }}</th>
-                            <th style="padding: 4px;">{{ 'products.lots.warehouse' | t }}</th>
-                            <th style="padding: 4px;">{{ 'products.lots.expiry' | t }}</th>
-                            <th style="padding: 4px; text-align: right;">{{ 'products.lots.qty' | t }}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          @for (lot of productLots(); track lot.id) {
-                            <tr style="border-top: 1px solid var(--color-border-subtle);" [style.background]="lotStatus(lot) === 'expired' ? 'var(--color-danger-subtle)' : lotStatus(lot) === 'soon' ? 'var(--color-warning-subtle)' : 'transparent'">
-                              <td style="padding: 4px; font-family: var(--font-mono);">{{ lot.lotNumber }}</td>
-                              <td style="padding: 4px;">{{ lot.warehouseName || warehouseNameById(lot.warehouseId) }}</td>
-                              <td style="padding: 4px;">
-                                @if (lot.expiryDate) {
-                                  {{ lot.expiryDate | appDate }}
-                                  @if (lotStatus(lot) === 'expired') { <span style="color: var(--color-danger); font-weight: 600;"> · {{ 'products.lots.expired' | t }}</span> }
-                                  @else if (lotStatus(lot) === 'soon') { <span style="color: var(--color-warning); font-weight: 600;"> · {{ 'products.lots.expiringSoon' | t }}</span> }
-                                } @else { - }
-                              </td>
-                              <td style="padding: 4px; text-align: right; font-weight: 600;">{{ lot.quantity | num }}</td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
+                      <div class="table-card">
+                        <div class="table-scroll">
+                          <table class="tbl dense pr-lots">
+                            <thead>
+                              <tr>
+                                <th>{{ 'products.lots.lot' | t }}</th>
+                                <th>{{ 'products.lots.warehouse' | t }}</th>
+                                <th>{{ 'products.lots.expiry' | t }}</th>
+                                <th class="r">{{ 'products.lots.qty' | t }}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (lot of productLots(); track lot.id) {
+                                <tr>
+                                  <td class="mono">{{ lot.lotNumber }}</td>
+                                  <td class="sec">{{ lot.warehouseName || warehouseNameById(lot.warehouseId) }}</td>
+                                  <td>
+                                    @if (lot.expiryDate) {
+                                      {{ lot.expiryDate | appDate }}
+                                      @if (lotStatus(lot) === 'expired') { <span class="badge badge-danger"><span class="dot"></span>{{ 'products.lots.expired' | t }}</span> }
+                                      @else if (lotStatus(lot) === 'soon') { <span class="badge badge-warning"><span class="dot"></span>{{ 'products.lots.expiringSoon' | t }}</span> }
+                                    } @else { <span class="muted">-</span> }
+                                  </td>
+                                  <td class="r">{{ lot.quantity | num }}</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     }
                   } @else {
                     @if (productSerials().length === 0) {
-                      <span style="font-size: 12px; color: var(--color-text-subtle);">{{ 'products.serials.empty' | t }}</span>
+                      <span class="fld-help">{{ 'products.serials.empty' | t }}</span>
                     } @else {
-                      <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 6px;">{{ 'products.serials.count' | t: { count: productSerials().length } }}</div>
-                      <div style="display: flex; flex-wrap: wrap; gap: 4px; max-height: 160px; overflow-y: auto;">
+                      <div class="pr-serials">
                         @for (sn of productSerials(); track sn.id) {
-                          <span style="font-family: var(--font-mono); font-size: 11px; background: var(--color-surface-muted); border-radius: 4px; padding: 2px 6px;" [title]="sn.warehouseName || warehouseNameById(sn.warehouseId)">{{ sn.serial }}</span>
+                          <span class="tag" [title]="sn.warehouseName || warehouseNameById(sn.warehouseId)">{{ sn.serial }}</span>
                         }
                       </div>
                     }
                   }
-                </div>
+                </section>
               }
             </div>
-            
+
             <div class="drawer-footer">
-              @if (editingProductId()) { <button type="button" class="btn btn-ghost" (click)="printLabel()">{{ 'products.wp6.printLabel' | t }}</button> }
-              <button type="button" class="btn btn-secondary" (click)="closeProductForm()" [disabled]="isSaveLoading()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="productForm.invalid || productForm.pristine || isSaveLoading()">
-                @if (isSaveLoading()) { <span class="spinner-sm spinner-light"></span> {{ 'products.form.saving' | t }} } @else { {{ 'common.save' | t }} }
+              @if (editingProductId()) { <button type="button" class="btn btn-ghost" (click)="printLabel()"><app-icon name="printer" />{{ 'products.wp6.printLabel' | t }}</button> }
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeProductForm()" [disabled]="isSaveLoading()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSaveLoading()" [disabled]="productForm.invalid || productForm.pristine || isSaveLoading()">
+                <span>{{ 'common.save' | t }}</span><kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </form>
@@ -900,80 +889,59 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
       </div>
     }
 
-
-
     <!-- ─── Bulk Actions Bar ─── -->
     @if (selectedProductIds().length > 0) {
-      <div class="bulk-actions-bar">
-        <div class="bulk-info">
-          <strong>{{ selectedProductIds().length }}</strong> {{ 'products.bulk.selected' | t }}
+      <div class="bulkbar" role="toolbar" [attr.aria-label]="'products.ui.bulkActions' | t">
+        <span class="count"><span class="mono">{{ selectedProductIds().length }}</span> {{ 'products.bulk.selected' | t }}</span>
+        <span class="sep"></span>
+        <div class="bulk-category-select-wrapper">
+          <button type="button" class="bb" (click)="toggleBulkCategoryDropdown($event)" [attr.aria-label]="'products.bulk.changeCategory' | t"><app-icon name="tag" /><span class="lbl">{{ 'products.bulk.changeCategory' | t }}</span></button>
+          @if (isBulkCategoryDropdownOpen()) {
+            <div class="bulk-category-dropdown">
+              @for (cat of categories(); track cat.slug) {
+                <button type="button" class="menu-i" (click)="applyBulkCategory(cat.slug)">{{ cat.name }}</button>
+              }
+            </div>
+          }
         </div>
-        <div class="bulk-buttons">
-          <div class="bulk-category-select-wrapper">
-            <button class="btn-outline-light" (click)="toggleBulkCategoryDropdown($event)">
-              {{ 'products.bulk.changeCategory' | t }}
-            </button>
-            @if (isBulkCategoryDropdownOpen()) {
-              <div class="bulk-category-dropdown">
-                @for (cat of categories(); track cat.slug) {
-                  <button type="button" class="bulk-category-option" (click)="applyBulkCategory(cat.slug)">
-                    {{ cat.name }}
-                  </button>
-                }
-              </div>
-            }
-          </div>
-          <button class="btn-outline-light" (click)="openLabelModal(selectedProducts())">
-            {{ 'products.label.printSelected' | t }}
-          </button>
-          <button class="btn-danger-dark" (click)="promptBulkDelete()">
-            {{ 'products.bulk.deleteSelected' | t }}
-          </button>
-          <button class="btn-ghost-light" (click)="clearSelection()">
-            {{ 'common.cancel' | t }}
-          </button>
-        </div>
+        <button type="button" class="bb" (click)="openLabelModal(selectedProducts())" [attr.aria-label]="'products.label.printSelected' | t"><app-icon name="barcode" /><span class="lbl">{{ 'products.label.printSelected' | t }}</span></button>
+        <button type="button" class="bb danger" (click)="promptBulkDelete()" [attr.aria-label]="'products.bulk.deleteSelected' | t"><app-icon name="trash" /><span class="lbl">{{ 'products.bulk.deleteSelected' | t }}</span></button>
+        <span class="sep"></span>
+        <button type="button" class="bb" (click)="clearSelection()" [attr.aria-label]="'products.ui.clearSelection' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
       </div>
     }
-
-
 
     <!-- ─── Barcode Label Print Drawer ─── -->
     @if (labelProducts().length > 0) {
       <div class="drawer-overlay" (click)="closeLabelModal()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="prLabelTitle" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ 'products.label.title' | t }}</span>
-            <button class="drawer-close" (click)="closeLabelModal()">×</button>
+            <span class="drawer-title" id="prLabelTitle">{{ 'products.label.title' | t }}</span>
+            <button type="button" class="drawer-close" (click)="closeLabelModal()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
           <div class="drawer-body">
-            <p style="font-size: 13px; color: var(--color-text-muted); margin: 0;">{{ 'products.label.productCount' | t: { count: labelProducts().length } }}</p>
-            <div class="form-field">
-              <input id="labelCopies" type="number" min="1" max="500" class="form-input has-value" [ngModel]="labelCopies()" (ngModelChange)="labelCopies.set(+$event)" />
-              <label for="labelCopies" class="form-label">{{ 'products.label.copies' | t }}</label>
+            <p class="fld-help">{{ 'products.label.productCount' | t: { count: labelProducts().length } }}</p>
+            <div class="fld">
+              <label class="fld-label" for="labelCopies">{{ 'products.label.copies' | t }}</label>
+              <div class="field"><input id="labelCopies" type="number" class="num" min="1" max="500" [ngModel]="labelCopies()" (ngModelChange)="labelCopies.set(+$event)" [attr.aria-invalid]="!(labelCopies() >= 1)" /></div>
             </div>
             @if (labelHasAltBarcodes()) {
-              <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-                <input type="checkbox" [ngModel]="labelIncludeAltUnits()" (ngModelChange)="labelIncludeAltUnits.set($event)" style="accent-color: var(--color-primary);" />
-                {{ 'products.label.includeAltUnits' | t }}
-              </label>
+              <label class="check"><input type="checkbox" [ngModel]="labelIncludeAltUnits()" (ngModelChange)="labelIncludeAltUnits.set($event)" />{{ 'products.label.includeAltUnits' | t }}</label>
             }
-            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-              <input type="checkbox" [ngModel]="labelShowPrice()" (ngModelChange)="labelShowPrice.set($event)" style="accent-color: var(--color-primary);" />
-              {{ 'products.label.showPrice' | t }}
-            </label>
-            <div style="display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto;">
+            <label class="check"><input type="checkbox" [ngModel]="labelShowPrice()" (ngModelChange)="labelShowPrice.set($event)" />{{ 'products.label.showPrice' | t }}</label>
+            <div class="pr-lbl-list">
               @for (lp of labelProducts(); track lp.id) {
-                <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 6px 10px; font-size: 12px;">
-                  <strong>{{ lp.name }}</strong> <span style="color: var(--color-text-muted); font-family: var(--font-mono);">({{ lp.sku }})</span>
-                  @if (!lp.barcode) { <div style="color: var(--color-warning);">{{ 'products.label.skuFallback' | t }}</div> }
+                <div class="pr-lbl-item">
+                  <b>{{ lp.name }}</b><span class="cell-code">{{ lp.sku }}</span>
+                  @if (!lp.barcode) { <span class="fld-help">{{ 'products.label.skuFallback' | t }}</span> }
                 </div>
               }
             </div>
           </div>
           <div class="drawer-footer">
-            <button type="button" class="btn btn-secondary" (click)="closeLabelModal()">{{ 'common.cancel' | t }}</button>
-            <button type="button" class="btn btn-primary" (click)="printLabels()" [disabled]="!(labelCopies() >= 1)">{{ 'products.label.printBtn' | t }}</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-ghost" (click)="closeLabelModal()">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-primary" (click)="printLabels()" [disabled]="!(labelCopies() >= 1)"><app-icon name="printer" />{{ 'products.label.printBtn' | t }}<kbd>Ctrl ↵</kbd></button>
           </div>
         </div>
       </div>
@@ -991,107 +959,103 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
     <!-- ─── Warehouse Stock Transfer Drawer ─── -->
     @if (isTransferModalOpen()) {
       <div class="drawer-overlay" (click)="closeTransferModal()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="prXferTitle" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <h2 class="drawer-title">{{ 'products.transferModal.title' | t }}</h2>
-            <button class="drawer-close" (click)="closeTransferModal()">✕</button>
+            <h2 class="drawer-title" id="prXferTitle">{{ 'products.transferModal.title' | t }}</h2>
+            <button type="button" class="drawer-close" (click)="closeTransferModal()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
-          
-          <div class="drawer-body">
-            <p style="font-size: 13px; color: var(--text-muted, var(--color-text-muted));">
-              {{ 'products.transferModal.selectedProduct' | t }} <strong style="color: var(--text-primary);">{{ selectedProductForTransfer()?.name }}</strong> (SKU: {{ selectedProductForTransfer()?.sku }})
-            </p>
 
-            <!-- Kaynak Depo Seçimi -->
-            <div class="form-field">
-              <select class="form-select" [ngModel]="transferFromWarehouse()" (ngModelChange)="transferFromWarehouse.set($event); onTransferFromWarehouseChange()">
-                <option value="" disabled selected>{{ 'products.transferModal.selectWarehouse' | t }}</option>
-                @for (wh of availableFromWarehouses(); track wh.id) {
-                  <option [value]="wh.id">{{ wh.name }} ({{ 'products.transferModal.available' | t: { qty: wh.qty } }})</option>
-                }
-              </select>
-              <label class="form-label">{{ 'products.transferModal.from' | t }}</label>
+          <div class="drawer-body">
+            <div class="pr-xfer-prod">
+              <span class="pr-thumb"><app-icon name="box" size="sm" /></span>
+              <div>
+                <span class="cap">{{ 'products.transferModal.selectedProduct' | t }}</span>
+                <b>{{ selectedProductForTransfer()?.name }}</b>
+              </div>
+              <span class="cell-code">{{ selectedProductForTransfer()?.sku }}</span>
             </div>
 
-            <!-- Hedef Depo Seçimi -->
-            <div class="form-field">
-              <select class="form-select" [ngModel]="transferToWarehouse()" (ngModelChange)="transferToWarehouse.set($event)">
-                <option value="" disabled selected>{{ 'products.transferModal.selectWarehouse' | t }}</option>
-                @for (wh of availableToWarehouses(); track wh.id) {
-                  <option [value]="wh.id">{{ wh.name }}</option>
-                }
-              </select>
-              <label class="form-label">{{ 'products.transferModal.to' | t }}</label>
+            <div class="grid-2">
+              <div class="fld">
+                <label class="fld-label" for="prTrFrom">{{ 'products.transferModal.from' | t }}</label>
+                <div class="field select">
+                  <select id="prTrFrom" [ngModel]="transferFromWarehouse()" (ngModelChange)="transferFromWarehouse.set($event); onTransferFromWarehouseChange()">
+                    <option value="" disabled selected>{{ 'products.transferModal.selectWarehouse' | t }}</option>
+                    @for (wh of availableFromWarehouses(); track wh.id) {
+                      <option [value]="wh.id">{{ wh.name }} ({{ 'products.transferModal.available' | t: { qty: wh.qty } }})</option>
+                    }
+                  </select>
+                </div>
+              </div>
+              <div class="fld">
+                <label class="fld-label" for="prTrTo">{{ 'products.transferModal.to' | t }}</label>
+                <div class="field select">
+                  <select id="prTrTo" [ngModel]="transferToWarehouse()" (ngModelChange)="transferToWarehouse.set($event)">
+                    <option value="" disabled selected>{{ 'products.transferModal.selectWarehouse' | t }}</option>
+                    @for (wh of availableToWarehouses(); track wh.id) { <option [value]="wh.id">{{ wh.name }}</option> }
+                  </select>
+                </div>
+              </div>
             </div>
 
             @if (transferTracking() === 'lot' && transferFromWarehouse()) {
-              <div class="form-field">
-                <select id="prTrLot" class="form-input form-select has-value" [ngModel]="transferLotId()" (ngModelChange)="transferLotId.set($event || '')">
-                  <option value="">{{ 'warehouses.transfer.selectLot' | t }}</option>
-                  @for (l of transferLots(); track l.id) {
-                    <option [value]="l.id">{{ l.lotNumber }}{{ l.expiryDate ? ' · ' + l.expiryDate : '' }} — {{ 'warehouses.transfer.available' | t: { qty: l.quantity } }}</option>
-                  }
-                </select>
-                <label for="prTrLot" class="form-label">{{ 'warehouses.transfer.lot' | t }}</label>
+              <div class="fld">
+                <label class="fld-label" for="prTrLot">{{ 'warehouses.transfer.lot' | t }}</label>
+                <div class="field select">
+                  <select id="prTrLot" [ngModel]="transferLotId()" (ngModelChange)="transferLotId.set($event || '')">
+                    <option value="">{{ 'warehouses.transfer.selectLot' | t }}</option>
+                    @for (l of transferLots(); track l.id) {
+                      <option [value]="l.id">{{ l.lotNumber }}{{ l.expiryDate ? ' · ' + l.expiryDate : '' }} — {{ 'warehouses.transfer.available' | t: { qty: l.quantity } }}</option>
+                    }
+                  </select>
+                </div>
+                @if (!transferTrackingLoading() && transferLots().length === 0) { <div class="fld-help">{{ 'warehouses.transfer.noLots' | t }}</div> }
+                @else if (!transferTrackingLoading() && !transferLotId()) { <div class="fld-help">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
               </div>
-              @if (!transferTrackingLoading() && transferLots().length === 0) { <div class="pr-tr-hint">{{ 'warehouses.transfer.noLots' | t }}</div> }
-              @else if (!transferTrackingLoading() && !transferLotId()) { <div class="pr-tr-hint">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
             }
             @if (transferTracking() === 'serial' && transferFromWarehouse()) {
-              <div class="pr-serial-block">
-                <div class="pr-serial-title">{{ 'warehouses.transfer.serials' | t }} ({{ transferSerialSel().size }})</div>
+              <div class="fld">
+                <span class="fld-label">{{ 'warehouses.transfer.serials' | t }}<span class="opt mono">{{ transferSerialSel().size }}</span></span>
                 @if (transferTrackingLoading()) {
-                  <div class="pr-tr-hint">…</div>
+                  <div class="skeleton-text"></div>
                 } @else if (transferSerials().length === 0) {
-                  <div class="pr-tr-hint">{{ 'warehouses.transfer.noSerials' | t }}</div>
+                  <div class="fld-help">{{ 'warehouses.transfer.noSerials' | t }}</div>
                 } @else {
                   <div class="pr-serial-list">
                     @for (sn of transferSerials(); track sn.id) {
-                      <label class="pr-serial-item">
-                        <input type="checkbox" [checked]="transferSerialSel().has(sn.serial)" (change)="toggleTransferSerial(sn.serial)" />
-                        <span class="mono">{{ sn.serial }}</span>
-                      </label>
+                      <label class="check"><input type="checkbox" [checked]="transferSerialSel().has(sn.serial)" (change)="toggleTransferSerial(sn.serial)" /><span class="mono">{{ sn.serial }}</span></label>
                     }
                   </div>
-                  <div class="pr-tr-hint">{{ 'warehouses.transfer.serialsHint' | t }}</div>
+                  <div class="fld-help">{{ 'warehouses.transfer.serialsHint' | t }}</div>
                 }
               </div>
             }
 
-            <!-- Miktar Girişi -->
-            <div class="form-field">
-              <input type="text" appQty [qtyDecimals]="transferDecimals()" class="form-input" [ngModel]="transferQuantity()" (ngModelChange)="transferQuantity.set($event)" [readonly]="transferTracking() === 'serial'" />
-              <label class="form-label">{{ 'products.transferModal.quantity' | t }}</label>
-              @if (maxTransferQuantity() > 0) {
-                <span class="form-error" style="color: var(--text-muted);">{{ 'products.transferModal.max' | t: { max: maxTransferQuantity() } }}</span>
-              }
-            </div>
-
-            <div class="form-field">
-              <input type="text" class="form-input" [class.has-value]="!!transferNote()" [ngModel]="transferNote()" (ngModelChange)="transferNote.set($event)" />
-              <label class="form-label">{{ 'products.transferModal.note' | t }}</label>
+            <div class="grid-2">
+              <div class="fld">
+                <label class="fld-label" for="prTrQty">{{ 'products.transferModal.quantity' | t }}</label>
+                <div class="field"><input id="prTrQty" type="text" class="num" appQty [qtyDecimals]="transferDecimals()" [ngModel]="transferQuantity()" (ngModelChange)="transferQuantity.set($event)" [readonly]="transferTracking() === 'serial'" /></div>
+                @if (maxTransferQuantity() > 0) { <div class="fld-help">{{ 'products.transferModal.max' | t: { max: maxTransferQuantity() } }}</div> }
+              </div>
+              <div class="fld">
+                <label class="fld-label" for="prTrNote">{{ 'products.transferModal.note' | t }}</label>
+                <div class="field"><input id="prTrNote" type="text" [ngModel]="transferNote()" (ngModelChange)="transferNote.set($event)" /></div>
+              </div>
             </div>
 
             @if (transferValidationError(); as ve) {
-              <div style="font-size: 12px; color: var(--color-danger);">⚠ {{ ve | t }}</div>
+              <div class="fld-error"><app-icon name="alert" size="sm" />{{ ve | t }}</div>
             }
-
-            <!-- Hata ve Bilgi Mesajı -->
             @if (transferError()) {
-              <div style="font-size: 12px; color: var(--color-danger); padding: 10px; background: var(--color-danger-subtle); border: 1px solid var(--color-danger-border); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
-                <span>⚠ {{ transferError() }}</span>
-              </div>
+              <div class="notice notice-danger"><app-icon name="alert" /><span class="t">{{ transferError() }}</span></div>
             }
           </div>
 
           <div class="drawer-footer">
-            <button class="btn btn-outline" style="border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="closeTransferModal()" [disabled]="isTransferLoading()">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" style="background: var(--color-primary); color: var(--color-on-primary); border: none; border-radius: 8px; padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;" (click)="executeTransfer()" [disabled]="isTransferLoading() || !isTransferValid()">
-              @if (isTransferLoading()) {
-                {{ 'products.transferModal.transferring' | t }}
-              } @else {
-                {{ 'products.transferModal.complete' | t }}
-              }
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-ghost" (click)="closeTransferModal()" [disabled]="isTransferLoading()">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-primary" [class.is-loading]="isTransferLoading()" (click)="executeTransfer()" [disabled]="isTransferLoading() || !isTransferValid()">
+              <span>{{ 'products.transferModal.complete' | t }}</span><kbd>Ctrl ↵</kbd>
             </button>
           </div>
         </div>
@@ -1122,6 +1086,8 @@ export class ProductsComponent implements OnInit {
   }
 
   categories = signal<any[]>([]);
+  /** False until the category list has loaded (or failed), so rows never flash raw category values. */
+  categoriesLoaded = signal(false);
   
   // Redesign state signals
   showFilters = signal(false);
@@ -1129,6 +1095,9 @@ export class ProductsComponent implements OnInit {
   isTableView = signal(true);
   isViewDropdownOpen = signal(false);
   isSortDropdownOpen = signal(false);
+  /** UI-only: header overflow menu and mobile row menu. */
+  isMoreMenuOpen = signal(false);
+  rowMenuId = signal<string | null>(null);
 
   // Pagination states
   currentPage = signal(1);
@@ -1254,7 +1223,17 @@ export class ProductsComponent implements OnInit {
   defaultTaxLabel(): string {
     const def = this.taxRates().find(t => t.isDefault);
     const label = this.i18n.t('finance.defaultTax');
-    return def ? `${label} (${def.name} %${this.i18n.formatNumber(def.rate)})` : label;
+    return def ? `${label} (${this.taxRateLabel(def)})` : label;
+  }
+
+  /** "KDV %20" — appends the rate only when the rate name does not already carry it. */
+  taxRateLabel(tr: TaxRate): string {
+    const pct = `%${this.i18n.formatNumber(tr.rate)}`;
+    const name = (tr.name || '').trim();
+    if (!name) return pct;
+    const compact = name.replace(/\s+/g, '');
+    const hasRate = compact.includes(pct) || compact.includes(`${this.i18n.formatNumber(tr.rate)}%`) || compact.includes(`%${tr.rate}`) || compact.includes(`${tr.rate}%`);
+    return hasRate ? name : `${name} ${pct}`;
   }
 
   defaultWarehouseId(): string | null {
@@ -1819,11 +1798,18 @@ export class ProductsComponent implements OnInit {
   }
 
   loadCategories() {
-    this.inventoryService.getCategories().subscribe({
+    // A slow or rate-limited request must never leave the Category column as permanent skeletons.
+    this.inventoryService.getCategories().pipe(
+      timeout(8000),
+      retry({ count: 1, delay: 1000 }),
+      finalize(() => this.categoriesLoaded.set(true))
+    ).subscribe({
       next: (data) => {
-        const cleaned = data.filter(c => c && c.name && !c.name.toLowerCase().startsWith('ekle:'));
+        const cleaned = (data || []).filter(c => c && c.name && !c.name.toLowerCase().startsWith('ekle:'));
         this.categories.set(cleaned);
-      }
+        this.categoriesLoaded.set(true);
+      },
+      error: () => this.categoriesLoaded.set(true)
     });
   }
 
@@ -1834,6 +1820,19 @@ export class ProductsComponent implements OnInit {
     this.isBulkCategoryDropdownOpen.set(false);
     this.isViewDropdownOpen.set(false);
     this.isSortDropdownOpen.set(false);
+    this.isMoreMenuOpen.set(false);
+    this.rowMenuId.set(null);
+  }
+
+  /** Esc closes the top-most overlay (drawers first), then the selection. */
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.showScanner()) return;
+    if (this.isMoreMenuOpen() || this.isSortDropdownOpen() || this.rowMenuId() || this.isBulkCategoryDropdownOpen()) { this.closeDropdowns(); return; }
+    if (this.isTransferModalOpen()) { this.closeTransferModal(); return; }
+    if (this.labelProducts().length > 0) { this.closeLabelModal(); return; }
+    if (this.showProductFormModal()) { this.closeProductForm(); return; }
+    if (this.selectedProductIds().length > 0) this.clearSelection();
   }
 
   // Suppliers
@@ -1967,6 +1966,8 @@ export class ProductsComponent implements OnInit {
 
   productSearch = signal('');
   productFilterStatus = signal<'all' | 'In stock' | 'Low stock' | 'Out of stock'>('all');
+  /** UI-only: the category whose name is the current search text ('' when none). */
+  activeCategory = computed(() => this.categories().find(c => c.name === this.productSearch())?.name ?? '');
   selectedWarehouseFilter = signal('');
 
   clearWarehouseFilter() {

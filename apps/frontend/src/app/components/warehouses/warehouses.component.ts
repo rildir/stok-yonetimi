@@ -15,27 +15,71 @@ import { AddressFieldsComponent, addressFromForm, addressToForm, createAddressGr
 import { QuantityInputDirective, productDecimals } from '../shared/quantity-input.directive';
 import { WAREHOUSE_OWNERSHIPS, WAREHOUSE_TYPES, warehouseTypeAllowsSale, transferNeedsDespatch, isValidDriverTckn, isValidTrPlate } from '@stok/tr-compliance';
 import { DocumentsService, nowLocalInput } from '../../services/documents.service';
+import { IconComponent } from '../shared/icon.component';
 
 @Component({
   selector: 'app-warehouses',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AddressFieldsComponent, QuantityInputDirective],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AddressFieldsComponent, QuantityInputDirective, IconComponent],
   styleUrls: ['../../drawer.css'],
+  host: { '(document:keydown.escape)': 'onEscape()', '(document:click)': 'menuFor.set(null)' },
   styles: [`
-    .tr-desp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); } .tr-desp-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); color: var(--color-text-muted); } @media (max-width: 640px) { .tr-desp-grid { grid-template-columns: 1fr; } }
-    .wh-check { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); cursor: pointer; }
-    .dim-text { color: var(--color-text-muted); font-size: var(--text-xs); font-weight: var(--weight-regular); }
-    .stock-table { width: 100%; border-collapse: collapse; }
-    .stock-table th { padding: var(--space-2); border-bottom: 1px solid var(--color-border); text-align: left; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
-    .stock-table td { padding: var(--space-2); border-bottom: 1px solid var(--color-border-subtle); font-size: var(--text-sm); color: var(--color-text); }
-    .stock-table .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
-    .warehouse-row { cursor: pointer; }
-    .wh-name { font-weight: var(--weight-semibold); color: var(--color-text); }
-    .serial-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--color-surface); }
-    .serial-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; cursor: pointer; font-size: var(--text-sm); }
-    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .hint { margin-top: var(--space-1); }
-    @media (max-width: 640px) { .stock-table .hide-xs { display: none; } }
+    .sec { color: var(--fg-3); }
+    .wh-kpis { margin-bottom: 20px; }
+    .wh-kpis .kpi-top app-icon { color: var(--fg-3); }
+    .wh-tools { margin-bottom: 12px; }
+    .wh-search { flex: 1 1 260px; max-width: 340px; }
+    .wh-count { font-size: var(--text-xs); color: var(--fg-3); }
+    .wh-skel { display: grid; gap: 14px; }
+    .wh-table tbody tr { cursor: pointer; }
+    .wh-name { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+    .wh-name b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .wh-name .badge { margin-left: 0; flex: none; }
+    .wh-table td.td-primary { max-width: none; }
+    .wh-table td.wh-addr { max-width: 240px; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; }
+    .wh-table td.r b { font-weight: 500; }
+    .wh-acts { width: 1%; white-space: nowrap; }
+    .wh-acts .btn + .btn { margin-left: 0; }
+    .wh-del:not(:disabled):hover, .wh-del:not(:disabled):hover svg { color: var(--danger); }
+    .wh-del:not(:disabled):hover { background: var(--danger-soft); }
+    /* hover-revealed row actions: disabled ones too (the global disabled recipe resets opacity) */
+    .wh-acts .row-act:disabled { opacity: 0; }
+    .wh-table tr:hover .row-act:disabled, .wh-table tr:focus-within .row-act:disabled { opacity: 1; }
+    @media (pointer: coarse) { .wh-acts .row-act:disabled { opacity: 1; } }
+    .wh-mlist { display: none; }
+
+    /* drawers */
+    .drawer-body > * { flex-shrink: 0; }
+    .drawer-form { flex: 1; min-height: 0; gap: 0; }
+    .drawer-form .drawer-body { gap: 0; }
+    .wh-checks { display: flex; flex-direction: column; gap: 10px; }
+    .wh-stock { border-radius: var(--radius-md); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+    .wh-stock td { max-width: 240px; }
+    .wh-stock td .cell-code { margin-left: 8px; }
+    .wh-stock-sum { display: flex; align-items: baseline; gap: 16px; font-size: var(--text-xs); color: var(--fg-3); }
+    .wh-stock-sum b { color: var(--fg); font-size: var(--text-sm); font-weight: 600; margin-right: 4px; font-variant-numeric: tabular-nums; }
+    .wh-skel-d { display: grid; gap: 14px; padding-top: 8px; }
+    .serial-list { max-height: 200px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .serial-list .check { font-size: var(--text-sm); align-items: center; }
+    .serial-list .mono { font-size: var(--text-xs); }
+    .wh-avail { margin-left: auto; font-weight: 400; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+    @media (max-width: 640px) {
+      .wh-search { flex: 1 1 100%; max-width: none; }
+      .wh-search kbd { display: none; }
+      .wh-count { display: none; }
+      .wh-kpis .kpi:last-child { grid-column: 1 / -1; }
+      .table-scroll:has(.wh-table) { display: none; }
+      .wh-mlist { display: block; }
+      .wh-mrow { grid-template-columns: auto minmax(0, 1fr) auto auto; cursor: pointer; }
+      .wh-mrow .thumb { grid-row: 1 / span 2; }
+      .wh-m-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+      .wh-m-meta .badge { margin-left: 0; flex: none; }
+      .wh-m-txt { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .wh-mrow .s.r { white-space: nowrap; }
+      .wh-m-act { grid-column: 4; grid-row: 1 / span 2; position: relative; margin-right: -6px; }
+      .wh-pop { top: calc(100% + 4px); right: 0; min-width: 200px; }
+      .wh-stock .hide-xs { display: none; }
+    }
   `],
   template: `
     <header class="page-header">
@@ -44,359 +88,396 @@ import { DocumentsService, nowLocalInput } from '../../services/documents.servic
         <p>{{ 'warehouses.subtitle' | t }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" (click)="openDrawer()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          {{ 'warehouses.new' | t }}
-        </button>
+        <button type="button" class="btn btn-primary" (click)="openDrawer()"><app-icon name="plus" />{{ 'warehouses.new' | t }}</button>
       </div>
     </header>
 
-    <div class="filter-bar">
-      <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" [placeholder]="'warehouses.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+    <div class="kpi-grid wh-kpis">
+      <div class="kpi">
+        <div class="kpi-top"><app-icon name="warehouse" size="sm" />{{ 'warehouses.totalWarehouses' | t }}</div>
+        <div class="kpi-val"><b>{{ totalWarehouseCount() | num }}</b></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><app-icon name="box" size="sm" />{{ 'warehouses.totalStock' | t }}</div>
+        <div class="kpi-val"><b>{{ totalStockCount() | num }}</b></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><app-icon name="chart" size="sm" />{{ 'warehouses.totalValue' | t }}</div>
+        <div class="kpi-val"><b class="truncate">{{ totalStockValue() | money }}</b></div>
       </div>
     </div>
 
-    <div class="kpi-grid" style="margin-bottom: var(--space-6);">
-      <div class="stat-card">
-        <div class="stat-icon-box products">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12M6 14h12"/><rect x="6" y="10" width="12" height="12"/></svg>
-        </div>
-        <div>
-          <div class="stat-label">{{ 'warehouses.totalWarehouses' | t }}</div>
-          <div class="stat-value">{{ totalWarehouseCount() }}</div>
-        </div>
+    <div class="toolbar wh-tools">
+      <div class="field field-sm wh-search">
+        <span class="lead"><app-icon name="search" size="sm" /></span>
+        <input type="text" data-page-search [placeholder]="'warehouses.searchPlaceholder' | t" [attr.aria-label]="'common.search' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+        <span class="trail"><kbd>/</kbd></span>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon-box revenue">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
-        </div>
-        <div>
-          <div class="stat-label">{{ 'warehouses.totalStock' | t }}</div>
-          <div class="stat-value">{{ totalStockCount() | num }}</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 18V6"/></svg>
-        </div>
-        <div style="min-width: 0;">
-          <div class="stat-label">{{ 'warehouses.totalValue' | t }}</div>
-          <div class="stat-value truncate">{{ totalStockValue() | money }}</div>
-        </div>
-      </div>
+      <span class="spacer"></span>
+      @if (!isLoading() && warehouses().length) { <span class="wh-count">{{ filteredWarehouses().length | num }} / {{ warehouses().length | num }}</span> }
     </div>
 
     <div class="table-card">
       @if (isLoading()) {
-        <div style="padding: var(--space-4); display: grid; gap: var(--space-3);">
-          <div class="skeleton" style="height: 20px;"></div>
-          <div class="skeleton" style="height: 20px;"></div>
-          <div class="skeleton" style="height: 20px;"></div>
-        </div>
+        <div class="card-b wh-skel">@for (i of [1, 2, 3, 4]; track i) { <div class="skeleton-row"></div> }</div>
       } @else if (warehouses().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><rect x="6" y="10" width="12" height="12"/></svg></div>
-          <p class="empty-state-title">{{ 'warehouses.empty' | t }}</p>
-          <button class="btn btn-secondary" (click)="openDrawer()" style="margin-top: var(--space-3);">{{ 'warehouses.addFirst' | t }}</button>
+          <div class="empty-art"><app-icon name="warehouse" /></div>
+          <h3>{{ 'warehouses.empty' | t }}</h3>
+          <div class="actions"><button type="button" class="btn btn-primary" (click)="openDrawer()"><app-icon name="plus" />{{ 'warehouses.addFirst' | t }}</button></div>
         </div>
       } @else if (filteredWarehouses().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
-          <p class="empty-state-title">{{ 'warehouses.noResults' | t }}</p>
+          <div class="empty-art"><app-icon name="search" /></div>
+          <h3>{{ 'warehouses.noResults' | t }}</h3>
+          <div class="actions"><button type="button" class="btn btn-sm" (click)="searchQuery.set('')"><app-icon name="x" size="sm" />{{ 'common.clear' | t }}</button></div>
         </div>
       } @else {
         <div class="table-scroll">
-          <table class="table-responsive">
+          <table class="tbl table-responsive wh-table">
             <thead>
               <tr>
                 <th>{{ 'warehouses.col.name' | t }}</th>
                 <th>{{ 'warehouses.col.code' | t }}</th>
                 <th>{{ 'warehouses.col.address' | t }}</th>
-                <th class="num">{{ 'warehouses.col.productCount' | t }}</th>
-                <th class="num">{{ 'warehouses.col.totalStock' | t }}</th>
-                <th class="num">{{ 'warehouses.col.totalValue' | t }}</th>
-                <th class="th-actions">{{ 'common.actions' | t }}</th>
+                <th class="r">{{ 'warehouses.col.productCount' | t }}</th>
+                <th class="r">{{ 'warehouses.col.totalStock' | t }}</th>
+                <th class="r">{{ 'warehouses.col.totalValue' | t }}</th>
+                <th class="w-act"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
               </tr>
             </thead>
             <tbody>
               @for (w of filteredWarehouses(); track w.id) {
-                <tr (click)="goToWarehouseProducts(w)" class="warehouse-row">
-                  <td class="td-primary"><span class="wh-name">{{ w.name }}</span>
-                    @if (w.isDefault) { <span class="badge badge-primary" style="margin-left: var(--space-2);" [title]="'warehouses.defaultHint' | t">{{ 'warehouses.default' | t }}</span> }
-                    @if (w.type && w.type !== 'NORMAL') { <span class="badge" [class.badge-warning]="w.type === 'QUARANTINE'" [class.badge-info]="w.type !== 'QUARANTINE'" style="margin-left: var(--space-2);">{{ 'warehouses.type.' + w.type | t }}</span> }
-                    @if (w.isSellable === false) { <span class="badge badge-neutral" style="margin-left: var(--space-2);" [title]="'warehouses.notSellableHint' | t">{{ 'warehouses.notSellable' | t }}</span> }
-                    @if (w.ownership && w.ownership !== 'OWN') { <span class="badge badge-neutral" style="margin-left: var(--space-2);">{{ 'warehouses.ownership.' + w.ownership | t }}</span> }
+                <tr (click)="goToWarehouseProducts(w)">
+                  <td class="td-primary">
+                    <span class="wh-name">
+                      <b [title]="w.name">{{ w.name }}</b>
+                      <ng-container *ngTemplateOutlet="whBadges; context: { $implicit: w }"></ng-container>
+                    </span>
                   </td>
                   <td class="mono" [attr.data-label]="'warehouses.col.code' | t">{{ w.code }}</td>
-                  <td class="text-muted" [attr.data-label]="'warehouses.col.address' | t">
-                    {{ w.addressText || '-' }}
-                    @if (w.isBranch) { <span class="badge badge-info" style="margin-left: var(--space-2);">{{ 'warehouses.branch' | t }}@if (w.branchCode) { · {{ w.branchCode }} }</span> }
+                  <td class="wh-addr" [attr.data-label]="'warehouses.col.address' | t" [title]="w.addressText || ''">{{ w.addressText || '—' }}</td>
+                  <td class="r" [attr.data-label]="'warehouses.col.productCount' | t">
+                    @if (w.productCount === 0) { <span class="sec" [title]="'warehouses.noProductsAssigned' | t">—</span> } @else { {{ w.productCount | num }} }
                   </td>
-                  <td class="num" [attr.data-label]="'warehouses.col.productCount' | t">
-                    @if (w.productCount === 0) {
-                      <span class="dim-text">{{ 'warehouses.noProductsAssigned' | t }}</span>
-                    } @else {
-                      {{ w.productCount | num }}
-                    }
+                  <td class="r" [attr.data-label]="'warehouses.col.totalStock' | t">
+                    @if (w.totalStock === 0) { <span class="sec" [title]="'warehouses.noProductsAssigned' | t">—</span> } @else { <b>{{ w.totalStock | num }}</b> }
                   </td>
-                  <td class="num" style="font-weight: var(--weight-semibold);" [attr.data-label]="'warehouses.col.totalStock' | t">
-                    @if (w.totalStock === 0) {
-                      <span class="dim-text">{{ 'warehouses.noProductsAssigned' | t }}</span>
-                    } @else {
-                      {{ w.totalStock | num }}
-                    }
-                  </td>
-                  <td class="num" style="font-weight: var(--weight-semibold);" [attr.data-label]="'warehouses.col.totalValue' | t">{{ w.totalValue | money }}</td>
-                  <td class="td-actions" (click)="$event.stopPropagation()">
-                    <button class="icon-btn" [title]="'warehouses.details' | t" (click)="goToWarehouseProducts(w); $event.stopPropagation()">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                    <button class="icon-btn" [title]="'warehouses.stock.view' | t" (click)="openStock(w); $event.stopPropagation()">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
-                    </button>
-                    <button class="icon-btn" [title]="'warehouses.transfer.action' | t" (click)="openTransfer(w); $event.stopPropagation()" [disabled]="!w.totalStock || warehouses().length < 2">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg>
-                    </button>
-                    <button class="edit-btn" [title]="'common.edit' | t" (click)="openDrawer(w); $event.stopPropagation()">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    </button>
-                    <button class="delete-btn" [title]="'common.delete' | t" (click)="deleteWarehouse(w); $event.stopPropagation()" [disabled]="(w.totalStock ?? 0) > 0">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
+                  <td class="r" [attr.data-label]="'warehouses.col.totalValue' | t"><b>{{ w.totalValue | money }}</b></td>
+                  <td class="td-actions wh-acts" (click)="$event.stopPropagation()">
+                    <button type="button" class="btn btn-ghost btn-sm btn-icon row-act" data-act="stock" [title]="'warehouses.stock.view' | t" [attr.aria-label]="'warehouses.stock.view' | t" (click)="openStock(w); $event.stopPropagation()"><app-icon name="box" /></button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-icon row-act" data-act="transfer" [title]="'warehouses.transfer.action' | t" [attr.aria-label]="'warehouses.transfer.action' | t" (click)="openTransfer(w); $event.stopPropagation()" [disabled]="!w.totalStock || warehouses().length < 2"><app-icon name="swap" /></button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-icon row-act" [title]="'common.edit' | t" [attr.aria-label]="'common.edit' | t" (click)="openDrawer(w); $event.stopPropagation()"><app-icon name="edit" /></button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-icon row-act wh-del" [title]="'common.delete' | t" [attr.aria-label]="'common.delete' | t" (click)="deleteWarehouse(w); $event.stopPropagation()" [disabled]="(w.totalStock ?? 0) > 0"><app-icon name="trash" /></button>
                   </td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
+
+        <!-- Mobile: one compact row per warehouse -->
+        <div class="wh-mlist" role="list">
+          @for (w of filteredWarehouses(); track w.id) {
+            <div class="mrow wh-mrow" role="listitem" (click)="goToWarehouseProducts(w)">
+              <span class="thumb"><app-icon name="warehouse" size="sm" /></span>
+              <b [title]="w.name">{{ w.name }}</b>
+              <span class="v">{{ w.totalValue | money }}</span>
+              <span class="s wh-m-meta"><ng-container *ngTemplateOutlet="whBadges; context: { $implicit: w, compact: true }"></ng-container><span class="wh-m-txt"><span class="mono">{{ w.code }}</span>@if (w.addressText) { · {{ w.addressText }} }</span></span>
+              <span class="s r" [title]="('warehouses.col.productCount' | t) + ': ' + (w.productCount | num)">{{ 'warehouses.m.stockLine' | t: { qty: (w.totalStock | num), count: (w.productCount | num) } }}</span>
+              <span class="wh-m-act" (click)="$event.stopPropagation()">
+                <button type="button" class="btn btn-ghost btn-sm btn-icon" aria-haspopup="menu" [attr.aria-expanded]="menuFor() === w.id" [attr.aria-label]="'warehouses.rowActions' | t: { name: w.name }" (click)="menuFor.set(menuFor() === w.id ? null : w.id); $event.stopPropagation()"><app-icon name="more" /></button>
+                @if (menuFor() === w.id) {
+                  <div class="pop wh-pop" role="menu">
+                    <button type="button" class="menu-i" role="menuitem" (click)="menuFor.set(null); openStock(w)"><app-icon name="box" />{{ 'warehouses.stock.view' | t }}</button>
+                    <button type="button" class="menu-i" role="menuitem" [disabled]="!w.totalStock || warehouses().length < 2" (click)="menuFor.set(null); openTransfer(w)"><app-icon name="swap" />{{ 'warehouses.transfer.action' | t }}</button>
+                    <button type="button" class="menu-i" role="menuitem" (click)="menuFor.set(null); openDrawer(w)"><app-icon name="edit" />{{ 'common.edit' | t }}</button>
+                    <div class="menu-sep"></div>
+                    <button type="button" class="menu-i danger" role="menuitem" [disabled]="(w.totalStock ?? 0) > 0" (click)="menuFor.set(null); deleteWarehouse(w)"><app-icon name="trash" />{{ 'common.delete' | t }}</button>
+                  </div>
+                }
+              </span>
+            </div>
+          }
+        </div>
       }
     </div>
 
-    <!-- Right Drawer -->
+    <ng-template #whBadges let-w let-compact="compact">
+      @if (w.isDefault) { <span class="badge badge-info" [title]="'warehouses.defaultHint' | t">{{ 'warehouses.default' | t }}</span> }
+      @if (w.type && w.type !== 'NORMAL') { <span class="badge" [class.badge-warning]="w.type === 'QUARANTINE'" [class.badge-info]="w.type !== 'QUARANTINE'" [title]="'warehouses.notSellableHint' | t"><span class="dot"></span>{{ 'warehouses.type.' + w.type | t }}</span> }
+      @else if (w.isSellable === false) { <span class="badge badge-neutral" [title]="'warehouses.notSellableHint' | t">{{ 'warehouses.notSellable' | t }}</span> }
+      @if (!compact && w.ownership && w.ownership !== 'OWN') { <span class="badge badge-neutral">{{ 'warehouses.ownership.' + w.ownership | t }}</span> }
+      @if (!compact && w.isBranch) { <span class="badge badge-neutral">{{ 'warehouses.branch' | t }}@if (w.branchCode) { · <span class="mono">{{ w.branchCode }}</span> }</span> }
+    </ng-template>
+
+    <!-- Warehouse form drawer -->
     @if (isDrawerOpen()) {
       <div class="drawer-overlay" (click)="closeDrawer()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" [attr.aria-label]="(editId() ? 'warehouses.editTitle' : 'warehouses.addTitle') | t" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ (editId() ? 'warehouses.editTitle' : 'warehouses.addTitle') | t }}</span>
-            <button class="drawer-close" (click)="closeDrawer()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button type="button" class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
 
           <form [formGroup]="warehouseForm" (ngSubmit)="saveWarehouse()" class="drawer-form">
             <div class="drawer-body">
-              <div class="form-field">
-                <input id="warehouseName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" [disabled]="isSaving()" />
-                <label for="warehouseName" class="form-label">{{ 'warehouses.form.name' | t }}</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">{{ 'warehouses.form.nameRequired' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <input id="warehouseCode" type="text" formControlName="code" class="form-input" [class.has-value]="hasValue('code')" [disabled]="isSaving()" />
-                <label for="warehouseCode" class="form-label">{{ 'warehouses.form.code' | t }}</label>
-                @if (isFieldInvalid('code')) { <div class="form-error">{{ 'warehouses.form.codeRequired' | t }}</div> }
-              </div>
-
-              <div class="form-section-title">{{ 'warehouses.col.address' | t }}</div>
-              <app-address-fields [group]="addressGroup" idPrefix="wh"></app-address-fields>
-
-              <div class="form-section-title">{{ 'warehouses.section.inventory' | t }}</div>
-              <div class="form-row">
-                <div class="form-field">
-                  <select id="whType" formControlName="type" class="form-input form-select has-value" (change)="onTypeChange()">
-                    @for (t of warehouseTypes; track t) { <option [value]="t">{{ 'warehouses.type.' + t | t }}</option> }
-                  </select>
-                  <label for="whType" class="form-label">{{ 'warehouses.form.type' | t }}</label>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'documents.section.general' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="warehouseName">{{ 'warehouses.form.name' | t }} <span class="req">*</span></label>
+                    <div class="field"><input id="warehouseName" type="text" formControlName="name" [attr.aria-invalid]="isFieldInvalid('name')" [disabled]="isSaving()" /></div>
+                    @if (isFieldInvalid('name')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'warehouses.form.nameRequired' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="warehouseCode">{{ 'warehouses.form.code' | t }} <span class="req">*</span></label>
+                    <div class="field"><input id="warehouseCode" type="text" class="mono" formControlName="code" [attr.aria-invalid]="isFieldInvalid('code')" [disabled]="isSaving()" /></div>
+                    @if (isFieldInvalid('code')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'warehouses.form.codeRequired' | t }}</div> }
+                  </div>
                 </div>
-                <div class="form-field">
-                  <select id="whOwnership" formControlName="ownership" class="form-input form-select has-value">
-                    @for (o of ownerships; track o) { <option [value]="o">{{ 'warehouses.ownership.' + o | t }}</option> }
-                  </select>
-                  <label for="whOwnership" class="form-label">{{ 'warehouses.form.ownership' | t }}</label>
-                </div>
-              </div>
-              <label class="wh-check"><input type="checkbox" formControlName="isSellable" /> {{ 'warehouses.form.isSellable' | t }}</label>
-              <span class="field-hint">{{ ('warehouses.typeHint.' + (warehouseForm.get('type')?.value || 'NORMAL')) | t }}</span>
+              </section>
 
-              <div class="form-section-title">{{ 'warehouses.section.legal' | t }}</div>
-              <label class="wh-check"><input type="checkbox" formControlName="isBranch" /> {{ 'warehouses.form.isBranch' | t }}</label>
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="whBranchCode" type="text" formControlName="branchCode" class="form-input mono" maxlength="20" />
-                  <label for="whBranchCode" class="form-label">{{ 'warehouses.form.branchCode' | t }}</label>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'warehouses.col.address' | t }}</h3></div>
+                <app-address-fields [group]="addressGroup" idPrefix="wh"></app-address-fields>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">3</span><h3>{{ 'warehouses.section.inventory' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="whType">{{ 'warehouses.form.type' | t }}</label>
+                    <div class="field select">
+                      <select id="whType" formControlName="type" (change)="onTypeChange()">
+                        @for (t of warehouseTypes; track t) { <option [value]="t">{{ 'warehouses.type.' + t | t }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="whOwnership">{{ 'warehouses.form.ownership' | t }}</label>
+                    <div class="field select">
+                      <select id="whOwnership" formControlName="ownership">
+                        @for (o of ownerships; track o) { <option [value]="o">{{ 'warehouses.ownership.' + o | t }}</option> }
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <div class="form-field">
-                  <input id="whSeries" type="text" formControlName="defaultSeries" class="form-input mono" maxlength="3" (input)="upperSeries($event)" />
-                  <label for="whSeries" class="form-label">{{ 'warehouses.form.defaultSeries' | t }}</label>
-                  @if (isFieldInvalid('defaultSeries')) { <div class="form-error">{{ 'warehouses.form.seriesInvalid' | t }}</div> }
+                <label class="check" [class.is-disabled]="warehouseForm.get('isSellable')?.disabled">
+                  <input type="checkbox" formControlName="isSellable" />
+                  <span>{{ 'warehouses.form.isSellable' | t }}<span class="sub">{{ ('warehouses.typeHint.' + (warehouseForm.get('type')?.value || 'NORMAL')) | t }}</span></span>
+                </label>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">4</span><h3>{{ 'warehouses.section.legal' | t }}</h3></div>
+                <label class="check"><input type="checkbox" formControlName="isBranch" /><span>{{ 'warehouses.form.isBranch' | t }}</span></label>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="whBranchCode">{{ 'warehouses.form.branchCode' | t }}</label>
+                    <div class="field"><input id="whBranchCode" type="text" class="mono" formControlName="branchCode" maxlength="20" /></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="whSeries">{{ 'warehouses.form.defaultSeries' | t }}</label>
+                    <div class="field"><input id="whSeries" type="text" class="mono" formControlName="defaultSeries" maxlength="3" (input)="upperSeries($event)" [attr.aria-invalid]="isFieldInvalid('defaultSeries')" /></div>
+                    @if (isFieldInvalid('defaultSeries')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'warehouses.form.seriesInvalid' | t }}</div> }
+                  </div>
                 </div>
-              </div>
-              <div class="form-field">
-                <input id="whSiteGroup" type="text" formControlName="siteGroup" class="form-input" maxlength="50" />
-                <label for="whSiteGroup" class="form-label">{{ 'warehouses.form.siteGroup' | t }}</label>
-                <span class="field-hint" style="order: 3">{{ 'warehouses.form.siteGroupHint' | t }}</span>
-              </div>
+                <div class="fld">
+                  <label class="fld-label" for="whSiteGroup">{{ 'warehouses.form.siteGroup' | t }}</label>
+                  <div class="field"><input id="whSiteGroup" type="text" formControlName="siteGroup" maxlength="50" /></div>
+                  <div class="fld-help">{{ 'warehouses.form.siteGroupHint' | t }}</div>
+                </div>
+              </section>
             </div>
-            
+
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="warehouseForm.invalid || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'warehouses.saving' | t }} } @else { {{ 'common.save' | t }} }
-              </button>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSaving()" [disabled]="warehouseForm.invalid || isSaving()"><span>{{ 'common.save' | t }}</span><kbd>Ctrl ↵</kbd></button>
             </div>
           </form>
         </div>
       </div>
     }
 
-
-    
-
-    <!-- Stock Drawer -->
+    <!-- Stock drawer -->
     @if (stockWarehouse(); as sw) {
       <div class="drawer-overlay" (click)="closeStock()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" [attr.aria-label]="'warehouses.stock.title' | t: { name: sw.name }" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'warehouses.stock.title' | t: { name: sw.name } }}</span>
-            <button class="drawer-close" (click)="closeStock()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button type="button" class="drawer-close" (click)="closeStock()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
           <div class="drawer-body">
             @if (stockLoading()) {
-              <div style="display: grid; gap: var(--space-3);"><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div></div>
+              <div class="wh-skel-d">@for (i of [1, 2, 3, 4]; track i) { <div class="skeleton-row"></div> }</div>
             } @else if (stockItems().length === 0) {
-              <div class="empty-state"><p class="empty-state-title">{{ 'warehouses.stock.empty' | t }}</p></div>
+              <div class="empty-state">
+                <div class="empty-art"><app-icon name="box" /></div>
+                <h3>{{ 'warehouses.stock.empty' | t }}</h3>
+              </div>
             } @else {
-              <table class="stock-table">
-                <thead>
-                  <tr>
-                    <th>{{ 'warehouses.stock.product' | t }}</th>
-                    <th class="hide-xs">{{ 'warehouses.stock.sku' | t }}</th>
-                    <th class="num-cell">{{ 'warehouses.stock.quantity' | t }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (it of stockItems(); track it.productId) {
+              <div class="wh-stock-sum">
+                <span><b>{{ stockItems().length | num }}</b>{{ 'warehouses.col.productCount' | t }}</span>
+                <span><b>{{ sw.totalStock | num }}</b>{{ 'warehouses.col.totalStock' | t }}</span>
+                <span><b>{{ sw.totalValue | money }}</b>{{ 'warehouses.col.totalValue' | t }}</span>
+              </div>
+              <div class="wh-stock">
+                <table class="tbl">
+                  <thead>
                     <tr>
-                      <td>{{ it.productName }}</td>
-                      <td class="mono hide-xs">{{ it.sku }}</td>
-                      <td class="mono num-cell">{{ it.quantity | num }}</td>
+                      <th>{{ 'warehouses.stock.product' | t }}</th>
+                      <th class="hide-xs">{{ 'warehouses.stock.sku' | t }}</th>
+                      <th class="r">{{ 'warehouses.stock.quantity' | t }}</th>
                     </tr>
-                  }
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    @for (it of stockItems(); track it.productId) {
+                      <tr>
+                        <td [title]="it.productName">{{ it.productName }}</td>
+                        <td class="mono sec hide-xs">{{ it.sku }}</td>
+                        <td class="r"><b>{{ it.quantity | num }}</b></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
             }
           </div>
           <div class="drawer-footer">
-            <button type="button" class="btn btn-secondary" (click)="closeStock()">{{ 'warehouses.close' | t }}</button>
-            <button type="button" class="btn btn-primary" (click)="openTransfer(sw)" [disabled]="!hasTransferable(stockItems()) || warehouses().length < 2">{{ 'warehouses.transfer.action' | t }}</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-ghost" (click)="closeStock()">{{ 'warehouses.close' | t }}</button>
+            <button type="button" class="btn btn-primary" (click)="openTransfer(sw)" [disabled]="!hasTransferable(stockItems()) || warehouses().length < 2"><app-icon name="swap" />{{ 'warehouses.transfer.action' | t }}</button>
           </div>
         </div>
       </div>
     }
 
-    <!-- Transfer Drawer -->
+    <!-- Transfer drawer -->
     @if (transferSource(); as src) {
       <div class="drawer-overlay" (click)="closeTransfer()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" [attr.aria-label]="'warehouses.transfer.title' | t: { name: src.name }" (click)="$event.stopPropagation()">
           <div class="drawer-header">
             <span class="drawer-title">{{ 'warehouses.transfer.title' | t: { name: src.name } }}</span>
-            <button class="drawer-close" (click)="closeTransfer()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button type="button" class="drawer-close" (click)="closeTransfer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
           <form [formGroup]="transferForm" (ngSubmit)="submitTransfer()" class="drawer-form">
             <div class="drawer-body">
               @if (transferLoading()) {
-                <div style="display: grid; gap: var(--space-3);"><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div><div class="skeleton" style="height: 18px;"></div></div>
+                <div class="wh-skel-d">@for (i of [1, 2, 3]; track i) { <div class="skeleton-row"></div> }</div>
               } @else if (transferItems().length === 0) {
-                <div class="empty-state"><p class="empty-state-title">{{ 'warehouses.transfer.noStock' | t }}</p></div>
+                <div class="empty-state">
+                  <div class="empty-art"><app-icon name="box" /></div>
+                  <h3>{{ 'warehouses.transfer.noStock' | t }}</h3>
+                </div>
               } @else {
-                <div class="form-field">
-                  <select id="trProduct" formControlName="productId" class="form-input has-value" (change)="onTransferProductChange()">
-                    <option value="" disabled>{{ 'warehouses.transfer.selectProduct' | t }}</option>
-                    @for (it of transferItems(); track it.productId) {
-                      <option [value]="it.productId">{{ it.productName }} ({{ it.sku }}) — {{ 'warehouses.transfer.available' | t: { qty: it.quantity } }}</option>
-                    }
-                  </select>
-                  <label for="trProduct" class="form-label">{{ 'warehouses.transfer.product' | t }}</label>
-                  @if (isTransferInvalid('productId')) { <div class="form-error">{{ 'warehouses.transfer.productRequired' | t }}</div> }
-                </div>
-
-                <div class="form-field">
-                  <select id="trTarget" formControlName="toWarehouseId" class="form-input has-value">
-                    <option value="" disabled>{{ 'warehouses.transfer.selectTarget' | t }}</option>
-                    @for (t of transferTargets(); track t.id) {
-                      <option [value]="t.id">{{ t.name }} ({{ t.code }})</option>
-                    }
-                  </select>
-                  <label for="trTarget" class="form-label">{{ 'warehouses.transfer.target' | t }}</label>
-                  @if (isTransferInvalid('toWarehouseId')) { <div class="form-error">{{ 'warehouses.transfer.targetRequired' | t }}</div> }
-                </div>
-
-                @if (selectedTracking() === 'lot') {
-                  <div class="form-field">
-                    <select id="trLot" class="form-input has-value" [ngModel]="selectedLotId()" [ngModelOptions]="{ standalone: true }" (ngModelChange)="onLotChange($event)">
-                      <option value="">{{ 'warehouses.transfer.selectLot' | t }}</option>
-                      @for (l of transferLots(); track l.id) {
-                        <option [value]="l.id">{{ l.lotNumber }}{{ l.expiryDate ? ' · ' + l.expiryDate : '' }} — {{ 'warehouses.transfer.available' | t: { qty: l.quantity } }}</option>
-                      }
-                    </select>
-                    <label for="trLot" class="form-label">{{ 'warehouses.transfer.lot' | t }}</label>
-                    @if (trackingLoading()) { <div class="dim-text hint">{{ 'common.loading' | t }}</div> }
-                    @else if (transferLots().length === 0) { <div class="dim-text hint">{{ 'warehouses.transfer.noLots' | t }}</div> }
-                    @else if (!selectedLotId()) { <div class="dim-text hint">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
-                  </div>
-                }
-                @if (selectedTracking() === 'serial') {
-                  <div class="form-field">
-                    <div class="form-label" style="position: static; margin-bottom: 6px;">{{ 'warehouses.transfer.serials' | t }} ({{ selectedSerials().size }})</div>
-                    @if (trackingLoading()) {
-                      <div class="dim-text">{{ 'common.loading' | t }}</div>
-                    } @else if (transferSerials().length === 0) {
-                      <div class="dim-text">{{ 'warehouses.transfer.noSerials' | t }}</div>
-                    } @else {
-                      <div class="serial-list">
-                        @for (s of transferSerials(); track s.id) {
-                          <label class="serial-item">
-                            <input type="checkbox" [checked]="selectedSerials().has(s.serial)" (change)="toggleSerial(s.serial)" />
-                            <span class="mono">{{ s.serial }}</span>
-                          </label>
+                <section class="fsec">
+                  <div class="fld">
+                    <label class="fld-label" for="trProduct">{{ 'warehouses.transfer.product' | t }} <span class="req">*</span></label>
+                    <div class="field select">
+                      <select id="trProduct" formControlName="productId" (change)="onTransferProductChange()" [attr.aria-invalid]="isTransferInvalid('productId')">
+                        <option value="" disabled>{{ 'warehouses.transfer.selectProduct' | t }}</option>
+                        @for (it of transferItems(); track it.productId) {
+                          <option [value]="it.productId">{{ it.productName }} ({{ it.sku }}) — {{ 'warehouses.transfer.available' | t: { qty: it.quantity } }}</option>
                         }
+                      </select>
+                    </div>
+                    @if (isTransferInvalid('productId')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'warehouses.transfer.productRequired' | t }}</div> }
+                  </div>
+
+                  <div class="fld">
+                    <label class="fld-label" for="trTarget">{{ 'warehouses.transfer.target' | t }} <span class="req">*</span></label>
+                    <div class="field select">
+                      <select id="trTarget" formControlName="toWarehouseId" [attr.aria-invalid]="isTransferInvalid('toWarehouseId')">
+                        <option value="" disabled>{{ 'warehouses.transfer.selectTarget' | t }}</option>
+                        @for (t of transferTargets(); track t.id) { <option [value]="t.id">{{ t.name }} ({{ t.code }})</option> }
+                      </select>
+                    </div>
+                    @if (isTransferInvalid('toWarehouseId')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'warehouses.transfer.targetRequired' | t }}</div> }
+                  </div>
+
+                  @if (selectedTracking() === 'lot') {
+                    <div class="fld">
+                      <label class="fld-label" for="trLot">{{ 'warehouses.transfer.lot' | t }}</label>
+                      <div class="field select">
+                        <select id="trLot" [ngModel]="selectedLotId()" [ngModelOptions]="{ standalone: true }" (ngModelChange)="onLotChange($event)">
+                          <option value="">{{ 'warehouses.transfer.selectLot' | t }}</option>
+                          @for (l of transferLots(); track l.id) {
+                            <option [value]="l.id">{{ l.lotNumber }}{{ l.expiryDate ? ' · ' + l.expiryDate : '' }} — {{ 'warehouses.transfer.available' | t: { qty: l.quantity } }}</option>
+                          }
+                        </select>
                       </div>
-                      <div class="dim-text hint">{{ 'warehouses.transfer.serialsHint' | t }}</div>
-                    }
-                  </div>
-                }
-
-                <div class="form-field">
-                  <input id="trQty" type="text" appQty [qtyDecimals]="transferDecimals()" formControlName="quantity" class="form-input has-value" [readonly]="selectedTracking() === 'serial'" />
-                  <label for="trQty" class="form-label">{{ 'warehouses.transfer.quantity' | t }}</label>
-                  @if (selectedTransferItem()) {
-                    <div class="dim-text hint">{{ 'warehouses.transfer.available' | t: { qty: availableQty() } }}</div>
+                      @if (trackingLoading()) { <div class="fld-help">{{ 'common.loading' | t }}</div> }
+                      @else if (transferLots().length === 0) { <div class="fld-help">{{ 'warehouses.transfer.noLots' | t }}</div> }
+                      @else if (!selectedLotId()) { <div class="fld-help">{{ 'warehouses.transfer.lotAutoHint' | t }}</div> }
+                    </div>
                   }
-                  @if (isTransferInvalid('quantity')) { <div class="form-error">{{ 'warehouses.transfer.quantityInvalid' | t: { max: availableQty() } }}</div> }
-                </div>
+                  @if (selectedTracking() === 'serial') {
+                    <div class="fld">
+                      <span class="fld-label">{{ 'warehouses.transfer.serials' | t }}<span class="opt mono">{{ selectedSerials().size | num }}</span></span>
+                      @if (trackingLoading()) {
+                        <div class="fld-help">{{ 'common.loading' | t }}</div>
+                      } @else if (transferSerials().length === 0) {
+                        <div class="fld-help">{{ 'warehouses.transfer.noSerials' | t }}</div>
+                      } @else {
+                        <div class="serial-list">
+                          @for (s of transferSerials(); track s.id) {
+                            <label class="check"><input type="checkbox" [checked]="selectedSerials().has(s.serial)" (change)="toggleSerial(s.serial)" /><span class="mono">{{ s.serial }}</span></label>
+                          }
+                        </div>
+                        <div class="fld-help">{{ 'warehouses.transfer.serialsHint' | t }}</div>
+                      }
+                    </div>
+                  }
 
-                <div class="form-field">
-                  <textarea id="trNote" formControlName="note" class="form-input" [class.has-value]="!!transferForm.get('note')?.value"></textarea>
-                  <label for="trNote" class="form-label">{{ 'warehouses.transfer.note' | t }}</label>
-                </div>
-                @if (needsDespatch()) {
-                  <div class="po-callout" style="margin-bottom: var(--space-3); font-size: var(--text-sm);">{{ 'warehouses.transfer.despatchRequired' | t }}</div>
-                  <div class="tr-desp-grid">
-                    <label class="tr-desp-field"><span>{{ 'despatches.actualDespatchAt' | t }}</span><input type="datetime-local" class="input" [(ngModel)]="despAt" [ngModelOptions]="{ standalone: true }" /></label>
-                    <label class="tr-desp-field"><span>{{ 'despatches.plate' | t }}</span><input class="input mono" maxlength="20" placeholder="34 ABC 123" [(ngModel)]="despPlate" [ngModelOptions]="{ standalone: true }" /></label>
-                    <label class="tr-desp-field"><span>{{ 'despatches.driverFirstName' | t }}</span><input class="input" [(ngModel)]="despFirst" [ngModelOptions]="{ standalone: true }" /></label>
-                    <label class="tr-desp-field"><span>{{ 'despatches.driverLastName' | t }}</span><input class="input" [(ngModel)]="despLast" [ngModelOptions]="{ standalone: true }" /></label>
-                    <label class="tr-desp-field"><span>{{ 'despatches.driverTckn' | t }}</span><input class="input mono" maxlength="11" inputmode="numeric" [(ngModel)]="despTckn" [ngModelOptions]="{ standalone: true }" /></label>
+                  <div class="fld">
+                    <label class="fld-label" for="trQty">{{ 'warehouses.transfer.quantity' | t }} <span class="req">*</span>
+                      @if (selectedTransferItem()) { <span class="wh-avail">{{ 'warehouses.transfer.available' | t: { qty: availableQty() } }}</span> }
+                    </label>
+                    <div class="field"><input id="trQty" type="text" inputmode="decimal" class="num" appQty [qtyDecimals]="transferDecimals()" formControlName="quantity" [readonly]="selectedTracking() === 'serial'" [attr.aria-invalid]="isTransferInvalid('quantity')" /></div>
+                    @if (isTransferInvalid('quantity')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'warehouses.transfer.quantityInvalid' | t: { max: availableQty() } }}</div> }
                   </div>
+
+                  <div class="fld">
+                    <label class="fld-label" for="trNote">{{ 'warehouses.transfer.note' | t }}</label>
+                    <div class="field has-area"><textarea id="trNote" formControlName="note" rows="3"></textarea></div>
+                  </div>
+                </section>
+                @if (needsDespatch()) {
+                  <section class="fsec">
+                    <div class="notice notice-warning"><app-icon name="warn" /><span class="t">{{ 'warehouses.transfer.despatchRequired' | t }}</span></div>
+                    <div class="grid-2">
+                      <div class="fld span-2">
+                        <label class="fld-label" for="trDespAt">{{ 'despatches.actualDespatchAt' | t }}</label>
+                        <div class="field"><input id="trDespAt" type="datetime-local" [(ngModel)]="despAt" [ngModelOptions]="{ standalone: true }" /></div>
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="trPlate">{{ 'despatches.plate' | t }}</label>
+                        <div class="field"><input id="trPlate" class="mono" maxlength="20" placeholder="34 ABC 123" [(ngModel)]="despPlate" [ngModelOptions]="{ standalone: true }" /></div>
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="trTckn">{{ 'despatches.driverTckn' | t }}</label>
+                        <div class="field"><input id="trTckn" class="mono" maxlength="11" inputmode="numeric" [(ngModel)]="despTckn" [ngModelOptions]="{ standalone: true }" /></div>
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="trFirst">{{ 'despatches.driverFirstName' | t }}</label>
+                        <div class="field"><input id="trFirst" [(ngModel)]="despFirst" [ngModelOptions]="{ standalone: true }" /></div>
+                      </div>
+                      <div class="fld">
+                        <label class="fld-label" for="trLast">{{ 'despatches.driverLastName' | t }}</label>
+                        <div class="field"><input id="trLast" [(ngModel)]="despLast" [ngModelOptions]="{ standalone: true }" /></div>
+                      </div>
+                    </div>
+                  </section>
                 }
               }
-              @if (transferError()) { <div class="form-error">{{ transferError() }}</div> }
+              @if (transferError()) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ transferError() }}</div> }
             </div>
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeTransfer()" [disabled]="isTransferring()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="transferForm.invalid || isTransferring() || transferItems().length === 0">
-                @if (isTransferring()) { <span class="spinner-sm spinner-light"></span> {{ 'warehouses.transfer.submitting' | t }} } @else { {{ 'warehouses.transfer.submit' | t }} }
-              </button>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-ghost" (click)="closeTransfer()" [disabled]="isTransferring()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isTransferring()" [disabled]="transferForm.invalid || isTransferring() || transferItems().length === 0"><span>{{ 'warehouses.transfer.submit' | t }}</span><kbd>Ctrl ↵</kbd></button>
             </div>
           </form>
         </div>
@@ -464,6 +545,8 @@ export class WarehousesComponent implements OnInit {
   editId = signal<string | null>(null);
  
   searchQuery = signal('');
+  /** Mobile row overflow menu (warehouse id). */
+  menuFor = signal<string | null>(null);
 
   totalWarehouseCount = computed(() => {
     return this.warehouses().length;
@@ -534,6 +617,14 @@ export class WarehousesComponent implements OnInit {
   isFieldInvalid(fieldName: string): boolean {
     const field = this.warehouseForm.get(fieldName);
     return field ? (field.invalid && (field.dirty || field.touched)) : false;
+  }
+
+  /** Esc closes the topmost drawer. */
+  onEscape() {
+    if (this.menuFor()) this.menuFor.set(null);
+    else if (this.transferSource()) this.closeTransfer();
+    else if (this.stockWarehouse()) this.closeStock();
+    else if (this.isDrawerOpen()) this.closeDrawer();
   }
 
   ngOnInit() {

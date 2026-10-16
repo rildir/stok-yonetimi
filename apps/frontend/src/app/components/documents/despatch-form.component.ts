@@ -8,6 +8,7 @@ import { Despatch } from '../../models/documents.models';
 import { Order, Product, Warehouse } from '../../models/inventory.models';
 import { isValidDriverTckn, isValidTrPlate, transferNeedsDespatch, PAPER_REASONS } from '@stok/tr-compliance';
 import { SpecialCategoryWarningComponent } from '../shared/special-category-warning.component';
+import { IconComponent } from '../shared/icon.component';
 
 interface FormLine {
   orderItemId?: string;
@@ -25,122 +26,153 @@ interface FormLine {
 @Component({
   selector: 'app-despatch-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe, SpecialCategoryWarningComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, NumberFormatPipe, SpecialCategoryWarningComponent, IconComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
-  styles: [`.drawer-overlay.stacked { z-index: 1150; }`],
+  styles: [`
+    .drawer-overlay.stacked { z-index: 1150; }
+    .notice > app-icon { color: var(--tone); }
+    .drawer-body.fbody { gap: 0; padding-top: 0; }
+    .fbody > .fsec:first-child { padding-top: 16px; }
+    .fbody > .notice { margin-top: 16px; align-items: flex-start; }
+    .fbody > .notice > app-icon { margin-top: 1px; }
+    .line-tbl td { padding-top: 6px; padding-bottom: 6px; }
+    .line-tbl .field { width: 100%; }
+    .line-tbl td.qty-cell { width: 124px; }
+    .line-tbl td.qty-cell .field { width: 112px; margin-left: auto; }
+    .line-tbl td.x-cell, .line-tbl th.x-cell { width: 40px; padding: 0 4px; text-align: right; }
+    .add-line { justify-self: start; }
+  `],
   template: `
-    <div class="drawer-overlay stacked" (click)="closed.emit()">
-      <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-        <div class="drawer-header">
-          <span class="drawer-title">{{ (order ? 'despatches.form.titleOrder' : 'despatches.form.title') | t }}</span>
-          <button type="button" class="drawer-close" (click)="closed.emit()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-        </div>
-        <div class="drawer-body">
-          @if (order) {
-            <div class="doc-alert info">{{ 'despatches.form.orderInfo' | t: { number: order.orderNumber, customer: order.customerName } }}</div>
-          } @else {
-            <div class="doc-field">
-              <label for="dfPurpose">{{ 'despatches.purposeLabel' | t }}</label>
-              <select id="dfPurpose" class="select" [(ngModel)]="purpose" [disabled]="lockPurpose">
-                @for (p of purposes; track p) { <option [value]="p">{{ 'despatches.purpose.' + p | t }}</option> }
-              </select>
-            </div>
-          }
-          <div class="doc-grid">
-            <div class="doc-field">
-              <label for="dfSource">{{ 'despatches.source' | t }}</label>
-              <select id="dfSource" class="select" [(ngModel)]="sourceWarehouseId">
-                @for (w of sourceWarehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
-              </select>
-            </div>
-            @if (!order && needsTarget()) {
-              <div class="doc-field">
-                <label for="dfTarget">{{ 'despatches.target' | t }}</label>
-                <select id="dfTarget" class="select" [(ngModel)]="targetWarehouseId">
-                  <option value="">{{ 'despatches.selectTarget' | t }}</option>
-                  @for (w of targetWarehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
-                </select>
-              </div>
-            }
-            <div class="doc-field">
-              <label for="dfAt">{{ 'despatches.actualDespatchAt' | t }}</label>
-              <input id="dfAt" type="datetime-local" class="input" [(ngModel)]="actualDespatchAt" />
-            </div>
+    <div class="drawer-overlay stacked" (click)="closed.emit()" (document:keydown.escape)="closed.emit()">
+      <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" [attr.aria-label]="(order ? 'despatches.form.titleOrder' : 'despatches.form.title') | t" (click)="$event.stopPropagation()">
+        <div class="drawer-h">
+          <div class="t">
+            <div class="eyebrow"><app-icon name="truck" size="sm" />{{ 'despatches.title' | t }}@if (order) { <span class="sep">/</span><span class="mono">{{ order.orderNumber }}</span> }</div>
+            <h2>{{ (order ? 'despatches.form.titleOrder' : 'despatches.form.title') | t }}</h2>
           </div>
-          @if (!order && purpose === 'TRANSFER' && sourceWarehouseId && targetWarehouseId && !sameSite()) {
-            <div class="doc-hint">{{ 'despatches.form.transferHint' | t }}</div>
+          <div class="tools">
+            <button type="button" class="drawer-close" (click)="closed.emit()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+          </div>
+        </div>
+        <div class="drawer-body fbody">
+          @if (order) {
+            <div class="notice notice-info"><app-icon name="info" /><span class="t">{{ 'despatches.form.orderInfo' | t: { number: order.orderNumber, customer: order.customerName } }}</span></div>
           }
 
-          <div class="doc-section">
-            <h4 class="doc-section-title">{{ 'despatches.lines' | t }}</h4>
-            <table class="doc-table">
-              <thead><tr><th>{{ 'despatches.product' | t }}</th>@if (order) {<th class="num">{{ 'despatches.remaining' | t }}</th>}<th class="num">{{ 'despatches.quantity' | t }}</th>@if (!order) {<th></th>}</tr></thead>
+          <section class="fsec">
+            <div class="fsec-h"><span class="n">1</span><h3>{{ 'documents.section.general' | t }}</h3></div>
+            @if (!order) {
+              <div class="fld">
+                <label class="fld-label" for="dfPurpose">{{ 'despatches.purposeLabel' | t }}</label>
+                <div class="field select"><select id="dfPurpose" [(ngModel)]="purpose" [disabled]="lockPurpose">
+                  @for (p of purposes; track p) { <option [value]="p">{{ 'despatches.purpose.' + p | t }}</option> }
+                </select></div>
+              </div>
+            }
+            <div class="grid-2">
+              <div class="fld">
+                <label class="fld-label" for="dfSource">{{ 'despatches.source' | t }}</label>
+                <div class="field select"><select id="dfSource" [(ngModel)]="sourceWarehouseId">
+                  @for (w of sourceWarehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+                </select></div>
+              </div>
+              @if (!order && needsTarget()) {
+                <div class="fld">
+                  <label class="fld-label" for="dfTarget">{{ 'despatches.target' | t }}</label>
+                  <div class="field select"><select id="dfTarget" [(ngModel)]="targetWarehouseId">
+                    <option value="">{{ 'despatches.selectTarget' | t }}</option>
+                    @for (w of targetWarehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+                  </select></div>
+                </div>
+              }
+              <div class="fld">
+                <label class="fld-label" for="dfAt">{{ 'despatches.actualDespatchAt' | t }}</label>
+                <div class="field"><input id="dfAt" type="datetime-local" [(ngModel)]="actualDespatchAt" /></div>
+              </div>
+            </div>
+            @if (!order && purpose === 'TRANSFER' && sourceWarehouseId && targetWarehouseId && !sameSite()) {
+              <div class="fld-help">{{ 'despatches.form.transferHint' | t }}</div>
+            }
+          </section>
+
+          <section class="fsec">
+            <div class="fsec-h"><span class="n">2</span><h3>{{ 'despatches.lines' | t }}</h3></div>
+            <table class="doc-table line-tbl">
+              <thead><tr><th>{{ 'despatches.product' | t }}</th>@if (order) {<th class="num">{{ 'despatches.remaining' | t }}</th>}<th class="num">{{ 'despatches.quantity' | t }}</th>@if (!order) {<th class="x-cell"><span class="sr-only">{{ 'common.delete' | t }}</span></th>}</tr></thead>
               <tbody>
                 @for (l of lines(); track $index) {
                   <tr>
                     <td>
                       @if (order) { {{ l.name }} } @else {
-                        <select class="select" [(ngModel)]="l.productId" [attr.aria-label]="'despatches.product' | t">
+                        <div class="field field-sm select"><select [(ngModel)]="l.productId" [attr.aria-label]="'despatches.product' | t">
                           <option value="">{{ 'despatches.selectProduct' | t }}</option>
                           @for (p of products; track p.id) { <option [value]="p.id">{{ p.name }} ({{ p.sku }})</option> }
-                        </select>
+                        </select></div>
                       }
                     </td>
                     @if (order) { <td class="num">{{ l.max | num }}</td> }
-                    <td class="num"><input type="number" min="0" step="any" class="input qty" [(ngModel)]="l.quantity" [attr.aria-label]="'despatches.quantity' | t" /></td>
-                    @if (!order) { <td><button type="button" class="btn btn-ghost btn-sm" (click)="removeLine($index)" [attr.aria-label]="'common.delete' | t">✕</button></td> }
+                    <td class="num qty-cell"><div class="field field-sm"><input type="number" min="0" step="any" class="num" [(ngModel)]="l.quantity" [attr.aria-label]="'despatches.quantity' | t" /></div></td>
+                    @if (!order) { <td class="x-cell"><button type="button" class="btn btn-ghost btn-xs btn-icon" (click)="removeLine($index)" [attr.aria-label]="'common.delete' | t"><app-icon name="x" size="sm" /></button></td> }
                   </tr>
                 }
               </tbody>
             </table>
-            @if (!order) { <button type="button" class="btn btn-secondary btn-sm" style="margin-top: var(--space-2)" (click)="addLine()">{{ 'despatches.addLine' | t }}</button> }
-          </div>
+            @if (!order) { <button type="button" class="btn btn-subtle btn-sm add-line" (click)="addLine()"><app-icon name="plus" size="sm" />{{ 'despatches.addLine' | t }}</button> }
+          </section>
 
-          <div class="doc-section">
-            <h4 class="doc-section-title">{{ 'despatches.transport' | t }}</h4>
-            <div class="doc-grid">
-              <div class="doc-field"><label for="dfCarrier">{{ 'despatches.carrier' | t }}</label><input id="dfCarrier" class="input" [(ngModel)]="carrierName" /></div>
-              <div class="doc-field"><label for="dfCarrierVkn">{{ 'despatches.carrierTaxId' | t }}</label><input id="dfCarrierVkn" class="input mono" maxlength="11" [(ngModel)]="carrierTaxId" /></div>
-              <div class="doc-field"><label for="dfDrvFirst">{{ 'despatches.driverFirstName' | t }}</label><input id="dfDrvFirst" class="input" [(ngModel)]="driverFirst" /></div>
-              <div class="doc-field"><label for="dfDrvLast">{{ 'despatches.driverLastName' | t }}</label><input id="dfDrvLast" class="input" [(ngModel)]="driverLast" /></div>
-              <div class="doc-field">
-                <label for="dfTckn">{{ 'despatches.driverTckn' | t }}</label>
-                <input id="dfTckn" class="input mono" maxlength="11" inputmode="numeric" [(ngModel)]="driverTckn" />
-                @if (driverTckn && !tcknOk()) { <span class="form-error">{{ 'despatches.driverTcknInvalid' | t }}</span> }
+          <section class="fsec">
+            <div class="fsec-h"><span class="n">3</span><h3>{{ 'despatches.transport' | t }}</h3></div>
+            <div class="grid-2">
+              <div class="fld"><label class="fld-label" for="dfCarrier">{{ 'despatches.carrier' | t }}</label><div class="field"><input id="dfCarrier" [(ngModel)]="carrierName" /></div></div>
+              <div class="fld"><label class="fld-label" for="dfCarrierVkn">{{ 'despatches.carrierTaxId' | t }}</label><div class="field"><input id="dfCarrierVkn" class="mono" maxlength="11" inputmode="numeric" [(ngModel)]="carrierTaxId" /></div></div>
+              <div class="fld"><label class="fld-label" for="dfDrvFirst">{{ 'despatches.driverFirstName' | t }}</label><div class="field"><input id="dfDrvFirst" [(ngModel)]="driverFirst" /></div></div>
+              <div class="fld"><label class="fld-label" for="dfDrvLast">{{ 'despatches.driverLastName' | t }}</label><div class="field"><input id="dfDrvLast" [(ngModel)]="driverLast" /></div></div>
+              <div class="fld">
+                <label class="fld-label" for="dfTckn">{{ 'despatches.driverTckn' | t }}</label>
+                <div class="field"><input id="dfTckn" class="mono" maxlength="11" inputmode="numeric" [(ngModel)]="driverTckn" [attr.aria-invalid]="!!driverTckn && !tcknOk()" aria-describedby="dfTcknErr" /></div>
+                @if (driverTckn && !tcknOk()) { <div class="fld-error" id="dfTcknErr"><app-icon name="alert" size="sm" />{{ 'despatches.driverTcknInvalid' | t }}</div> }
               </div>
-              <div class="doc-field">
-                <label for="dfPlate">{{ 'despatches.plate' | t }}</label>
-                <input id="dfPlate" class="input mono" maxlength="20" [(ngModel)]="plate" placeholder="34 ABC 123" />
-                @if (plate && !plateOk()) { <span class="form-error">{{ 'despatches.plateInvalid' | t }}</span> }
+              <div class="fld">
+                <label class="fld-label" for="dfPlate">{{ 'despatches.plate' | t }}</label>
+                <div class="field"><input id="dfPlate" class="mono" maxlength="20" [(ngModel)]="plate" placeholder="34 ABC 123" [attr.aria-invalid]="!!plate && !plateOk()" aria-describedby="dfPlateErr" /></div>
+                @if (plate && !plateOk()) { <div class="fld-error" id="dfPlateErr"><app-icon name="alert" size="sm" />{{ 'despatches.plateInvalid' | t }}</div> }
               </div>
-              <div class="doc-field"><label for="dfTrailer">{{ 'despatches.trailerPlate' | t }}</label><input id="dfTrailer" class="input mono" maxlength="20" [(ngModel)]="trailer" /></div>
+              <div class="fld"><label class="fld-label" for="dfTrailer">{{ 'despatches.trailerPlate' | t }}</label><div class="field"><input id="dfTrailer" class="mono" maxlength="20" [(ngModel)]="trailer" /></div></div>
             </div>
-          </div>
+          </section>
 
           @if (eDocumentMode === 'PROVIDER') {
-            <div class="doc-section">
-              <label class="doc-check"><input type="checkbox" [(ngModel)]="matbudan" /> {{ 'despatches.matbudan' | t }}</label>
+            <section class="fsec">
+              <div class="fsec-h"><span class="n">4</span><h3>{{ 'documents.section.paper' | t }}</h3></div>
+              <label class="check"><input type="checkbox" [(ngModel)]="matbudan" />{{ 'despatches.matbudan' | t }}</label>
               @if (matbudan) {
-                <div class="doc-grid-3" style="margin-top: var(--space-2)">
-                  <div class="doc-field"><label for="dfPaperNo">{{ 'despatches.paperNo' | t }}</label><input id="dfPaperNo" class="input mono" [(ngModel)]="paperNo" /></div>
-                  <div class="doc-field"><label for="dfPaperDate">{{ 'despatches.paperDate' | t }}</label><input id="dfPaperDate" type="date" class="input" [(ngModel)]="paperDate" /></div>
-                  <div class="doc-field"><label for="dfPaperReason">{{ 'despatches.paperReason' | t }}</label>
-                    <select id="dfPaperReason" class="select" [(ngModel)]="paperReason">@for (r of paperReasons; track r) { <option [value]="r">{{ 'despatches.paperReasons.' + r | t }}</option> }</select>
+                <div class="grid-3">
+                  <div class="fld"><label class="fld-label" for="dfPaperNo">{{ 'despatches.paperNo' | t }}</label><div class="field"><input id="dfPaperNo" class="mono" [(ngModel)]="paperNo" /></div></div>
+                  <div class="fld"><label class="fld-label" for="dfPaperDate">{{ 'despatches.paperDate' | t }}</label><div class="field"><input id="dfPaperDate" type="date" [(ngModel)]="paperDate" /></div></div>
+                  <div class="fld"><label class="fld-label" for="dfPaperReason">{{ 'despatches.paperReason' | t }}</label>
+                    <div class="field select"><select id="dfPaperReason" [(ngModel)]="paperReason">@for (r of paperReasons; track r) { <option [value]="r">{{ 'despatches.paperReasons.' + r | t }}</option> }</select></div>
                   </div>
                 </div>
               }
-            </div>
+            </section>
           }
 
-          <div class="doc-field doc-section"><label for="dfNote">{{ 'despatches.note' | t }}</label><textarea id="dfNote" class="textarea" rows="2" [(ngModel)]="note"></textarea><app-special-category-warning [text]="note" /></div>
-          <div class="doc-hint">{{ 'despatches.form.approveHint' | t }}</div>
-          @if (error()) { <div class="doc-alert danger" style="margin-top: var(--space-3)">{{ error() }}</div> }
+          <section class="fsec">
+            <div class="fsec-h"><span class="n">{{ eDocumentMode === 'PROVIDER' ? 5 : 4 }}</span><h3>{{ 'documents.section.note' | t }}</h3></div>
+            <div class="fld">
+              <label class="fld-label" for="dfNote">{{ 'despatches.note' | t }}</label>
+              <div class="field has-area"><textarea id="dfNote" rows="2" [(ngModel)]="note"></textarea></div>
+              <app-special-category-warning [text]="note" />
+              <div class="fld-help">{{ 'despatches.form.approveHint' | t }}</div>
+            </div>
+          </section>
+          @if (error()) { <div class="notice notice-danger"><app-icon name="alert" /><span class="t">{{ error() }}</span></div> }
         </div>
         <div class="drawer-footer">
-          <button type="button" class="btn btn-secondary" (click)="submit(false)" [disabled]="saving()">{{ 'despatches.saveDraft' | t }}</button>
-          <button type="button" class="btn btn-primary" (click)="submit(true)" [disabled]="saving()">
-            @if (saving()) { <span class="spinner-sm spinner-light"></span> } {{ 'despatches.saveApprove' | t }}
-          </button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-ghost" (click)="closed.emit()">{{ 'common.cancel' | t }}</button>
+          <button type="button" class="btn" (click)="submit(false)" [disabled]="saving()">{{ 'despatches.saveDraft' | t }}</button>
+          <button type="button" class="btn btn-primary" [class.is-loading]="saving()" (click)="submit(true)" [disabled]="saving()"><span>{{ 'despatches.saveApprove' | t }}</span><kbd>Ctrl ↵</kbd></button>
         </div>
       </div>
     </div>

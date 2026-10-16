@@ -205,5 +205,10 @@
   "accounting.disposal.addLine": "Add line",
   "accounting.disposal.create": "Create file",
   "accounting.disposal.created": "Disposal file {no} created.",
-  "accounting.disposal.updated": "Disposal file updated."
+  "accounting.disposal.updated": "Disposal file updated.",
+  "accounting.disposal.lineCount": "{n} lines",
+  "accounting.disposal.lineCountOne": "{n} line",
+  "accounting.disposal.pickWarehouse": "Select warehouse",
+  "accounting.disposal.pickLot": "Select lot",
+  "accounting.disposal.pickProduct": "Select product"
 }

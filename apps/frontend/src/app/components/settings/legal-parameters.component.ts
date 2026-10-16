@@ -4,95 +4,125 @@ import { ComplianceService } from '../../services/compliance.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { LegalParameter } from '../../models/inventory.models';
 import { AppDatePipe, I18nService, TranslatePipe } from '../../i18n';
+import { IconComponent } from '../shared/icon.component';
 
 /** Settings > Legal parameters (platform super admin): versioned thresholds with legal source. */
 @Component({
   selector: 'app-legal-parameters',
   standalone: true,
-  imports: [ReactiveFormsModule, TranslatePipe, AppDatePipe],
+  imports: [ReactiveFormsModule, TranslatePipe, AppDatePipe, IconComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .lp-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
-    .lp-wide { grid-column: span 3; }
-    .lp-actions { grid-column: span 3; display: flex; justify-content: flex-end; }
-    .lp-value { font-family: var(--font-mono); font-size: var(--text-xs); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .lp-source { font-size: var(--text-xs); color: var(--color-text-muted); max-width: 320px; }
-    .lp-filter { max-width: 280px; margin-bottom: var(--space-3); }
-    @media (max-width: 900px) { .lp-form { grid-template-columns: 1fr; } .lp-wide, .lp-actions { grid-column: auto; } }
+    :host { display: block; }
+    .card-h.sh { padding-block: 12px; min-height: 56px; flex-wrap: wrap; row-gap: 8px; }
+    .sh .hg { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .sh .hg p { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .inline-form { display: flex; flex-direction: column; gap: 14px; box-shadow: inset 0 -1px 0 var(--line); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 14px; align-items: start; }
+    .stack-20 { display: flex; flex-direction: column; gap: 20px; }
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .grid-4 { grid-template-columns: minmax(0, 1fr); } }
+    .lp-wide { grid-column: span 2; }
+    .lp-tbl td { vertical-align: top; padding-top: 9px; padding-bottom: 9px; height: auto; line-height: 18px; }
+    .lp-p { min-width: 0; white-space: normal; }
+    .lp-p b { font-weight: 500; }
+    .lp-p .cell-code { margin-left: 6px; white-space: nowrap; }
+    .lp-src { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 2px; font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); }
+    .lp-value { display: block; max-width: 220px; white-space: normal; overflow-wrap: anywhere; }
+    .lp-nw { white-space: nowrap; }
+    .w-val { width: 200px; }
+    .w-valid { width: 1%; }
+    .w-conf { width: 1%; }
+    .toolbar { padding: 10px 16px; box-shadow: inset 0 -1px 0 var(--line); }
+    .toolbar .field { width: 280px; max-width: 100%; }
+    @media (max-width: 640px) { .lp-wide { grid-column: auto; } .toolbar .field { width: 100%; flex: 1; } }
   `],
   template: `
-    <div class="settings-card settings-card-lg">
-      <h3 class="card-title">{{ 'settings.legalParams.title' | t }}</h3>
-      <p class="card-subtitle settings-card-sub">{{ 'settings.legalParams.subtitle' | t }}</p>
 
-      <form class="lp-form" [formGroup]="form" (ngSubmit)="save()">
-        <div class="form-field">
-          <input id="lpKey" type="text" list="lpKeys" formControlName="key" class="form-input mono" />
-          <datalist id="lpKeys">@for (k of keys(); track k) { <option [value]="k"></option> }</datalist>
-          <label for="lpKey" class="form-label">{{ 'settings.legalParams.key' | t }}</label>
+    <section class="card">
+      <div class="card-h sh">
+        <div class="hg"><h3>{{ 'settings.legalParams.title' | t }}</h3><p>{{ 'settings.legalParams.subtitle' | t }}</p></div>
+      </div>
+
+      <form class="card-b inline-form" [formGroup]="form" (ngSubmit)="save()">
+        <div class="grid-4">
+          <div class="fld">
+            <label class="fld-label" for="lpKey">{{ 'settings.legalParams.key' | t }}</label>
+            <div class="field"><input id="lpKey" type="text" list="lpKeys" formControlName="key" class="mono" /></div>
+            <datalist id="lpKeys">@for (k of keys(); track k) { <option [value]="k"></option> }</datalist>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="lpFrom">{{ 'settings.legalParams.validFrom' | t }}</label>
+            <div class="field"><input id="lpFrom" type="date" formControlName="validFrom" /></div>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="lpTo">{{ 'settings.legalParams.validTo' | t }}</label>
+            <div class="field"><input id="lpTo" type="date" formControlName="validTo" /></div>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="lpValue">{{ 'settings.legalParams.value' | t }}</label>
+            <div class="field" [class.is-error]="valueError()"><input id="lpValue" type="text" formControlName="value" class="mono" placeholder="15000" /></div>
+            @if (valueError()) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'settings.legalParams.valueInvalid' | t }}</div> }
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="lpConf">{{ 'settings.legalParams.confidenceLabel' | t }}</label>
+            <div class="field select"><select id="lpConf" formControlName="confidence">
+              @for (c of ['high', 'medium', 'low']; track c) { <option [value]="c">{{ 'settings.legalParams.confidence.' + c | t }}</option> }
+            </select></div>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="lpNote">{{ 'settings.legalParams.note' | t }}</label>
+            <div class="field"><input id="lpNote" type="text" formControlName="note" maxlength="500" /></div>
+          </div>
+          <div class="fld lp-wide">
+            <label class="fld-label" for="lpSource">{{ 'settings.legalParams.sourceRef' | t }}</label>
+            <div class="field"><input id="lpSource" type="text" formControlName="sourceRef" maxlength="255" [placeholder]="'settings.legalParams.sourcePh' | t" /></div>
+          </div>
         </div>
-        <div class="form-field">
-          <input id="lpFrom" type="date" formControlName="validFrom" class="form-input" />
-          <label for="lpFrom" class="form-label">{{ 'settings.legalParams.validFrom' | t }}</label>
-        </div>
-        <div class="form-field">
-          <input id="lpTo" type="date" formControlName="validTo" class="form-input" />
-          <label for="lpTo" class="form-label">{{ 'settings.legalParams.validTo' | t }}</label>
-        </div>
-        <div class="form-field">
-          <input id="lpValue" type="text" formControlName="value" class="form-input mono" placeholder="15000" />
-          <label for="lpValue" class="form-label">{{ 'settings.legalParams.value' | t }}</label>
-          @if (valueError()) { <div class="form-error">{{ 'settings.legalParams.valueInvalid' | t }}</div> }
-        </div>
-        <div class="form-field">
-          <select id="lpConf" formControlName="confidence" class="form-input has-value">
-            @for (c of ['high', 'medium', 'low']; track c) { <option [value]="c">{{ 'settings.legalParams.confidence.' + c | t }}</option> }
-          </select>
-          <label for="lpConf" class="form-label">{{ 'settings.legalParams.confidenceLabel' | t }}</label>
-        </div>
-        <div class="form-field">
-          <input id="lpNote" type="text" formControlName="note" class="form-input" maxlength="500" />
-          <label for="lpNote" class="form-label">{{ 'settings.legalParams.note' | t }}</label>
-        </div>
-        <div class="form-field lp-wide">
-          <input id="lpSource" type="text" formControlName="sourceRef" class="form-input" maxlength="255" [placeholder]="'settings.legalParams.sourcePh' | t" />
-          <label for="lpSource" class="form-label">{{ 'settings.legalParams.sourceRef' | t }}</label>
-        </div>
-        <div class="lp-actions">
-          <button type="submit" class="btn btn-primary" [disabled]="form.invalid || saving()">{{ 'settings.legalParams.add' | t }}</button>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [class.is-loading]="saving()" [disabled]="form.invalid || saving()"><app-icon name="plus" /><span>{{ 'settings.legalParams.add' | t }}</span></button>
         </div>
       </form>
 
-      <input type="search" class="form-input lp-filter" [placeholder]="'common.search' | t" [value]="filter()" (input)="filter.set($any($event.target).value)" />
-      <div class="table-scroll settings-table">
-        <table class="table-responsive">
+      <div class="toolbar">
+        <div class="field field-sm">
+          <span class="lead"><app-icon name="search" size="sm" /></span>
+          <input type="search" data-page-search [placeholder]="'common.search' | t" [value]="filter()" (input)="filter.set($any($event.target).value)" />
+          <span class="trail"><kbd>/</kbd></span>
+        </div>
+        <span class="spacer"></span>
+        <span class="tag">{{ filtered().length }}</span>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl table-responsive lp-tbl">
           <thead>
             <tr>
-              <th>{{ 'settings.legalParams.key' | t }}</th>
-              <th>{{ 'settings.legalParams.validFrom' | t }}</th>
-              <th>{{ 'settings.legalParams.validTo' | t }}</th>
-              <th>{{ 'settings.legalParams.value' | t }}</th>
-              <th>{{ 'settings.legalParams.sourceRef' | t }}</th>
-              <th>{{ 'settings.legalParams.confidenceLabel' | t }}</th>
+              <th>{{ 'settings.legalParams.parameter' | t }}</th>
+              <th class="w-val">{{ 'settings.legalParams.value' | t }}</th>
+              <th class="w-valid">{{ 'settings.legalParams.validity' | t }}</th>
+              <th class="w-conf">{{ 'settings.legalParams.confidenceLabel' | t }}</th>
             </tr>
           </thead>
           <tbody>
             @for (p of filtered(); track p.id) {
               <tr>
-                <td class="mono" [attr.data-label]="'settings.legalParams.key' | t">{{ p.key }}</td>
-                <td [attr.data-label]="'settings.legalParams.validFrom' | t">{{ p.validFrom | appDate }}</td>
-                <td [attr.data-label]="'settings.legalParams.validTo' | t">{{ p.validTo ? (p.validTo | appDate) : ('settings.legalParams.openEnded' | t) }}</td>
-                <td [attr.data-label]="'settings.legalParams.value' | t"><div class="lp-value" [title]="json(p.value)">{{ json(p.value) }}</div></td>
-                <td [attr.data-label]="'settings.legalParams.sourceRef' | t"><div class="lp-source">{{ p.sourceRef }}@if (p.note) { <br />{{ p.note }} }</div></td>
-                <td [attr.data-label]="'settings.legalParams.confidenceLabel' | t">
-                  <span class="badge" [class.badge-success]="p.confidence === 'high'" [class.badge-warning]="p.confidence === 'medium'" [class.badge-danger]="p.confidence === 'low'">{{ 'settings.legalParams.confidence.' + p.confidence | t }}</span>
+                <td class="td-primary lp-p">
+                  <b>{{ label(p.key) }}</b><span class="cell-code">{{ p.key }}</span>
+                  <span class="lp-src" [attr.title]="p.sourceRef + (p.note ? ' · ' + p.note : '')">{{ p.sourceRef }}@if (p.note) { · {{ p.note }} }</span>
+                </td>
+                <td [attr.data-label]="'settings.legalParams.value' | t"><span class="lp-value" [attr.title]="json(p.value)">{{ display(p.value) }}</span></td>
+                <td class="lp-nw" [attr.data-label]="'settings.legalParams.validity' | t">{{ p.validFrom | appDate }} – @if (p.validTo) { {{ p.validTo | appDate }} } @else { <span class="text-muted">{{ 'settings.legalParams.openEnded' | t }}</span> }</td>
+                <td class="lp-nw" [attr.data-label]="'settings.legalParams.confidenceLabel' | t">
+                  <span class="badge" [class.badge-success]="p.confidence === 'high'" [class.badge-warning]="p.confidence === 'medium'" [class.badge-danger]="p.confidence === 'low'"><span class="dot"></span>{{ 'settings.legalParams.confidence.' + p.confidence | t }}</span>
                 </td>
               </tr>
             }
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   `,
 })
 export class LegalParametersComponent implements OnInit {
@@ -131,6 +161,35 @@ export class LegalParametersComponent implements OnInit {
 
   json(v: unknown): string {
     return typeof v === 'string' ? v : JSON.stringify(v);
+  }
+
+  /** Readable name for a parameter key (dictionary label, else the key in sentence case). */
+  label(key: string): string {
+    const k = 'settings.legalParams.label.' + key;
+    if (this.i18n.has(k)) return this.i18n.t(k);
+    const s = key.toLowerCase().replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  /** Human-readable value: numbers / dates localised, small objects as "a: 1 · b: 2", lists joined or counted. */
+  display(v: unknown): string {
+    const scalar = (x: unknown): string | null => {
+      if (x === null || x === undefined) return '—';
+      if (typeof x === 'number') return this.i18n.formatNumber(x);
+      if (typeof x === 'boolean') return this.i18n.t(x ? 'common.yes' : 'common.no');
+      if (typeof x === 'string') return /^\d{4}-\d{2}-\d{2}$/.test(x) ? this.i18n.formatDate(x) : x;
+      return null;
+    };
+    const s = scalar(v);
+    if (s !== null) return s;
+    if (Array.isArray(v)) {
+      if (!v.length) return this.i18n.t('settings.legalParams.emptyList');
+      const parts = v.map(scalar);
+      return parts.every((x) => x !== null) && v.length <= 6 ? parts.join(', ') : this.i18n.t('settings.legalParams.items', { n: v.length });
+    }
+    const entries = Object.entries(v as Record<string, unknown>);
+    const parts = entries.map(([k, x]) => [k, scalar(x)] as const);
+    return parts.every(([, x]) => x !== null) && entries.length <= 4 ? parts.map(([k, x]) => `${k}: ${x}`).join(' · ') : this.i18n.t('settings.legalParams.items', { n: entries.length });
   }
 
   /** Numbers / JSON are parsed; anything else is stored as a string. */

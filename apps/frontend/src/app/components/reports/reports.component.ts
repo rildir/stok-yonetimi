@@ -6,147 +6,158 @@ import { UiStateService } from '../../services/ui-state.service';
 import { ActivatedRoute } from '@angular/router';
 import { ExpiringLot } from '../../models/inventory.models';
 import { Chart } from 'chart.js/auto';
-import { applyChartDefaults, withAlpha } from '../../utils/chart-theme';
-import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe } from '../../i18n';
+import { applyChartDefaults, withAlpha, PRECISION_BAR, precisionScale, ChartTokens } from '../../utils/chart-theme';
+import { AppStateService } from '../../services/app-state.service';
+import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe } from '../../i18n';
 import { LegalReportsComponent } from './legal-reports.component';
+import { IconComponent } from '../shared/icon.component';
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, MoneyPipe, NumberFormatPipe, LegalReportsComponent],
+  host: { '(document:click)': 'moreOpen.set(false)', '(document:keydown.escape)': 'moreOpen.set(false)' },
+  imports: [CommonModule, FormsModule, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, LegalReportsComponent, IconComponent],
   template: `
     <div class="page-header">
       <div>
         <h1>{{ 'reports.title' | t }}</h1>
         <p>{{ 'reports.subtitle' | t }}</p>
-        <p class="base-note">{{ 'reports.baseCurrencyNote' | t: { currency: i18n.currency() } }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" (click)="exportToCsv()" [disabled]="isLoading()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
-          {{ 'reports.downloadCsv' | t }}
+        <button type="button" class="btn rep-wide" (click)="exportToCsv()" [disabled]="isLoading()">
+          <app-icon name="download" />{{ 'reports.downloadCsv' | t }}
         </button>
+        <span class="rep-more">
+          <button type="button" class="btn btn-icon" [class.is-active]="moreOpen()" aria-haspopup="menu" [attr.aria-expanded]="moreOpen()" [attr.aria-label]="'reports.moreActions' | t" (click)="moreOpen.set(!moreOpen()); $event.stopPropagation()"><app-icon name="more" /></button>
+          @if (moreOpen()) {
+            <div class="pop rep-more-pop" role="menu">
+              <button type="button" class="menu-i" role="menuitem" [disabled]="isLoading()" (click)="moreOpen.set(false); exportToCsv()"><app-icon name="download" />{{ 'reports.downloadCsv' | t }}</button>
+            </div>
+          }
+        </span>
       </div>
     </div>
 
-    <nav class="tabs" role="tablist" style="margin-bottom: var(--space-4);">
-      <button type="button" class="tab" role="tab" [class.active]="view() === 'analytics'" [attr.aria-selected]="view() === 'analytics'" (click)="view.set('analytics')">{{ 'reports.tab.analytics' | t }}</button>
+    <nav class="tabs rep-tabs" role="tablist">
+      <button type="button" class="tab" role="tab" [class.active]="view() === 'analytics'" [attr.aria-selected]="view() === 'analytics'" (click)="view.set('analytics')"><span>{{ 'reports.tab.analytics' | t }}</span></button>
       @if (canSeeLegal()) {
-        <button type="button" class="tab" role="tab" [class.active]="view() === 'legal'" [attr.aria-selected]="view() === 'legal'" (click)="view.set('legal')">{{ 'reports.tab.legal' | t }}</button>
+        <button type="button" class="tab" role="tab" [class.active]="view() === 'legal'" [attr.aria-selected]="view() === 'legal'" (click)="view.set('legal')"><span>{{ 'reports.tab.legal' | t }}</span></button>
       }
     </nav>
     @if (view() === 'legal' && canSeeLegal()) { <app-legal-reports></app-legal-reports> }
     <div class="rep" [hidden]="view() === 'legal'">
       <!-- Filters -->
-      <div class="filter-bar">
-        <span class="filter-label">{{ 'reports.dateRange' | t }}</span>
-        <div class="date-range">
-          <input type="date" class="input" [(ngModel)]="startDate" [title]="'reports.startDate' | t" />
-          <span class="text-muted">–</span>
-          <input type="date" class="input" [(ngModel)]="endDate" [title]="'reports.endDate' | t" />
+      <div class="toolbar rep-toolbar">
+        <div class="field field-sm date-f">
+          <input type="date" [(ngModel)]="startDate" [title]="'reports.startDate' | t" [attr.aria-label]="'reports.startDate' | t" />
         </div>
-        <div class="cluster">
-          @if (startDate || endDate) {
-            <button class="btn btn-ghost" (click)="clearFilters()">{{ 'reports.clearFilters' | t }}</button>
-          }
-          <button class="btn btn-secondary" (click)="loadReports()">{{ 'reports.apply' | t }}</button>
+        <span class="range-sep" aria-hidden="true">–</span>
+        <div class="field field-sm date-f">
+          <input type="date" [(ngModel)]="endDate" [title]="'reports.endDate' | t" [attr.aria-label]="'reports.endDate' | t" />
         </div>
+        <button type="button" class="btn btn-sm" (click)="loadReports()">{{ 'reports.apply' | t }}</button>
+        @if (startDate || endDate) {
+          <button type="button" class="btn btn-ghost btn-sm" (click)="clearFilters()"><app-icon name="x" size="sm" />{{ 'reports.clearFilters' | t }}</button>
+        }
+        <span class="spacer"></span>
+        <span class="base-note"><app-icon name="info" size="sm" />{{ 'reports.baseCurrencyNote' | t: { currency: baseCurrency() } }}</span>
       </div>
 
       @if (isLoading()) {
         <div class="kpi-grid">
           @for (i of [1, 2, 3]; track i) {
-            <div class="stat-card sk-card"><div class="skeleton-title"></div><div class="skeleton-text short"></div></div>
+            <div class="kpi sk-kpi"><div class="skeleton-text short"></div><div class="skeleton-title"></div><div class="skeleton-text"></div></div>
           }
         </div>
         <div class="grid-12">
-          <div class="card col-span-6 sk-chart"><div class="skeleton-title"></div><div class="skeleton fill"></div></div>
-          <div class="card col-span-6 sk-chart"><div class="skeleton-title"></div><div class="skeleton fill"></div></div>
+          <div class="card col-span-6 sk-chart"><div class="card-h"><div class="skeleton-title"></div></div><div class="card-b sk-fill"><div class="skeleton"></div></div></div>
+          <div class="card col-span-6 sk-chart"><div class="card-h"><div class="skeleton-title"></div></div><div class="card-b sk-fill"><div class="skeleton"></div></div></div>
         </div>
-        <p class="text-muted calc">{{ 'reports.calculating' | t }}</p>
+        <p class="calc" role="status"><span class="spinner-sm"></span>{{ 'reports.calculating' | t }}</p>
       } @else {
         <!-- Summary KPIs -->
         <div class="kpi-grid">
-          <div class="stat-card">
-            <div class="stat-icon-box revenue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-            </div>
-            <div class="kpi-body">
-              <span class="stat-label">{{ 'reports.totalIn' | t }}</span>
-              <div class="stat-value good">+{{ summary().totalIn | num }}</div>
-              <div class="kpi-meta">{{ 'reports.totalInDesc' | t }}</div>
-            </div>
+          <div class="kpi">
+            <div class="kpi-top"><app-icon name="up" size="sm" class="tone-in" />{{ 'reports.totalIn' | t }}</div>
+            <div class="kpi-val"><b>+{{ summary().totalIn | num }}</b></div>
+            <div class="kpi-foot"><span>{{ 'reports.totalInDesc' | t }}</span></div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon-box outstock">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
-            </div>
-            <div class="kpi-body">
-              <span class="stat-label">{{ 'reports.totalOut' | t }}</span>
-              <div class="stat-value out">-{{ summary().totalOut | num }}</div>
-              <div class="kpi-meta">{{ 'reports.totalOutDesc' | t }}</div>
-            </div>
+          <div class="kpi">
+            <div class="kpi-top"><app-icon name="down" size="sm" class="tone-out" />{{ 'reports.totalOut' | t }}</div>
+            <div class="kpi-val"><b>-{{ summary().totalOut | num }}</b></div>
+            <div class="kpi-foot"><span>{{ 'reports.totalOutDesc' | t }}</span></div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon-box products">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+          <div class="kpi">
+            <div class="kpi-top"><app-icon name="swap" size="sm" />{{ 'reports.netChange' | t }}</div>
+            <div class="kpi-val">
+              <b>{{ summary().netChange > 0 ? '+' : '' }}{{ summary().netChange | num }}</b>
+              @if (summary().netChange !== 0) {
+                <span class="delta" [class.up]="summary().netChange > 0" [class.down]="summary().netChange < 0"><app-icon [name]="summary().netChange > 0 ? 'up' : 'down'" size="xs" /></span>
+              }
             </div>
-            <div class="kpi-body">
-              <span class="stat-label">{{ 'reports.netChange' | t }}</span>
-              <div class="stat-value" [class.good]="summary().netChange > 0" [class.out]="summary().netChange < 0">
-                {{ summary().netChange > 0 ? '+' : '' }}{{ summary().netChange | num }}
-              </div>
-              <div class="kpi-meta">{{ 'reports.netChangeDesc' | t }}</div>
-            </div>
+            <div class="kpi-foot"><span>{{ 'reports.netChangeDesc' | t }}</span></div>
           </div>
         </div>
 
         <!-- Charts -->
         <div class="grid-12">
           <section class="card col-span-6">
-            <div>
-              <h3 class="card-title">{{ 'reports.categoryChartTitle' | t }}</h3>
-              <p class="card-subtitle">{{ 'reports.categoryChartDesc' | t }}</p>
+            <div class="card-h ch2">
+              <div class="ht"><h3>{{ 'reports.categoryChartTitle' | t }}</h3><span class="sub">{{ 'reports.categoryChartDesc' | t }}</span></div>
+            </div>
+            <div class="chart-sum">
+              <div><span>{{ 'reports.chartSum.totalValue' | t }}</span><b>{{ categoryTotal() | money: baseCurrency() }}</b></div>
+              <div><span>{{ 'reports.chartSum.categories' | t }}</span><b>{{ categoriesDistribution().length | num }}</b></div>
             </div>
             <div class="chart-container"><canvas #catChart></canvas></div>
           </section>
           <section class="card col-span-6">
-            <div>
-              <h3 class="card-title">{{ 'reports.topChartTitle' | t }}</h3>
-              <p class="card-subtitle">{{ 'reports.topChartDesc' | t }}</p>
+            <div class="card-h ch2">
+              <div class="ht"><h3>{{ 'reports.topChartTitle' | t }}</h3><span class="sub">{{ 'reports.topChartDesc' | t }}</span></div>
+              <span class="spacer"></span>
+              <div class="legend"><span><i class="c1"></i>{{ 'reports.salesQty' | t }}</span></div>
             </div>
-            <div class="chart-container"><canvas #topChart></canvas></div>
+            <div class="chart-sum">
+              <div><span>{{ 'reports.chartSum.totalQty' | t }}</span><b>{{ topTotal() | num }}</b></div>
+              <div><span>{{ 'reports.chartSum.products' | t }}</span><b>{{ topSelling().length | num }}</b></div>
+            </div>
+            @if (topSelling().length) {
+              <div class="chart-container"><canvas #topChart></canvas></div>
+            } @else {
+              <div class="chart-container chart-empty"><div class="empty-state"><div class="empty-art"><app-icon name="bars" /></div><p>{{ 'reports.topChartEmpty' | t }}</p></div></div>
+            }
           </section>
 
           <!-- Product movements -->
-          <section class="table-card col-span-6">
-            <div class="tc-head">
-              <h3 class="card-title">{{ 'reports.movementsTitle' | t }}</h3>
-              <p class="card-subtitle">{{ 'reports.movementsDesc' | t }}</p>
+          <section class="card col-span-6">
+            <div class="card-h ch2">
+              <div class="ht"><h3>{{ 'reports.movementsTitle' | t }}</h3><span class="sub">{{ 'reports.movementsDesc' | t }}</span></div>
+              <span class="spacer"></span>
+              @if (productMovements().length) { <span class="badge badge-neutral">{{ productMovements().length | num }}</span> }
             </div>
             <div class="table-scroll capped">
-              <table class="table-responsive">
+              <table class="tbl table-responsive">
                 <thead>
                   <tr>
                     <th>{{ 'reports.col.productName' | t }}</th>
-                    <th class="num">{{ 'reports.col.totalIn' | t }}</th>
-                    <th class="num">{{ 'reports.col.totalOut' | t }}</th>
-                    <th class="num">{{ 'reports.col.netChange' | t }}</th>
+                    <th class="r">{{ 'reports.col.totalIn' | t }}</th>
+                    <th class="r">{{ 'reports.col.totalOut' | t }}</th>
+                    <th class="r">{{ 'reports.col.netChange' | t }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (p of productMovements(); track p.productId) {
                     <tr>
-                      <td class="font-medium" [attr.data-label]="'reports.col.productName' | t">{{ p.productName }}</td>
-                      <td class="num pos" [attr.data-label]="'reports.col.totalIn' | t">+{{ p.totalIn | num }}</td>
-                      <td class="num neg" [attr.data-label]="'reports.col.totalOut' | t">-{{ p.totalOut | num }}</td>
-                      <td class="num font-medium" [attr.data-label]="'reports.col.netChange' | t" [class.pos]="p.totalIn - p.totalOut > 0" [class.neg]="p.totalIn - p.totalOut < 0">
-                        {{ p.totalIn - p.totalOut | num }}
+                      <td class="td-primary">{{ p.productName }}</td>
+                      <td class="r pos" [attr.data-label]="'reports.col.totalIn' | t">+{{ p.totalIn | num }}</td>
+                      <td class="r neg" [attr.data-label]="'reports.col.totalOut' | t">-{{ p.totalOut | num }}</td>
+                      <td class="r strong" [attr.data-label]="'reports.col.netChange' | t">
+                        {{ p.totalIn - p.totalOut > 0 ? '+' : '' }}{{ p.totalIn - p.totalOut | num }}
                       </td>
                     </tr>
                   }
                   @if (productMovements().length === 0) {
-                    <tr class="empty-row"><td colspan="4"><div class="empty-state compact"><p>{{ 'reports.noMovements' | t }}</p></div></td></tr>
+                    <tr class="empty-row"><td colspan="4"><div class="empty-state"><div class="empty-art"><app-icon name="swap" /></div><p>{{ 'reports.noMovements' | t }}</p></div></td></tr>
                   }
                 </tbody>
               </table>
@@ -154,30 +165,29 @@ import { LegalReportsComponent } from './legal-reports.component';
           </section>
 
           <!-- Supplier summary -->
-          <section class="table-card col-span-6">
-            <div class="tc-head">
-              <h3 class="card-title">{{ 'reports.supplierTitle' | t }}</h3>
-              <p class="card-subtitle">{{ 'reports.supplierDesc' | t }}</p>
+          <section class="card col-span-6">
+            <div class="card-h ch2">
+              <div class="ht"><h3>{{ 'reports.supplierTitle' | t }}</h3><span class="sub">{{ 'reports.supplierDesc' | t }}</span></div>
             </div>
             <div class="table-scroll capped">
-              <table class="table-responsive">
+              <table class="tbl table-responsive">
                 <thead>
                   <tr>
                     <th>{{ 'reports.col.supplier' | t }}</th>
-                    <th class="num">{{ 'reports.col.poCount' | t }}</th>
-                    <th class="num">{{ 'reports.col.totalPaid' | t }}</th>
+                    <th class="r">{{ 'reports.col.poCount' | t }}</th>
+                    <th class="r">{{ 'reports.col.totalPaid' | t }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (s of supplierSummary(); track s.supplierName) {
                     <tr>
-                      <td class="font-medium" [attr.data-label]="'reports.col.supplier' | t">{{ s.supplierName }}</td>
-                      <td class="num" [attr.data-label]="'reports.col.poCount' | t">{{ s.poCount }}</td>
-                      <td class="num font-medium" [attr.data-label]="'reports.col.totalPaid' | t">{{ s.totalAmount | money }}</td>
+                      <td class="td-primary">{{ s.supplierName }}</td>
+                      <td class="r" [attr.data-label]="'reports.col.poCount' | t">{{ s.poCount | num }}</td>
+                      <td class="r strong" [attr.data-label]="'reports.col.totalPaid' | t">{{ s.totalAmount | money: baseCurrency() }}</td>
                     </tr>
                   }
                   @if (supplierSummary().length === 0) {
-                    <tr class="empty-row"><td colspan="3"><div class="empty-state compact"><p>{{ 'reports.noPurchases' | t }}</p></div></td></tr>
+                    <tr class="empty-row"><td colspan="3"><div class="empty-state"><div class="empty-art"><app-icon name="truck" /></div><p>{{ 'reports.noPurchases' | t }}</p></div></td></tr>
                   }
                 </tbody>
               </table>
@@ -187,58 +197,55 @@ import { LegalReportsComponent } from './legal-reports.component';
       }
 
       <!-- Expiring lots -->
-      <section id="expiring-report" class="table-card">
-        <div class="tc-head split">
-          <div>
-            <h3 class="card-title">{{ 'reports.expiring.title' | t }}</h3>
-            <p class="card-subtitle">{{ 'reports.expiring.desc' | t }}</p>
-          </div>
-          <div class="cluster">
-            <label for="expDays" class="text-muted exp-label">{{ 'reports.expiring.days' | t }}</label>
-            <input id="expDays" type="number" min="1" step="1" [(ngModel)]="expiringDays" class="input exp-days" (keyup.enter)="loadExpiring()" />
-            <button class="btn btn-secondary btn-sm" (click)="loadExpiring()" [disabled]="expiringLoading()">{{ 'reports.apply' | t }}</button>
-            <button class="btn btn-ghost btn-sm" (click)="exportExpiringCsv()" [disabled]="expiringLots().length === 0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
-              {{ 'reports.expiring.export' | t }}
+      <section id="expiring-report" class="card">
+        <div class="card-h ch2 exp-h">
+          <div class="ht"><h3>{{ 'reports.expiring.title' | t }}</h3><span class="sub">{{ 'reports.expiring.desc' | t }}</span></div>
+          <span class="spacer"></span>
+          <div class="toolbar">
+            <div class="field field-sm exp-days">
+              <input id="expDays" class="num" type="number" min="1" step="1" [(ngModel)]="expiringDays" (keyup.enter)="loadExpiring()" [attr.aria-label]="'reports.expiring.days' | t" />
+              <span class="affix suf">{{ 'reports.expiring.daysUnit' | t }}</span>
+            </div>
+            <button type="button" class="btn btn-sm" [class.is-loading]="expiringLoading()" (click)="loadExpiring()" [disabled]="expiringLoading()"><span>{{ 'reports.apply' | t }}</span></button>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="exportExpiringCsv()" [disabled]="expiringLots().length === 0">
+              <app-icon name="download" size="sm" />{{ 'reports.expiring.export' | t }}
             </button>
           </div>
         </div>
         <div class="table-scroll capped-lg">
-          <table class="table-responsive">
+          <table class="tbl table-responsive">
             <thead>
               <tr>
                 <th>{{ 'reports.expiring.col.product' | t }}</th>
-                <th>{{ 'reports.expiring.col.sku' | t }}</th>
                 <th>{{ 'reports.expiring.col.lot' | t }}</th>
                 <th>{{ 'reports.expiring.col.warehouse' | t }}</th>
-                <th>{{ 'reports.expiring.col.expiry' | t }}</th>
-                <th class="num">{{ 'reports.expiring.col.qty' | t }}</th>
-                <th class="num">{{ 'reports.expiring.col.daysLeft' | t }}</th>
+                <th class="r">{{ 'reports.expiring.col.expiry' | t }}</th>
+                <th class="r">{{ 'reports.expiring.col.qty' | t }}</th>
+                <th class="r">{{ 'reports.expiring.col.daysLeft' | t }}</th>
               </tr>
             </thead>
             <tbody>
               @if (expiringLoading()) {
                 @for (i of [1, 2, 3]; track i) {
-                  <tr><td colspan="7"><div class="skeleton-row"></div></td></tr>
+                  <tr class="empty-row"><td colspan="6"><div class="skeleton-row"></div></td></tr>
                 }
               } @else {
                 @for (l of expiringLots(); track l.lotId) {
                   <tr [class.row-expired]="l.daysLeft < 0">
-                    <td class="font-medium" [attr.data-label]="'reports.expiring.col.product' | t">{{ l.productName }}</td>
-                    <td class="mono" [attr.data-label]="'reports.expiring.col.sku' | t">{{ l.sku }}</td>
+                    <td class="td-primary"><div class="cell-prod"><b>{{ l.productName }}</b><span class="cell-code">{{ l.sku }}</span></div></td>
                     <td class="mono" [attr.data-label]="'reports.expiring.col.lot' | t">{{ l.lotNumber }}</td>
                     <td [attr.data-label]="'reports.expiring.col.warehouse' | t">{{ l.warehouseName }}</td>
-                    <td class="num" [attr.data-label]="'reports.expiring.col.expiry' | t">{{ l.expiryDate }}</td>
-                    <td class="num" [attr.data-label]="'reports.expiring.col.qty' | t">{{ l.quantity | num }}</td>
-                    <td class="num" [attr.data-label]="'reports.expiring.col.daysLeft' | t">
-                      <span class="badge" [class.badge-danger]="l.daysLeft < 0" [class.badge-warning]="l.daysLeft >= 0 && l.daysLeft <= 7" [class.badge-neutral]="l.daysLeft > 7">{{ l.daysLeft < 0 ? ('reports.expiring.expired' | t) : l.daysLeft }}</span>
+                    <td class="r" [attr.data-label]="'reports.expiring.col.expiry' | t">{{ l.expiryDate | appDate }}</td>
+                    <td class="r" [attr.data-label]="'reports.expiring.col.qty' | t">{{ l.quantity | num }}</td>
+                    <td class="r" [attr.data-label]="'reports.expiring.col.daysLeft' | t">
+                      <span class="badge" [class.badge-danger]="l.daysLeft < 0" [class.badge-warning]="l.daysLeft >= 0 && l.daysLeft <= 7" [class.badge-neutral]="l.daysLeft > 7"><span class="dot"></span>{{ l.daysLeft < 0 ? ('reports.expiring.expired' | t) : l.daysLeft }}</span>
                     </td>
                   </tr>
                 }
                 @if (expiringLots().length === 0) {
-                  <tr class="empty-row"><td colspan="7">
-                    <div class="empty-state compact">
-                      <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></div>
+                  <tr class="empty-row"><td colspan="6">
+                    <div class="empty-state">
+                      <div class="empty-art"><app-icon name="calendar" /></div>
                       <p>{{ 'reports.expiring.empty' | t }}</p>
                     </div>
                   </td></tr>
@@ -251,34 +258,67 @@ import { LegalReportsComponent } from './legal-reports.component';
     </div>
   `,
   styles: [`
-    .rep { display: flex; flex-direction: column; gap: var(--space-4); padding-bottom: var(--space-10); }
-    .page-header .base-note { font-size: var(--text-xs); color: var(--color-text-subtle); margin-top: var(--space-1); }
-    .filter-label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text-secondary); }
-    .date-range { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 280px; min-width: 0; }
-    .date-range .input { flex: 1; min-width: 0; max-width: 180px; }
-    .kpi-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .sk-card { flex-direction: column; gap: var(--space-3); min-height: 104px; }
-    .sk-chart { height: 340px; }
-    .skeleton.fill { flex: 1; }
-    .calc { font-size: var(--text-sm); text-align: center; }
-    .chart-container { position: relative; height: 280px; width: 100%; }
-    .tc-head { padding: var(--space-4) var(--space-5); border-bottom: var(--border-width) solid var(--color-border-subtle); }
-    .tc-head.split { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-    .exp-label { font-size: var(--text-sm); }
-    .exp-days { width: 84px; }
-    .capped { max-height: 360px; overflow: auto; }
-    .capped-lg { max-height: 440px; overflow: auto; }
-    .pos { color: var(--color-success-text); }
-    .neg { color: var(--color-danger-text); }
-    .row-expired td { background: var(--color-danger-subtle); }
-    .empty-row td { padding: 0 !important; }
+    .rep-tabs { margin-bottom: 20px; }
+    .rep { display: flex; flex-direction: column; gap: 12px; }
+    .rep[hidden] { display: none; }
+    .rep > .grid-12 { gap: 12px; }
+    .rep-toolbar { margin-bottom: 8px; }
+    .date-f { width: 168px; }
+    .rep-more { position: relative; display: none; }
+    .rep-more-pop { top: calc(100% + 4px); right: 0; min-width: 220px; }
+    .kpi-foot { white-space: normal; }
+    .kpi-foot > span:not(.delta) { overflow: visible; }
+    .range-sep { color: var(--fg-3); }
+    .base-note { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--fg-3); }
+    .sk-kpi { min-height: 104px; }
+    .sk-chart { height: 380px; }
+    .sk-fill { flex: 1; display: flex; }
+    .sk-fill .skeleton { flex: 1; }
+    .calc { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-3); }
+    .tone-in { color: var(--success); }
+    .tone-out { color: var(--danger); }
+    .ch2 { min-height: 56px; padding-block: 8px; }
+    .ht { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .legend { display: flex; gap: 12px; font-size: var(--text-xs); color: var(--fg-3); white-space: nowrap; }
+    .legend span, .chart-sum span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+    i.c1 { background: var(--chart-1); }
+    .chart-sum { display: flex; gap: 28px; padding: 14px 16px 0; }
+    .chart-sum > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .chart-sum span { font-size: var(--text-xs); color: var(--fg-3); }
+    .chart-sum b { font-size: var(--text-lg); font-weight: 600; letter-spacing: var(--tracking-tighter); font-variant-numeric: tabular-nums; color: var(--fg); }
+    .chart-container { position: relative; height: 280px; margin: 12px 16px 16px; }
+    .chart-empty { display: grid; place-items: center; }
+    .exp-h { flex-wrap: wrap; row-gap: 8px; }
+    .exp-days { width: 104px; }
+    .capped { max-height: 380px; overflow: auto; }
+    .capped-lg { max-height: 460px; overflow: auto; }
+    .pos { color: var(--success); }
+    .neg { color: var(--danger); }
+    td.strong { font-weight: 500; }
+    .row-expired td { background: var(--danger-soft); }
+    .empty-row td { padding: 0 !important; height: auto; }
     .empty-row td::before { display: none !important; }
-    .empty-state.compact { padding: var(--space-6) var(--space-4); border: 0; background: none; }
-    .empty-state.compact p { font-size: var(--text-sm); }
+    .empty-row:hover td { background: transparent; }
+    .empty-row .skeleton-row { margin: 11px 12px; }
     @media (max-width: 640px) {
-      .date-range .input { max-width: none; }
+      .table-responsive td { justify-content: flex-end; gap: 6px; }
+      .table-responsive td[data-label]::before { margin-right: auto; }
+      .table-responsive .empty-row td { display: block; text-align: center; }
+      .rep-wide { display: none; }
+      .rep-more { display: inline-flex; }
+      .page-header > .page-actions { margin-left: auto; }
+      /* Dates share the first row; Apply/Clear wrap below so the placeholders are never clipped. */
+      .date-f { width: auto; flex: 1 1 calc(50% - 16px); min-width: 132px; }
+      .rep-toolbar > .btn { flex: 1 1 0; }
+      .rep-toolbar .spacer { display: none; }
+      .base-note { flex-basis: 100%; }
       .capped, .capped-lg { max-height: none; }
-      .chart-container { height: 260px; }
+      .chart-container { height: 240px; }
+      .chart-sum { gap: 20px; }
+      .exp-h .toolbar { width: 100%; }
+      /* An odd last KPI spans the row instead of leaving an empty cell. */
+      .kpi-grid > .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
     }
   `]
 })
@@ -286,6 +326,9 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
   inventoryService = inject(InventoryService);
   ui = inject(UiStateService);
   i18n = inject(I18nService);
+  private appState = inject(AppStateService);
+  /** Company base currency: profile locale, then the dashboard summary (the i18n default is TRY until the profile loads). */
+  baseCurrency = computed(() => this.ui.userProfile()?.locale?.currency || this.appState.summary()?.currency || this.i18n.currency());
 
   constructor() {
     // Re-render charts when the language changes
@@ -302,6 +345,8 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
   topChartInstance: any = null;
 
   isLoading = signal(true);
+  /** Mobile header overflow menu. */
+  moreOpen = signal(false);
   
   // Date range inputs
   startDate = '';
@@ -314,6 +359,9 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
   topSelling = signal<any[]>([]);
   supplierSummary = signal<any[]>([]);
   categories = signal<any[]>([]);
+  /** Summary numbers shown above the charts (presentation only). */
+  categoryTotal = computed(() => this.categoriesDistribution().reduce((a, c) => a + (Number(c.totalValue) || 0), 0));
+  topTotal = computed(() => this.topSelling().reduce((a, t) => a + (Number(t.totalQty) || 0), 0));
 
   // Expiring lots report
   route = inject(ActivatedRoute);
@@ -334,6 +382,8 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
   expiringLoading = signal(false);
 
   ngOnInit() {
+    // The summary carries the base currency; load it when the dashboard has not yet.
+    if (!this.appState.summary()) this.appState.loadSummary();
     this.loadCategories();
     this.loadReports();
     this.loadExpiring();
@@ -443,9 +493,10 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.topChartInstance = null;
     const tk = applyChartDefaults();
 
-    const catData = this.categoriesDistribution();
-    const catLabels = catData.map(c => this.getCategoryName(c.category));
-    const catValues = catData.map(c => c.totalValue);
+    const cat = this.donutSlices(
+      this.categoriesDistribution().map(c => ({ label: this.getCategoryName(c.category), value: Number(c.totalValue) || 0 })),
+      tk
+    );
 
     if (this.catCanvas) {
       const ctx = this.catCanvas.nativeElement.getContext('2d');
@@ -453,11 +504,11 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.catChartInstance = new Chart(ctx, {
           type: 'doughnut',
           data: {
-            labels: catLabels,
+            labels: cat.labels,
             datasets: [{
-              data: catValues,
-              backgroundColor: catValues.map((_, i) => tk.palette[i % tk.palette.length]),
-              hoverBackgroundColor: catValues.map((_, i) => withAlpha(tk.palette[i % tk.palette.length], 0.85)),
+              data: cat.values,
+              backgroundColor: cat.colors,
+              hoverBackgroundColor: cat.colors.map(c => withAlpha(c, 0.85)),
               borderColor: tk.surface,
               borderWidth: 2
             }]
@@ -465,10 +516,10 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            cutout: '66%',
+            cutout: '70%',
             plugins: {
               legend: { position: 'bottom', labels: { color: tk.text, padding: 14, font: { size: 12 } } },
-              tooltip: { callbacks: { label: (c: any) => `${c.label}: ${this.i18n.formatMoney(c.parsed)}` } }
+              tooltip: { callbacks: { label: (c: any) => `${c.label}: ${this.i18n.formatMoney(c.parsed, this.baseCurrency())}` } }
             }
           }
         });
@@ -476,8 +527,12 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const topData = this.topSelling();
-    const topLabels = topData.map(t => t.productName.length > 15 ? t.productName.substring(0, 13) + '..' : t.productName);
+    const narrow = (this.topCanvas?.nativeElement.parentElement?.clientWidth ?? 600) < 420;
+    const maxLen = narrow ? 18 : 28;
+    const topNames = topData.map(t => String(t.productName ?? ''));
+    const topLabels = topNames.map(n => n.length > maxLen ? n.substring(0, maxLen - 1).trimEnd() + '…' : n);
     const topValues = topData.map(t => t.totalQty);
+    const sansTicks = { ...precisionScale(tk).ticks, font: { family: tk.fontSans, size: 11 } };
 
     if (this.topCanvas) {
       const ctx = this.topCanvas.nativeElement.getContext('2d');
@@ -491,19 +546,28 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
               data: topValues,
               backgroundColor: tk.palette[0],
               hoverBackgroundColor: withAlpha(tk.palette[0], 0.85),
-              borderRadius: 4,
-              maxBarThickness: 32
+              ...PRECISION_BAR,
+              borderRadius: { topRight: 3, bottomRight: 3 },
+              borderSkipped: 'left',
+              maxBarThickness: 14
             }]
           },
           options: {
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: false }
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items: any[]) => items.length ? topNames[items[0].dataIndex] : '',
+                  label: (c: any) => `${c.dataset.label}: ${this.i18n.formatNumber(c.parsed.x)}`
+                }
+              }
             },
             scales: {
-              y: { beginAtZero: true, grid: { color: tk.grid }, border: { display: false }, ticks: { color: tk.muted, maxTicksLimit: 6, callback: (v: any) => this.i18n.formatNumber(Number(v)) } },
-              x: { grid: { display: false }, border: { color: tk.border }, ticks: { color: tk.muted, font: { size: 11 } } }
+              x: { ...precisionScale(tk), beginAtZero: true, ticks: { ...sansTicks, maxTicksLimit: 5, callback: (v: any) => this.i18n.formatNumber(Number(v)) } },
+              y: { ...precisionScale(tk), grid: { display: false }, ticks: { ...sansTicks, color: tk.text, autoSkip: false, font: { family: tk.fontSans, size: 12 } } }
             }
           }
         });
@@ -511,12 +575,33 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Donut slices with one distinct palette colour each: the five largest
+   * categories keep --chart-1…5 and the rest fold into a neutral "Other" slice,
+   * so no two legend entries share a colour.
+   */
+  private donutSlices(items: { label: string; value: number }[], tk: ChartTokens) {
+    const sorted = [...items].sort((a, b) => b.value - a.value);
+    const max = tk.palette.length;
+    const head = sorted.length > max ? sorted.slice(0, max - 1) : sorted;
+    const rest = sorted.slice(head.length);
+    const labels = head.map(i => i.label);
+    const values = head.map(i => i.value);
+    const colors = head.map((_, i) => tk.palette[i]);
+    if (rest.length) {
+      labels.push(this.i18n.t('reports.chartOther', { count: rest.length }));
+      values.push(rest.reduce((a, i) => a + i.value, 0));
+      colors.push(tk.muted);
+    }
+    return { labels, values, colors };
+  }
+
   exportToCsv() {
     let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
     
     // 1. Stock Summary Section
     const t = (key: string, params?: any) => this.i18n.t(key, params);
-    const cur = this.i18n.currency();
+    const cur = this.baseCurrency();
     csvContent += t('reports.csv.summarySection') + '\r\n';
     csvContent += `${t('reports.totalIn')};${this.summary().totalIn}\r\n`;
     csvContent += `${t('reports.totalOut')};${this.summary().totalOut}\r\n`;

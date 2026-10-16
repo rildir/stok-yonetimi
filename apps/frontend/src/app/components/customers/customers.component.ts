@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, computed } from '@angular/core';
+import { Component, inject, signal, OnInit, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
@@ -15,36 +15,63 @@ import { EBelgeService } from '../../services/ebelge.service';
 import { apiError as apiErrorMessage } from '../../services/documents.service';
 import { KvkkService, NOTICE_CHANNELS } from '../../services/kvkk.service';
 import { CustomerConsentsComponent } from './customer-consents.component';
+import { IconComponent } from '../shared/icon.component';
 import { detectSpecialCategoryData, isMaskedValue } from '@stok/tr-compliance';
 
 @Component({
   selector: 'app-customers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe, AddressFieldsComponent, IdentityFieldsComponent, CustomerConsentsComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ToastComponent, TranslatePipe, NumberFormatPipe, AppDatePipe, AddressFieldsComponent, IdentityFieldsComponent, CustomerConsentsComponent, IconComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .cust-registry { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3); margin-bottom: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
-    .cust-registry-label { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-text-muted); }
+    .link { color: var(--accent-text); text-decoration: none; }
+    .link:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .c-toolbar { margin-bottom: 12px; }
+    .c-search { flex: 1 1 260px; max-width: 400px; }
+    .tbl tbody tr.c-row { cursor: pointer; }
+    .tbl td.c-name { max-width: 290px; }
+    .c-name .cell-prod { gap: 8px; }
+    .c-name .cell-code { margin-left: 0; }
+    .c-name .badge { flex: none; }
+    .tbl td.c-mail { max-width: 190px; }
+    .tbl td.c-loc { max-width: 140px; }
+    .c-sec { color: var(--fg-3); }
+    .c-skel { height: 14px; margin: 10px 0; }
+    .c-badges { display: inline-flex; align-items: center; gap: 4px; }
+    .c-badges .badge { margin-left: 0; }
+    .c-mlist { display: none; }
+    .c-mlist .mrow { cursor: pointer; }
+    @media (max-width: 640px) {
+      .c-search { max-width: none; flex-basis: 100%; }
+      .c-search .trail { display: none; }
+      .c-toolbar .seg { width: 100%; }
+      .c-toolbar .seg button { flex: 1 1 auto; }
+      .c-desk { display: none; }
+      .c-mlist { display: block; }
+    }
+
+    /* drawer */
+    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; gap: 0; }
+    .drawer-body.secs { gap: 0; padding-top: 8px; }
+    .cust-registry { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; padding: 10px 12px;
+      border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .cust-registry .lbl { font-size: var(--text-xs); font-weight: 500; color: var(--fg-2); }
+    .cust-registry .badge { margin-left: 0; }
     .cust-registry .btn { margin-left: auto; }
-    .cust-sub { font-size: var(--text-2xs); color: var(--color-text-muted); margin-top: 2px; }
-    .link { color: var(--color-primary-text); text-decoration: none; }
-    .link:hover { text-decoration: underline; }
-    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .ml-auto { margin-left: auto; margin-right: var(--space-2); }
-    .upper { text-transform: uppercase; }
-    @media (max-width: 640px) { .form-row { gap: var(--space-3); } }
-    .filter-chips { display: flex; gap: var(--space-2); align-items: center; }
-    .review-badge { margin-left: var(--space-2); }
-    .check-row { display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm); }
-    .check-row label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
-    .pii-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    .review-note { display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-3); border-radius: var(--radius-md); border: var(--border-width) solid var(--color-warning-border); background: var(--color-warning-subtle); color: var(--color-warning-text); font-size: var(--text-sm); }
-    .addr-list { display: flex; flex-direction: column; gap: var(--space-2); }
-    .addr-item { display: flex; gap: var(--space-3); align-items: flex-start; justify-content: space-between; padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); font-size: var(--text-sm); }
+    .cust-sub { font-size: var(--text-xs); color: var(--fg-3); }
+    .checks { display: flex; gap: 8px 20px; flex-wrap: wrap; }
+    .pii-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .addr-list { display: flex; flex-direction: column; gap: 8px; }
+    .addr-item { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 12px;
+      border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-sm); }
     .addr-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .addr-item-actions { display: flex; gap: var(--space-1); flex-shrink: 0; }
-    .addr-editor { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); border: var(--border-width) dashed var(--color-border-strong); border-radius: var(--radius-md); }
-    .addr-editor-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+    .addr-item-main b { font-weight: 500; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .addr-item-main .badge { margin-left: 0; }
+    .addr-item-actions { display: flex; gap: 2px; flex-shrink: 0; }
+    .addr-editor { display: flex; flex-direction: column; gap: 16px; padding: 14px; border-radius: var(--radius-md);
+      background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .addr-editor-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .addr-add { align-self: flex-start; }
   `],
   template: `
     <header class="page-header">
@@ -55,94 +82,102 @@ import { detectSpecialCategoryData, isMaskedValue } from '@stok/tr-compliance';
       @if (canEdit()) {
         <div class="page-actions">
           <button class="btn btn-primary" (click)="openDrawer()">
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            {{ 'customers.new' | t }}
+            <app-icon name="plus" />{{ 'customers.new' | t }}
           </button>
         </div>
       }
     </header>
 
-    <div class="filter-bar">
-      <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" [placeholder]="'customers.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+    <div class="toolbar c-toolbar">
+      <div class="seg" role="group" [attr.aria-label]="'customers.filter.label' | t">
+        <button type="button" [attr.aria-pressed]="!reviewOnly()" (click)="reviewOnly.set(false)">{{ 'customers.filter.all' | t }} <span class="count">{{ customers().length }}</span></button>
+        <button type="button" [attr.aria-pressed]="reviewOnly()" (click)="reviewOnly.set(true)">{{ 'customers.filter.needsReview' | t }} <span class="count">{{ reviewCount() }}</span></button>
       </div>
-      <div class="segmented filter-chips" role="group" [attr.aria-label]="'customers.filter.label' | t">
-        <button type="button" [attr.aria-pressed]="!reviewOnly()" (click)="reviewOnly.set(false)">{{ 'customers.filter.all' | t }}</button>
-        <button type="button" [attr.aria-pressed]="reviewOnly()" (click)="reviewOnly.set(true)">{{ 'customers.filter.needsReview' | t }} ({{ reviewCount() }})</button>
+      <div class="field c-search">
+        <span class="lead"><app-icon name="search" size="sm" /></span>
+        <input type="search" data-page-search [placeholder]="'customers.searchPlaceholder' | t" [attr.aria-label]="'customers.searchPlaceholder' | t" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+        <span class="trail"><kbd>/</kbd></span>
       </div>
     </div>
 
-    <div class="table-card">
+    <div class="card">
       @if (isLoading()) {
-        <div class="skeleton-wrap" [attr.aria-label]="'common.loading' | t">
-          @for (s of [1,2,3,4,5]; track s) { <div class="skeleton skeleton-row"></div> }
+        <div class="card-b" [attr.aria-label]="'common.loading' | t">
+          @for (s of [1,2,3,4,5,6]; track s) { <div class="skeleton skeleton-row c-skel"></div> }
         </div>
       } @else if (customers().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-          <p class="empty-state-title">{{ 'customers.empty' | t }}</p>
+          <div class="empty-art"><app-icon name="users" /></div>
+          <h3>{{ 'customers.empty' | t }}</h3>
           @if (canEdit()) {
-            <button class="btn btn-primary" (click)="openDrawer()">{{ 'customers.addFirst' | t }}</button>
+            <div class="actions cluster">
+              <button class="btn btn-primary" (click)="openDrawer()"><app-icon name="plus" />{{ 'customers.addFirst' | t }}</button>
+            </div>
           }
         </div>
       } @else if (filteredCustomers().length === 0) {
         <div class="empty-state">
-          <div class="empty-state-icon"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
-          <p class="empty-state-title">{{ 'customers.noResults' | t }}</p>
+          <div class="empty-art"><app-icon name="search" /></div>
+          <h3>{{ 'customers.noResults' | t }}</h3>
+          <div class="actions cluster">
+            <button type="button" class="btn" (click)="searchQuery.set(''); reviewOnly.set(false)"><app-icon name="x" />{{ 'common.clear' | t }}</button>
+          </div>
         </div>
       } @else {
-        <div class="table-scroll">
-          <table class="table-responsive">
+        <div class="table-scroll c-desk">
+          <table class="tbl">
             <thead>
               <tr>
                 <th>{{ 'customers.col.name' | t }}</th>
                 <th>{{ 'customers.col.type' | t }}</th>
-                <th>{{ 'customers.col.email' | t }}</th>
-                <th>{{ 'customers.col.phone' | t }}</th>
+                <th>{{ 'customers.col.contact' | t }}</th>
                 <th>{{ 'customers.col.location' | t }}</th>
                 <th>{{ 'finance.currency' | t }}</th>
-                <th class="num">{{ 'customers.col.orderCount' | t }}</th>
+                <th class="r">{{ 'customers.col.orderCount' | t }}</th>
                 <th>{{ 'customers.col.lastOrder' | t }}</th>
-                @if (canEdit()) { <th class="th-actions">{{ 'common.actions' | t }}</th> }
+                @if (canEdit()) { <th class="w-act"><span class="sr">{{ 'common.actions' | t }}</span></th> }
               </tr>
             </thead>
             <tbody>
               @for (c of filteredCustomers(); track c.id) {
-                <tr>
-                  <td [attr.data-label]="'customers.col.name' | t">
-                    <strong>{{ c.name }}</strong>
-                    @if (c.needsReview) { <span class="badge badge-warning review-badge" [title]="('customers.review.' + (c.reviewReason || 'GENERIC')) | t">{{ 'customers.filter.needsReview' | t }}</span> }
-                    @if (c.processingRestricted) { <span class="badge badge-neutral review-badge" [title]="'kvkk.erase.restrictedUntil' | t: { date: (c.erasureRestrictedUntil | appDate) }">{{ 'kvkk.erase.restricted' | t }}</span> }
-                    @if (c.identityNumber) { <div class="cust-sub">{{ c.identityType || 'VKN' }} <span class="mono">{{ c.identityNumber }}</span>@if (c.taxOfficeName) { · {{ c.taxOfficeName }} }</div> }
-                    @if (c.eInvoiceRegistered) { <span class="badge badge-success" [title]="'ebelge.registry.checkedAt' | t: { date: (c.eInvoiceCheckedAt | appDate: 'datetime') }">{{ 'ebelge.registry.eFatura' | t }}</span> }
-                    @if (c.eDespatchRegistered) { <span class="badge badge-neutral">{{ 'ebelge.registry.eIrsaliye' | t }}</span> }
+                <tr class="c-row" [class.is-selected]="isDrawerOpen() && editId() === c.id" (click)="openDrawer(c)">
+                  <td class="c-name">
+                    <div class="cell-prod" [title]="c.taxOfficeName || ''">
+                      <span class="thumb">{{ initials(c.name) }}</span>
+                      <b>{{ c.name }}</b>
+                      @if (c.identityNumber) { <span class="cell-code">{{ c.identityType || 'VKN' }} {{ c.identityNumber }}</span> }
+                      @if (c.needsReview) { <span class="badge badge-warning" [title]="('customers.review.' + (c.reviewReason || 'GENERIC')) | t"><span class="dot"></span>{{ 'customers.filter.needsReview' | t }}</span> }
+                      @if (c.processingRestricted) { <span class="badge badge-neutral" [title]="'kvkk.erase.restrictedUntil' | t: { date: (c.erasureRestrictedUntil | appDate) }"><app-icon name="lock" size="xs" />{{ 'kvkk.erase.restricted' | t }}</span> }
+                    </div>
                   </td>
-                  <td [attr.data-label]="'customers.col.type' | t">
-                    <span class="badge" [class.badge-primary]="c.type === 'company'" [class.badge-neutral]="c.type !== 'company'">
-                      {{ (c.type === 'company' ? 'customers.type.company' : 'customers.type.individual') | t }}
+                  <td>
+                    <span class="c-badges">
+                      <span class="badge badge-neutral">{{ (c.type === 'company' ? 'customers.type.company' : 'customers.type.individual') | t }}</span>
+                      @if (c.eInvoiceRegistered) { <span class="badge badge-success" [title]="(c.eDespatchRegistered ? ('ebelge.registry.eIrsaliye' | t) + ' · ' : '') + ('ebelge.registry.checkedAt' | t: { date: (c.eInvoiceCheckedAt | appDate: 'datetime') })"><span class="dot"></span>{{ 'ebelge.registry.eFatura' | t }}</span> }
+                      @else if (c.eDespatchRegistered) { <span class="badge badge-info">{{ 'ebelge.registry.eIrsaliye' | t }}</span> }
                     </span>
                   </td>
-                  <td [attr.data-label]="'customers.col.email' | t">
-                    @if (c.email) { <a href="mailto:{{ c.email }}" class="link">{{ c.email }}</a> } @else { - }
+                  <td class="c-mail" [title]="(c.email || '') + (c.email && c.phone ? ' · ' : '') + (c.phone || '')">
+                    @if (c.email) { <a href="mailto:{{ c.email }}" class="link" (click)="$event.stopPropagation()">{{ c.email }}</a> }
+                    @else if (c.phone) { <a href="tel:{{ c.phone }}" class="link" (click)="$event.stopPropagation()">{{ c.phone }}</a> }
+                    @else { <span class="c-sec">—</span> }
                   </td>
-                  <td [attr.data-label]="'customers.col.phone' | t">
-                    @if (c.phone) { <a href="tel:{{ c.phone }}" class="link">{{ c.phone }}</a> } @else { - }
-                  </td>
-                  <td [attr.data-label]="'customers.col.location' | t">{{ location(c) || '-' }}</td>
-                  <td [attr.data-label]="'finance.currency' | t">{{ c.currency || '-' }}</td>
-                  <td class="num" [attr.data-label]="'customers.col.orderCount' | t">{{ (c.orderCount ?? 0) | num }}</td>
-                  <td [attr.data-label]="'customers.col.lastOrder' | t">{{ c.lastOrderDate ? (c.lastOrderDate | appDate) : '-' }}</td>
+                  <td class="c-loc">@if (location(c)) { {{ location(c) }} } @else { <span class="c-sec">—</span> }</td>
+                  <td>@if (c.currency) { <span class="mono">{{ c.currency }}</span> } @else { <span class="c-sec">—</span> }</td>
+                  <td class="r">{{ (c.orderCount ?? 0) | num }}</td>
+                  <td class="c-sec">{{ c.lastOrderDate ? (c.lastOrderDate | appDate) : '—' }}</td>
                   @if (canEdit()) {
-                    <td class="td-actions">
-                      <button class="icon-btn edit-btn" [title]="'common.edit' | t" [attr.aria-label]="'common.edit' | t" (click)="openDrawer(c)">
-                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
-                      </button>
-                      @if (canDelete()) {
-                        <button class="icon-btn delete-btn" [title]="'common.delete' | t" [attr.aria-label]="'common.delete' | t" (click)="deleteCustomer(c)">
-                          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>
+                    <td class="w-act" (click)="$event.stopPropagation()">
+                      <span class="td-actions">
+                        <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" [attr.data-tip]="'common.edit' | t" [attr.aria-label]="'common.edit' | t" (click)="openDrawer(c)">
+                          <app-icon name="edit" size="sm" />
                         </button>
-                      }
+                        @if (canDelete()) {
+                          <button type="button" class="btn btn-ghost btn-xs btn-icon row-act delete-btn" [attr.data-tip]="'common.delete' | t" [attr.aria-label]="'common.delete' | t" (click)="deleteCustomer(c)">
+                            <app-icon name="trash" size="sm" />
+                          </button>
+                        }
+                      </span>
                     </td>
                   }
                 </tr>
@@ -150,178 +185,240 @@ import { detectSpecialCategoryData, isMaskedValue } from '@stok/tr-compliance';
             </tbody>
           </table>
         </div>
+
+        <div class="c-mlist">
+          @for (c of filteredCustomers(); track c.id) {
+            <div class="mrow" role="button" tabindex="0" (click)="openDrawer(c)" (keydown.enter)="openDrawer(c)">
+              <span class="thumb">{{ initials(c.name) }}</span>
+              <b>{{ c.name }}</b>
+              <span class="v">{{ (c.orderCount ?? 0) | num }}</span>
+              <span class="s">{{ c.email || c.phone || location(c) || ((c.type === 'company' ? 'customers.type.company' : 'customers.type.individual') | t) }}</span>
+              <span class="s r">
+                @if (c.needsReview) { <span class="badge badge-warning"><span class="dot"></span>{{ 'customers.filter.needsReview' | t }}</span> }
+                @else { {{ c.lastOrderDate ? (c.lastOrderDate | appDate) : '—' }} }
+              </span>
+            </div>
+          }
+        </div>
+
+        <div class="tbl-foot">
+          <span>{{ 'customers.resultCount' | t: { shown: (filteredCustomers().length | num), total: (customers().length | num) } }}</span>
+        </div>
       }
     </div>
 
     @if (isDrawerOpen()) {
       <div class="drawer-overlay" (click)="closeDrawer()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
-          <div class="drawer-header">
-            <span class="drawer-title">{{ (editId() ? 'customers.editTitle' : 'customers.addTitle') | t }}</span>
-            @if (editId() && canDelete()) {
-              <button type="button" class="btn btn-secondary btn-sm ml-auto" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'customers', entityId: editId() } })">{{ 'auditLog.history' | t }}</button>
-            }
-            <button class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" aria-labelledby="custDrawerTitle" (click)="$event.stopPropagation()">
+          <div class="drawer-h">
+            <div class="t">
+              <div class="eyebrow"><span>{{ 'customers.title' | t }}</span></div>
+              <h2 id="custDrawerTitle">{{ editId() ? (editingCustomer()?.name || ('customers.editTitle' | t)) : ('customers.addTitle' | t) }}</h2>
+            </div>
+            <div class="tools">
+              @if (editId() && canDelete()) {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="router.navigate(['/audit-log'], { queryParams: { entityType: 'customers', entityId: editId() } })"><app-icon name="audit" />{{ 'auditLog.history' | t }}</button>
+              }
+              <button type="button" class="drawer-close" (click)="closeDrawer()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+            </div>
           </div>
 
           <form [formGroup]="form" (ngSubmit)="save()" class="drawer-form">
-            <div class="drawer-body">
+            <div class="drawer-body secs">
               @if (editId() && editingCustomer(); as ec) {
                 <div class="cust-registry">
-                  <span class="cust-registry-label">{{ 'ebelge.registry.title' | t }}</span>
-                  @if (ec.eInvoiceRegistered === true) { <span class="badge badge-success">{{ 'ebelge.registry.eFatura' | t }}</span> }
+                  <span class="lbl">{{ 'ebelge.registry.title' | t }}</span>
+                  @if (ec.eInvoiceRegistered === true) { <span class="badge badge-success"><span class="dot"></span>{{ 'ebelge.registry.eFatura' | t }}</span> }
                   @else if (ec.eInvoiceRegistered === false) { <span class="badge badge-neutral">{{ 'ebelge.registry.eArsiv' | t }}</span> }
                   @else { <span class="badge badge-neutral">{{ 'ebelge.registry.unknown' | t }}</span> }
-                  @if (ec.eDespatchRegistered) { <span class="badge badge-neutral">{{ 'ebelge.registry.eIrsaliye' | t }}</span> }
+                  @if (ec.eDespatchRegistered) { <span class="badge badge-info">{{ 'ebelge.registry.eIrsaliye' | t }}</span> }
                   @if (ec.eInvoiceCheckedAt) { <span class="cust-sub">{{ 'ebelge.registry.checkedAt' | t: { date: (ec.eInvoiceCheckedAt | appDate: 'datetime') } }}</span> }
-                  @if (canEdit()) { <button type="button" class="btn btn-secondary btn-sm" (click)="checkRegistry(ec)" [disabled]="registryBusy()">{{ 'ebelge.registry.check' | t }}</button> }
+                  @if (canEdit()) { <button type="button" class="btn btn-sm" [class.is-loading]="registryBusy()" (click)="checkRegistry(ec)" [disabled]="registryBusy()"><app-icon name="refresh" />{{ 'ebelge.registry.check' | t }}</button> }
                 </div>
               }
-              <div class="form-field">
-                <input id="custName" type="text" formControlName="name" class="form-input" [class.has-value]="hasValue('name')" />
-                <label for="custName" class="form-label">{{ 'customers.form.name' | t }}</label>
-                @if (isFieldInvalid('name')) { <div class="form-error">{{ 'customers.form.nameRequired' | t }}</div> }
-              </div>
 
-              <div class="form-field">
-                <select id="custType" formControlName="type" class="form-input has-value">
-                  <option value="individual">{{ 'customers.type.individual' | t }}</option>
-                  <option value="company">{{ 'customers.type.company' | t }}</option>
-                </select>
-                <label for="custType" class="form-label">{{ 'customers.form.type' | t }}</label>
-              </div>
-
-              <div class="form-field">
-                <input id="custEmail" type="email" formControlName="email" class="form-input" [class.has-value]="hasValue('email')" />
-                <label for="custEmail" class="form-label">{{ 'customers.form.email' | t }}</label>
-                @if (isFieldInvalid('email')) { <div class="form-error">{{ 'customers.form.emailInvalid' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <input id="custPhone" type="tel" formControlName="phone" class="form-input" [class.has-value]="hasValue('phone')" />
-                <label for="custPhone" class="form-label">{{ 'customers.form.phone' | t }}</label>
-              </div>
-
-              <div class="form-section-title">{{ 'customers.section.identity' | t }}</div>
-              @if (editingReview()) {
-                <div class="review-note" role="note">{{ ('customers.review.' + (editingReview() || 'GENERIC')) | t }}</div>
-              }
-              <app-identity-fields [form]="form" idPrefix="cust" [types]="identityTypes" [provinceCode]="addressGroup.value.provinceCode"></app-identity-fields>
-              @if (editId() && editingCustomer()?.piiMasked && hasMaskedPii()) {
-                <div class="pii-row">
-                  <span class="cust-sub">{{ 'customers.pii.masked' | t }}</span>
-                  @if (canReadPii()) { <button type="button" class="btn btn-secondary btn-sm" (click)="revealPii()" [disabled]="revealBusy()">{{ 'customers.pii.reveal' | t }}</button> }
-                </div>
-              }
-              @if (form.value.identityType === 'FOREIGN') {
-                <div class="form-row">
-                  <div class="form-field">
-                    <input id="custNat" type="text" maxlength="2" formControlName="nationality" class="form-input mono upper" (input)="upper('nationality', $event)" />
-                    <label for="custNat" class="form-label">{{ 'customers.form.nationality' | t }}</label>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'customers.section.basic' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld span-2">
+                    <label class="fld-label" for="custName">{{ 'customers.form.name' | t }} <span class="req">*</span></label>
+                    <div class="field">
+                      <input id="custName" type="text" formControlName="name" [attr.aria-invalid]="isFieldInvalid('name')" aria-describedby="custNameErr" />
+                    </div>
+                    @if (isFieldInvalid('name')) { <div class="fld-error" id="custNameErr"><app-icon name="alert" size="sm" />{{ 'customers.form.nameRequired' | t }}</div> }
                   </div>
-                  <div class="form-field">
-                    <input id="custPassport" type="text" formControlName="passportNo" class="form-input mono" />
-                    <label for="custPassport" class="form-label">{{ 'customers.form.passportNo' | t }}</label>
+                  <div class="fld">
+                    <label class="fld-label" for="custType">{{ 'customers.form.type' | t }}</label>
+                    <div class="field select">
+                      <select id="custType" formControlName="type">
+                        <option value="individual">{{ 'customers.type.individual' | t }}</option>
+                        <option value="company">{{ 'customers.type.company' | t }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="custCurrency">{{ 'customers.form.currency' | t }}</label>
+                    <div class="field">
+                      <input id="custCurrency" type="text" formControlName="currency" maxlength="3" class="mono" [attr.aria-invalid]="isFieldInvalid('currency')" (input)="upper('currency', $event)" />
+                    </div>
+                    @if (isFieldInvalid('currency')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'customers.form.currencyInvalid' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="custEmail">{{ 'customers.form.email' | t }}</label>
+                    <div class="field">
+                      <input id="custEmail" type="email" formControlName="email" [attr.aria-invalid]="isFieldInvalid('email')" />
+                    </div>
+                    @if (isFieldInvalid('email')) { <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'customers.form.emailInvalid' | t }}</div> }
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="custPhone">{{ 'customers.form.phone' | t }}</label>
+                    <div class="field">
+                      <input id="custPhone" type="tel" formControlName="phone" />
+                    </div>
                   </div>
                 </div>
-              }
-              <div class="check-row">
-                <label><input type="checkbox" formControlName="isVatTaxpayer" /> {{ 'customers.form.isVatTaxpayer' | t }}</label>
-                <label><input type="checkbox" formControlName="isDesignatedBuyer" /> {{ 'customers.form.isDesignatedBuyer' | t }}</label>
-              </div>
+              </section>
 
-              <div class="form-section-title">{{ 'customers.section.address' | t }}</div>
-              <app-address-fields [group]="addressGroup" idPrefix="cust"></app-address-fields>
-
-              <div class="form-section-title">{{ 'customers.section.other' | t }}</div>
-              <div class="form-field">
-                <input id="custCurrency" type="text" formControlName="currency" maxlength="3" class="form-input mono upper" [class.has-value]="hasValue('currency')" (input)="upper('currency', $event)" />
-                <label for="custCurrency" class="form-label">{{ 'customers.form.currency' | t }}</label>
-                @if (isFieldInvalid('currency')) { <div class="form-error">{{ 'customers.form.currencyInvalid' | t }}</div> }
-              </div>
-
-              <div class="form-field">
-                <textarea id="custNotes" formControlName="notes" class="form-input" [class.has-value]="hasValue('notes')"></textarea>
-                <label for="custNotes" class="form-label">{{ 'customers.form.notes' | t }}</label>
-              </div>
-              @if (notesWarning().length) {
-                <div class="review-note" role="alert">{{ 'customers.notesSensitiveWarning' | t: { categories: notesWarningText() } }}</div>
-              }
-
-              <div class="form-section-title">{{ 'customers.section.kvkk' | t }}</div>
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="custNoticeAt" type="date" formControlName="noticeGivenAt" class="form-input has-value" />
-                  <label for="custNoticeAt" class="form-label">{{ 'customers.notice.givenAt' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <input id="custNoticeVer" type="text" formControlName="noticeVersion" class="form-input" [class.has-value]="hasValue('noticeVersion')" />
-                  <label for="custNoticeVer" class="form-label">{{ 'customers.notice.version' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <select id="custNoticeCh" formControlName="noticeChannel" class="form-input has-value">
-                    <option value="">-</option>
-                    @for (ch of noticeChannels; track ch) { <option [value]="ch">{{ 'kvkk.channel.' + ch | t }}</option> }
-                  </select>
-                  <label for="custNoticeCh" class="form-label">{{ 'customers.notice.channel' | t }}</label>
-                </div>
-              </div>
-              <p class="cust-sub">{{ 'customers.notice.hint' | t }}</p>
-              @if (editId()) {
-                <div class="form-section-title">{{ 'customers.section.consents' | t }}</div>
-                <app-customer-consents [customerId]="editId()!" [canEdit]="canEdit()"></app-customer-consents>
-              }
-
-              @if (editId()) {
-                <div class="form-section-title">{{ 'customers.section.addresses' | t }}</div>
-                <div class="addr-list">
-                  @for (a of addresses(); track a.id) {
-                    <div class="addr-item">
-                      <div class="addr-item-main">
-                        <strong>{{ ('customers.addressKind.' + a.kind) | t }}@if (a.label) { · {{ a.label }} }@if (a.isDefault) { <span class="badge badge-primary review-badge">{{ 'customers.address.default' | t }}</span> }</strong>
-                        <span class="cust-sub">{{ formatAddress(a.address) }}</span>
-                      </div>
-                      <div class="addr-item-actions">
-                        <button type="button" class="icon-btn edit-btn" [title]="'common.edit' | t" [attr.aria-label]="'common.edit' | t" (click)="editAddress(a)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
-                        <button type="button" class="icon-btn delete-btn" [title]="'common.delete' | t" [attr.aria-label]="'common.delete' | t" (click)="removeAddress(a)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'customers.section.identity' | t }}</h3></div>
+                @if (editingReview()) {
+                  <div class="notice notice-warning" role="note"><app-icon name="warn" /><span class="t">{{ ('customers.review.' + (editingReview() || 'GENERIC')) | t }}</span></div>
+                }
+                <app-identity-fields [form]="form" idPrefix="cust" [types]="identityTypes" [provinceCode]="addressGroup.value.provinceCode"></app-identity-fields>
+                @if (editId() && editingCustomer()?.piiMasked && hasMaskedPii()) {
+                  <div class="pii-row">
+                    <span class="cust-sub">{{ 'customers.pii.masked' | t }}</span>
+                    @if (canReadPii()) { <button type="button" class="btn btn-sm" [class.is-loading]="revealBusy()" (click)="revealPii()" [disabled]="revealBusy()"><app-icon name="eye" />{{ 'customers.pii.reveal' | t }}</button> }
+                  </div>
+                }
+                @if (form.value.identityType === 'FOREIGN') {
+                  <div class="grid-2">
+                    <div class="fld">
+                      <label class="fld-label" for="custNat">{{ 'customers.form.nationality' | t }}</label>
+                      <div class="field">
+                        <input id="custNat" type="text" maxlength="2" formControlName="nationality" class="mono" (input)="upper('nationality', $event)" />
                       </div>
                     </div>
-                  } @empty {
-                    <p class="cust-sub">{{ 'customers.address.none' | t }}</p>
-                  }
-                  @if (addrEditorOpen()) {
-                    <div class="addr-editor" [formGroup]="addrForm">
-                      <div class="form-row">
-                        <div class="form-field">
-                          <select id="addrKind" formControlName="kind" class="form-input has-value">
-                            <option value="DELIVERY">{{ 'customers.addressKind.DELIVERY' | t }}</option>
-                            <option value="BILLING">{{ 'customers.addressKind.BILLING' | t }}</option>
-                          </select>
-                          <label for="addrKind" class="form-label">{{ 'customers.address.kind' | t }}</label>
-                        </div>
-                        <div class="form-field">
-                          <input id="addrLabel" type="text" formControlName="label" class="form-input" />
-                          <label for="addrLabel" class="form-label">{{ 'customers.address.label' | t }}</label>
-                        </div>
-                      </div>
-                      <app-address-fields [group]="addrAddressGroup" idPrefix="caddr"></app-address-fields>
-                      <div class="check-row"><label><input type="checkbox" formControlName="isDefault" /> {{ 'customers.address.default' | t }}</label></div>
-                      <div class="addr-editor-actions">
-                        <button type="button" class="btn btn-secondary btn-sm" (click)="addrEditorOpen.set(false)">{{ 'common.cancel' | t }}</button>
-                        <button type="button" class="btn btn-primary btn-sm" [disabled]="addrAddressGroup.invalid || addrSaving()" (click)="saveAddress()">{{ 'common.save' | t }}</button>
+                    <div class="fld">
+                      <label class="fld-label" for="custPassport">{{ 'customers.form.passportNo' | t }}</label>
+                      <div class="field">
+                        <input id="custPassport" type="text" formControlName="passportNo" class="mono" />
                       </div>
                     </div>
-                  } @else {
-                    <button type="button" class="btn btn-secondary btn-sm" (click)="newAddress()">{{ 'customers.address.add' | t }}</button>
-                  }
+                  </div>
+                }
+                <div class="checks">
+                  <label class="check"><input type="checkbox" formControlName="isVatTaxpayer" />{{ 'customers.form.isVatTaxpayer' | t }}</label>
+                  <label class="check"><input type="checkbox" formControlName="isDesignatedBuyer" />{{ 'customers.form.isDesignatedBuyer' | t }}</label>
                 </div>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">3</span><h3>{{ 'customers.section.address' | t }}</h3></div>
+                <app-address-fields [group]="addressGroup" idPrefix="cust"></app-address-fields>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">4</span><h3>{{ 'customers.section.other' | t }}</h3></div>
+                <div class="fld">
+                  <label class="fld-label" for="custNotes">{{ 'customers.form.notes' | t }}</label>
+                  <div class="field has-area">
+                    <textarea id="custNotes" formControlName="notes" rows="3"></textarea>
+                  </div>
+                </div>
+                @if (notesWarning().length) {
+                  <div class="notice notice-warning" role="alert"><app-icon name="warn" /><span class="t">{{ 'customers.notesSensitiveWarning' | t: { categories: notesWarningText() } }}</span></div>
+                }
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">5</span><h3>{{ 'customers.section.kvkk' | t }}</h3><p>{{ 'customers.notice.hint' | t }}</p></div>
+                <div class="grid-3">
+                  <div class="fld">
+                    <label class="fld-label" for="custNoticeAt">{{ 'customers.notice.givenAt' | t }}</label>
+                    <div class="field">
+                      <input id="custNoticeAt" type="date" formControlName="noticeGivenAt" />
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="custNoticeVer">{{ 'customers.notice.version' | t }}</label>
+                    <div class="field">
+                      <input id="custNoticeVer" type="text" formControlName="noticeVersion" class="mono" />
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="custNoticeCh">{{ 'customers.notice.channel' | t }}</label>
+                    <div class="field select">
+                      <select id="custNoticeCh" formControlName="noticeChannel">
+                        <option value="">—</option>
+                        @for (ch of noticeChannels; track ch) { <option [value]="ch">{{ 'kvkk.channel.' + ch | t }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              @if (editId()) {
+                <section class="fsec">
+                  <div class="fsec-h"><span class="n">6</span><h3>{{ 'customers.section.consents' | t }}</h3></div>
+                  <app-customer-consents [customerId]="editId()!" [canEdit]="canEdit()"></app-customer-consents>
+                </section>
+
+                <section class="fsec">
+                  <div class="fsec-h"><span class="n">7</span><h3>{{ 'customers.section.addresses' | t }}</h3></div>
+                  <div class="addr-list">
+                    @for (a of addresses(); track a.id) {
+                      <div class="addr-item">
+                        <div class="addr-item-main">
+                          <b>{{ ('customers.addressKind.' + a.kind) | t }}@if (a.label) { · {{ a.label }} }@if (a.isDefault) { <span class="badge badge-info">{{ 'customers.address.default' | t }}</span> }</b>
+                          <span class="cust-sub">{{ formatAddress(a.address) }}</span>
+                        </div>
+                        <div class="addr-item-actions">
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon" [attr.data-tip]="'common.edit' | t" [attr.aria-label]="'common.edit' | t" (click)="editAddress(a)"><app-icon name="edit" size="sm" /></button>
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon delete-btn" [attr.data-tip]="'common.delete' | t" [attr.aria-label]="'common.delete' | t" (click)="removeAddress(a)"><app-icon name="trash" size="sm" /></button>
+                        </div>
+                      </div>
+                    } @empty {
+                      <p class="cust-sub">{{ 'customers.address.none' | t }}</p>
+                    }
+                    @if (addrEditorOpen()) {
+                      <div class="addr-editor" [formGroup]="addrForm">
+                        <div class="grid-2">
+                          <div class="fld">
+                            <label class="fld-label" for="addrKind">{{ 'customers.address.kind' | t }}</label>
+                            <div class="field select">
+                              <select id="addrKind" formControlName="kind">
+                                <option value="DELIVERY">{{ 'customers.addressKind.DELIVERY' | t }}</option>
+                                <option value="BILLING">{{ 'customers.addressKind.BILLING' | t }}</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div class="fld">
+                            <label class="fld-label" for="addrLabel">{{ 'customers.address.label' | t }}</label>
+                            <div class="field">
+                              <input id="addrLabel" type="text" formControlName="label" />
+                            </div>
+                          </div>
+                        </div>
+                        <app-address-fields [group]="addrAddressGroup" idPrefix="caddr"></app-address-fields>
+                        <label class="check"><input type="checkbox" formControlName="isDefault" />{{ 'customers.address.default' | t }}</label>
+                        <div class="addr-editor-actions">
+                          <button type="button" class="btn btn-ghost btn-sm" (click)="addrEditorOpen.set(false)">{{ 'common.cancel' | t }}</button>
+                          <button type="button" class="btn btn-primary btn-sm" [class.is-loading]="addrSaving()" [disabled]="addrAddressGroup.invalid || addrSaving()" (click)="saveAddress()">{{ 'common.save' | t }}</button>
+                        </div>
+                      </div>
+                    } @else {
+                      <button type="button" class="btn btn-subtle btn-sm addr-add" (click)="newAddress()"><app-icon name="plus" />{{ 'customers.address.add' | t }}</button>
+                    }
+                  </div>
+                </section>
               }
             </div>
 
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="form.invalid || form.pristine || isSaving()">
-                @if (isSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'customers.saving' | t }} } @else { {{ 'common.save' | t }} }
+              <button type="button" class="btn btn-ghost" (click)="closeDrawer()" [disabled]="isSaving()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isSaving()" [disabled]="form.invalid || form.pristine || isSaving()">
+                <span>{{ 'common.save' | t }}</span><kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </form>
@@ -470,6 +567,16 @@ export class CustomersComponent implements OnInit {
         this.ui.showToast(err.error?.message || this.i18n.t('customers.loadError'), 'error');
       }
     });
+  }
+
+  initials(name: string): string {
+    return (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toLocaleUpperCase(this.i18n.lang() === 'tr' ? 'tr' : 'en');
+  }
+
+  /** Esc closes the drawer (unless a save is in flight). */
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.isDrawerOpen() && !this.isSaving()) this.closeDrawer();
   }
 
   location(c: Customer): string {

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventoryService } from '../../inventory.service';
@@ -6,67 +6,95 @@ import { AccountingService } from '../../services/accounting.service';
 import { COUNT_TYPES } from '@stok/tr-compliance';
 import { UiStateService } from '../../services/ui-state.service';
 import { AppStateService } from '../../services/app-state.service';
-import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe } from '../../i18n';
+import { I18nService, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective } from '../shared/quantity-input.directive';
 import { roundQty, sumQty } from '@stok/tr-compliance';
 import { Unit } from '../../models/inventory.models';
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { StockCount, StockCountItem } from '../../models/inventory.models';
+import { IconComponent } from '../shared/icon.component';
 
 @Component({
   selector: 'app-stock-count',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, BarcodeScannerComponent, QuantityInputDirective],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, BarcodeScannerComponent, QuantityInputDirective, IconComponent],
   styleUrls: ['../../drawer.css'],
   styles: [`
-    .drawer-field { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); }
-    .drawer-field label, .field-label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--color-text-muted); }
-    .drawer-field span { font-size: var(--text-sm); color: var(--color-text); }
-    .tutanak-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 var(--space-3); }
-    .tutanak-hint { font-size: var(--text-xs); margin: 0 0 var(--space-3); }
-    .notes-box { background: var(--color-surface-subtle); padding: var(--space-3); border-radius: var(--radius-md); border: 1px dashed var(--color-border-strong); font-size: var(--text-sm); color: var(--color-text-secondary); }
-    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
-    .drawer-table { width: 100%; border-collapse: collapse; margin-top: var(--space-2); font-size: var(--text-sm); }
-    .drawer-table th { text-align: left; padding: var(--space-2); background: var(--color-surface-subtle); border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); font-weight: var(--weight-medium); font-size: var(--text-xs); }
-    .drawer-table td { padding: var(--space-2); border-bottom: 1px solid var(--color-border-subtle); vertical-align: middle; color: var(--color-text); }
-    .drawer-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .active-count-wrapper { display: flex; flex-direction: column; gap: var(--space-5); margin-bottom: var(--space-6); padding: var(--space-6); }
-    .active-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; padding-bottom: var(--space-4); border-bottom: 1px solid var(--color-border-subtle); }
-    .active-header h3 { font-size: var(--text-lg); margin: 0 0 var(--space-1); color: var(--color-text); }
-    .active-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-    .progress-box { background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
-    .progress-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); font-size: var(--text-sm); }
-    .progress-track { width: 100%; height: 8px; background: var(--color-surface-muted); border-radius: var(--radius-full); overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--color-primary); border-radius: var(--radius-full); transition: width var(--duration-base) var(--ease-standard); }
-    .diff-badge { display: inline-flex; align-items: center; padding: 2px var(--space-2); border-radius: var(--radius-full); font-weight: var(--weight-semibold); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
-    .diff-pos { background: var(--color-success-subtle); color: var(--color-success-text); }
-    .diff-neg { background: var(--color-danger-subtle); color: var(--color-danger-text); }
-    .diff-zero { background: var(--color-surface-muted); color: var(--color-text-secondary); }
-    .qty-input { width: 88px; height: 32px; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); font-size: var(--text-sm); font-variant-numeric: tabular-nums; text-align: right; outline: none; transition: border-color var(--duration-fast); }
-    .qty-input:focus { border-color: var(--color-primary); box-shadow: var(--focus-ring); }
-    .scan-highlight td { background-color: var(--color-primary-subtle) !important; }
-    .expand-btn { width: 24px; height: 24px; display: inline-grid; place-items: center; border: none; background: transparent; cursor: pointer; color: var(--color-text-muted); border-radius: var(--radius-xs); padding: 0; }
-    .expand-btn:hover { background: var(--color-surface-muted); color: var(--color-text); }
-    .expand-btn svg { transition: transform var(--duration-fast); }
-    .expand-btn.open svg { transform: rotate(90deg); }
-    .track-sub td { background: var(--color-surface-subtle); font-size: var(--text-xs); }
-    .track-sub .indent { padding-left: var(--space-10); }
-    .serial-missing { text-decoration: line-through; color: var(--color-danger-text); }
-    .serial-label { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
-    .name-cell { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-    .zero-stock-row td, .zero-stock-row:hover td { background-color: var(--color-warning-subtle) !important; }
-    .confirm-icon { background: var(--color-primary-subtle) !important; color: var(--color-primary) !important; }
+    .field.select { padding: 0; }
+    .sc-active { margin-bottom: 20px; }
+    .sc-active-h { flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; row-gap: 10px; }
+    .sc-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .sc-title-row { display: flex; align-items: center; gap: 8px; }
+    .sc-title h3 { font-family: var(--font-mono); font-weight: 500; }
+    .sc-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .sc-more { position: relative; display: inline-flex; }
+    .sc-more-pop { right: 0; top: calc(100% + 6px); width: 220px; }
+    .sc-more-pop .sc-m { display: none; }
+    .sc-date input[type=date] { cursor: text; }
+    .sc-date input[type=date]::-webkit-calendar-picker-indicator { display: none; }
+    .sc-body { display: flex; flex-direction: column; gap: 16px; }
+    .sc-tutanak { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 16px 14px; }
+    .sc-progress { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .sc-progress-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: var(--text-sm); }
+    .sc-progress-row b { font-weight: 500; }
+    .sc-progress-row .pct { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-2); }
+    .sc-progress .meter { height: 6px; }
+    .sc-progress .meter > i { background: var(--accent); transition: width var(--dur-3) var(--ease-out); }
+    .sc-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .sc-name b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+    .sc-name .badge { margin-left: 0; flex: none; }
+    .sc-expand svg { transition: transform var(--dur-1) var(--ease-out); }
+    .sc-expand.open svg { transform: rotate(90deg); }
+    .sc-expand-spacer { display: inline-block; width: var(--h-xs); flex: none; }
+    .sc-qty { width: 104px; margin-left: auto; }
+    .sc-th-name { display: flex; align-items: center; gap: 8px; }
+    .sc-active > .table-scroll { border-radius: 0 0 var(--radius-lg) var(--radius-lg); overflow-y: hidden; }
+    .sc-table td.sc-name-cell { max-width: 420px; }
+    .sc-table tr.sc-zero td { background: var(--warning-soft); }
+    .sc-table tr.sc-hl td { background: var(--accent-soft); }
+    .sc-table tr.sc-sub td { background: var(--surface-2); font-size: var(--text-xs); }
+    .sc-table tr.sc-sub td.sc-indent { padding-left: 52px; }
+    .sc-serial-missing { text-decoration: line-through; color: var(--danger); }
+    .sc-diff { min-width: 36px; justify-content: center; font-variant-numeric: tabular-nums; }
+    .sc-detail-table td:first-child { white-space: normal; max-width: none; }
+    .sc-detail-table .sc-name { flex-wrap: wrap; }
+    .sc-detail-table .sc-name b { overflow: visible; }
+    .sc-hist .card-h .sub { font-variant-numeric: tabular-nums; }
+    .sc-hist td.sc-notes-cell { max-width: 260px; }
+    .sc-hist .td-actions .btn + .btn { margin-left: 4px; }
+    .sc-kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin: 0; }
+    .sc-kv dt { font-size: var(--text-xs); font-weight: 500; color: var(--fg-2); }
+    .sc-kv dd { margin: 3px 0 0; font-size: var(--text-sm); color: var(--fg); overflow-wrap: anywhere; }
+    .sc-notes { padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-sm); color: var(--fg-2); }
+    .sc-section-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .sc-modal-sum { display: flex; gap: 20px; margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-xs); color: var(--fg-3); }
+    .sc-modal-sum b { display: block; font-size: var(--text-md); font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
     @media (max-width: 640px) {
-      .active-count-wrapper { padding: var(--space-4); }
-      .active-actions { width: 100%; }
-      .active-actions .btn { flex: 1; }
-      .meta-grid { grid-template-columns: 1fr; }
-      .drawer-table .hide-xs { display: none; }
-      /* In-progress count: stacked cards instead of horizontal scroll */
-      .sc-active-table tr.track-sub { padding: var(--space-2) var(--space-4) var(--space-2) var(--space-8); background: var(--color-surface-subtle); }
-      .sc-active-table tr.track-sub td { background: transparent; }
-      .sc-active-table .track-sub .indent { padding-left: 0; text-align: left; }
-      .sc-active-table .name-cell { justify-content: flex-start; }
+      .sc-actions { width: 100%; }
+      .sc-actions .btn-primary { flex: 1; }
+      .sc-actions .sc-sec { display: none; }
+      .sc-more-pop { left: 0; right: auto; }
+      .sc-more-pop .sc-m { display: flex; }
+      .sc-more-pop div.sc-m { display: block; }
+      .sc-kv { gap: 12px; }
+      .sc-detail-table .hide-xs { display: none; }
+      .sc-table td.sc-name-cell { max-width: none; }
+      .sc-table tbody tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; }
+      .sc-table tbody tr td { width: auto; overflow: visible; }
+      .sc-table td.sc-name-cell, .sc-table td.sc-indent, .sc-table td.sc-c-full { grid-column: 1 / -1; }
+      .sc-table td.sc-c-sku { grid-column: 1 / span 2; justify-content: flex-start; }
+      .sc-table td.sc-c-unit { justify-content: flex-end; }
+      .sc-table td.sc-c-sku::before, .sc-table td.sc-c-unit::before { display: none; }
+      .sc-table td.sc-c-num { flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 2px; padding-top: 4px; }
+      .sc-table td.sc-c-num .sc-qty { width: 100%; margin: 0; }
+      .sc-table td.sc-c-full { justify-content: flex-start; gap: 8px; }
+      .sc-table .sc-name { flex-wrap: wrap; }
+      .sc-table tr.sc-sub { background: var(--surface-2); padding-left: 28px; }
+      .sc-table tr.sc-sub td, .sc-table tr.sc-sub td.sc-indent { background: transparent; padding-left: 0; text-align: left; }
+      .sc-table tr.sc-zero { background: var(--warning-soft); }
+      .sc-table tr.sc-zero td { background: transparent; }
+      .sc-hist .td-actions { justify-content: flex-start; }
+      .sc-hist td.sc-notes-cell { max-width: none; }
     }
   `],
   template: `
@@ -77,142 +105,164 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
       </div>
       <div class="page-actions">
         @if (!activeCount()) {
-          <button class="btn btn-primary" (click)="startNewCount()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> {{ 'stockCount.startNew' | t }}</button>
+          <button type="button" class="btn btn-primary" (click)="startNewCount()"><app-icon name="plus" />{{ 'stockCount.startNew' | t }}</button>
         }
       </div>
     </header>
 
     <!-- ─── Active In-Progress Count Session ─── -->
     @if (activeCount()) {
-      <div class="card active-count-wrapper">
-        <div class="active-header">
-          <div>
-            <h3 class="mono">{{ activeCount()?.countNumber }}</h3>
-            <span class="text-muted" style="font-size: var(--text-xs);">
-              {{ 'stockCount.startedAt' | t }}: {{ activeCount()?.startedAt | appDate: 'datetime' }} · {{ 'stockCount.performedBy' | t }}: {{ activeCount()?.performedBy }}
+      <section class="card sc-active" [attr.aria-label]="activeCount()?.countNumber">
+        <div class="card-h sc-active-h">
+          <div class="sc-title">
+            <div class="sc-title-row">
+              <h3>{{ activeCount()?.countNumber }}</h3>
+              <span class="badge badge-warning"><span class="dot"></span>{{ 'stockCount.status.inProgress' | t }}</span>
+            </div>
+            <span class="sub">{{ 'stockCount.startedAt' | t }} {{ activeCount()?.startedAt | appDate: 'datetime' }} · {{ 'stockCount.performedBy' | t }} {{ activeCount()?.performedBy }}</span>
+          </div>
+          <span class="spacer"></span>
+          <div class="sc-actions">
+            <button type="button" class="btn btn-sm sc-sec" (click)="showScanner.set(true)" [disabled]="isActionLoading()"><app-icon name="scan" />{{ 'stockCount.scan' | t }}</button>
+            <button type="button" class="btn btn-sm sc-sec" (click)="saveDraft()" [disabled]="isActionLoading()">{{ 'stockCount.saveCount' | t }}</button>
+            <span class="sc-more" (click)="$event.stopPropagation()">
+              <button type="button" class="btn btn-sm btn-icon" [class.is-active]="moreOpen()" [attr.aria-label]="'stockCount.moreActions' | t" aria-haspopup="menu" [attr.aria-expanded]="moreOpen()" (click)="moreOpen.update(v => !v)" [disabled]="isActionLoading()"><app-icon name="more" /></button>
+              @if (moreOpen()) {
+                <div class="pop sc-more-pop" role="menu">
+                  <button type="button" class="menu-i sc-m" role="menuitem" (click)="moreOpen.set(false); showScanner.set(true)"><app-icon name="scan" />{{ 'stockCount.scan' | t }}</button>
+                  <button type="button" class="menu-i sc-m" role="menuitem" (click)="moreOpen.set(false); saveDraft()"><app-icon name="file" />{{ 'stockCount.saveCount' | t }}</button>
+                  <div class="menu-sep sc-m"></div>
+                  <button type="button" class="menu-i danger" role="menuitem" (click)="moreOpen.set(false); promptCancel()"><app-icon name="x" />{{ 'stockCount.cancelCount' | t }}</button>
+                </div>
+              }
             </span>
-          </div>
-          <div class="active-actions">
-            <button class="btn btn-secondary btn-sm" (click)="showScanner.set(true)" [disabled]="isActionLoading()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 7v10M12 7v10M16 7v10"/></svg>{{ 'stockCount.scan' | t }}</button>
-            <button class="btn btn-ghost btn-sm" (click)="promptCancel()" [disabled]="isActionLoading()">{{ 'stockCount.cancelCount' | t }}</button>
-            <button class="btn btn-secondary btn-sm" (click)="saveDraft()" [disabled]="isActionLoading()">{{ 'stockCount.saveCount' | t }}</button>
-            <button class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()">{{ 'stockCount.completeCount' | t }}</button>
+            <button type="button" class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()"><app-icon name="check" />{{ 'stockCount.completeCount' | t }}</button>
           </div>
         </div>
 
-        <div class="tutanak-grid">
-          <div class="drawer-field"><label for="scType">{{ 'stockCount.countType' | t }}</label>
-            <select id="scType" class="select" [(ngModel)]="header.countType" [disabled]="isActionLoading()">@for (ct of countTypes; track ct) { <option [value]="ct">{{ 'stockCount.countType.' + ct | t }}</option> }</select></div>
-          <div class="drawer-field"><label for="scDate">{{ 'stockCount.countDate' | t }}</label><input id="scDate" type="date" class="input" [(ngModel)]="header.countDate" [disabled]="isActionLoading()" /></div>
-          <div class="drawer-field"><label for="scAsOf">{{ 'stockCount.asOfDate' | t }}</label><input id="scAsOf" type="date" class="input" [(ngModel)]="header.asOfDate" [disabled]="isActionLoading()" /></div>
-          <div class="drawer-field"><label for="scTeam">{{ 'stockCount.countedBy' | t }}</label><input id="scTeam" class="input" [(ngModel)]="header.countedByText" [placeholder]="'stockCount.countedByHint' | t" [disabled]="isActionLoading()" /></div>
-          <div class="drawer-field"><label for="scSup">{{ 'stockCount.supervisedBy' | t }}</label><input id="scSup" class="input" [(ngModel)]="header.supervisedBy" [disabled]="isActionLoading()" /></div>
-        </div>
-        <p class="text-muted tutanak-hint">{{ 'stockCount.tutanakHint' | t }}</p>
-
-        <div class="drawer-field">
-          <label for="countNotes">{{ 'stockCount.notesOptional' | t }}</label>
-          <input id="countNotes" type="text" [(ngModel)]="activeNotes" class="input" [placeholder]="'stockCount.notesPlaceholder' | t" [disabled]="isActionLoading()" />
-        </div>
-
-        <!-- Progress Indicator -->
-        <div class="progress-box">
-          <div class="progress-info">
-            <span style="font-weight: var(--weight-semibold); color: var(--color-text);">
-              {{ 'stockCount.progress' | t: { counted: countedItemsCount(), total: totalItemsCount() } }}
-            </span>
-            <span class="num" style="font-weight: var(--weight-semibold); color: var(--color-primary-text);">
-              {{ progressPercentage() }}%
-            </span>
+        <div class="card-b sc-body">
+          <div class="sc-tutanak">
+            <div class="fld">
+              <label class="fld-label" for="scType">{{ 'stockCount.countType' | t }}</label>
+              <div class="field select">
+                <select id="scType" [(ngModel)]="header.countType" [disabled]="isActionLoading()">@for (ct of countTypes; track ct) { <option [value]="ct">{{ 'stockCount.countType.' + ct | t }}</option> }</select>
+              </div>
+            </div>
+            <div class="fld">
+              <label class="fld-label" for="scDate">{{ 'stockCount.countDate' | t }}</label>
+              <div class="field sc-date"><span class="lead"><app-icon name="calendar" size="sm" /></span><input id="scDate" type="date" (click)="openPicker($event)" [(ngModel)]="header.countDate" [disabled]="isActionLoading()" /></div>
+            </div>
+            <div class="fld">
+              <label class="fld-label" for="scAsOf">{{ 'stockCount.asOfDate' | t }}</label>
+              <div class="field sc-date"><span class="lead"><app-icon name="calendar" size="sm" /></span><input id="scAsOf" type="date" (click)="openPicker($event)" [(ngModel)]="header.asOfDate" [disabled]="isActionLoading()" /></div>
+            </div>
+            <div class="fld">
+              <label class="fld-label" for="scTeam">{{ 'stockCount.countedBy' | t }}</label>
+              <div class="field"><span class="lead"><app-icon name="users" size="sm" /></span><input id="scTeam" [(ngModel)]="header.countedByText" [placeholder]="'stockCount.countedByHint' | t" [disabled]="isActionLoading()" /></div>
+            </div>
+            <div class="fld">
+              <label class="fld-label" for="scSup">{{ 'stockCount.supervisedBy' | t }}</label>
+              <div class="field"><span class="lead"><app-icon name="user" size="sm" /></span><input id="scSup" [(ngModel)]="header.supervisedBy" [disabled]="isActionLoading()" /></div>
+            </div>
           </div>
-          <div class="progress-track">
-            <div class="progress-fill" [style.width.%]="progressPercentage()"></div>
+          <div class="fld-help">{{ 'stockCount.tutanakHint' | t }}</div>
+
+          <div class="fld">
+            <label class="fld-label" for="countNotes">{{ 'stockCount.notes' | t }}<span class="opt">{{ 'stockCount.ui.optional' | t }}</span></label>
+            <div class="field"><input id="countNotes" type="text" [(ngModel)]="activeNotes" [placeholder]="'stockCount.notesPlaceholder' | t" [disabled]="isActionLoading()" /></div>
+          </div>
+
+          <div class="sc-progress" role="group" [attr.aria-label]="'stockCount.progress' | t: { counted: countedItemsCount(), total: totalItemsCount() }">
+            <div class="sc-progress-row">
+              <b>{{ 'stockCount.progress' | t: { counted: countedItemsCount(), total: totalItemsCount() } }}</b>
+              <span class="pct">{{ 'stockCount.ui.pct' | t: { value: progressPercentage() } }}</span>
+            </div>
+            <div class="meter" role="progressbar" [attr.aria-valuenow]="progressPercentage()" aria-valuemin="0" aria-valuemax="100"><i [style.width.%]="progressPercentage()"></i></div>
           </div>
         </div>
 
-        <div class="table-card" style="margin: 0; box-shadow: none;">
-          <div class="table-scroll">
-            <table class="table-responsive sc-active-table">
-              <thead>
-                <tr>
-                  <th>{{ 'stockCount.col.productName' | t }}</th>
-                  <th>{{ 'stockCount.col.sku' | t }}</th>
-                  <th>{{ 'stockCount.col.unit' | t }}</th>
-                  <th class="num" style="width: 120px;">{{ 'stockCount.col.systemStock' | t }}</th>
-                  <th class="num" style="width: 120px;">{{ 'stockCount.col.countedStock' | t }}</th>
-                  <th class="num" style="width: 100px;">{{ 'stockCount.col.difference' | t }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (item of activeItems(); track item.productId) {
-                  <tr [id]="'sc-row-' + item.productId" [class.zero-stock-row]="item.systemQuantity === 0" [class.scan-highlight]="highlightedId() === item.productId">
-                    <td class="td-primary">
-                      <div class="name-cell">
-                        @if (isTracked(item)) {
-                          <button class="expand-btn" [class.open]="expanded().has(item.productId)" (click)="toggleExpand(item.productId)" [attr.aria-label]="'stockCount.toggleDetails' | t"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
-                        }
-                        <strong>{{ item.productName }}</strong>
-                        @if (item.trackingType === 'lot') { <span class="badge badge-neutral">{{ 'stockCount.lotTracked' | t }}</span> }
-                        @if (item.trackingType === 'serial') { <span class="badge badge-neutral">{{ 'stockCount.serialTracked' | t }}</span> }
-                        @if (item.systemQuantity === 0) {
-                          <span class="badge badge-warning">{{ 'stockCount.noSystemStock' | t }}</span>
-                        }
-                      </div>
-                    </td>
-                    <td class="mono" [attr.data-label]="'stockCount.col.sku' | t">{{ item.sku }}</td>
-                    <td [attr.data-label]="'stockCount.col.unit' | t">{{ item.unit || ('stockCount.defaultUnit' | t) }}</td>
-                    <td class="num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ item.systemQuantity | num }}</td>
-                    <td class="num" [attr.data-label]="'stockCount.col.countedStock' | t">
+        <div class="table-scroll">
+          <table class="tbl table-responsive sc-table">
+            <thead>
+              <tr>
+                <th><span class="sc-th-name"><span class="sc-expand-spacer d-only" aria-hidden="true"></span>{{ 'stockCount.col.productName' | t }}</span></th>
+                <th>{{ 'stockCount.col.sku' | t }}</th>
+                <th>{{ 'stockCount.col.unit' | t }}</th>
+                <th class="r">{{ 'stockCount.col.systemStock' | t }}</th>
+                <th class="r">{{ 'stockCount.col.countedStock' | t }}</th>
+                <th class="r">{{ 'stockCount.col.difference' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of activeItems(); track item.productId) {
+                <tr [id]="'sc-row-' + item.productId" [class.sc-zero]="item.systemQuantity === 0" [class.sc-hl]="highlightedId() === item.productId">
+                  <td class="td-primary sc-name-cell">
+                    <div class="sc-name">
                       @if (isTracked(item)) {
-                        <span class="mono" [title]="'stockCount.trackedSumHint' | t">{{ item.countedQuantity }}</span>
+                        <button type="button" class="btn btn-ghost btn-xs btn-icon sc-expand" [class.open]="expanded().has(item.productId)" (click)="toggleExpand(item.productId)" [attr.aria-label]="'stockCount.toggleDetails' | t" [attr.aria-expanded]="expanded().has(item.productId)"><app-icon name="chevr" size="sm" /></button>
                       } @else {
-                        <input type="text" appQty [qtyDecimals]="unitDecimals(item.unit)" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" class="qty-input" [disabled]="isActionLoading()" />
+                        <span class="sc-expand-spacer d-only"></span>
                       }
-                    </td>
-                    <td class="num" [attr.data-label]="'stockCount.col.difference' | t">
-                      <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
-                        {{ item.difference > 0 ? '+' : '' }}{{ item.difference | num }}
-                      </span>
-                    </td>
-                  </tr>
-                  @if (isTracked(item) && expanded().has(item.productId)) {
-                    @if (item.trackingType === 'lot') {
-                      @for (lot of item.lots || []; track lot.lotId) {
-                        <tr class="track-sub">
-                          <td class="indent">{{ 'stockCount.lot' | t }}: <span class="mono">{{ lot.lotNumber }}</span></td>
-                          <td [attr.data-label]="'products.lots.expiry' | t">{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</td>
-                          <td [attr.data-label]="'products.lots.warehouse' | t">{{ lot.warehouseName || '-' }}</td>
-                          <td class="num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ lot.systemQuantity }}</td>
-                          <td class="num" [attr.data-label]="'stockCount.col.countedStock' | t">
-                            <input type="text" appQty [qtyDecimals]="unitDecimals(item.unit)" [(ngModel)]="lot.countedQuantity" (ngModelChange)="recomputeTracked(item)" class="qty-input" [disabled]="isActionLoading()" />
-                          </td>
-                          <td class="num" [attr.data-label]="'stockCount.col.difference' | t">{{ diff(lot.countedQuantity, lot.systemQuantity) | num }}</td>
-                        </tr>
-                      } @empty {
-                        <tr class="track-sub"><td colspan="6" class="indent">{{ 'stockCount.noLots' | t }}</td></tr>
-                      }
+                      <b>{{ item.productName }}</b>
+                      @if (item.trackingType === 'lot') { <span class="badge badge-neutral">{{ 'stockCount.lotTracked' | t }}</span> }
+                      @if (item.trackingType === 'serial') { <span class="badge badge-neutral">{{ 'stockCount.serialTracked' | t }}</span> }
+                      @if (item.systemQuantity === 0) { <span class="badge badge-warning"><app-icon name="warn" size="xs" />{{ 'stockCount.noSystemStock' | t }}</span> }
+                    </div>
+                  </td>
+                  <td class="mono sec sc-c-sku" [attr.data-label]="'stockCount.col.sku' | t">{{ item.sku }}</td>
+                  <td class="sec sc-c-unit" [attr.data-label]="'stockCount.col.unit' | t">{{ item.unit ? (item.unit | unitLabel) : ('stockCount.defaultUnit' | t) }}</td>
+                  <td class="r sc-c-num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ item.systemQuantity | num }}</td>
+                  <td class="r sc-c-num" [attr.data-label]="'stockCount.col.countedStock' | t">
+                    @if (isTracked(item)) {
+                      <span [title]="'stockCount.trackedSumHint' | t">{{ item.countedQuantity | num }}</span>
                     } @else {
-                      @for (sn of item.serials || []; track sn.serial) {
-                        <tr class="track-sub">
-                          <td class="indent" colspan="3">
-                            <label class="serial-label">
-                              <input type="checkbox" [(ngModel)]="sn.present" (ngModelChange)="recomputeTracked(item)" [disabled]="isActionLoading()" />
-                              <span class="mono" [class.serial-missing]="!sn.present">{{ sn.serial }}</span>
-                            </label>
-                          </td>
-                          <td colspan="3">{{ sn.warehouseName || '' }} · {{ (sn.present ? 'stockCount.serialPresent' : 'stockCount.serialMissing') | t }}</td>
-                        </tr>
-                      } @empty {
-                        <tr class="track-sub"><td colspan="6" class="indent">{{ 'stockCount.noSerials' | t }}</td></tr>
-                      }
+                      <div class="field field-sm sc-qty"><input type="text" class="num" appQty [qtyDecimals]="unitDecimals(item.unit)" [(ngModel)]="item.countedQuantity" (ngModelChange)="onCountedChange(item)" [disabled]="isActionLoading()" [attr.aria-label]="('stockCount.col.countedStock' | t) + ': ' + item.productName" /></div>
+                    }
+                  </td>
+                  <td class="r sc-c-num" [attr.data-label]="'stockCount.col.difference' | t">
+                    <span class="badge sc-diff" [class.badge-success]="item.difference > 0" [class.badge-danger]="item.difference < 0" [class.badge-neutral]="item.difference === 0">{{ item.difference > 0 ? '+' : '' }}{{ item.difference | num }}</span>
+                  </td>
+                </tr>
+                @if (isTracked(item) && expanded().has(item.productId)) {
+                  @if (item.trackingType === 'lot') {
+                    @for (lot of item.lots || []; track lot.lotId) {
+                      <tr class="sc-sub">
+                        <td class="sc-indent">{{ 'stockCount.lot' | t }} <span class="mono">{{ lot.lotNumber }}</span></td>
+                        <td class="sec sc-c-sku" [attr.data-label]="'products.lots.expiry' | t">{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</td>
+                        <td class="sec sc-c-unit" [attr.data-label]="'products.lots.warehouse' | t">{{ lot.warehouseName || '-' }}</td>
+                        <td class="r sc-c-num" [attr.data-label]="'stockCount.col.systemStock' | t">{{ lot.systemQuantity | num }}</td>
+                        <td class="r sc-c-num" [attr.data-label]="'stockCount.col.countedStock' | t">
+                          <div class="field field-sm sc-qty"><input type="text" class="num" appQty [qtyDecimals]="unitDecimals(item.unit)" [(ngModel)]="lot.countedQuantity" (ngModelChange)="recomputeTracked(item)" [disabled]="isActionLoading()" [attr.aria-label]="('stockCount.col.countedStock' | t) + ': ' + lot.lotNumber" /></div>
+                        </td>
+                        <td class="r sc-c-num" [attr.data-label]="'stockCount.col.difference' | t">{{ diff(lot.countedQuantity, lot.systemQuantity) | num }}</td>
+                      </tr>
+                    } @empty {
+                      <tr class="sc-sub"><td colspan="6" class="sc-indent muted">{{ 'stockCount.noLots' | t }}</td></tr>
+                    }
+                  } @else {
+                    @for (sn of item.serials || []; track sn.serial) {
+                      <tr class="sc-sub">
+                        <td class="sc-indent" colspan="3">
+                          <label class="check">
+                            <input type="checkbox" [(ngModel)]="sn.present" (ngModelChange)="recomputeTracked(item)" [disabled]="isActionLoading()" />
+                            <span class="mono" [class.sc-serial-missing]="!sn.present">{{ sn.serial }}</span>
+                          </label>
+                        </td>
+                        <td colspan="3" class="sec sc-c-full">
+                          {{ sn.warehouseName || '' }}
+                          <span class="badge" [class.badge-success]="sn.present" [class.badge-danger]="!sn.present"><span class="dot"></span>{{ (sn.present ? 'stockCount.serialPresent' : 'stockCount.serialMissing') | t }}</span>
+                        </td>
+                      </tr>
+                    } @empty {
+                      <tr class="sc-sub"><td colspan="6" class="sc-indent muted">{{ 'stockCount.noSerials' | t }}</td></tr>
                     }
                   }
                 }
-              </tbody>
-            </table>
-          </div>
+              }
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
     }
 
     @if (showScanner()) {
@@ -224,163 +274,156 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
     }
 
     <!-- ─── Count History ─── -->
-    <div class="table-card">
-      <div class="table-scroll">
-        <table class="table-responsive">
-          <thead>
-            <tr>
-              <th>{{ 'stockCount.col.countNo' | t }}</th>
-              <th>{{ 'stockCount.col.date' | t }}</th>
-              <th>{{ 'stockCount.performedBy' | t }}</th>
-              <th>{{ 'stockCount.col.status' | t }}</th>
-              <th class="num">{{ 'stockCount.col.itemCount' | t }}</th>
-              <th>{{ 'stockCount.notes' | t }}</th>
-              <th class="th-actions">{{ 'common.actions' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (c of counts(); track c.id) {
-              <tr>
-                <td class="mono td-primary"><strong>{{ c.countNumber }}</strong></td>
-                <td class="text-muted" [attr.data-label]="'stockCount.col.date' | t">{{ (c.completedAt || c.startedAt) | appDate: 'datetime' }}</td>
-                <td [attr.data-label]="'stockCount.performedBy' | t">{{ c.performedBy }}</td>
-                <td [attr.data-label]="'stockCount.col.status' | t">
-                  <span class="badge" [class.badge-success]="c.status === 'Completed'" [class.badge-warning]="c.status === 'InProgress'" [class.badge-neutral]="c.status === 'Cancelled'">
-                    {{ (c.status === 'Completed' ? 'stockCount.status.completed' : c.status === 'Cancelled' ? 'stockCount.status.cancelled' : 'stockCount.status.inProgress') | t }}
-                  </span>
-                </td>
-                <td class="num" [attr.data-label]="'stockCount.col.itemCount' | t">{{ c.items.length }}</td>
-                <td class="truncate text-muted" style="max-width: 250px;" [attr.data-label]="'stockCount.notes' | t">
-                  {{ c.notes || '-' }}
-                </td>
-                <td class="td-actions">
-                  @if (c.status === 'InProgress') {
-                    <button class="btn btn-secondary btn-sm" (click)="resumeCount(c)">{{ 'stockCount.resume' | t }}</button>
-                  } @else {
-                    <button class="btn btn-secondary btn-sm" (click)="viewDetails(c)">{{ 'stockCount.details' | t }}</button>
-                  }
-                  <button class="btn btn-ghost btn-sm" (click)="printTutanak(c)">{{ 'stockCount.tutanak' | t }}</button>
-                </td>
-              </tr>
-            }
-            @if (counts().length === 0) {
-              <tr><td colspan="7"><div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></div><p class="empty-state-title">{{ 'stockCount.empty' | t }}</p></div></td></tr>
-            }
-          </tbody>
-        </table>
+    <section class="card sc-hist">
+      <div class="card-h">
+        <h3>{{ 'stockCount.ui.history' | t }}</h3>
+        <span class="sub">{{ counts().length | num }}</span>
       </div>
-    </div>
+      @if (counts().length === 0) {
+        <div class="empty-state">
+          <div class="empty-art"><app-icon name="count" /></div>
+          <h3>{{ 'stockCount.empty' | t }}</h3>
+          <p>{{ 'stockCount.ui.emptyBody' | t }}</p>
+          @if (!activeCount()) {
+            <div class="cluster actions"><button type="button" class="btn btn-primary" (click)="startNewCount()"><app-icon name="plus" />{{ 'stockCount.startNew' | t }}</button></div>
+          }
+        </div>
+      } @else {
+        <div class="table-scroll">
+          <table class="tbl table-responsive">
+            <thead>
+              <tr>
+                <th>{{ 'stockCount.col.countNo' | t }}</th>
+                <th>{{ 'stockCount.col.date' | t }}</th>
+                <th>{{ 'stockCount.performedBy' | t }}</th>
+                <th>{{ 'stockCount.col.status' | t }}</th>
+                <th class="r">{{ 'stockCount.col.itemCount' | t }}</th>
+                <th>{{ 'stockCount.notes' | t }}</th>
+                <th class="r"><span class="sr-only">{{ 'common.actions' | t }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of counts(); track c.id) {
+                <tr>
+                  <td class="mono td-primary">{{ c.countNumber }}</td>
+                  <td class="sec" [attr.data-label]="'stockCount.col.date' | t">{{ (c.completedAt || c.startedAt) | appDate: 'datetime' }}</td>
+                  <td [attr.data-label]="'stockCount.performedBy' | t">{{ c.performedBy }}</td>
+                  <td [attr.data-label]="'stockCount.col.status' | t">
+                    <span class="badge" [class.badge-success]="c.status === 'Completed'" [class.badge-warning]="c.status === 'InProgress'" [class.badge-neutral]="c.status === 'Cancelled'"><span class="dot"></span>{{ (c.status === 'Completed' ? 'stockCount.status.completed' : c.status === 'Cancelled' ? 'stockCount.status.cancelled' : 'stockCount.status.inProgress') | t }}</span>
+                  </td>
+                  <td class="r" [attr.data-label]="'stockCount.col.itemCount' | t">{{ c.items.length | num }}</td>
+                  <td class="sec sc-notes-cell" [attr.data-label]="'stockCount.notes' | t" [title]="c.notes || ''">{{ c.notes || '-' }}</td>
+                  <td class="td-actions">
+                    @if (c.status === 'InProgress') {
+                      <button type="button" class="btn btn-sm" (click)="resumeCount(c)"><app-icon name="arrowr" />{{ 'stockCount.resume' | t }}</button>
+                    } @else {
+                      <button type="button" class="btn btn-sm" (click)="viewDetails(c)">{{ 'stockCount.details' | t }}</button>
+                    }
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="printTutanak(c)"><app-icon name="printer" />{{ 'stockCount.tutanak' | t }}</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
 
     <!-- ─── Complete Confirmation Modal ─── -->
     @if (showCompleteModal()) {
       <div class="modal-backdrop">
-        <div class="modal-panel modal-panel-sm">
-          <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-            <div class="delete-icon confirm-icon">
-              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-              </svg>
-            </div>
-            <h3 class="delete-modal-title">{{ 'stockCount.confirm.title' | t }}</h3>
-            <p class="delete-modal-desc">
-              {{ 'stockCount.confirm.message' | t }}
-            </p>
+        <div class="modal w-sm" role="dialog" aria-modal="true" aria-labelledby="scConfirmTitle">
+          <div class="modal-h">
+            <h2 id="scConfirmTitle">{{ 'stockCount.confirm.title' | t }}</h2>
+            <button type="button" class="modal-close" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
           </div>
-          <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-primary" (click)="completeCount()" [disabled]="isActionLoading()">
-              @if (isActionLoading()) { <span class="spinner-sm spinner-light"></span> {{ 'stockCount.confirming' | t }} } @else { {{ 'common.confirm' | t }} }
-            </button>
+          <div class="modal-b">
+            <p>{{ 'stockCount.confirm.message' | t }}</p>
+            <div class="sc-modal-sum">
+              <span><b>{{ countedItemsCount() | num }} / {{ totalItemsCount() | num }}</b>{{ 'stockCount.col.counted' | t }}</span>
+              <span><b>{{ 'stockCount.ui.pct' | t: { value: progressPercentage() } }}</b>{{ 'stockCount.ui.progressShort' | t }}</span>
+            </div>
+          </div>
+          <div class="modal-f">
+            <button type="button" class="btn btn-ghost" (click)="showCompleteModal.set(false)" [disabled]="isActionLoading()">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-primary" [class.is-loading]="isActionLoading()" (click)="completeCount()" [disabled]="isActionLoading()"><span>{{ 'common.confirm' | t }}</span></button>
           </div>
         </div>
       </div>
     }
 
     <!-- ─── Historical Details Drawer ─── -->
-    @if (selectedCount()) {
+    @if (selectedCount(); as sc) {
       <div class="drawer-overlay" (click)="selectedCount.set(null)">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" aria-labelledby="scDetailTitle" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ 'stockCount.detailsTitle' | t }}</span>
-            <button class="drawer-close" (click)="selectedCount.set(null)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <span class="drawer-title" id="scDetailTitle">{{ 'stockCount.detailsTitle' | t }}</span>
+            <div class="drawer-tools">
+              <button type="button" class="btn btn-ghost btn-sm" (click)="printTutanak(sc)"><app-icon name="printer" />{{ 'stockCount.tutanak' | t }}</button>
+              <button type="button" class="drawer-close" (click)="selectedCount.set(null)" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+            </div>
           </div>
-          
+
           <div class="drawer-body">
-            <div class="meta-grid">
-              <div class="drawer-field">
-                <label>{{ 'stockCount.col.countNo' | t }}</label>
-                <span class="mono" style="font-weight: var(--weight-semibold);">{{ selectedCount()?.countNumber }}</span>
-              </div>
-              <div class="drawer-field">
-                <label>{{ 'stockCount.performedBy' | t }}</label>
-                <span>{{ selectedCount()?.performedBy }}</span>
-              </div>
-              <div class="drawer-field">
-                <label>{{ 'stockCount.startedAt' | t }}</label>
-                <span>{{ selectedCount()?.startedAt | appDate: 'datetime' }}</span>
-              </div>
-              <div class="drawer-field">
-                <label>{{ 'stockCount.completedAt' | t }}</label>
-                <span>{{ selectedCount()?.completedAt ? (selectedCount()?.completedAt | appDate: 'datetime') : '-' }}</span>
-              </div>
+            <dl class="sc-kv">
+              <div><dt>{{ 'stockCount.col.countNo' | t }}</dt><dd class="mono">{{ sc.countNumber }}</dd></div>
+              <div><dt>{{ 'stockCount.col.status' | t }}</dt><dd>
+                <span class="badge" [class.badge-success]="sc.status === 'Completed'" [class.badge-warning]="sc.status === 'InProgress'" [class.badge-neutral]="sc.status === 'Cancelled'"><span class="dot"></span>{{ (sc.status === 'Completed' ? 'stockCount.status.completed' : sc.status === 'Cancelled' ? 'stockCount.status.cancelled' : 'stockCount.status.inProgress') | t }}</span>
+              </dd></div>
+              <div><dt>{{ 'stockCount.startedAt' | t }}</dt><dd>{{ sc.startedAt | appDate: 'datetime' }}</dd></div>
+              <div><dt>{{ 'stockCount.completedAt' | t }}</dt><dd>{{ sc.completedAt ? (sc.completedAt | appDate: 'datetime') : '-' }}</dd></div>
+              <div><dt>{{ 'stockCount.countType' | t }}</dt><dd>{{ 'stockCount.countType.' + (sc.countType || 'PERIODIC') | t }}</dd></div>
+              <div><dt>{{ 'stockCount.performedBy' | t }}</dt><dd>{{ sc.performedBy }}</dd></div>
+              <div><dt>{{ 'stockCount.countDate' | t }}</dt><dd>{{ sc.countDate ? (sc.countDate | appDate) : '-' }}</dd></div>
+              <div><dt>{{ 'stockCount.asOfDate' | t }}</dt><dd>{{ sc.asOfDate ? (sc.asOfDate | appDate) : '-' }}</dd></div>
+              <div><dt>{{ 'stockCount.countedBy' | t }}</dt><dd>{{ teamText(sc) }}</dd></div>
+              <div><dt>{{ 'stockCount.supervisedBy' | t }}</dt><dd>{{ sc.supervisedBy || '-' }}</dd></div>
+              <div><dt>{{ 'stockCount.approvedBy' | t }}</dt><dd>{{ sc.approvedBy || '-' }}</dd></div>
+            </dl>
+
+            <div class="fld">
+              <span class="fld-label">{{ 'stockCount.notes' | t }}</span>
+              <div class="sc-notes">{{ sc.notes || ('stockCount.noNotes' | t) }}</div>
             </div>
 
-            @if (selectedCount(); as sc) {
-              <div class="tutanak-grid">
-                <div class="drawer-field"><label>{{ 'stockCount.countType' | t }}</label><span>{{ 'stockCount.countType.' + (sc.countType || 'PERIODIC') | t }}</span></div>
-                <div class="drawer-field"><label>{{ 'stockCount.countDate' | t }}</label><span>{{ sc.countDate ? (sc.countDate | appDate) : '-' }}</span></div>
-                <div class="drawer-field"><label>{{ 'stockCount.asOfDate' | t }}</label><span>{{ sc.asOfDate ? (sc.asOfDate | appDate) : '-' }}</span></div>
-                <div class="drawer-field"><label>{{ 'stockCount.countedBy' | t }}</label><span>{{ teamText(sc) }}</span></div>
-                <div class="drawer-field"><label>{{ 'stockCount.supervisedBy' | t }}</label><span>{{ sc.supervisedBy || '-' }}</span></div>
-                <div class="drawer-field"><label>{{ 'stockCount.approvedBy' | t }}</label><span>{{ sc.approvedBy || '-' }}</span></div>
+            <div class="fld">
+              <div class="sc-section-h"><span class="fld-label">{{ 'stockCount.countedItems' | t }}</span><span class="fld-help">{{ sc.items.length | num }}</span></div>
+              <div class="table-card">
+                <div class="table-scroll">
+                  <table class="tbl dense sc-detail-table">
+                    <thead>
+                      <tr>
+                        <th>{{ 'stockCount.col.productName' | t }}</th>
+                        <th class="hide-xs">{{ 'stockCount.col.sku' | t }}</th>
+                        <th class="r">{{ 'stockCount.col.system' | t }}</th>
+                        <th class="r">{{ 'stockCount.col.counted' | t }}</th>
+                        <th class="r">{{ 'stockCount.col.difference' | t }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (item of sc.items; track item.productId) {
+                        <tr [class.sc-zero]="item.systemQuantity === 0">
+                          <td [title]="item.productName">
+                            <div class="sc-name">
+                              <b>{{ item.productName }}</b>
+                              @if (item.systemQuantity === 0) { <span class="badge badge-warning"><app-icon name="warn" size="xs" />{{ 'stockCount.noSystemStock' | t }}</span> }
+                            </div>
+                          </td>
+                          <td class="mono sec hide-xs">{{ item.sku }}</td>
+                          <td class="r">{{ item.systemQuantity | num }}</td>
+                          <td class="r">{{ item.countedQuantity | num }}</td>
+                          <td class="r">
+                            @if (item.approvalRequestId) {
+                              <span class="badge badge-warning" [title]="'stockCount.sentForApprovalHint' | t"><app-icon name="lock" size="xs" />{{ 'stockCount.sentForApproval' | t }}</span>
+                            }
+                            <span class="badge sc-diff" [class.badge-success]="item.difference > 0" [class.badge-danger]="item.difference < 0" [class.badge-neutral]="item.difference === 0">{{ item.difference > 0 ? '+' : '' }}{{ item.difference | num }}</span>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <button class="btn btn-secondary btn-sm" (click)="printTutanak(sc)">{{ 'stockCount.tutanak' | t }}</button>
-            }
-
-            <div class="drawer-field">
-              <label>{{ 'stockCount.notes' | t }}</label>
-              <div class="notes-box">{{ selectedCount()?.notes || ('stockCount.noNotes' | t) }}</div>
-            </div>
-
-            <div class="drawer-field" style="margin-top: var(--space-6);">
-              <label>{{ 'stockCount.countedItems' | t }}</label>
-              <table class="drawer-table">
-                <thead>
-                  <tr>
-                    <th>{{ 'stockCount.col.productName' | t }}</th>
-                    <th class="hide-xs">{{ 'stockCount.col.sku' | t }}</th>
-                    <th class="num">{{ 'stockCount.col.system' | t }}</th>
-                    <th class="num">{{ 'stockCount.col.counted' | t }}</th>
-                    <th class="num">{{ 'stockCount.col.difference' | t }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (item of selectedCount()?.items; track item.productId) {
-                    <tr [class.zero-stock-row]="item.systemQuantity === 0">
-                      <td>
-                        <div class="name-cell">
-                          <strong>{{ item.productName }}</strong>
-                          @if (item.systemQuantity === 0) {
-                            <span class="badge badge-warning">{{ 'stockCount.noSystemStock' | t }}</span>
-                          }
-                        </div>
-                      </td>
-                      <td class="mono hide-xs">{{ item.sku }}</td>
-                      <td class="num">{{ item.systemQuantity }}</td>
-                      <td class="num">{{ item.countedQuantity }}</td>
-                      <td class="num">
-                        <span class="diff-badge" [class.diff-pos]="item.difference > 0" [class.diff-neg]="item.difference < 0" [class.diff-zero]="item.difference === 0">
-                          {{ item.difference > 0 ? '+' : '' }}{{ item.difference | num }}
-                        </span>
-                        @if (item.approvalRequestId) {
-                          <span class="badge badge-warning" [title]="'stockCount.sentForApprovalHint' | t">{{ 'stockCount.sentForApproval' | t }}</span>
-                        }
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
@@ -409,10 +452,29 @@ export class StockCountComponent implements OnInit {
 
   isActionLoading = signal(false);
   showScanner = signal(false);
+  moreOpen = signal(false);
   expanded = signal<Set<string>>(new Set());
   highlightedId = signal<string | null>(null);
   private highlightTimer: ReturnType<typeof setTimeout> | null = null;
   showCompleteModal = signal(false);
+
+  /** Esc closes the confirmation modal, then the details drawer. */
+  @HostListener('document:click')
+  closeMenus() { this.moreOpen.set(false); }
+
+  /** Opens the native date picker when the field is clicked (the native glyph is hidden in favour of the lead icon). */
+  openPicker(ev: Event) {
+    const el = ev.target as HTMLInputElement;
+    try { if (!el.disabled) el.showPicker?.(); } catch { /* not supported */ }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.showScanner()) return;
+    if (this.moreOpen()) { this.moreOpen.set(false); return; }
+    if (this.showCompleteModal()) { if (!this.isActionLoading()) this.showCompleteModal.set(false); return; }
+    if (this.selectedCount()) this.selectedCount.set(null);
+  }
 
   countedItemsCount = computed(() => {
     return this.activeItems().filter((item) => item.isModified).length;

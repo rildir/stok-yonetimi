@@ -5,6 +5,7 @@ import { AppDatePipe, I18nService, TranslatePipe } from '../../i18n';
 import { CONSENT_CHANNELS, CONSENT_PURPOSES, ConsentRecord, KvkkService } from '../../services/kvkk.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { apiError } from '../../services/documents.service';
+import { IconComponent } from '../shared/icon.component';
 
 /**
  * Customer drawer > Rıza (KVKK md. 5/1): explicit-consent records with channel, text version and
@@ -14,16 +15,27 @@ import { apiError } from '../../services/documents.service';
 @Component({
   selector: 'app-customer-consents',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, IconComponent],
   styles: [`
-    .cs-list { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
-    .cs-item { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    :host { display: flex; flex-direction: column; gap: 12px; }
+    .cs-note { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); margin: 0; }
+    .cs-list { display: flex; flex-direction: column; border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+    .cs-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; box-shadow: inset 0 -1px 0 var(--line); }
+    .cs-item:last-child { box-shadow: none; }
     .cs-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .cs-sub { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .cs-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-3); border: 1px dashed var(--color-border); border-radius: var(--radius-md); }
+    .cs-main b { font-weight: 500; font-size: var(--text-sm); color: var(--fg); }
+    .cs-sub { font-size: var(--text-xs); color: var(--fg-3); }
+    .cs-item .badge { margin-left: 0; flex: none; }
+    .cs-empty { padding: 10px 12px; font-size: var(--text-xs); color: var(--fg-3); }
+    .cs-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 14px; padding: 14px; border-radius: var(--radius-md);
+      background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
     .cs-form .full { grid-column: 1 / -1; }
-    .cs-note { font-size: var(--text-xs); color: var(--color-text-muted); margin: 0 0 var(--space-2); }
-    @media (max-width: 640px) { .cs-form { grid-template-columns: 1fr; } }
+    .cs-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .cs-add { align-self: flex-start; }
+    @media (max-width: 640px) {
+      .cs-form { grid-template-columns: minmax(0, 1fr); }
+      .cs-item { flex-wrap: wrap; }
+    }
   `],
   template: `
     <p class="cs-note">{{ 'kvkk.consent.legalNote' | t }}</p>
@@ -31,51 +43,55 @@ import { apiError } from '../../services/documents.service';
       @for (c of items(); track c.id) {
         <div class="cs-item">
           <div class="cs-main">
-            <strong>{{ 'kvkk.consent.purpose.' + c.purposeCode | t }}</strong>
-            <span class="cs-sub">{{ 'kvkk.consent.givenVia' | t: { date: (c.givenAt | appDate: 'datetime'), channel: ('kvkk.channel.' + c.channel | t) } }}@if (c.textVersion) { · v{{ c.textVersion }} }</span>
+            <b>{{ 'kvkk.consent.purpose.' + c.purposeCode | t }}</b>
+            <span class="cs-sub">{{ 'kvkk.consent.givenVia' | t: { date: (c.givenAt | appDate: 'datetime'), channel: ('kvkk.channel.' + c.channel | t) } }}@if (c.textVersion) { · <span class="mono">v{{ c.textVersion }}</span> }</span>
             @if (c.withdrawnAt) { <span class="cs-sub">{{ 'kvkk.consent.withdrawnAt' | t: { date: (c.withdrawnAt | appDate: 'datetime') } }}</span> }
           </div>
-          @if (c.withdrawnAt) { <span class="badge badge-neutral">{{ 'kvkk.consent.withdrawn' | t }}</span> }
+          @if (c.withdrawnAt) { <span class="badge badge-neutral"><span class="dot"></span>{{ 'kvkk.consent.withdrawn' | t }}</span> }
           @else {
-            <span class="badge badge-success">{{ 'kvkk.consent.active' | t }}</span>
-            @if (canEdit) { <button type="button" class="btn btn-secondary btn-sm" (click)="withdraw(c)" [disabled]="busy()">{{ 'kvkk.consent.withdraw' | t }}</button> }
+            <span class="badge badge-success"><span class="dot"></span>{{ 'kvkk.consent.active' | t }}</span>
+            @if (canEdit) { <button type="button" class="btn btn-danger-outline btn-sm" (click)="withdraw(c)" [disabled]="busy()">{{ 'kvkk.consent.withdraw' | t }}</button> }
           }
         </div>
       } @empty {
-        <p class="cs-sub">{{ 'kvkk.consent.none' | t }}</p>
+        <div class="cs-empty">{{ 'kvkk.consent.none' | t }}</div>
       }
     </div>
     @if (canEdit) {
       @if (adding()) {
         <div class="cs-form">
-          <div class="form-field">
-            <select id="csPurpose" class="form-input has-value" [(ngModel)]="purpose">
-              @for (p of purposes; track p) { <option [value]="p">{{ 'kvkk.consent.purpose.' + p | t }}</option> }
-            </select>
-            <label for="csPurpose" class="form-label">{{ 'kvkk.consent.purposeLabel' | t }}</label>
+          <div class="fld">
+            <label class="fld-label" for="csPurpose">{{ 'kvkk.consent.purposeLabel' | t }}</label>
+            <div class="field select">
+              <select id="csPurpose" [(ngModel)]="purpose">
+                @for (p of purposes; track p) { <option [value]="p">{{ 'kvkk.consent.purpose.' + p | t }}</option> }
+              </select>
+            </div>
           </div>
-          <div class="form-field">
-            <select id="csChannel" class="form-input has-value" [(ngModel)]="channel">
-              @for (ch of channels; track ch) { <option [value]="ch">{{ 'kvkk.channel.' + ch | t }}</option> }
-            </select>
-            <label for="csChannel" class="form-label">{{ 'kvkk.consent.channel' | t }}</label>
+          <div class="fld">
+            <label class="fld-label" for="csChannel">{{ 'kvkk.consent.channel' | t }}</label>
+            <div class="field select">
+              <select id="csChannel" [(ngModel)]="channel">
+                @for (ch of channels; track ch) { <option [value]="ch">{{ 'kvkk.channel.' + ch | t }}</option> }
+              </select>
+            </div>
           </div>
-          <div class="form-field">
-            <input id="csVersion" class="form-input has-value" [(ngModel)]="textVersion" />
-            <label for="csVersion" class="form-label">{{ 'kvkk.consent.textVersion' | t }}</label>
+          <div class="fld">
+            <label class="fld-label" for="csVersion">{{ 'kvkk.consent.textVersion' | t }}</label>
+            <div class="field"><input id="csVersion" class="mono" [(ngModel)]="textVersion" /></div>
           </div>
-          <div class="form-field">
-            <input id="csEvidence" class="form-input" [class.has-value]="!!evidence" [(ngModel)]="evidence" />
-            <label for="csEvidence" class="form-label">{{ 'kvkk.consent.evidence' | t }}</label>
+          <div class="fld">
+            <label class="fld-label" for="csEvidence">{{ 'kvkk.consent.evidence' | t }}</label>
+            <div class="field"><input id="csEvidence" [(ngModel)]="evidence" /></div>
           </div>
-          <label class="full check-row"><input type="checkbox" [(ngModel)]="confirmed" /> {{ 'kvkk.consent.confirm' | t }}</label>
-          <div class="full" style="display:flex; gap: var(--space-2); justify-content: flex-end">
-            <button type="button" class="btn btn-secondary btn-sm" (click)="adding.set(false)">{{ 'common.cancel' | t }}</button>
-            <button type="button" class="btn btn-primary btn-sm" [disabled]="!confirmed || busy()" (click)="give()">{{ 'kvkk.consent.record' | t }}</button>
+          <label class="check full"><input type="checkbox" [(ngModel)]="confirmed" />{{ 'kvkk.consent.confirm' | t }}</label>
+          <div class="full cs-actions">
+            <button type="button" class="btn btn-ghost btn-sm" (click)="adding.set(false)">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-primary btn-sm" [class.is-loading]="busy()" [disabled]="!confirmed || busy()" (click)="give()">{{ 'kvkk.consent.record' | t }}</button>
           </div>
         </div>
       } @else {
-        <button type="button" class="btn btn-secondary btn-sm" (click)="startAdd()">{{ 'kvkk.consent.add' | t }}</button>
+        <button type="button" class="btn btn-subtle btn-sm cs-add" (click)="startAdd()"><app-icon name="plus" />{{ 'kvkk.consent.add' | t }}</button>
       }
     }
   `,

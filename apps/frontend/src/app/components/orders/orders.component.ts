@@ -9,129 +9,142 @@ import { Customer, TaxRate, OrderItem, Product, StockLot, SerialNumber, BarcodeL
 import { BarcodeScannerComponent } from '../shared/barcode-scanner.component';
 import { tap, debounceTime, switchMap, of, catchError, Subscription } from 'rxjs';
 import { TaxService } from '../../services/tax.service';
-import { ExemptionCode, SALES_CHANNELS, TaxQuote, TaxSummaryView, WithholdingCode, summaryFromDocument, summaryFromQuote } from '../../models/tax.models';
+import { CHARGE_TYPES, ExemptionCode, SALES_CHANNELS, TaxQuote, TaxSummaryView, WithholdingCode, summaryFromDocument, summaryFromQuote } from '../../models/tax.models';
 import { TaxSummaryComponent, TAX_WARNING_KEYS } from '../shared/tax-summary.component';
-import { DocumentTaxFieldsComponent, LineTaxFieldsComponent, documentTaxGroup, documentTaxPayload, lineNeedsExemption, lineTaxControls, lineTaxPayload } from '../shared/tax-fields.component';
+import { LineTaxFieldsComponent, chargeGroup, documentTaxGroup, documentTaxPayload, lineNeedsExemption, lineTaxControls, lineTaxPayload } from '../shared/tax-fields.component';
 import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe } from '../../i18n';
 import { QuantityInputDirective, parseLocalizedQuantity, productDecimals } from '../shared/quantity-input.directive';
 import { roundQty, sumQty } from '@stok/tr-compliance';
 import { OrderDocumentsComponent } from '../documents/order-documents.component';
+import { IconComponent } from '../shared/icon.component';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, DocumentTaxFieldsComponent, OrderDocumentsComponent],
-  styleUrls: ['../../drawer.css'],
+  imports: [CommonModule, RouterLink, ReactiveFormsModule, FormsModule, BarcodeScannerComponent, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, UnitLabelPipe, QuantityInputDirective, TaxSummaryComponent, LineTaxFieldsComponent, OrderDocumentsComponent, IconComponent],
+  styleUrls: ['../../drawer.css', '../documents/documents.css'],
   styles: [`
     .z-top { z-index: 3000; }
-    .block { width: 100%; }
-    .strong { font-weight: var(--weight-semibold); color: var(--color-text); }
-    .link { color: var(--color-primary-text); text-decoration: none; font-weight: var(--weight-medium); }
-    .link:hover { text-decoration: underline; }
-    .date-input { width: 140px; }
+    .link { color: var(--accent-text); text-decoration: none; font-weight: 500; }
+    .link:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-    .orders-list { display: flex; flex-direction: column; gap: var(--space-3); }
-    .order-card { padding: 0; gap: 0; overflow: visible; }
-    .oc-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3);
-      padding: var(--space-3) var(--space-4); background: var(--color-surface-subtle);
-      border-bottom: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
-    .oc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-8); }
-    .oc-label { font-size: var(--text-2xs); font-weight: var(--weight-medium); color: var(--color-text-muted);
-      text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
-    .oc-value { font-size: var(--text-sm); color: var(--color-text); }
-    .oc-ref { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-    .oc-no { position: relative; display: flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); color: var(--color-text-secondary); }
-    .oc-copy { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0;
-      background: transparent; color: var(--color-text-muted); border-radius: var(--radius-sm); cursor: pointer; }
-    .oc-copy:hover { background: var(--color-surface-muted); color: var(--color-text); }
-    .oc-copy:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-    .oc-tooltip { position: absolute; bottom: 100%; right: 0; margin-bottom: var(--space-1); padding: 2px var(--space-2);
-      background: var(--color-text); color: var(--color-bg); border-radius: var(--radius-sm); font-size: var(--text-2xs);
-      white-space: nowrap; box-shadow: var(--shadow-md); z-index: 10; }
-    .oc-link { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-primary-text); text-decoration: none; }
-    .oc-link:hover { text-decoration: underline; }
-    .oc-body { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); padding: var(--space-4); }
-    .oc-items { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-    .oc-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); max-width: 520px; }
-    .oc-lines li { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--text-sm); }
-    .oc-product { color: var(--color-text); font-weight: var(--weight-medium); min-width: 0; }
-    .oc-ship { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); font-size: var(--text-xs); color: var(--color-text-secondary); }
-    .oc-ship > span { display: inline-flex; align-items: center; gap: var(--space-1); }
-    .oc-ship strong { color: var(--color-text); font-weight: var(--weight-medium); }
-    .oc-actions { display: flex; flex-direction: column; gap: var(--space-2); width: 168px; flex-shrink: 0; }
+    /* toolbar */
+    .o-toolbar { margin-bottom: 12px; }
+    .o-search { flex: 1 1 260px; max-width: 360px; }
+    .o-dates { display: flex; align-items: center; gap: 6px; }
+    .o-date { width: 148px; }
+    .o-dash { color: var(--fg-3); }
+
+    /* list table */
+    .o-no { display: inline-flex; align-items: center; gap: 2px; }
+    .o-no .mono { font-size: var(--text-xs); color: var(--fg-2); }
+    .o-items { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 240px; vertical-align: middle; }
+    .tbl td.o-cust { max-width: 240px; }
+    .o-ship { display: inline-flex; vertical-align: middle; margin-left: 6px; color: var(--fg-3); }
+    .o-items .nm { overflow: hidden; text-overflow: ellipsis; }
+    .o-sec { color: var(--fg-3); }
+    .o-sec .mono { font-size: var(--text-xs); margin-left: 6px; }
+    .o-act { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; }
+    .tbl td.o-actcell { width: 76px; padding: 0 8px 0 0; text-align: right; overflow: visible; }
+    .tbl td.o-date { width: 1%; }
+    .tbl tbody tr { cursor: pointer; }
+    .o-total { font-weight: 500; }
+    .o-foot { justify-content: space-between; }
+
+    /* mobile list */
+    .o-mlist { display: none; }
+    .o-mlist .mrow { cursor: pointer; }
+    .o-mlist .mrow .thumb { font-size: 11px; }
     @media (max-width: 640px) {
-      .date-filters { width: 100%; }
-      .date-input { flex: 1; width: auto; min-width: 0; }
-      .oc-head, .oc-body { flex-direction: column; }
-      .oc-ref { align-items: flex-start; }
-      .oc-meta { gap: var(--space-3) var(--space-6); }
-      .oc-actions { width: 100%; flex-direction: row; }
-      .oc-actions .btn { flex: 1; }
-      .oc-lines li { flex-direction: column; gap: 0; }
+      .o-toolbar .seg { width: 100%; }
+      .o-toolbar .seg button { flex: 1 1 auto; padding: 0 6px; }
+      .o-toolbar .seg .count { display: none; }
+      .o-search .trail { display: none; }
+      .o-search { max-width: none; flex-basis: 100%; }
+      .o-dates { width: 100%; }
+      .o-date { flex: 1; width: auto; min-width: 0; }
+      .o-desk { display: none; }
+      .o-mlist { display: block; }
     }
 
-    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
-    .form-row-2-1 { grid-template-columns: 2fr 1fr; }
-    @media (max-width: 640px) { .form-row, .form-row-2-1 { grid-template-columns: 1fr; gap: var(--space-3); } }
-    .ol-section { margin-top: var(--space-6); }
-    .ol-section-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
-    .ol-title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--color-text); }
-    .ol-lines { display: flex; flex-direction: column; gap: var(--space-2); }
-    .ol-line { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3);
-      background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    .ol-line.highlight-row { background: var(--color-primary-subtle); border-color: var(--color-primary-border); }
-    .ol-product { flex: 2 1 220px; min-width: 0; }
-    .ol-qty, .ol-price { flex: 1 1 90px; min-width: 0; }
-    .ol-unit { flex: .9 1 90px; min-width: 0; }
-    .ol-input { height: 38px; padding: 0 var(--space-3); font-size: var(--text-sm); }
-    .ol-total { flex: 1.3 1 110px; text-align: right; font-size: var(--text-sm); line-height: 1.35; }
-    .ol-sub { font-size: var(--text-2xs); color: var(--color-text-muted); }
-    .tax-section { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
-    .tp-edit { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; margin-top: var(--space-2); }
-    .tp-edit input { height: 34px; }
-    .ol-remove { flex-shrink: 0; }
-    .ol-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 220px; overflow-y: auto; }
-    .ol-dropdown .custom-option { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
-      padding: var(--space-2) var(--space-3); cursor: pointer; font-size: var(--text-sm); border-bottom: 1px solid var(--color-border-subtle); }
-    .ol-dropdown .custom-option:hover { background: var(--color-surface-muted); }
-    .opt-left { display: flex; flex-direction: column; min-width: 0; }
-    .opt-name { font-weight: var(--weight-medium); color: var(--color-text); }
-    .opt-stock { font-size: var(--text-2xs); color: var(--color-text-muted); }
-    .opt-stock.low { color: var(--color-warning-text); }
-    .opt-price { font-weight: var(--weight-semibold); color: var(--color-text); }
-    .selected-stock { color: var(--color-text-muted); font-size: var(--text-2xs); }
-    .ol-tracking { flex-basis: 100%; display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
-    .ol-lot { display: grid; grid-template-columns: 2fr 1.5fr 1fr 80px; gap: var(--space-2); align-items: center; }
-    .ol-lot-input { height: 30px; padding: 0 var(--space-2); font-size: var(--text-xs); }
-    .ol-serials { display: flex; flex-wrap: wrap; gap: var(--space-1); max-height: 120px; overflow-y: auto; }
-    .ol-serial { display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2);
-      border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); cursor: pointer; }
-    .ol-error { display: block; margin-top: var(--space-2); }
+    /* create drawer */
+    .drawer-form { display: flex; flex-direction: column; flex: 1; overflow: hidden; gap: 0; }
+    .drawer-body.secs { gap: 0; padding-top: 8px; }
+    .grid-21 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px 14px; }
+    @media (max-width: 640px) { .grid-21 { grid-template-columns: minmax(0, 1fr); } }
+    .ol-head-actions { margin-left: auto; display: flex; gap: 6px; }
+    .ol-lines { display: flex; flex-direction: column; gap: 10px; }
+    /* Line recipe shared with the purchase-order drawer (.po-line): numbered product row, labelled field grid, meta row */
+    .ol-line { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 12px;
+      background: var(--surface-2); border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line); }
+    .ol-line.highlight-row { box-shadow: inset 0 0 0 1px var(--accent), var(--focus-ring); }
+    .ol-top { display: flex; align-items: center; gap: 8px; }
+    .ol-n { width: 20px; flex: none; font-size: var(--text-xs); color: var(--fg-3); text-align: center; }
+    .ol-product { flex: 1; min-width: 0; }
+    .ol-product .custom-select-trigger { height: var(--h-sm); min-height: var(--h-sm); }
+    .ol-remove { flex: none; }
+    .ol-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 14px; padding-left: 28px; }
+    .ol-line app-line-tax-fields { display: block; padding-left: 28px; }
+    .ol-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 8px 0 0 28px; box-shadow: inset 0 1px 0 var(--line); font-size: var(--text-xs); color: var(--fg-3); }
+    .ol-meta b { font-weight: 500; color: var(--fg-2); }
+    .ol-total { margin-left: auto; }
+    .ol-total b { color: var(--fg); font-size: var(--text-sm); font-weight: 600; }
+    .ol-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 240px; overflow-y: auto; }
+    .ol-dropdown .custom-option { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .opt-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .opt-name { font-weight: 500; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .opt-stock { font-size: var(--text-xs); color: var(--fg-3); white-space: nowrap; }
+    .opt-stock.low { color: var(--warning); }
+    .opt-price { font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+    .selected-stock { color: var(--fg-3); font-size: var(--text-xs); }
+    .ol-tracking { padding-left: 28px; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-xs); color: var(--fg-3); }
+    .ol-lot { display: grid; grid-template-columns: 2fr 1.5fr 1fr 96px; gap: 8px; align-items: center; }
+    .ol-serials { display: flex; flex-wrap: wrap; gap: 4px; max-height: 120px; overflow-y: auto; }
+    .ol-serial { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius-sm);
+      background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; color: var(--fg-2); }
+    .is-ok { color: var(--success); font-weight: 500; }
+    .is-bad { color: var(--danger); font-weight: 500; }
+    .ol-price input::-webkit-inner-spin-button, .ol-price input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     @media (max-width: 640px) {
-      .ol-product { flex-basis: 100%; }
-      .ol-total { flex: 1; text-align: left; }
+      .ol-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 0; }
+      .ol-line app-line-tax-fields, .ol-meta, .ol-tracking { padding-left: 0; }
       .ol-lot { grid-template-columns: 1fr 1fr; }
     }
+    .tax-section { display: flex; flex-direction: column; gap: 12px; }
+    .ph-sans::placeholder { font-family: var(--font-sans); }
+    .ol-product .ph { color: var(--fg-placeholder); }
+    .ol-product .ol-chev { flex: none; color: var(--fg-3); }
+    .ol-product .custom-select-trigger:hover .ol-chev { color: var(--fg-2); }
+    .ch-list { display: flex; flex-direction: column; gap: 8px; }
+    .ch-list:not(:empty) { margin-bottom: 8px; }
+    .ch-row { display: grid; grid-template-columns: 150px 140px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+    @media (max-width: 640px) {
+      .ch-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+      .ch-desc { grid-column: 1 / -1; grid-row: 2; }
+    }
+    .totals-box { margin-left: auto; width: min(320px, 100%); display: flex; flex-direction: column; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+    .tot-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; box-shadow: inset 0 -1px 0 var(--line); }
+    .tot-row > span:first-child { color: var(--fg-2); }
+    .tot-grand { box-shadow: none; padding-top: 8px; font-weight: 600; }
+    .tot-grand > span:first-child { color: var(--fg); }
+    .tot-grand strong { font-size: var(--text-lg); font-weight: 600; }
 
-    .totals-box { margin-top: var(--space-4); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);
-      background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: var(--text-sm); }
-    .tot-row { display: flex; justify-content: space-between; gap: var(--space-3); }
-    .tot-row > span:last-child, .tot-row > strong { font-variant-numeric: tabular-nums; }
-    .tot-grand { align-items: center; padding-top: var(--space-2); border-top: 1px solid var(--color-border); font-weight: var(--weight-semibold); color: var(--color-text); }
-    .tot-grand strong { font-size: var(--text-lg); color: var(--color-text); }
-    .detail-items-section > .detail-item-list > .tot-grand { margin-top: var(--space-3); padding: var(--space-3) 0 0; }
-    .totals-box.flat { background: none; border: 0; border-top: 1px solid var(--color-border); border-radius: 0; padding: var(--space-3) 0 0; }
-    .detail-value-col { color: var(--color-text); }
-    .tot-small { font-size: var(--text-xs); margin-top: var(--space-1); }
-    .tot-note { text-align: right; }
-    .detail-items-section { margin-top: var(--space-4); }
-    .detail-item-row { padding: var(--space-3) 0; }
-    .detail-item-name { font-weight: var(--weight-semibold); font-size: var(--text-sm); color: var(--color-text); }
-    .detail-item-calc { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .detail-item-total { font-family: inherit; font-weight: var(--weight-semibold); font-size: var(--text-sm); }
+    /* detail drawer */
+    .od-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 14px 16px;
+      background: var(--surface-2); border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line); }
+    .od-hero .lbl { font-size: var(--text-xs); color: var(--fg-3); font-weight: 500; }
+    .od-hero .amt { font-size: var(--text-2xl); font-weight: 600; letter-spacing: var(--tracking-tighter); line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .od-grid { margin-bottom: 0; row-gap: 12px; }
+    .od-grid .doc-field { margin-bottom: 0; }
+    .detail-item-row { gap: 12px; align-items: flex-start; }
+    .detail-item-info { min-width: 0; }
+    .detail-item-total { white-space: nowrap; }
+    .tp-edit { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+    .tp-edit .fld { flex: 0 1 200px; }
+    .od-skel { display: flex; flex-direction: column; gap: 10px; }
+    .od-skel .skeleton-row { height: 14px; }
     .skeleton-title.short { width: 40%; }
-    .skeleton-row.block { margin: 0; }
+    .od-foot-skel { flex: 1; height: 32px; }
   `],
   template: `
     <header class="page-header">
@@ -141,134 +154,153 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
       </div>
       <div class="page-actions">
         <button class="btn btn-primary" (click)="openCreateOrder()">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          {{ 'orders.newOrder' | t }}
+          <app-icon name="plus" />{{ 'orders.newOrder' | t }}
         </button>
       </div>
     </header>
 
-    <div class="filter-bar">
-      <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" [placeholder]="'orders.searchPlaceholder' | t" [value]="orderSearch()" (input)="onSearchInput($event)"/>
+    <div class="toolbar o-toolbar">
+      <div class="seg" role="group" [attr.aria-label]="'orders.col.status' | t">
+        <button type="button" [attr.aria-pressed]="orderFilterStatus() === 'all'" (click)="orderFilterStatus.set('all')">{{ 'orders.filter.all' | t }} <span class="count">{{ statusCounts().all }}</span></button>
+        <button type="button" [attr.aria-pressed]="orderFilterStatus() === 'Pending'" (click)="orderFilterStatus.set('Pending')">{{ 'orders.filter.pending' | t }} <span class="count">{{ statusCounts().Pending }}</span></button>
+        <button type="button" [attr.aria-pressed]="orderFilterStatus() === 'Completed'" (click)="orderFilterStatus.set('Completed')">{{ 'orders.filter.completed' | t }} <span class="count">{{ statusCounts().Completed }}</span></button>
+        <button type="button" [attr.aria-pressed]="orderFilterStatus() === 'Cancelled'" (click)="orderFilterStatus.set('Cancelled')">{{ 'orders.filter.cancelled' | t }} <span class="count">{{ statusCounts().Cancelled }}</span></button>
       </div>
-
-      <div class="date-filters">
-        <input type="text" class="input date-input" [placeholder]="'orders.startDate' | t"
-          onfocus="(this.type='date')" onblur="if(!this.value)this.type='text'"
-          [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" />
-        <span class="date-separator">–</span>
-        <input type="text" class="input date-input" [placeholder]="'orders.endDate' | t"
-          onfocus="(this.type='date')" onblur="if(!this.value)this.type='text'"
-          [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" />
+      <div class="field o-search">
+        <span class="lead"><app-icon name="search" size="sm" /></span>
+        <input type="search" data-page-search [placeholder]="'orders.searchPlaceholder' | t" [attr.aria-label]="'orders.searchPlaceholder' | t" [value]="orderSearch()" (input)="onSearchInput($event)"/>
+        <span class="trail"><kbd>/</kbd></span>
+      </div>
+      <span class="spacer"></span>
+      <div class="o-dates" role="group" [attr.aria-label]="'orders.dateRange' | t">
+        <div class="field o-date">
+          <input type="date" [attr.aria-label]="'orders.startDate' | t" [title]="'orders.startDate' | t" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)" />
+        </div>
+        <span class="o-dash" aria-hidden="true">–</span>
+        <div class="field o-date">
+          <input type="date" [attr.aria-label]="'orders.endDate' | t" [title]="'orders.endDate' | t" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" />
+        </div>
         @if (startDate() || endDate()) {
-          <button class="btn-clear" (click)="startDate.set(''); endDate.set('')" [title]="'orders.clearFilter' | t" [attr.aria-label]="'orders.clearFilter' | t">
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <button type="button" class="btn btn-ghost btn-icon" (click)="startDate.set(''); endDate.set('')" [attr.data-tip]="'orders.clearFilter' | t" [attr.aria-label]="'orders.clearFilter' | t">
+            <app-icon name="x" />
           </button>
         }
       </div>
-
-      <div class="filter-pills">
-        <button class="filter-pill" [class.active]="orderFilterStatus() === 'all'" (click)="orderFilterStatus.set('all')">{{ 'orders.filter.all' | t }}</button>
-        <button class="filter-pill" [class.active]="orderFilterStatus() === 'Pending'" (click)="orderFilterStatus.set('Pending')">{{ 'orders.filter.pending' | t }}</button>
-        <button class="filter-pill" [class.active]="orderFilterStatus() === 'Completed'" (click)="orderFilterStatus.set('Completed')">{{ 'orders.filter.completed' | t }}</button>
-        <button class="filter-pill" [class.active]="orderFilterStatus() === 'Cancelled'" (click)="orderFilterStatus.set('Cancelled')">{{ 'orders.filter.cancelled' | t }}</button>
-      </div>
     </div>
 
-    <div class="orders-list">
-      @for (o of filteredOrders(); track o.id) {
-        <article class="card order-card">
-          <div class="oc-head">
-            <div class="oc-meta">
-              <div>
-                <div class="oc-label">{{ 'orders.card.orderDate' | t }}</div>
-                <div class="oc-value">{{ o.date | appDate: 'datetime' }}</div>
-              </div>
-              <div>
-                <div class="oc-label">{{ 'orders.card.totalAmount' | t }}</div>
-                <div class="oc-value num strong">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</div>
-              </div>
-              <div>
-                <div class="oc-label">{{ 'orders.card.recipient' | t }}</div>
-                <div class="oc-value">{{ o.customerName }}</div>
-              </div>
-            </div>
-            <div class="oc-ref">
-              <div class="oc-no">
-                <span class="num">{{ 'orders.card.orderNo' | t: { number: o.orderNumber } }}</span>
-                <button class="oc-copy" (click)="copyToClipboard(o.orderNumber, o.id); $event.stopPropagation()" [title]="'orders.card.copyOrderNo' | t" [attr.aria-label]="'orders.card.copyOrderNo' | t">
-                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </button>
-                @if (copiedOrderId() === o.id) {
-                  <span class="oc-tooltip">{{ 'orders.card.copied' | t }}</span>
-                }
-              </div>
-              <a href="#" class="oc-link" (click)="openOrderDetail(o); $event.preventDefault()">{{ 'orders.card.details' | t }}</a>
-            </div>
-          </div>
-
-          <div class="oc-body">
-            <div class="oc-items">
-              <div>
-                <span class="badge badge-dot" [class.badge-success]="o.status === 'Completed'" [class.badge-warning]="o.status === 'Pending'" [class.badge-danger]="o.status === 'Cancelled'" [class.badge-neutral]="o.status !== 'Completed' && o.status !== 'Pending' && o.status !== 'Cancelled'">
-                  {{ (o.status === 'Completed' ? 'orders.status.delivered' : o.status === 'Pending' ? 'orders.status.onHold' : 'orders.status.cancelled') | t }}
-                </span>
-              </div>
-              <ul class="oc-lines">
-                @for (item of o.items; track item.productName) {
-                  <li>
-                    <span class="oc-product truncate">{{ item.productName }}</span>
-                    <span class="text-muted num">{{ 'orders.card.itemLine' | t: { qty: itemQtyLabel(item, false), price: ((item.unitPrice ?? item.price) | money: o.currency) } }}</span>
-                  </li>
-                }
-              </ul>
-              @if (o.carrier || o.trackingNumber) {
-                <div class="oc-ship">
-                  <span>
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
-                    {{ 'orders.card.carrier' | t }}: <strong>{{ o.carrier || ('orders.card.unknown' | t) }}</strong>
-                  </span>
-                  <span>{{ 'orders.card.trackingNo' | t }}: <strong class="mono">{{ o.trackingNumber || '-' }}</strong></span>
-                </div>
-              }
-            </div>
-
-            <div class="oc-actions" (click)="$event.stopPropagation()">
-              @if (o.status === 'Pending') {
-                @if (o.stockMode === 'despatch') {
-                  <button class="btn btn-primary btn-sm" (click)="openOrderDetail(o)">{{ 'orderDocs.despatch' | t }}</button>
-                } @else {
-                <button class="btn btn-primary btn-sm" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id">
-                  @if (updatingOrderId() === o.id) { <span class="spinner-sm spinner-light"></span> } @else { {{ 'orders.action.markCompleted' | t }} }
-                </button>
-                }
-                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">
-                  {{ 'orders.action.cancel' | t }}
-                </button>
-              } @else if (o.status === 'Completed') {
-                @if (o.stockMode === 'despatch') {
-                  <button class="btn btn-secondary btn-sm" (click)="openOrderDetail(o)">{{ 'orderDocs.documents' | t }}</button>
-                } @else {
-                <button class="btn btn-secondary btn-sm" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id">
-                  {{ 'orders.action.refund' | t }}
-                </button>
-                }
-              } @else {
-                <button class="btn btn-outline-danger btn-sm" (click)="promptDeleteOrder(o)" [disabled]="updatingOrderId() === o.id">
-                  {{ 'common.delete' | t }}
-                </button>
-              }
-            </div>
-          </div>
-        </article>
-      }
+    <div class="card">
       @if (filteredOrders().length === 0) {
-        <div class="card empty-state">
-          <div class="empty-state-icon">
-            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>
-          </div>
-          <p class="empty-state-title">{{ 'orders.empty' | t }}</p>
+        <div class="empty-state">
+          <div class="empty-art"><app-icon name="bag" /></div>
+          @if (state.orders().length === 0) {
+            <h3>{{ 'orders.emptyAll' | t }}</h3>
+            <p>{{ 'orders.emptyHint' | t }}</p>
+            <div class="actions cluster">
+              <button type="button" class="btn btn-primary" (click)="openCreateOrder()"><app-icon name="plus" />{{ 'orders.newOrder' | t }}</button>
+            </div>
+          } @else {
+            <h3>{{ 'orders.empty' | t }}</h3>
+            <div class="actions cluster">
+              <button type="button" class="btn" (click)="orderSearch.set(''); orderFilterStatus.set('all'); startDate.set(''); endDate.set('')"><app-icon name="x" />{{ 'orders.clearFilter' | t }}</button>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="table-scroll o-desk">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>{{ 'orders.col.orderNo' | t }}</th>
+                <th>{{ 'orders.col.date' | t }}</th>
+                <th>{{ 'orders.col.customer' | t }}</th>
+                <th>{{ 'orders.col.items' | t }}</th>
+                <th>{{ 'orders.col.status' | t }}</th>
+                <th class="r">{{ 'orders.col.total' | t }}</th>
+                <th class="r"><span class="sr">{{ 'common.actions' | t }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (o of filteredOrders(); track o.id) {
+                <tr [attr.data-od]="o.id" (click)="openOrderDetail(o)" [class.is-selected]="isOrderDetailOpen() && selectedOrder()?.id === o.id">
+                  <td>
+                    <span class="o-no">
+                      <span class="mono">{{ o.orderNumber }}</span>
+                      <button type="button" class="btn btn-ghost btn-xs btn-icon row-act" (click)="copyToClipboard(o.orderNumber, o.id); $event.stopPropagation()"
+                        [attr.data-tip]="(copiedOrderId() === o.id ? 'orders.card.copied' : 'orders.card.copyOrderNo') | t" [attr.aria-label]="'orders.card.copyOrderNo' | t">
+                        <app-icon [name]="copiedOrderId() === o.id ? 'check' : 'copy'" size="xs" />
+                      </button>
+                    </span>
+                  </td>
+                  <td class="o-sec o-date">{{ o.date | appDate: 'datetime' }}</td>
+                  <td class="o-cust"><strong>{{ o.customerName }}</strong></td>
+                  <td>
+                    @if (o.items.length) {
+                      <span class="o-items" [title]="itemsTitle(o)">
+                        <span class="nm">{{ o.items[0].productName }}</span>
+                        <span class="o-sec">{{ itemQtyLabel(o.items[0], false) }}</span>
+                        @if (o.items.length > 1) { <span class="tag">+{{ o.items.length - 1 }}</span> }
+                      </span>
+                      @if (o.carrier || o.trackingNumber) {
+                        <span class="o-ship" [attr.data-tip]="(o.carrier || ('orders.card.unknown' | t)) + (o.trackingNumber ? ' · ' + o.trackingNumber : '')" [attr.aria-label]="'orders.card.carrier' | t"><app-icon name="truck" size="sm" /></span>
+                      }
+                    } @else { <span class="o-sec">—</span> }
+                  </td>
+                  <td>
+                    <span class="badge" [class.badge-success]="o.status === 'Completed'" [class.badge-warning]="o.status === 'Pending'" [class.badge-danger]="o.status === 'Cancelled'" [class.badge-neutral]="o.status !== 'Completed' && o.status !== 'Pending' && o.status !== 'Cancelled'">
+                      <span class="dot"></span>{{ (o.status === 'Completed' ? 'orders.status.delivered' : o.status === 'Pending' ? 'orders.status.onHold' : 'orders.status.cancelled') | t }}
+                    </span>
+                  </td>
+                  <td class="r o-total">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</td>
+                  <td class="o-actcell" (click)="$event.stopPropagation()">
+                    <span class="o-act">
+                      @if (o.status === 'Pending') {
+                        @if (o.stockMode === 'despatch') {
+                          <button type="button" class="btn btn-sm btn-icon" (click)="openOrderDetail(o)" [attr.data-tip]="'orderDocs.despatch' | t" [attr.aria-label]="'orderDocs.despatch' | t"><app-icon name="truck" /></button>
+                        } @else {
+                          <button type="button" class="btn btn-sm btn-icon" [class.is-loading]="updatingOrderId() === o.id" (click)="updateOrderStatus(o.id, 'Completed')" [disabled]="updatingOrderId() === o.id" [attr.data-tip]="'orders.action.markCompleted' | t" [attr.aria-label]="'orders.action.markCompleted' | t">
+                            <app-icon name="check" />
+                          </button>
+                        }
+                        <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id" [attr.data-tip]="'orders.action.cancel' | t" [attr.aria-label]="'orders.action.cancel' | t">
+                          <app-icon name="x" />
+                        </button>
+                      } @else if (o.status === 'Completed') {
+                        @if (o.stockMode === 'despatch') {
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="openOrderDetail(o)" [attr.data-tip]="'orderDocs.documents' | t" [attr.aria-label]="'orderDocs.documents' | t"><app-icon name="file" /></button>
+                        } @else {
+                          <button type="button" class="btn btn-ghost btn-sm btn-icon" (click)="promptCancelOrder(o)" [disabled]="updatingOrderId() === o.id" [attr.data-tip]="'orders.action.refund' | t" [attr.aria-label]="'orders.action.refund' | t"><app-icon name="return" /></button>
+                        }
+                      } @else {
+                        <button type="button" class="btn btn-ghost btn-sm btn-icon delete-btn" (click)="promptDeleteOrder(o)" [disabled]="updatingOrderId() === o.id" [attr.data-tip]="'common.delete' | t" [attr.aria-label]="'common.delete' | t">
+                          <app-icon name="trash" />
+                        </button>
+                      }
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="o-mlist">
+          @for (o of filteredOrders(); track o.id) {
+            <div class="mrow" role="button" tabindex="0" [attr.data-od]="o.id" (click)="openOrderDetail(o)" (keydown.enter)="openOrderDetail(o)">
+              <span class="thumb">{{ initials(o.customerName) }}</span>
+              <b>{{ o.customerName }}</b>
+              <span class="v">{{ (o.grandTotal ?? o.totalAmount) | money: o.currency }}</span>
+              <span class="s">{{ o.date | appDate }} · <span class="mono">{{ o.orderNumber }}</span></span>
+              <span class="s r">
+                <span class="badge" [class.badge-success]="o.status === 'Completed'" [class.badge-warning]="o.status === 'Pending'" [class.badge-danger]="o.status === 'Cancelled'" [class.badge-neutral]="o.status !== 'Completed' && o.status !== 'Pending' && o.status !== 'Cancelled'">
+                  <span class="dot"></span>{{ (o.status === 'Completed' ? 'orders.status.delivered' : o.status === 'Pending' ? 'orders.status.onHold' : 'orders.status.cancelled') | t }}
+                </span>
+              </span>
+            </div>
+          }
+        </div>
+
+        <div class="tbl-foot o-foot">
+          <span>{{ 'orders.resultCount' | t: { shown: (filteredOrders().length | num), total: (state.orders().length | num) } }}</span>
         </div>
       }
     </div>
@@ -276,167 +308,199 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
     <!-- ─── Create Order Drawer ─── -->
     @if (showCreateOrderModal()) {
       <div class="drawer-overlay z-top" (click)="closeCreateOrder()">
-        <div class="drawer-panel drawer-panel-lg" (click)="$event.stopPropagation()">
+        <div class="drawer-panel drawer-panel-lg" role="dialog" aria-modal="true" aria-labelledby="orderCreateTitle" (click)="$event.stopPropagation()">
           <div class="drawer-header">
-            <span class="drawer-title">{{ 'orders.create.title' | t }}</span>
-            <button class="drawer-close" (click)="closeCreateOrder()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <h2 class="drawer-title" id="orderCreateTitle">{{ 'orders.create.title' | t }}</h2>
+            <button type="button" class="drawer-close" (click)="closeCreateOrder()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
           </div>
           <form [formGroup]="orderForm" (ngSubmit)="saveOrder()" class="drawer-form">
-            <div class="drawer-body">
-              <div class="form-row form-row-2-1">
-                <div class="form-field">
-                  <select id="customerIdSelect" formControlName="customerId" class="form-input has-value" (change)="onCustomerChange()">
-                    <option value="">{{ 'orders.create.newCustomerOption' | t }}</option>
-                    @for (c of customers(); track c.id) {
-                      <option [value]="c.id">{{ c.name }}{{ c.currency ? ' (' + c.currency + ')' : '' }}</option>
-                    }
-                  </select>
-                  <label for="customerIdSelect" class="form-label">{{ 'orders.create.customer' | t }}</label>
+            <div class="drawer-body secs">
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'orders.section.customer' | t }}</h3><p>{{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}</p></div>
+                <div class="grid-21">
+                  <div class="fld">
+                    <label class="fld-label" for="customerIdSelect">{{ 'orders.create.customer' | t }}</label>
+                    <div class="field select">
+                      <select id="customerIdSelect" formControlName="customerId" (change)="onCustomerChange()">
+                        <option value="">{{ 'orders.create.newCustomerPlaceholder' | t }}</option>
+                        @for (c of customers(); track c.id) {
+                          <option [value]="c.id">{{ c.name }}{{ c.currency ? ' (' + c.currency + ')' : '' }}</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="currencySelect">{{ 'finance.currency' | t }}</label>
+                    <div class="field select">
+                      <select id="currencySelect" formControlName="currency" class="mono">
+                        @for (cur of currencyOptions(); track cur) {
+                          <option [value]="cur">{{ cur }}</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <div class="form-field">
-                  <select id="currencySelect" formControlName="currency" class="form-input has-value mono">
-                    @for (cur of currencyOptions(); track cur) {
-                      <option [value]="cur">{{ cur }}</option>
-                    }
-                  </select>
-                  <label for="currencySelect" class="form-label">{{ 'finance.currency' | t }}</label>
-                </div>
-              </div>
-              @if (!orderForm.get('customerId')?.value) {
-                <div class="form-field">
-                  <input id="customerNameInput" type="text" formControlName="customerName" class="form-input" [class.has-value]="hasValue('customerName')" [placeholder]="'orders.create.customerNamePlaceholder' | t"/>
-                  <label for="customerNameInput" class="form-label">{{ 'orders.create.customerName' | t }}</label>
-                  @if (isFieldInvalid('customerName')) { <div class="form-error">{{ 'orders.create.customerNameRequired' | t }}</div> }
-                </div>
-              }
-              @if (warehouses().length > 1) {
-                <div class="form-field">
-                  <select id="orderWarehouse" formControlName="warehouseId" class="form-input form-select has-value" (change)="onOrderWarehouseChange()">
-                    <option value="">{{ 'orders.create.warehouseAuto' | t }}</option>
-                    @for (w of warehouses(); track w.id) {
-                      <option [value]="w.id">{{ w.name }}</option>
-                    }
-                  </select>
-                  <label for="orderWarehouse" class="form-label">{{ 'orders.create.warehouse' | t }}</label>
-                </div>
-              }
-              <div class="field-hint">
-                {{ (pricesIncludeTax() ? 'finance.pricesIncludeTax' : 'finance.pricesExcludeTax') | t }}
-              </div>
+                @if (!orderForm.get('customerId')?.value) {
+                  <div class="fld">
+                    <label class="fld-label" for="customerNameInput">{{ 'orders.create.customerName' | t }} <span class="req">*</span></label>
+                    <div class="field">
+                      <input id="customerNameInput" type="text" formControlName="customerName" [attr.aria-invalid]="isFieldInvalid('customerName')" aria-describedby="customerNameErr" [placeholder]="'orders.create.customerNamePlaceholder' | t"/>
+                    </div>
+                    @if (isFieldInvalid('customerName')) { <div class="fld-error" id="customerNameErr"><app-icon name="alert" size="sm" />{{ 'orders.create.customerNameRequired' | t }}</div> }
+                  </div>
+                }
+                @if (warehouses().length > 1) {
+                  <div class="fld">
+                    <label class="fld-label" for="orderWarehouse">{{ 'orders.create.warehouse' | t }}</label>
+                    <div class="field select">
+                      <select id="orderWarehouse" formControlName="warehouseId" (change)="onOrderWarehouseChange()">
+                        <option value="">{{ 'orders.create.warehouseAuto' | t }}</option>
+                        @for (w of warehouses(); track w.id) {
+                          <option [value]="w.id">{{ w.name }}</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
+                }
+              </section>
 
-              <!-- Shipping Info Rows -->
-              <div class="form-row">
-                <div class="form-field">
-                  <input id="carrierInput" type="text" formControlName="carrier" class="form-input" [class.has-value]="hasValue('carrier')" [disabled]="isOrderSaving()" [placeholder]="'orders.create.carrierPlaceholder' | t"/>
-                  <label for="carrierInput" class="form-label">{{ 'orders.create.carrierOptional' | t }}</label>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'orders.section.shipping' | t }}</h3></div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="carrierInput">{{ 'orders.create.carrierOptional' | t }}</label>
+                    <div class="field">
+                      <span class="lead"><app-icon name="truck" size="sm" /></span>
+                      <input id="carrierInput" type="text" formControlName="carrier" [disabled]="isOrderSaving()" [placeholder]="'orders.create.carrierPlaceholder' | t"/>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="trackingNumberInput">{{ 'orders.create.trackingOptional' | t }}</label>
+                    <div class="field">
+                      <input id="trackingNumberInput" type="text" class="mono ph-sans" formControlName="trackingNumber" [disabled]="isOrderSaving()" [placeholder]="'orders.create.trackingPlaceholder' | t"/>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="salesChannel">{{ 'orders.salesChannel' | t }}</label>
+                    <div class="field select">
+                      <select id="salesChannel" formControlName="salesChannel">
+                        <option value="">{{ 'orders.channel.none' | t }}</option>
+                        @for (c of salesChannels; track c) { <option [value]="c">{{ 'orders.channel.' + c | t }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="channelOrderRef">{{ 'orders.channelOrderRef' | t }}</label>
+                    <div class="field">
+                      <input id="channelOrderRef" type="text" class="mono" formControlName="channelOrderRef" maxlength="100" />
+                    </div>
+                  </div>
                 </div>
-                <div class="form-field">
-                  <input id="trackingNumberInput" type="text" formControlName="trackingNumber" class="form-input" [class.has-value]="hasValue('trackingNumber')" [disabled]="isOrderSaving()" [placeholder]="'orders.create.trackingPlaceholder' | t"/>
-                  <label for="trackingNumberInput" class="form-label">{{ 'orders.create.trackingOptional' | t }}</label>
-                </div>
-              </div>
-              
-              <div class="form-row">
-                <div class="form-field">
-                  <select id="salesChannel" formControlName="salesChannel" class="form-input form-select has-value">
-                    <option value="">{{ 'orders.channel.none' | t }}</option>
-                    @for (c of salesChannels; track c) { <option [value]="c">{{ 'orders.channel.' + c | t }}</option> }
-                  </select>
-                  <label for="salesChannel" class="form-label">{{ 'orders.salesChannel' | t }}</label>
-                </div>
-                <div class="form-field">
-                  <input id="channelOrderRef" type="text" formControlName="channelOrderRef" class="form-input" [class.has-value]="hasValue('channelOrderRef')" maxlength="100" />
-                  <label for="channelOrderRef" class="form-label">{{ 'orders.channelOrderRef' | t }}</label>
-                </div>
-              </div>
+              </section>
 
-              <div class="ol-section">
-                <div class="ol-section-head">
-                  <h3 class="ol-title">{{ 'orders.items' | t }}</h3>
-                  <div class="cluster">
-                    <button type="button" class="btn btn-sm btn-secondary" (click)="showScanner.set(true)" [disabled]="isOrderSaving() || scanning()">
-                      @if (scanning()) { <span class="spinner-sm"></span> } @else { <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8"/></svg> } {{ 'orders.create.scan' | t }}
+              <section class="fsec">
+                <div class="fsec-h">
+                  <span class="n">3</span><h3>{{ 'orders.items' | t }}</h3>
+                  <p>{{ 'orders.create.lineCount' | t: { n: linesArray.length } }}</p>
+                  <div class="ol-head-actions">
+                    <button type="button" class="btn btn-sm" [class.is-loading]="scanning()" (click)="showScanner.set(true)" [disabled]="isOrderSaving() || scanning()">
+                      <app-icon name="scan" />{{ 'orders.create.scan' | t }}
                     </button>
-                    <button type="button" class="btn btn-sm btn-secondary" (click)="addOrderLine()" [disabled]="isOrderSaving()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> {{ 'orders.create.addProduct' | t }}</button>
+                    <button type="button" class="btn btn-sm btn-subtle" (click)="addOrderLine()" [disabled]="isOrderSaving()"><app-icon name="plus" />{{ 'orders.create.addProduct' | t }}</button>
                   </div>
                 </div>
 
                 <div formArrayName="lines" class="ol-lines">
                   @for (line of linesArray.controls; track $index; let i = $index) {
                     <div [formGroupName]="i" [class.highlight-row]="highlightLineIndex() === i" class="ol-line">
-                      <div class="ol-product">
-                        <div class="custom-select-wrapper" (click)="toggleDropdown(i); $event.stopPropagation()">
-                          <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()">
-                            <span class="selected-text">
-                              @if (line.get('productId')?.value) {
-                                {{ getProductName(line.get('productId')?.value) }} <span class="selected-stock">({{ 'orders.create.stock' | t }}: {{ line.get('maxQuantity')?.value | num }})</span>
-                              } @else {
-                                {{ 'orders.create.selectProduct' | t }}
-                              }
-                            </span>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                          </div>
-                          @if (isDropdownOpen(i)) {
-                            <div class="custom-select-dropdown ol-dropdown">
-                              @for (p of state.products(); track p.id) {
-                                @if (p.quantity > 0) {
-                                  <div class="custom-option" (click)="selectProduct(i, p.id); $event.stopPropagation()">
-                                    <div class="opt-left">
-                                      <span class="opt-name">{{ p.name }}</span>
-                                      <span class="opt-stock" [class.low]="p.quantity < 10">{{ 'orders.create.stock' | t }}: {{ p.quantity | num }}</span>
-                                    </div>
-                                    <span class="opt-price num">{{ p.price | money }}</span>
-                                  </div>
+                      <div class="ol-top">
+                        <span class="ol-n mono">{{ i + 1 }}</span>
+                        <div class="ol-product">
+                          <div class="custom-select-wrapper" (click)="toggleDropdown(i); $event.stopPropagation()">
+                            <div class="custom-select-trigger" [class.open]="isDropdownOpen(i)" [class.disabled]="isOrderSaving()">
+                              <span class="selected-text">
+                                @if (line.get('productId')?.value) {
+                                  {{ getProductName(line.get('productId')?.value) }} <span class="selected-stock">· {{ 'orders.create.stock' | t }} {{ line.get('maxQuantity')?.value | num }}</span>
+                                } @else {
+                                  <span class="ph">{{ 'orders.create.selectProductPh' | t }}</span>
                                 }
-                              }
+                              </span>
+                              <app-icon class="ol-chev" name="chevud" size="sm" />
                             </div>
+                            @if (isDropdownOpen(i)) {
+                              <div class="custom-select-dropdown ol-dropdown">
+                                @for (p of state.products(); track p.id) {
+                                  @if (p.quantity > 0) {
+                                    <div class="custom-option" (click)="selectProduct(i, p.id); $event.stopPropagation()">
+                                      <div class="opt-left">
+                                        <span class="opt-name">{{ p.name }}</span>
+                                        <span class="opt-stock" [class.low]="p.quantity < 10">{{ 'orders.create.stock' | t }} {{ p.quantity | num }}</span>
+                                      </div>
+                                      <span class="opt-price">{{ p.price | money }}</span>
+                                    </div>
+                                  }
+                                }
+                              </div>
+                            }
+                          </div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm btn-icon ol-remove" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()" [attr.aria-label]="'common.delete' | t" [attr.data-tip]="'common.delete' | t">
+                          <app-icon name="trash" />
+                        </button>
+                      </div>
+                      <div class="ol-grid">
+                        <div class="fld">
+                          <label class="fld-label" [for]="'olQty' + i">{{ 'orders.create.quantity' | t }}</label>
+                          <div class="field field-sm">
+                            <input [id]="'olQty' + i" type="text" appQty [qtyDecimals]="lineDecimals(line)" formControlName="quantity" class="num" [attr.aria-invalid]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)" />
+                          </div>
+                          @if (line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)) {
+                            <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'orders.create.max' | t }}: {{ maxForLine(line) | num }}</span>
+                          }
+                          @if (line.get('quantity')?.hasError('qtyPrecision')) {
+                            <span class="fld-error"><app-icon name="alert" size="sm" />{{ 'orders.create.precision' | t: { decimals: lineDecimals(line) } }}</span>
                           }
                         </div>
-                      </div>
-                      <div class="ol-qty" [class.has-error]="line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)">
-                        <input type="text" appQty [qtyDecimals]="lineDecimals(line)" formControlName="quantity" class="form-input ol-input" [placeholder]="'orders.create.quantity' | t" />
-                        @if (line.get('quantity')?.hasError('max') && (line.get('quantity')?.dirty || line.get('quantity')?.touched)) {
-                          <span class="form-error">{{ 'orders.create.max' | t }}: {{ maxForLine(line) | num }}</span>
+                        @if (lineProduct(line); as lp) {
+                          @if (lp.units?.length) {
+                            <div class="fld">
+                              <label class="fld-label" [for]="'olUnit' + i">{{ 'orders.create.unit' | t }}</label>
+                              <div class="field field-sm select">
+                                <select [id]="'olUnit' + i" formControlName="unitId" (change)="onLineUnitChange(i)">
+                                  <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
+                                  @for (u of lp.units; track u.unitId) {
+                                    <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
+                                  }
+                                </select>
+                              </div>
+                            </div>
+                          }
                         }
-                        @if (line.get('quantity')?.hasError('qtyPrecision')) {
-                          <span class="form-error">{{ 'orders.create.precision' | t: { decimals: lineDecimals(line) } }}</span>
-                        }
-                      </div>
-                      @if (lineProduct(line); as lp) {
-                        @if (lp.units?.length) {
-                          <div class="ol-unit">
-                            <select class="form-input ol-input" formControlName="unitId" (change)="onLineUnitChange(i)" [title]="'orders.create.unit' | t">
-                              <option value="">{{ (lp.baseUnit || lp.unit || 'pcs') | unitLabel }}</option>
-                              @for (u of lp.units; track u.unitId) {
-                                <option [value]="u.unitId">{{ (u.unit || u.unitId) | unitLabel }} (×{{ u.factor | num }})</option>
-                              }
-                            </select>
+                        <div class="fld ol-price">
+                          <label class="fld-label" [for]="'olPrice' + i">{{ 'finance.unitPrice' | t }}</label>
+                          <div class="field field-sm">
+                            <input [id]="'olPrice' + i" type="number" formControlName="unitPrice" class="num" min="0" step="0.01" [placeholder]="productPricePlaceholder(line)" [title]="'orders.create.unitPriceOverride' | t" />
+                            <span class="affix suf">{{ orderCurrency() }}</span>
                           </div>
-                        }
-                      }
-                      <div class="ol-price">
-                        <input type="number" formControlName="unitPrice" class="form-input ol-input num" min="0" step="0.01" [placeholder]="productPricePlaceholder(line)" [title]="'orders.create.unitPriceOverride' | t"/>
+                        </div>
                       </div>
-                      <div class="ol-total">
-                        @if (quoteLine(i); as ql) {
-                          <div class="num strong">{{ ql.lineTotal | money: orderCurrency() }}</div>
-                          <div class="ol-sub">
-                            {{ 'finance.tax' | t }} %{{ ql.taxRate | num }}: {{ ql.taxAmount | money: orderCurrency() }}
-                            @if (ql.discountAmount > 0) { · {{ 'orders.discount' | t }} −{{ ql.discountAmount | money: orderCurrency() }} }
-                            @if (ql.withheldTaxAmount > 0) { · {{ 'orders.withheldVat' | t }} {{ ql.withheldTaxAmount | money: orderCurrency() }} }
-                          </div>
-                        } @else if (linePreview(line); as lp) {
-                          <div class="num strong">{{ lp.total | money: orderCurrency() }}</div>
-                          <div class="ol-sub">{{ 'finance.tax' | t }} %{{ lp.rate | num }}: {{ lp.tax | money: orderCurrency() }}</div>
-                        } @else if (line.get('productId')?.value) {
-                          <div class="ol-sub">{{ 'orders.create.priceWillConvert' | t }}</div>
-                        }
-                      </div>
-                      <button type="button" class="icon-btn delete-btn ol-remove" (click)="removeOrderLine(i)" [disabled]="linesArray.length <= 1 || isOrderSaving()" [attr.aria-label]="'common.delete' | t">
-                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                      </button>
                       @if (line.get('productId')?.value) {
                         <app-line-tax-fields [group]="$any(line)" [product]="lineProduct(line) || undefined" [rates]="taxRates()" [exemptions]="exemptions()" [withholdings]="withholdings()"></app-line-tax-fields>
+                        <div class="ol-meta">
+                          @if (quoteLine(i); as ql) {
+                            <span>{{ 'finance.taxRate' | t }} <b>{{ ql.taxRate | num }}%</b></span>
+                            <span>{{ 'finance.taxAmount' | t }} <b>{{ ql.taxAmount | money: orderCurrency() }}</b></span>
+                            @if (ql.discountAmount > 0) { <span>{{ 'orders.discount' | t }} <b>−{{ ql.discountAmount | money: orderCurrency() }}</b></span> }
+                            @if (ql.withheldTaxAmount > 0) { <span>{{ 'orders.withheldVat' | t }} <b>{{ ql.withheldTaxAmount | money: orderCurrency() }}</b></span> }
+                            <span class="ol-total">{{ 'finance.lineTotal' | t }} <b>{{ ql.lineTotal | money: orderCurrency() }}</b></span>
+                          } @else if (linePreview(line); as lpv) {
+                            <span>{{ 'finance.taxRate' | t }} <b>{{ lpv.rate | num }}%</b></span>
+                            <span>{{ 'finance.taxAmount' | t }} <b>{{ lpv.tax | money: orderCurrency() }}</b></span>
+                            <span class="ol-total">{{ 'finance.lineTotal' | t }} <b>{{ lpv.total | money: orderCurrency() }}</b></span>
+                          } @else {
+                            <span>{{ 'orders.create.priceWillConvert' | t }}</span>
+                          }
+                        </div>
                       }
                       @if (lineProduct(line); as lp) {
                         <div class="ol-tracking">
@@ -448,10 +512,10 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
                               <span>{{ 'orders.tracking.lots' | t }}:</span>
                               @if (line.get('trackMode')?.value !== 'manual') {
                                 <span>{{ 'orders.tracking.autoFefo' | t }}</span>
-                                <button type="button" class="btn btn-sm btn-outline" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickLots' | t }}</button>
+                                <button type="button" class="btn btn-xs" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickLots' | t }}</button>
                               } @else {
-                                <button type="button" class="btn btn-sm btn-outline" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
-                                <span [style.color]="lotsSum(line) === lineBaseQty(line) ? 'var(--color-success-text)' : 'var(--color-danger-text)'">{{ 'orders.tracking.selectedOf' | t: { selected: (lotsSum(line) | num), total: (lineBaseQty(line) | num) } }}</span>
+                                <button type="button" class="btn btn-xs" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
+                                <span [class.is-ok]="lotsSum(line) === lineBaseQty(line)" [class.is-bad]="lotsSum(line) !== lineBaseQty(line)">{{ 'orders.tracking.selectedOf' | t: { selected: (lotsSum(line) | num), total: (lineBaseQty(line) | num) } }}</span>
                               }
                             </div>
                             @if (line.get('trackMode')?.value === 'manual') {
@@ -461,8 +525,10 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
                                     <span class="mono">{{ lot.lotNumber }}{{ lot.warehouseName ? ' · ' + lot.warehouseName : '' }}</span>
                                     <span>{{ lot.expiryDate ? (lot.expiryDate | appDate) : '-' }}</span>
                                     <span class="num">{{ 'orders.tracking.available' | t }}: {{ lot.quantity | num }}</span>
-                                    <input type="text" inputmode="decimal" class="form-input ol-lot-input"
-                                      [value]="lotQty(line, lot.id)" (change)="setLotQty(i, lot, $event)"/>
+                                    <div class="field field-sm">
+                                      <input type="text" inputmode="decimal" class="num" [attr.aria-label]="lot.lotNumber"
+                                        [value]="lotQty(line, lot.id)" (change)="setLotQty(i, lot, $event)"/>
+                                    </div>
                                   </div>
                                 } @empty {
                                   <span>{{ 'orders.tracking.noLots' | t }}</span>
@@ -477,10 +543,10 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
                               <span>{{ 'orders.tracking.serials' | t }}:</span>
                               @if (line.get('trackMode')?.value !== 'manual') {
                                 <span>{{ 'orders.tracking.autoSerial' | t }}</span>
-                                <button type="button" class="btn btn-sm btn-outline" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickSerials' | t }}</button>
+                                <button type="button" class="btn btn-xs" (click)="enableManualTracking(i)">{{ 'orders.tracking.pickSerials' | t }}</button>
                               } @else {
-                                <button type="button" class="btn btn-sm btn-outline" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
-                                <span [style.color]="lineSerials(line).length === lineBaseQty(line) ? 'var(--color-success-text)' : 'var(--color-danger-text)'">{{ 'orders.tracking.selectedOf' | t: { selected: lineSerials(line).length, total: (lineBaseQty(line) | num) } }}</span>
+                                <button type="button" class="btn btn-xs" (click)="disableManualTracking(i)">{{ 'orders.tracking.useAuto' | t }}</button>
+                                <span [class.is-ok]="lineSerials(line).length === lineBaseQty(line)" [class.is-bad]="lineSerials(line).length !== lineBaseQty(line)">{{ 'orders.tracking.selectedOf' | t: { selected: lineSerials(line).length, total: (lineBaseQty(line) | num) } }}</span>
                               }
                             </div>
                             @if (line.get('trackMode')?.value === 'manual') {
@@ -507,34 +573,83 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
                   }
                 </div>
                 @if (linesArray.invalid && (linesArray.dirty || linesArray.touched)) {
-                  <span class="form-error ol-error">{{ 'orders.create.linesInvalid' | t }}</span>
+                  <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'orders.create.linesInvalid' | t }}</div>
                 }
                 @if (trackingInvalid()) {
-                  <span class="form-error ol-error">{{ 'orders.tracking.mismatch' | t }}</span>
+                  <div class="fld-error"><app-icon name="alert" size="sm" />{{ 'orders.tracking.mismatch' | t }}</div>
                 }
-              </div>
+              </section>
 
-              <div class="tax-section">
-                <app-document-tax-fields [group]="taxGroup"></app-document-tax-fields>
-                @if (quote(); as q) {
-                  <app-tax-summary [view]="quoteView()" [error]="quoteError()" [baseCurrency]="i18n.currency()"></app-tax-summary>
-                } @else {
-                  @if (quoteError()) { <app-tax-summary [view]="null" [error]="quoteError()"></app-tax-summary> }
-                  @if (previewTotals(); as tot) {
-                    <div class="totals-box">
-                      <div class="tot-row"><span>{{ 'finance.subtotal' | t }}</span><span class="num">{{ tot.subtotal | money: orderCurrency() }}</span></div>
-                      <div class="tot-row tot-grand"><span>{{ 'finance.grandTotal' | t }}</span><strong class="num">{{ tot.grandTotal | money: orderCurrency() }}</strong></div>
-                      @if (quoting()) { <div class="field-hint">{{ 'finance.quoting' | t }}</div> }
+              <section class="fsec">
+                <div class="fsec-h">
+                  <span class="n">4</span><h3>{{ 'finance.charges' | t }}</h3><p>{{ 'orders.create.chargesOptional' | t }}</p>
+                  <div class="ol-head-actions">
+                    <button type="button" class="btn btn-sm btn-subtle" (click)="addCharge()" [disabled]="isOrderSaving()"><app-icon name="plus" />{{ 'finance.addCharge' | t }}</button>
+                  </div>
+                </div>
+                <div [formGroup]="taxGroup">
+                  <div formArrayName="charges" class="ch-list">
+                    @for (c of chargesArray.controls; track $index; let i = $index) {
+                      <div class="ch-row" [formGroupName]="i">
+                        <div class="field select ch-type">
+                          <select formControlName="type" [attr.aria-label]="'finance.chargeType' | t">
+                            @for (ct of chargeTypes; track ct) { <option [value]="ct">{{ 'orders.charges.' + ct | t }}</option> }
+                          </select>
+                        </div>
+                        <div class="field ch-amt">
+                          <input type="number" min="0" step="0.01" class="num" formControlName="amount" [placeholder]="'finance.amount' | t" [attr.aria-label]="'finance.amount' | t" />
+                          <span class="affix suf">{{ orderCurrency() }}</span>
+                        </div>
+                        <div class="field ch-desc">
+                          <input type="text" formControlName="description" maxlength="255" [placeholder]="'finance.chargeDescription' | t" [attr.aria-label]="'finance.chargeDescription' | t" />
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-icon ch-remove" (click)="chargesArray.removeAt(i)" [disabled]="isOrderSaving()" [attr.aria-label]="'common.delete' | t"><app-icon name="trash" /></button>
+                      </div>
+                    }
+                  </div>
+                  <div class="fld-help">{{ 'finance.chargesHint' | t }}</div>
+                </div>
+              </section>
+
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">5</span><h3>{{ 'orders.section.totals' | t }}</h3></div>
+                <div class="tax-section">
+                  <div class="grid-2" [formGroup]="taxGroup">
+                    <div class="fld">
+                      <label class="fld-label" for="orderDocDiscount">{{ 'finance.documentDiscount' | t }}</label>
+                      <div class="field">
+                        <input id="orderDocDiscount" type="number" min="0" step="0.01" class="num" formControlName="documentDiscountAmount" placeholder="0" />
+                        <span class="affix suf">{{ orderCurrency() }}</span>
+                      </div>
                     </div>
+                    <div class="fld">
+                      <label class="fld-label" for="orderTaxPoint">{{ 'finance.taxPointDate' | t }}</label>
+                      <div class="field">
+                        <span class="lead"><app-icon name="calendar" size="sm" /></span>
+                        <input id="orderTaxPoint" type="date" formControlName="taxPointDate" />
+                      </div>
+                    </div>
+                  </div>
+                  @if (quote(); as q) {
+                    <app-tax-summary [view]="quoteView()" [error]="quoteError()" [baseCurrency]="i18n.currency()"></app-tax-summary>
+                  } @else {
+                    @if (quoteError()) { <app-tax-summary [view]="null" [error]="quoteError()"></app-tax-summary> }
+                    @if (previewTotals(); as tot) {
+                      <div class="totals-box">
+                        <div class="tot-row"><span>{{ 'finance.subtotal' | t }}</span><span>{{ tot.subtotal | money: orderCurrency() }}</span></div>
+                        <div class="tot-row tot-grand"><span>{{ 'finance.grandTotal' | t }}</span><strong>{{ tot.grandTotal | money: orderCurrency() }}</strong></div>
+                        @if (quoting()) { <div class="fld-help">{{ 'finance.quoting' | t }}</div> }
+                      </div>
+                    }
                   }
-                }
-              </div>
+                </div>
+              </section>
             </div>
 
             <div class="drawer-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeCreateOrder()">{{ 'common.cancel' | t }}</button>
-              <button type="submit" class="btn btn-primary" [disabled]="orderForm.invalid || isOrderSaving() || trackingInvalid() || exemptionMissing()">
-                @if (isOrderSaving()) { <span class="spinner-sm spinner-light"></span> {{ 'orders.create.creating' | t }} } @else { {{ 'orders.create.submit' | t }} }
+              <button type="button" class="btn btn-ghost" (click)="closeCreateOrder()">{{ 'common.cancel' | t }}</button>
+              <button type="submit" class="btn btn-primary" [class.is-loading]="isOrderSaving()" [disabled]="orderForm.invalid || isOrderSaving() || trackingInvalid() || exemptionMissing()">
+                <span>{{ 'orders.create.submit' | t }}</span><kbd>Ctrl ↵</kbd>
               </button>
             </div>
           </form>
@@ -545,65 +660,76 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
     <!-- ─── Order Detail Drawer ─── -->
     @if (isOrderDetailOpen()) {
       <div class="drawer-overlay" (click)="closeOrderDetail()">
-        <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="orderDetailTitle" (click)="$event.stopPropagation()">
           @if (selectedOrder(); as order) {
-            <div class="drawer-header">
-              <div class="cluster">
-                <span class="drawer-title">{{ 'orders.detail.title' | t }}</span>
-                <span class="mono text-muted">{{ order.orderNumber }}</span>
+            <div class="drawer-h">
+              <div class="t">
+                <div class="eyebrow">
+                  <span>{{ 'orders.detail.title' | t }}</span>
+                  <span class="badge" [class.badge-success]="order.status === 'Completed'" [class.badge-warning]="order.status === 'Pending'" [class.badge-danger]="order.status === 'Cancelled'" [class.badge-neutral]="order.status !== 'Completed' && order.status !== 'Pending' && order.status !== 'Cancelled'">
+                    <span class="dot"></span>{{ (order.status === 'Completed' ? 'orders.status.completed' : order.status === 'Pending' ? 'orders.status.pending' : 'orders.status.cancelled') | t }}
+                  </span>
+                </div>
+                <h2 id="orderDetailTitle" class="mono">{{ order.orderNumber }}</h2>
               </div>
-              <button class="drawer-close" (click)="closeOrderDetail()" [attr.aria-label]="'common.close' | t"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              <div class="tools">
+                <button type="button" class="drawer-close" (click)="copyToClipboard(order.orderNumber, order.id)" [attr.data-tip]="(copiedOrderId() === order.id ? 'orders.card.copied' : 'orders.card.copyOrderNo') | t" [attr.aria-label]="'orders.card.copyOrderNo' | t">
+                  <app-icon [name]="copiedOrderId() === order.id ? 'check' : 'copy'" />
+                </button>
+                <button type="button" class="drawer-close" (click)="closeOrderDetail()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /><kbd>Esc</kbd></button>
+              </div>
             </div>
-            
+
             <div class="drawer-body">
               @if (isOrderDetailLoading()) {
-                <!-- Skeleton Loader -->
-                <div>
+                <div class="od-skel" [attr.aria-label]="'common.loading' | t">
                   <div class="skeleton skeleton-title"></div>
                   <div class="skeleton skeleton-text"></div>
                   <div class="skeleton skeleton-text short"></div>
-                </div>
-                <div>
                   <div class="skeleton skeleton-title short"></div>
                   <div class="skeleton skeleton-row"></div>
                   <div class="skeleton skeleton-row"></div>
                 </div>
               } @else {
-                <div class="detail-metadata-grid">
-                  <span class="detail-label-col">{{ 'orders.detail.customer' | t }}</span>
-                  <span class="detail-value-col">
-                    @if (order.customerId) {
-                      <a [routerLink]="['/customers']" [queryParams]="{ q: order.customerName }" class="link">{{ order.customerName }}</a>
-                    } @else {
-                      {{ order.customerName }}
-                    }
-                  </span>
+                <div class="od-hero">
+                  <div>
+                    <div class="lbl">{{ 'orders.card.totalAmount' | t }}</div>
+                    <div class="amt">{{ (order.grandTotal ?? order.totalAmount) | money: order.currency }}</div>
+                  </div>
+                  <span class="tag">{{ order.currency || i18n.currency() }}</span>
+                </div>
 
-                  <span class="detail-label-col">{{ 'finance.currency' | t }}</span>
-                  <span class="detail-value-col mono">{{ order.currency || i18n.currency() }}</span>
-                  
-                  <span class="detail-label-col">{{ 'orders.detail.date' | t }}</span>
-                  <span class="detail-value-col num">{{ order.date | appDate: 'datetime' }}</span>
-                  
-                  <span class="detail-label-col">{{ 'orders.detail.status' | t }}</span>
-                  <div class="detail-value-col">
-                    <span class="badge badge-dot" [class.badge-success]="order.status === 'Completed'" [class.badge-warning]="order.status === 'Pending'" [class.badge-danger]="order.status === 'Cancelled'" [class.badge-neutral]="order.status !== 'Completed' && order.status !== 'Pending' && order.status !== 'Cancelled'">
-                      {{ (order.status === 'Completed' ? 'orders.status.completed' : order.status === 'Pending' ? 'orders.status.pending' : 'orders.status.cancelled') | t }}
+                <div class="doc-grid od-grid">
+                  <div class="doc-field">
+                    <label>{{ 'orders.detail.customer' | t }}</label>
+                    <span>
+                      @if (order.customerId) {
+                        <a [routerLink]="['/customers']" [queryParams]="{ q: order.customerName }" class="link">{{ order.customerName }}</a>
+                      } @else {
+                        {{ order.customerName }}
+                      }
                     </span>
                   </div>
-
+                  <div class="doc-field">
+                    <label>{{ 'orders.detail.date' | t }}</label>
+                    <span>{{ order.date | appDate: 'datetime' }}</span>
+                  </div>
                   @if (order.carrier) {
-                    <span class="detail-label-col">{{ 'orders.detail.carrier' | t }}</span>
-                    <span class="detail-value-col">{{ order.carrier }}</span>
+                    <div class="doc-field">
+                      <label>{{ 'orders.detail.carrier' | t }}</label>
+                      <span>{{ order.carrier }}</span>
+                    </div>
                   }
                   @if (order.trackingNumber) {
-                    <span class="detail-label-col">{{ 'orders.detail.trackingNo' | t }}</span>
-                    <span class="detail-value-col mono">{{ order.trackingNumber }}</span>
+                    <div class="doc-field">
+                      <label>{{ 'orders.detail.trackingNo' | t }}</label>
+                      <span class="mono">{{ order.trackingNumber }}</span>
+                    </div>
                   }
                 </div>
 
                 <div class="detail-items-section">
-                  <h4 class="detail-section-title">{{ 'orders.items' | t }}</h4>
+                  <h3 class="detail-section-title">{{ 'orders.items' | t }}</h3>
                   <div class="detail-item-list">
                     @for (item of order.items; track $index) {
                       <div class="detail-item-row">
@@ -633,7 +759,7 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
                             </span>
                           }
                         </div>
-                        <span class="detail-item-total num">{{ itemLineTotal(item) | money: order.currency }}</span>
+                        <span class="detail-item-total">{{ itemLineTotal(item) | money: order.currency }}</span>
                       </div>
                     }
                     @for (c of order.charges || []; track $index) {
@@ -642,18 +768,22 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
                           <span class="detail-item-name">{{ 'orders.charges.' + c.type | t }}</span>
                           @if (c.description) { <span class="detail-item-calc">{{ c.description }}</span> }
                         </div>
-                        <span class="detail-item-total num">{{ (c.lineTotal ?? c.amount) | money: order.currency }}</span>
-                      </div>
-                    }
-                    <app-tax-summary [view]="detailView(order)" [flat]="true" [baseCurrency]="i18n.currency()"></app-tax-summary>
-                    @if (order.status === 'Pending' && !order.taxFrozenAt && order.stockMode !== 'despatch') {
-                      <div class="tp-edit">
-                        <label for="tpDate" class="field-hint">{{ 'finance.taxPointDate' | t }}</label>
-                        <input id="tpDate" type="date" class="form-input" [value]="order.taxPointDate || ''" #tpInput />
-                        <button type="button" class="btn btn-sm btn-secondary" (click)="saveTaxPoint(order, tpInput.value)" [disabled]="savingTaxPoint()">{{ 'finance.updateTaxPoint' | t }}</button>
+                        <span class="detail-item-total">{{ (c.lineTotal ?? c.amount) | money: order.currency }}</span>
                       </div>
                     }
                   </div>
+                  <app-tax-summary [view]="detailView(order)" [flat]="true" [baseCurrency]="i18n.currency()"></app-tax-summary>
+                  @if (order.status === 'Pending' && !order.taxFrozenAt && order.stockMode !== 'despatch') {
+                    <div class="tp-edit">
+                      <div class="fld">
+                        <label for="tpDate" class="fld-label">{{ 'finance.taxPointDate' | t }}</label>
+                        <div class="field field-sm">
+                          <input id="tpDate" type="date" [value]="order.taxPointDate || ''" #tpInput />
+                        </div>
+                      </div>
+                      <button type="button" class="btn btn-sm" [class.is-loading]="savingTaxPoint()" (click)="saveTaxPoint(order, tpInput.value)" [disabled]="savingTaxPoint()"><span>{{ 'finance.updateTaxPoint' | t }}</span></button>
+                    </div>
+                  }
                 </div>
               }
               @if (!isOrderDetailLoading()) {
@@ -661,25 +791,33 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
               }
             </div>
 
-            <div class="drawer-footer" [class.single-action]="order.status === 'Completed' || order.status === 'Cancelled'">
+            <div class="drawer-footer">
               @if (isOrderDetailLoading()) {
-                <div class="skeleton skeleton-row block"></div>
+                <div class="skeleton od-foot-skel"></div>
               } @else {
                 @if (order.status === 'Pending') {
-                  <button class="btn btn-secondary" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">{{ 'orders.action.cancel' | t }}</button>
+                  <button type="button" class="btn btn-danger-ghost" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">{{ 'orders.action.cancel' | t }}</button>
+                  <span class="spacer"></span>
+                  <button type="button" class="btn btn-ghost" (click)="closeOrderDetail()">{{ 'common.close' | t }}</button>
                   @if (order.stockMode !== 'despatch') {
-                  <button class="btn btn-primary" (click)="updateOrderStatus(order.id, 'Completed')" [disabled]="updatingOrderId() === order.id">
-                    @if (updatingOrderId() === order.id) { <span class="spinner-sm spinner-light"></span> } @else { {{ 'orders.action.complete' | t }} }
-                  </button>
+                    <button type="button" class="btn btn-primary" [class.is-loading]="updatingOrderId() === order.id" (click)="updateOrderStatus(order.id, 'Completed')" [disabled]="updatingOrderId() === order.id">
+                      <app-icon name="check" />{{ 'orders.action.complete' | t }}
+                    </button>
                   }
                 }
-                @if (order.status === 'Completed' && order.stockMode !== 'despatch') {
-                  <button class="btn btn-secondary block" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">
-                    @if (updatingOrderId() === order.id) { <span class="spinner-sm"></span> } @else { {{ 'orders.action.refund' | t }} }
-                  </button>
+                @if (order.status === 'Completed') {
+                  <span class="spacer"></span>
+                  <button type="button" class="btn btn-ghost" (click)="closeOrderDetail()">{{ 'common.close' | t }}</button>
+                  @if (order.stockMode !== 'despatch') {
+                    <button type="button" class="btn" [class.is-loading]="updatingOrderId() === order.id" (click)="promptCancelOrder(order)" [disabled]="updatingOrderId() === order.id">
+                      <app-icon name="return" />{{ 'orders.action.refund' | t }}
+                    </button>
+                  }
                 }
                 @if (order.status === 'Cancelled') {
-                  <button class="btn btn-danger block" (click)="promptDeleteOrder(order)" [disabled]="updatingOrderId() === order.id">{{ 'common.delete' | t }}</button>
+                  <button type="button" class="btn btn-danger-outline" (click)="promptDeleteOrder(order)" [disabled]="updatingOrderId() === order.id"><app-icon name="trash" />{{ 'common.delete' | t }}</button>
+                  <span class="spacer"></span>
+                  <button type="button" class="btn btn-ghost" (click)="closeOrderDetail()">{{ 'common.close' | t }}</button>
                 }
               }
             </div>
@@ -690,22 +828,22 @@ import { OrderDocumentsComponent } from '../documents/order-documents.component'
 
     <!-- ─── Cancel Confirmation Modal ─── -->
     @if (showCancelModal()) {
-      <div class="modal-backdrop z-top">
-        <div class="modal-panel modal-panel-sm">
-          <div class="delete-modal-content">
-            <button class="delete-modal-close" (click)="closeCancelModal()" [disabled]="updatingOrderId() !== null" [attr.aria-label]="'common.cancel' | t"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-            <div class="delete-icon">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            </div>
-            <h3 class="delete-modal-title">{{ (orderToCancel()?.status === 'Completed' ? 'orders.cancelModal.refundTitle' : 'orders.cancelModal.cancelTitle') | t }}</h3>
-            <p class="delete-modal-desc">
-              {{ 'orders.cancelModal.message' | t: { number: orderToCancel()?.orderNumber } }}
-            </p>
+      <div class="scrim z-top" (click)="updatingOrderId() === null && closeCancelModal()">
+        <div class="modal w-sm" role="alertdialog" aria-modal="true" aria-labelledby="cancelModalTitle" aria-describedby="cancelModalDesc" (click)="$event.stopPropagation()">
+          <div class="modal-h">
+            <h3 id="cancelModalTitle">{{ (orderToCancel()?.status === 'Completed' ? 'orders.cancelModal.refundTitle' : 'orders.cancelModal.cancelTitle') | t }}</h3>
+            <button type="button" class="modal-close" (click)="closeCancelModal()" [disabled]="updatingOrderId() !== null" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
           </div>
-          <div class="delete-modal-actions">
-            <button class="btn btn-secondary" (click)="closeCancelModal()" [disabled]="updatingOrderId() !== null">{{ 'common.cancel' | t }}</button>
-            <button class="btn btn-danger" (click)="confirmCancelOrder()" [disabled]="updatingOrderId() !== null">
-              @if (updatingOrderId() !== null) { <span class="spinner-sm spinner-light"></span> {{ 'orders.cancelModal.processing' | t }} } @else { {{ 'common.confirm' | t }} }
+          <div class="modal-b">
+            <div class="notice notice-warning">
+              <app-icon name="warn" />
+              <span class="t" id="cancelModalDesc">{{ 'orders.cancelModal.message' | t: { number: orderToCancel()?.orderNumber } }}</span>
+            </div>
+          </div>
+          <div class="modal-f">
+            <button type="button" class="btn btn-ghost" (click)="closeCancelModal()" [disabled]="updatingOrderId() !== null">{{ 'common.cancel' | t }}</button>
+            <button type="button" class="btn btn-danger" [class.is-loading]="updatingOrderId() !== null" (click)="confirmCancelOrder()" [disabled]="updatingOrderId() !== null">
+              <span>{{ 'common.confirm' | t }}</span>
             </button>
           </div>
         </div>
@@ -778,6 +916,34 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
     return list;
   });
 
+  /** Per-status counts for the segmented filter (presentation only). */
+  statusCounts = computed(() => {
+    const c = { all: 0, Pending: 0, Completed: 0, Cancelled: 0 } as Record<'all' | 'Pending' | 'Completed' | 'Cancelled', number>;
+    for (const o of this.state.orders()) {
+      c.all++;
+      if (o.status === 'Pending' || o.status === 'Completed' || o.status === 'Cancelled') c[o.status]++;
+    }
+    return c;
+  });
+
+  /** Tooltip listing every line of an order in the list table. */
+  itemsTitle(o: Order): string {
+    return (o.items || []).map((i) => `${i.productName} · ${this.itemQtyLabel(i, false)}`).join('\n');
+  }
+
+  initials(name: string): string {
+    return (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join('').toLocaleUpperCase(this.i18n.lang() === 'tr' ? 'tr' : 'en');
+  }
+
+  /** Esc closes the topmost overlay (cancel modal, then create / detail drawer). */
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.showScanner()) return;
+    if (this.showCancelModal()) { if (this.updatingOrderId() === null) this.closeCancelModal(); return; }
+    if (this.showCreateOrderModal()) { if (!this.isOrderSaving()) this.closeCreateOrder(); return; }
+    if (this.isOrderDetailOpen()) this.closeOrderDetail();
+  }
+
   // Reactive Form
   orderForm: FormGroup = this.fb.group({
     customerId: [''],
@@ -794,6 +960,14 @@ export class OrdersComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get taxGroup(): FormGroup {
     return this.orderForm.get('tax') as FormGroup;
+  }
+
+  readonly chargeTypes = CHARGE_TYPES;
+  get chargesArray(): FormArray {
+    return this.taxGroup.get('charges') as FormArray;
+  }
+  addCharge() {
+    this.chargesArray.push(chargeGroup(this.fb));
   }
 
   // ─── Tax engine (WP3): live quote from the server ───
