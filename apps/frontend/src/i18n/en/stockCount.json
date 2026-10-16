@@ -75,5 +75,11 @@
   "stockCount.countedByHint": "Names, comma separated",
   "stockCount.supervisedBy": "Supervisor",
   "stockCount.approvedBy": "Approved by",
-  "stockCount.tutanakHint": "The user completing the count approves the report and cannot be a counter. The count date may be up to 3 months before or 2 months after the inventory date; movements in between are rolled forward / back."
+  "stockCount.tutanakHint": "The user completing the count approves the report and cannot be a counter. The count date may be up to 3 months before or 2 months after the inventory date; movements in between are rolled forward / back.",
+  "stockCount.cancelCount": "Cancel count",
+  "stockCount.status.cancelled": "Cancelled",
+  "stockCount.cancelConfirm.title": "Cancel this count?",
+  "stockCount.cancelConfirm.message": "Count {number} will be cancelled without booking any stock difference. This cannot be undone.",
+  "stockCount.toast.cancelled": "Count cancelled; no differences were booked.",
+  "stockCount.toast.cancelError": "The count could not be cancelled."
 }

@@ -219,6 +219,7 @@ export class AccountingReportController {
 
 @ApiTags('stock-counts')
 @ApiSecurity('api-key')
+@Roles(...STAFF)
 @Controller('stock-counts')
 export class StockCountReportController {
   constructor(private readonly inventory: InventoryReportService) {}

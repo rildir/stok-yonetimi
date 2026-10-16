@@ -14,7 +14,7 @@ export class LotStatusDto {
   /** Either lotId, or productId + lotNumber (all warehouses of that lot). */
   @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'LOT_NOT_FOUND' })
+  @IsNotEmpty({ message: 'LOT_NUMBER_EMPTY' })
   lotId?: string;
 
   @IsOptional()
@@ -24,7 +24,7 @@ export class LotStatusDto {
 
   @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'LOT_NOT_FOUND' })
+  @IsNotEmpty({ message: 'LOT_NUMBER_EMPTY' })
   @MaxLength(100)
   lotNumber?: string;
 
@@ -43,7 +43,7 @@ export class LotGenealogyDto {
   parentProductId: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'LOT_NOT_FOUND' })
+  @IsNotEmpty({ message: 'LOT_NUMBER_EMPTY' })
   @MaxLength(100)
   parentLotNumber: string;
 
@@ -52,7 +52,7 @@ export class LotGenealogyDto {
   childProductId: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'LOT_NOT_FOUND' })
+  @IsNotEmpty({ message: 'LOT_NUMBER_EMPTY' })
   @MaxLength(100)
   childLotNumber: string;
 

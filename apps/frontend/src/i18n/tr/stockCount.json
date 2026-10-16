@@ -75,5 +75,11 @@
   "stockCount.countedByHint": "Ad Soyad, virgülle",
   "stockCount.supervisedBy": "Gözetmen",
   "stockCount.approvedBy": "Onaylayan",
-  "stockCount.tutanakHint": "Sayımı tamamlayan kullanıcı tutanağı onaylar; sayım ekibinde yer alamaz. Sayım tarihi envanter tarihinden en fazla 3 ay önce veya 2 ay sonra olabilir; aradaki hareketler tutanakta ileri / geri hesaplanır."
+  "stockCount.tutanakHint": "Sayımı tamamlayan kullanıcı tutanağı onaylar; sayım ekibinde yer alamaz. Sayım tarihi envanter tarihinden en fazla 3 ay önce veya 2 ay sonra olabilir; aradaki hareketler tutanakta ileri / geri hesaplanır.",
+  "stockCount.cancelCount": "Sayımı iptal et",
+  "stockCount.status.cancelled": "İptal edildi",
+  "stockCount.cancelConfirm.title": "Sayım iptal edilsin mi?",
+  "stockCount.cancelConfirm.message": "{number} numaralı sayım hiçbir stok farkı işlenmeden iptal edilecek. Bu işlem geri alınamaz.",
+  "stockCount.toast.cancelled": "Sayım iptal edildi; stoklara fark işlenmedi.",
+  "stockCount.toast.cancelError": "Sayım iptal edilemedi."
 }

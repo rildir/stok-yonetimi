@@ -46,7 +46,19 @@ export class MockEDocumentProvider implements EDocumentProvider {
 
   private opt(ctx: ProviderContext) {
     const c = ctx.credentials || {};
-    const list = (k: string) => (Array.isArray(c[k]) ? (c[k] as unknown[]).map(String) : []);
+    // Lists may arrive as arrays, JSON text (the masked GET shape written back) or comma-separated text.
+    const list = (k: string): string[] => {
+      const v = c[k];
+      if (Array.isArray(v)) return v.map(String);
+      if (typeof v !== 'string' || !v.trim()) return [];
+      try {
+        const parsed = JSON.parse(v);
+        if (Array.isArray(parsed)) return parsed.map(String);
+      } catch {
+        /* comma separated */
+      }
+      return v.split(',').map((x) => x.trim()).filter(Boolean);
+    };
     return {
       simulate: String(c['simulate'] || 'NONE').toUpperCase(),
       acceptDelay: Number(c['acceptDelaySeconds'] ?? 5) * 1000,

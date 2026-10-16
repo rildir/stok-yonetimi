@@ -435,5 +435,6 @@
   "invoices.disputedDespatch": "The receiver answered e-despatch {no} with \"{status}\". Stock and the invoiceable quantity are not corrected automatically: invoice only the accepted quantity or record a return.",
   "invoices.cancelAfterSend": "The document is in the sending queue. To keep the number series gap-free it has to be sent first; it can be cancelled afterwards.",
   "despatches.receiverDisputed": "The receiver did not accept this despatch advice in full. Stock and the invoiceable quantity are not corrected automatically; record a return for goods that come back and invoice only the accepted quantity.",
-  "docSettings.kinds.RECEIPT_ADVICE": "Receipt advice"
+  "docSettings.kinds.RECEIPT_ADVICE": "Receipt advice",
+  "despatches.selectPaperReason": "Select the paper-document reason (509 V.7)"
 }

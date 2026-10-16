@@ -234,9 +234,17 @@ export class UserService {
   }
 
   async recordSuccessfulLogin(user: UserEntity): Promise<void> {
-    if (user.failedLoginCount || user.lockedUntil) {
-      await this.userRepo.update({ id: user.id }, { failedLoginCount: 0, lockedUntil: null });
-    }
+    // Conditional reset: a lock set by parallel wrong attempts while this request ran is never cleared here.
+    const now = new Date();
+    await this.userRepo
+      .createQueryBuilder()
+      .update(UserEntity)
+      .set({ failedLoginCount: 0, lockedUntil: null })
+      .where('id = :id', { id: user.id })
+      .andWhere('(lockedUntil IS NULL OR lockedUntil <= :now)', { now })
+      .andWhere('(failedLoginCount > 0 OR lockedUntil IS NOT NULL)')
+      .execute();
+    await this.assertNotLockedFresh(user, now);
   }
 
   async getUserById(id: string): Promise<UserEntity | null> {

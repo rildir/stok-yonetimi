@@ -435,5 +435,6 @@
   "invoices.disputedDespatch": "Alıcı {no} numaralı e-İrsaliyeye \"{status}\" yanıtı verdi. Stok ve faturalanabilir miktar otomatik düzeltilmez: yalnızca kabul edilen miktarı faturalayın veya iade kaydı oluşturun.",
   "invoices.cancelAfterSend": "Belge gönderim kuyruğunda. Numara sırasında boşluk oluşmaması için önce gönderilmeli, ardından iptal edilebilir.",
   "despatches.receiverDisputed": "Alıcı bu irsaliyeyi kısmen veya tamamen kabul etmedi. Stok ve faturalanabilir miktar otomatik düzeltilmez; geri gelen mal için iade kaydı oluşturun ve faturada yalnızca kabul edilen miktarı kullanın.",
-  "docSettings.kinds.RECEIPT_ADVICE": "İrsaliye yanıtı"
+  "docSettings.kinds.RECEIPT_ADVICE": "İrsaliye yanıtı",
+  "despatches.selectPaperReason": "Kâğıt belge gerekçesini seçin (509 V.7)"
 }

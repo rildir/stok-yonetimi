@@ -1,6 +1,6 @@
 import { ApiSecurity } from '@nestjs/swagger';
 import { err } from '../../shared/i18n/app-error';
-import { Controller, Get, Post, Put, Body, Param, BadRequestException, Req, Res, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, BadRequestException, NotFoundException, Req, Res, HttpStatus } from '@nestjs/common';
 import { resolveLang, translate } from '../../shared/i18n/messages';
 import { StockCountService } from './stock-count.service';
 import { Roles } from '../../guards/roles.decorator';
@@ -38,6 +38,16 @@ export class StockCountController {
       throw new BadRequestException(err('STOCK_COUNT_ITEMS_REQUIRED'));
     }
     return this.stockCountService.updateStockCount(id, items, notes, header);
+  }
+
+  @Roles('admin', 'manager')
+  @Post(':id/cancel')
+  async cancelStockCount(@Param('id') id: string, @Body() body: { reason?: string | null }, @Req() req: any) {
+    const user = req?.user?.username || 'System';
+    const reason = typeof body?.reason === 'string' ? body.reason.trim().slice(0, 500) : null;
+    const done = await this.stockCountService.cancelStockCount(id, user, reason);
+    if (!done) throw new NotFoundException(err('STOCK_COUNT_NOT_FOUND'));
+    return done;
   }
 
   @Roles('admin', 'manager')

@@ -51,6 +51,8 @@ export class AppDatePipe implements PipeTransform {
  * Standard units (pcs, box, kg, ...) are translated via `units.<code>`;
  * custom units show their own name (or the raw code).
  */
+const UNECE_TO_APP_UNIT: Record<string, string> = { C62: 'pcs', KGM: 'kg', GRM: 'g', LTR: 'l', MLT: 'ml', MTR: 'm', BX: 'box', PK: 'pack', PA: 'pack', PF: 'pallet', LBR: 'lb' };
+
 @Pipe({ name: 'unitLabel', standalone: true, pure: false })
 export class UnitLabelPipe implements PipeTransform {
   private i18n = inject(I18nService);
@@ -60,6 +62,11 @@ export class UnitLabelPipe implements PipeTransform {
     const key = `units.${code}`;
     const tr = code ? this.i18n.t(key) : '';
     if (tr && tr !== key) return tr;
+    // e-document lines carry UN/ECE Rec. 20 codes (C62, KGM, ...): show the matching unit name.
+    const app = UNECE_TO_APP_UNIT[code];
+    if (app) return this.i18n.t(`units.${app}`);
+    const unece = code ? this.i18n.t(`units.unece.${code}`) : '';
+    if (unece && unece !== `units.unece.${code}`) return unece;
     return typeof value === 'string' ? value : value.name || code;
   }
 }

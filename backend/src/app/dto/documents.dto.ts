@@ -44,7 +44,7 @@ export class LotPickDto {
 
 export class LotReceiptDto {
   @IsString()
-  @IsNotEmpty({ message: 'LOT_NUMBER_REQUIRED' })
+  @IsNotEmpty({ message: 'LOT_NUMBER_EMPTY' })
   @MaxLength(100)
   lotNumber: string;
 

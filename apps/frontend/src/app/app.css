@@ -1394,7 +1394,8 @@ app-toast {
 
 /* ─── Two-Column Dashboard Layout (Linear / Vercel Style) ─── */
 app-dashboard {
-  flex: 1;
+  /* Grow to fill, never shrink below the content: the legal footer follows the dashboard. */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;

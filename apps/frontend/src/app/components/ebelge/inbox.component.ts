@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { AppDatePipe, I18nService, MoneyPipe, NumberFormatPipe, TranslatePipe } from '../../i18n';
+import { AppDatePipe, I18nService, MoneyPipe, NumberFormatPipe, UnitLabelPipe, TranslatePipe } from '../../i18n';
 import { EBelgeService } from '../../services/ebelge.service';
 import { DocumentsService, apiError } from '../../services/documents.service';
 import { UiStateService } from '../../services/ui-state.service';
@@ -31,7 +31,7 @@ interface ReceiptLineForm {
 @Component({
   selector: 'app-ebelge-inbox',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, MoneyPipe, NumberFormatPipe, EdocPanelComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, MoneyPipe, NumberFormatPipe, UnitLabelPipe, EdocPanelComponent],
   styleUrls: ['../../drawer.css', '../documents/documents.css'],
   styles: [`
     .inbox-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
@@ -183,7 +183,7 @@ interface ReceiptLineForm {
                     @for (l of raLines; track l.lineId) {
                       <tr>
                         <td>{{ l.name }}</td>
-                        <td class="num">{{ l.quantity | num }} {{ l.unitCode }}</td>
+                        <td class="num">{{ l.quantity | num }} {{ l.unitCode | unitLabel }}</td>
                         <td class="num"><input class="input qty" type="number" min="0" [max]="l.quantity" step="any" [(ngModel)]="l.accepted" [attr.aria-label]="'ebelge.receiptAdvice.accepted' | t" /></td>
                         <td class="num"><input class="input qty" type="number" min="0" [max]="l.quantity" step="any" [(ngModel)]="l.rejected" [attr.aria-label]="'ebelge.receiptAdvice.rejectedQty' | t" /></td>
                         <td><input class="input ra-reason" maxlength="200" [(ngModel)]="l.reason" [disabled]="!l.rejected" [attr.aria-label]="'ebelge.receiptAdvice.reason' | t" /></td>
@@ -193,7 +193,7 @@ interface ReceiptLineForm {
                     @for (l of r.lines || []; track l.id) {
                       <tr>
                         <td>{{ l.name }}@if (l.sellersItemId) { <div class="text-xs text-muted">{{ l.sellersItemId }}</div> }</td>
-                        <td class="num">{{ l.quantity | num }} {{ l.unitCode }}</td>
+                        <td class="num">{{ l.quantity | num }} {{ l.unitCode | unitLabel }}</td>
                         @if (r.documentType === 'INVOICE') { <td class="num hide-xs">{{ l.unitPrice | money: (r.currency || 'TRY') }}</td><td class="num">{{ l.lineExtension | money: (r.currency || 'TRY') }}</td> }
                       </tr>
                     }

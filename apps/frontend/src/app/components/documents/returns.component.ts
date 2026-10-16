@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, I18nService } from '../../i18n';
+import { TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, MoneyPipe, I18nService } from '../../i18n';
 import { DocumentsService, apiError, nowLocalInput } from '../../services/documents.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { GoodsReceipt, Invoice, ReturnDoc, statusBadge } from '../../models/documents.models';
@@ -21,7 +21,7 @@ interface ReturnFormLine {
 @Component({
   selector: 'app-returns',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, SpecialCategoryWarningComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, UnitLabelPipe, SpecialCategoryWarningComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   template: `
     <header class="page-header">
@@ -85,7 +85,7 @@ interface ReturnFormLine {
               <thead><tr><th>{{ 'despatches.product' | t }}</th><th class="num">{{ 'despatches.quantity' | t }}</th><th class="num">{{ 'invoices.vat' | t }}</th><th class="num">{{ 'invoices.net' | t }}</th><th class="hide-xs">{{ 'returns.condition' | t }}</th></tr></thead>
               <tbody>
                 @for (i of r.items; track i.id) {
-                  <tr><td>{{ i.productName }}</td><td class="num">{{ i.quantity | num }} {{ i.unitCode }}</td><td class="num">%{{ i.taxRate | num }}</td><td class="num">{{ i.netAmount | money: r.currency }}</td><td class="hide-xs">{{ 'returns.conditions.' + i.condition | t }}</td></tr>
+                  <tr><td>{{ i.productName }}</td><td class="num">{{ i.quantity | num }} {{ i.unitCode | unitLabel }}</td><td class="num">%{{ i.taxRate | num }}</td><td class="num">{{ i.netAmount | money: r.currency }}</td><td class="hide-xs">{{ 'returns.conditions.' + i.condition | t }}</td></tr>
                 }
               </tbody>
             </table>

@@ -221,7 +221,7 @@ export const LEGAL_PARAMETER_SEEDS: LegalParameterSeed[] = [
     key: 'TCMB_NO_BULLETIN_DAYS',
     validFrom: '2027-01-01',
     validTo: '2027-12-31',
-    value: ['2027-01-01', '2027-04-23', '2027-07-15', '2027-08-30', '2027-10-29'],
+    value: ['2027-01-01', '2027-04-23', '2027-05-19', '2027-07-15', '2027-08-30', '2027-10-29'],
     sourceRef: '2429 s. Ulusal Bayram ve Genel Tatiller Hakkında Kanun md. 1-2 (yalnızca sabit tarihli tatiller)',
     confidence: 'low',
     note: '2027 dini bayram günleri (Ramazan / Kurban Bayramı) Diyanet takvimi kesinleşince POST /admin/legal-parameters ile eklenmelidir; eklenmeden önce elle kur giren şirketler o günlerden sonraki belgeleri kesinleştiremez (FX_RATE_STALE).',

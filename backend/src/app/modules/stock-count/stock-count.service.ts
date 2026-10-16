@@ -1,5 +1,5 @@
 import { err } from '../../shared/i18n/app-error';
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { StockCountEntity, StockCountItem } from '../../entities/stock-count.entity';
@@ -184,9 +184,34 @@ export class StockCountService {
     return saved;
   }
 
+  /** A count that is not in progress: 409 when it exists (completed / cancelled), otherwise 404. */
+  private async notOpen(id: string): Promise<never> {
+    const exists = await this.stockCountRepo.findOne({ where: { companyId: this.companyId, id }, select: ['id', 'status'] });
+    if (exists) throw new ConflictException(err('STOCK_COUNT_IMMUTABLE'));
+    throw new NotFoundException(err('STOCK_COUNT_NOT_FOUND'));
+  }
+
+  /**
+   * Cancels an in-progress count without booking anything (e.g. a count left open while sales and
+   * receipts went on: completing it would book differences against a stale snapshot). Completed
+   * counts stay immutable (DB trigger).
+   */
+  async cancelStockCount(id: string, performedBy: string, reason?: string | null): Promise<StockCountEntity | null> {
+    const count = await this.stockCountRepo.findOne({ where: { companyId: this.companyId, id, status: 'InProgress' } });
+    if (!count) return this.notOpen(id);
+    const note = `[İptal: ${new Date().toISOString().slice(0, 10)} ${performedBy}${reason ? ` - ${reason}` : ''}]`;
+    count.status = 'Cancelled';
+    count.performedBy = performedBy;
+    count.notes = count.notes ? `${count.notes}
+${note}` : note;
+    const saved = await this.stockCountRepo.save(count);
+    this.appGateway.emitToCompany(this.companyId, 'stock_count_mutated', { type: 'update', stockCount: saved });
+    return saved;
+  }
+
   async updateStockCount(id: string, items: any[], notes?: string, headerInput: CountHeaderInput = {}): Promise<StockCountEntity | null> {
     const count = await this.stockCountRepo.findOne({ where: { companyId: this.companyId, id, status: 'InProgress' } });
-    if (!count) return null;
+    if (!count) return this.notOpen(id);
     // The scope (warehouses) is fixed when the count starts; the other tutanak fields can change until completion.
     const { warehouseIds: _scope, ...editable } = headerInput;
     Object.assign(count, await this.header(editable, await this.dataSource.manager.findOneByOrFail(CompanyEntity, { id: this.companyId }), count));
@@ -195,8 +220,11 @@ export class StockCountService {
     const units = await this.dataSource.manager.find(UnitEntity, { where: { companyId: this.companyId } });
     const decimalsOf = (code: string | undefined) => Number(units.find((u) => u.code === code)?.decimals) || 0;
     for (const item of items || []) {
-      const prev = count.items.find((i) => i.productId === item.productId);
-      const d = decimalsOf(item.unit || prev?.unit);
+      const prev = count.items.find((i) => i.productId === item?.productId);
+      // Only lines of the count's own snapshot can be counted; the unit always comes from the snapshot
+      // (the product's unit when the count started), never from the client.
+      if (!prev) throw new BadRequestException(err('STOCK_COUNT_ITEM_UNKNOWN', { productId: String(item?.productId ?? '') }));
+      const d = decimalsOf(prev.unit);
       const values = [item.countedQuantity, ...((item.lots || []) as any[]).map((l) => l.countedQuantity)];
       for (const v of values) {
         if (v !== undefined && v !== null && v !== '' && !fitsDecimals(Number(v) || 0, d)) {
@@ -205,27 +233,29 @@ export class StockCountService {
       }
     }
     // Tracked lines keep the server's lot/serial lists; only counts / presence are taken from the client.
-    const updatedItems: StockCountItem[] = items.map(item => {
-      const prev = count.items.find((i) => i.productId === item.productId);
-      const system = Number(prev?.systemQuantity ?? item.systemQuantity) || 0;
+    // A partial payload updates only the lines it names; the other snapshot lines are kept as they are.
+    const updatedItems: StockCountItem[] = count.items.map((prev) => {
+      const item = (items || []).find((i) => i?.productId === prev.productId);
+      if (!item) return prev;
+      const system = Number(prev.systemQuantity) || 0;
       let counted = countQty(item.countedQuantity);
       const out: StockCountItem = {
-        productId: item.productId,
-        productName: item.productName,
-        sku: item.sku,
+        productId: prev.productId,
+        productName: prev.productName,
+        sku: prev.sku,
         systemQuantity: system,
         countedQuantity: counted,
         difference: 0,
-        unit: item.unit || prev?.unit || 'pcs',
-        trackingType: prev?.trackingType,
+        unit: prev.unit || 'pcs',
+        trackingType: prev.trackingType,
       };
-      if (prev?.lots) {
+      if (prev.lots) {
         out.lots = prev.lots.map((l) => {
           const c = (item.lots || []).find((x: any) => x.lotId === l.lotId);
           return { ...l, countedQuantity: c ? countQty(c.countedQuantity) : l.countedQuantity };
         });
         counted = sumQty(out.lots.map((l) => l.countedQuantity));
-      } else if (prev?.serials) {
+      } else if (prev.serials) {
         out.serials = prev.serials.map((x) => {
           const c = (item.serials || []).find((y: any) => y.serial === x.serial);
           return { ...x, present: c ? !!c.present : x.present };
@@ -255,7 +285,7 @@ export class StockCountService {
    */
   async completeStockCount(id: string, performedBy?: string): Promise<(StockCountEntity & { pendingApprovals: StockAdjustmentRequestEntity[] }) | null> {
     const count = await this.stockCountRepo.findOne({ where: { companyId: this.companyId, id, status: 'InProgress' } });
-    if (!count) return null;
+    if (!count) return this.notOpen(id);
     const actor = performedBy || 'System';
     // Four-eyes on the tutanak: the approver (the user completing the count) is not one of the counters.
     if ((count.countedBy || []).some((n) => n.toLocaleLowerCase('tr') === actor.toLocaleLowerCase('tr'))) {

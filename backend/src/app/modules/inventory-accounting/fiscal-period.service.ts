@@ -130,7 +130,7 @@ export class FiscalPeriodService {
         throw new ConflictException({ ...err('PERIOD_CLOSE_CHECKS_FAILED', { period: periodLabel(p) }), details: checkDetails(checks) });
       }
       const endDay = String(p.endDate).slice(0, 10);
-      const v = await this.valuation.valuate(endDay, 'lot', { manager: m });
+      const v = await this.valuation.valuate(endDay, 'lot', { manager: m, ignoreSnapshot: true });
       const seq = (p.reopenCount || 0) + 1;
       const canonical = v.rows.map((r) => [r.productId, r.warehouseId, r.lotNumber, r.quantity.toFixed(4), r.unitCost.toFixed(6), r.costValue.toFixed(2)]);
       for (const r of v.rows) {

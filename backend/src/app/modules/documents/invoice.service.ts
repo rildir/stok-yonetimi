@@ -12,6 +12,7 @@ import { CompanyEntity } from '../../entities/company.entity';
 import { CustomerEntity } from '../../entities/customer.entity';
 import { SupplierEntity } from '../../entities/supplier.entity';
 import { ProductEntity } from '../../entities/product.entity';
+import { UnitEntity } from '../../entities/unit.entity';
 import { ReturnEntity } from '../../entities/return.entity';
 import { PurchaseOrderEntity } from '../../entities/purchase-order.entity';
 import { OrderStatus } from '../../entities/enums';
@@ -187,6 +188,12 @@ export class InvoiceService {
     const lines: Partial<InvoiceLineEntity>[] = [];
     const counted = new Map<string, number>();
     const productCache = new Map<string, ProductEntity | null>();
+    // UBL-TR needs UN/ECE Rec 20 unit codes (C62, KGM, ...), not the app's own unit codes (pcs, kg, ...).
+    const units = await m.find(UnitEntity, { where: { companyId: this.companyId } });
+    const uneceOf = (code: string | null | undefined, product: ProductEntity | null | undefined): string | null => {
+      const u = (code ? units.find((x) => x.code === code) : undefined) || (product?.baseUnitId ? units.find((x) => x.id === product.baseUnitId) : undefined) || (product?.unit ? units.find((x) => x.code === product.unit) : undefined);
+      return u?.uneceCode || code || null;
+    };
     for (const p of parts) {
       const prev = liveLines.filter((l) => l.orderItemId === p.item.id);
       const alreadyBase = addQty(prev.reduce((s, l) => s + Number(l.baseQuantity || 0), 0), counted.get(p.item.id) || 0);
@@ -219,7 +226,7 @@ export class InvoiceService {
         productName: p.item.productName,
         productSku: product?.sku ?? null,
         quantity: amounts.quantity,
-        unitCode: p.item.unitCode ?? null,
+        unitCode: uneceOf(p.item.unitCode, product),
         unitFactor: Number(p.item.unitFactor) || 1,
         baseQuantity: p.baseQty,
         unitPrice: Number(p.item.unitPrice) || 0,

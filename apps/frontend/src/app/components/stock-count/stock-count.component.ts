@@ -94,6 +94,7 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
           </div>
           <div class="active-actions">
             <button class="btn btn-secondary btn-sm" (click)="showScanner.set(true)" [disabled]="isActionLoading()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 7v10M12 7v10M16 7v10"/></svg>{{ 'stockCount.scan' | t }}</button>
+            <button class="btn btn-ghost btn-sm" (click)="promptCancel()" [disabled]="isActionLoading()">{{ 'stockCount.cancelCount' | t }}</button>
             <button class="btn btn-secondary btn-sm" (click)="saveDraft()" [disabled]="isActionLoading()">{{ 'stockCount.saveCount' | t }}</button>
             <button class="btn btn-primary btn-sm" (click)="promptComplete()" [disabled]="isActionLoading()">{{ 'stockCount.completeCount' | t }}</button>
           </div>
@@ -244,8 +245,8 @@ import { StockCount, StockCountItem } from '../../models/inventory.models';
                 <td class="text-muted" [attr.data-label]="'stockCount.col.date' | t">{{ (c.completedAt || c.startedAt) | appDate: 'datetime' }}</td>
                 <td [attr.data-label]="'stockCount.performedBy' | t">{{ c.performedBy }}</td>
                 <td [attr.data-label]="'stockCount.col.status' | t">
-                  <span class="badge" [class.badge-success]="c.status === 'Completed'" [class.badge-warning]="c.status === 'InProgress'">
-                    {{ (c.status === 'Completed' ? 'stockCount.status.completed' : 'stockCount.status.inProgress') | t }}
+                  <span class="badge" [class.badge-success]="c.status === 'Completed'" [class.badge-warning]="c.status === 'InProgress'" [class.badge-neutral]="c.status === 'Cancelled'">
+                    {{ (c.status === 'Completed' ? 'stockCount.status.completed' : c.status === 'Cancelled' ? 'stockCount.status.cancelled' : 'stockCount.status.inProgress') | t }}
                   </span>
                 </td>
                 <td class="num" [attr.data-label]="'stockCount.col.itemCount' | t">{{ c.items.length }}</td>
@@ -573,6 +574,33 @@ export class StockCountComponent implements OnInit {
         this.ui.showToast(this.i18n.t('stockCount.toast.draftError'), 'error');
         this.isActionLoading.set(false);
       }
+    });
+  }
+
+  promptCancel() {
+    const active = this.activeCount();
+    if (!active) return;
+    this.ui.openConfirm({
+      title: this.i18n.t('stockCount.cancelConfirm.title'),
+      message: this.i18n.t('stockCount.cancelConfirm.message', { number: active.countNumber }),
+      confirmText: this.i18n.t('stockCount.cancelCount'),
+      isDelete: true,
+      onConfirm: () => {
+        this.isActionLoading.set(true);
+        this.inventoryService.cancelStockCount(active.id).subscribe({
+          next: () => {
+            this.isActionLoading.set(false);
+            this.ui.showToast(this.i18n.t('stockCount.toast.cancelled'), 'success');
+            this.activeCount.set(null);
+            this.activeItems.set([]);
+            this.loadHistory();
+          },
+          error: () => {
+            this.isActionLoading.set(false);
+            this.ui.showToast(this.i18n.t('stockCount.toast.cancelError'), 'error');
+          },
+        });
+      },
     });
   }
 

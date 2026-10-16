@@ -677,7 +677,7 @@ export interface StockCountItem {
 export interface StockCount {
   id: string;
   countNumber: string;
-  status: 'InProgress' | 'Completed';
+  status: 'InProgress' | 'Completed' | 'Cancelled';
   items: StockCountItem[];
   notes?: string;
   startedAt: string;

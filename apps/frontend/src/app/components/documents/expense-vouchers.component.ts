@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, I18nService } from '../../i18n';
+import { TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, MoneyPipe, I18nService } from '../../i18n';
 import { DocumentsService, apiError } from '../../services/documents.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService } from '../../inventory.service';
@@ -21,7 +21,7 @@ interface VoucherLineForm {
 @Component({
   selector: 'app-expense-vouchers',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, MoneyPipe],
   styleUrls: ['../../drawer.css', './documents.css'],
   template: `
     <header class="page-header">
@@ -76,7 +76,7 @@ interface VoucherLineForm {
             </div>
             <table class="doc-table">
               <thead><tr><th>{{ 'expenseVouchers.description' | t }}</th><th class="num">{{ 'despatches.quantity' | t }}</th><th class="num">{{ 'invoices.unitPrice' | t }}</th><th class="num">{{ 'expenseVouchers.amount' | t }}</th></tr></thead>
-              <tbody>@for (l of v.lines; track $index) { <tr><td>{{ l.description }}</td><td class="num">{{ l.quantity | num }} {{ l.unitCode }}</td><td class="num">{{ l.unitPrice | money: v.currency }}</td><td class="num">{{ l.amount | money: v.currency }}</td></tr> }</tbody>
+              <tbody>@for (l of v.lines; track $index) { <tr><td>{{ l.description }}</td><td class="num">{{ l.quantity | num }} {{ l.unitCode | unitLabel }}</td><td class="num">{{ l.unitPrice | money: v.currency }}</td><td class="num">{{ l.amount | money: v.currency }}</td></tr> }</tbody>
             </table>
             <div class="doc-totals">
               <div class="row"><span>{{ 'expenseVouchers.gross' | t }}</span><span>{{ v.grossTotal | money: v.currency }}</span></div>

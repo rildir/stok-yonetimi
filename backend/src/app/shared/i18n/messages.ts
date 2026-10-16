@@ -102,6 +102,7 @@ export const MESSAGES: Catalog = {
   PRODUCT_TRACKING_CHANGE_STOCK: { tr: 'Takip türü yalnızca stok 0 iken değiştirilebilir ({name}).', en: 'Tracking type can only be changed while stock is 0 ({name}).' },
   PRODUCT_TRACKING_INVALID: { tr: 'Geçersiz takip türü.', en: 'Invalid tracking type.' },
   LOT_NUMBER_REQUIRED: { tr: '{name} için lot numarası girilmelidir.', en: 'A lot number is required for {name}.' },
+  LOT_NUMBER_EMPTY: { tr: 'Lot numarası girilmelidir.', en: 'A lot number is required.' },
   LOT_QUANTITY_INVALID: { tr: 'Lot miktarı pozitif olmalı ve en fazla 4 ondalık içermelidir ({lot}).', en: 'Lot quantity must be positive with at most 4 decimals ({lot}).' },
   LOT_EXPIRY_REQUIRED: { tr: '{name} için son kullanma tarihi zorunludur (lot {lot}).', en: 'An expiry date is required for {name} (lot {lot}).' },
   LOT_EXPIRY_INVALID: { tr: 'Geçersiz son kullanma tarihi (lot {lot}).', en: 'Invalid expiry date (lot {lot}).' },
@@ -477,6 +478,7 @@ export const MESSAGES: Catalog = {
 
   // WP6 - counts / inventory (VUK 185-190)
   STOCK_COUNT_NOT_FOUND: { tr: 'Sayım bulunamadı.', en: 'Stock count not found.' },
+  STOCK_COUNT_ITEM_UNKNOWN: { tr: 'Ürün bu sayımın kapsamında değil: {productId}', en: 'The product is not part of this stock count: {productId}' },
   COUNT_TYPE_INVALID: { tr: 'Geçersiz sayım türü: {type}.', en: 'Invalid count type: {type}.' },
   COUNT_ASOF_OUT_OF_RANGE: { tr: 'Sayım tarihi ({countDate}) envanter tarihinden ({asOf}) en fazla {before} ay önce veya {after} ay sonra olabilir.', en: 'The count date ({countDate}) may be at most {before} months before or {after} months after the inventory date ({asOf}).' },
   COUNT_APPROVER_SAME_AS_COUNTER: { tr: 'Sayımı onaylayan, sayımı yapanlardan biri olamaz.', en: 'The approver of a count cannot be one of the counters.' },

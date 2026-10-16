@@ -298,9 +298,9 @@ export class InventoryReportService {
     const total = roundMoney((c.items || []).reduce((s, i) => s + (Number(i.countedValue) || 0), 0));
     const body = `<table class="meta"><tr><td>Tutanak no:</td><td><b>${esc(c.documentNo || c.countNumber)}</b></td><td>Sayım türü:</td><td>${esc(COUNT_TYPE_TR[c.countType] || c.countType)}</td></tr>
       <tr><td>Sayım tarihi:</td><td>${trDay(c.countDate)}</td><td>Envanter tarihi:</td><td>${trDay(c.asOfDate)}</td></tr>
-      <tr><td>Depolar:</td><td>${esc(whNames.join(', ') || 'Tüm depolar')}</td><td>Durum:</td><td>${c.status === 'Completed' ? 'Tamamlandı' : 'Devam ediyor'}</td></tr>
+      <tr><td>Depolar:</td><td>${esc(whNames.join(', ') || 'Tüm depolar')}</td><td>Durum:</td><td>${c.status === 'Completed' ? 'Tamamlandı' : c.status === 'Cancelled' ? 'İptal edildi' : 'Devam ediyor'}</td></tr>
       <tr><td>Sayım ekibi:</td><td>${esc((c.countedBy || []).join(', ') || c.performedBy || '-')}</td><td>Gözetmen:</td><td>${esc(c.supervisedBy || '-')}</td></tr>
-      <tr><td>Onaylayan:</td><td>${esc(c.approvedBy || '-')}${c.approvedAt ? ` (${trDay(new Date(c.approvedAt).toISOString())})` : ''}</td><td>Özet (SHA-256):</td><td style="font-size:8px">${esc(c.snapshotHash || '-')}</td></tr></table>
+      <tr><td>Onaylayan:</td><td>${esc(c.approvedBy || '-')}${c.approvedAt ? ` (${trDay(dateKeyInZone(new Date(c.approvedAt), company.timezone || DEFAULT_TIMEZONE))})` : ''}</td><td>Özet (SHA-256):</td><td style="font-size:8px">${esc(c.snapshotHash || '-')}</td></tr></table>
       <table><thead><tr><th>#</th><th>Stok kodu</th><th>Mal adı</th><th>Birim</th><th class="n">Kayıtlı</th><th class="n">Sayılan</th><th class="n">Fark</th>${roll ? '<th class="n">Envanter tarihine göre</th>' : ''}<th class="n">Birim maliyet</th><th class="n">Tutar</th></tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td colspan="${roll ? 9 : 8}">Toplam (maliyet bedeli)</td><td class="n">${money(total, company.baseCurrency)}</td></tr></tfoot></table>
       ${c.notes ? `<p>${esc(c.notes)}</p>` : ''}

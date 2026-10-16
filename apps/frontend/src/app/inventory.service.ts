@@ -337,6 +337,10 @@ export class InventoryService {
   }
 
   /** 202 + `pendingApprovals` when lines above the approval threshold wait for a second administrator. */
+  cancelStockCount(id: string, reason?: string): Observable<StockCount> {
+    return this.http.post<StockCount>(`${this.apiUrl}/stock-counts/${id}/cancel`, { reason });
+  }
+
   completeStockCount(id: string): Observable<StockCount & { pendingApprovals?: StockAdjustmentRequest[]; message?: string }> {
     return this.http.post<StockCount & { pendingApprovals?: StockAdjustmentRequest[]; message?: string }>(`${this.apiUrl}/stock-counts/${id}/complete`, {});
   }

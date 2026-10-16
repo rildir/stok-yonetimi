@@ -41,7 +41,7 @@ export class StockCountEntity {
 
   @Index()
   @Column({ default: 'InProgress' })
-  status: 'InProgress' | 'Completed';
+  status: 'InProgress' | 'Completed' | 'Cancelled';
 
   @Column('simple-json')
   items: StockCountItem[];

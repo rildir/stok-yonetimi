@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { TranslatePipe, AppDatePipe, NumberFormatPipe, I18nService } from '../../i18n';
+import { TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, I18nService } from '../../i18n';
 import { DocumentsService, apiError } from '../../services/documents.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { InventoryService } from '../../inventory.service';
@@ -16,7 +16,7 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
 @Component({
   selector: 'app-despatches',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, DespatchFormComponent, EdocPanelComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, DespatchFormComponent, EdocPanelComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   template: `
     <header class="page-header">
@@ -123,7 +123,7 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
                       <td>{{ l.productName }} @if (l.productSku) { <span class="mono text-muted text-xs">{{ l.productSku }}</span> }
                         @for (t of l.tracking || []; track $index) { @if (t.lotNumber) { <div class="text-xs text-muted">{{ 'documents.lot' | t }}: {{ t.lotNumber }}</div> } @if (t.serials?.length) { <div class="text-xs text-muted mono">{{ t.serials!.join(', ') }}</div> } }
                       </td>
-                      <td class="num">{{ l.quantity | num }} {{ l.unitCode }}</td>
+                      <td class="num">{{ l.quantity | num }} {{ l.unitCode | unitLabel }}</td>
                       <td class="num hide-xs">{{ l.invoicedQuantity | num }}</td>
                       <td class="num hide-xs">{{ l.returnedQuantity | num }}</td>
                     </tr>

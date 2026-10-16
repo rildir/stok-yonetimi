@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, I18nService } from '../../i18n';
+import { TranslatePipe, AppDatePipe, NumberFormatPipe, UnitLabelPipe, MoneyPipe, I18nService } from '../../i18n';
 import { DocumentsService, apiError } from '../../services/documents.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { Invoice, statusBadge } from '../../models/documents.models';
@@ -13,7 +13,7 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
 @Component({
   selector: 'app-invoices',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, EdocPanelComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, UnitLabelPipe, EdocPanelComponent],
   styleUrls: ['../../drawer.css', './documents.css'],
   template: `
     <header class="page-header">
@@ -113,7 +113,7 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
                   @for (l of inv.lines; track l.id) {
                     <tr>
                       <td>{{ l.productName }}@if (l.withholdingCode) { <div class="text-xs text-muted">{{ 'invoices.withholding' | t }} {{ l.withholdingCode }}</div> }@if (l.returnedQuantity) { <div class="text-xs text-muted">{{ 'invoices.returnedQty' | t: { qty: (l.returnedQuantity | num) } }}</div> }</td>
-                      <td class="num">{{ l.quantity | num }} {{ l.unitCode }}</td>
+                      <td class="num">{{ l.quantity | num }} {{ l.unitCode | unitLabel }}</td>
                       <td class="num hide-xs">{{ l.unitPrice | money: inv.currency }}</td>
                       <td class="num">%{{ l.taxRate | num }}@if (l.exemptionCode) { ({{ l.exemptionCode }}) }</td>
                       <td class="num">{{ l.netAmount | money: inv.currency }}</td>
@@ -161,7 +161,7 @@ import { EdocPanelComponent } from '../ebelge/edoc-panel.component';
               <label class="doc-check"><input type="checkbox" [(ngModel)]="paperFallback" /> {{ 'invoices.paperFallback' | t }}</label>
               @if (paperFallback) {
                 <div class="doc-field" style="margin-top: var(--space-2)"><label for="ivReason">{{ 'despatches.paperReason' | t }}</label>
-                  <select id="ivReason" class="select" [(ngModel)]="paperReason">@for (r of paperReasons; track r) { <option [value]="r">{{ 'despatches.paperReasons.' + r | t }}</option> }</select></div>
+                  <select id="ivReason" class="select" [(ngModel)]="paperReason"><option value="" disabled>{{ 'despatches.selectPaperReason' | t }}</option>@for (r of paperReasons; track r) { <option [value]="r">{{ 'despatches.paperReasons.' + r | t }}</option> }</select></div>
               }
             } @else {
               <div class="doc-field">
@@ -299,7 +299,9 @@ export class InvoicesComponent implements OnInit {
     this.lateInfo.set(null);
     this.lateConfirm = false;
     this.externalDocNo = '';
-    this.issueDate = new Date().toISOString().slice(0, 10);
+    // Local calendar day (the UTC day is still "yesterday" between 00:00 and 03:00 in Istanbul).
+    const now = new Date();
+    this.issueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     this.issueTime = '';
     this.paperFallback = false;
     this.paperReason = '';
@@ -309,7 +311,14 @@ export class InvoicesComponent implements OnInit {
   issue(inv: Invoice) {
     const body: Record<string, unknown> = { lateConfirm: this.lateConfirm || undefined };
     if (this.eDocumentMode() === 'PROVIDER') {
-      if (this.paperFallback) Object.assign(body, { paperFallback: true, paperReason: this.paperReason || 'A' });
+      if (this.paperFallback) {
+        // 509 V.7: the user must pick the reason explicitly; nothing is assumed.
+        if (!this.paperReason) {
+          this.ui.showToast(this.i18n.t('despatches.selectPaperReason'), 'error');
+          return;
+        }
+        Object.assign(body, { paperFallback: true, paperReason: this.paperReason });
+      }
     } else if (this.numberSource === 'external') {
       Object.assign(body, { externalDocNo: this.externalDocNo.trim(), externalDocDate: this.issueDate || undefined, issueDate: this.issueDate || undefined });
     } else {
