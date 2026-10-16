@@ -17,7 +17,7 @@ export const MESSAGES: Catalog = {
     en: 'You are in demo mode: you cannot create, update or delete with this account.',
   },
   AUTH_FORBIDDEN: { tr: 'Bu işlemi gerçekleştirmek için yetkiniz bulunmamaktadır.', en: 'You are not authorized to perform this action.' },
-  AUTH_INVALID_CREDENTIALS: { tr: 'Kullanıcı adı veya şifre hatalı.', en: 'Invalid username or password.' },
+  AUTH_INVALID_CREDENTIALS: { tr: 'Kullanıcı adı veya şifre hatalı. Art arda hatalı denemelerden sonra hesap bir süre kilitlenir.', en: 'Invalid username or password. After repeated failed attempts the account is locked for a while.' },
   AUTH_WRONG_CURRENT_PASSWORD: { tr: 'Mevcut şifreniz yanlış.', en: 'Your current password is incorrect.' },
   TENANT_CONTEXT_MISSING: { tr: 'Şirket bağlamı bulunamadı.', en: 'Company context not found.' },
 

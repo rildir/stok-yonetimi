@@ -6,8 +6,10 @@ export interface Product {
   category: string;
   price: number;
   quantity: number;
-  /** Read-only: stock in sellable warehouses (quarantine / in transit excluded); status follows it */
+  /** Read-only: sellable stock not reserved by pending orders (sellableQuantity - reservedQuantity) */
   availableQuantity?: number;
+  /** Read-only: stock in sellable warehouses (quarantine / in transit excluded); status follows it */
+  sellableQuantity?: number;
   /** Held by pending despatch-mode orders (not free to sell). */
   reservedQuantity?: number;
   minQuantity: number;

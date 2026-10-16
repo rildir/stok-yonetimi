@@ -1,5 +1,5 @@
 import { err } from '../../shared/i18n/app-error';
-import { reservedQuantities } from '../../shared/inventory/reservations';
+import { attachAvailability } from '../../shared/inventory/reservations';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, Not, MoreThan } from 'typeorm';
@@ -75,11 +75,12 @@ export class ProductService {
     return this.warehouseStock.attachWarehouseMap(this.dataSource.manager, this.companyId, products);
   }
 
-  /** reservedQuantity: held by pending despatch-mode orders (part of availableQuantity, not free to sell). */
+  /**
+   * API availability: reservedQuantity (pending despatch-mode orders), sellableQuantity (stored
+   * availableQuantity) and availableQuantity = sellable - reserved. Response objects only.
+   */
   private async attachReserved(manager: EntityManager, products: ProductEntity[]): Promise<void> {
-    if (!products.length) return;
-    const reserved = await reservedQuantities(manager, this.companyId, products.length > 200 ? undefined : products.map((p) => p.id));
-    for (const p of products) p.reservedQuantity = reserved.get(p.id) || 0;
+    await attachAvailability(manager, this.companyId, products);
   }
 
   async getProductById(id: string): Promise<ProductEntity | null> {
@@ -456,6 +457,7 @@ export class ProductService {
       }
       return this.warehouseStock.attachWarehouseMap(manager, this.companyId, out);
     });
+    await this.attachReserved(this.dataSource.manager, savedProducts);
 
     for (const p of savedProducts) {
       this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'create', product: p });

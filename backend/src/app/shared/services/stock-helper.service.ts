@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
+/** bcrypt (cost 10) hash of a random string nobody knows; only used for constant-time rejection. */
+const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
+
 @Injectable()
 export class StockHelperService {
   calculateStatus(quantity: number, minQuantity: number): string {
@@ -29,6 +32,15 @@ export class StockHelperService {
 
   hashPassword(password: string): string {
     return bcrypt.hashSync(password, 10);
+  }
+
+  /**
+   * Runs one bcrypt comparison against a fixed dummy hash and discards the result: sign-in paths
+   * that reject without checking a real hash (unknown user, locked account) take as long as a
+   * wrong password, so timing does not reveal whether an account exists.
+   */
+  burnPasswordCheck(password: string): void {
+    bcrypt.compareSync(String(password ?? ''), DUMMY_HASH);
   }
 
   async verifyPassword(password: string, userHash: string, onMigrationRequired?: (newHash: string) => Promise<void>): Promise<boolean> {

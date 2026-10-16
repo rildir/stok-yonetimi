@@ -39,36 +39,79 @@ Projenizi yerel ortamınızda çalıştırdıktan sonra aşağıdaki adreslerden
 
 ---
 
-## 🛠️ Kurulum ve Çalıştırma
+## 🛠️ Kurulum ve Çalıştırma (yeni klon, boş veritabanı)
 
-Proje bağımlılıklarını kurmak için ana dizinde aşağıdaki komutu çalıştırın:
+Gereksinimler: Node.js 20+, Docker (MySQL 8 için). Tüm komutlar depo kök dizininde çalıştırılır.
+
+### 1. Bağımlılıklar
 
 ```bash
 npm install
 ```
 
-### 1. Ortam Değişkenlerini Ayarlama (.env)
-Projeyi güvenli bir şekilde çalıştırmak için öncelikle `.env` dosyasını oluşturmanız gerekmektedir:
-Ana dizinde bulunan `.env.example` dosyasının adını `.env` olarak değiştirin veya kopyasını oluşturun.
-İçerisindeki veritabanı, JWT ve Admin bilgilerini kendi güvenli değerlerinizle güncelleyin.
+### 2. Ortam değişkenleri (.env)
 
 ```bash
 cp .env.example .env
 ```
 
-### 2. Backend Servisini Başlatma (NestJS)
-NestJS uygulamasını port 3000 üzerinde başlatmak için:
+`.env` içinde en az şunları doldurun (gerçek sırları depoya koymayın):
+
+| Anahtar | Açıklama |
+|---|---|
+| `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` | Uygulamanın bağlandığı MySQL (docker-compose ile: `127.0.0.1`, `3307`, `root`, `DB_ROOT_PASSWORD` ile aynı değer, `stok_yonetimi`) |
+| `DB_ROOT_PASSWORD`, `DB_APP_USERNAME`, `DB_APP_PASSWORD` | Yalnızca `docker-compose.yml` okur (MySQL kapsayıcısının hesapları) |
+| `JWT_SECRET` | En az 32 rastgele karakter (`openssl rand -base64 48`) |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Boş veritabanında ilk açılışta oluşturulan süper yönetici. Şifre politikası: en az 10 karakter, büyük harf / küçük harf / rakam / sembolden en az 3'ü. Uymazsa tek kullanımlık şifre `initial-admin-password.txt` dosyasına yazılır. |
+| `EBELGE_CREDENTIALS_KEY` | Entegratör kimlik bilgilerinin şifreleme anahtarı: 32 bayt, base64 veya 64 hex (`openssl rand -base64 32`) |
+| `PII_ENCRYPTION_KEY`, `PII_HMAC_KEY` | KVKK alan şifrelemesi ve arama indeksi: ayrı ayrı 32 bayt (`openssl rand -base64 32`). **Veri yazıldıktan sonra asla değiştirmeyin.** |
+| `PORT`, `CORS_ORIGIN` | Geliştirmede `3001` ve `http://localhost:4300` (frontend proxy'si 3001'e gider) |
+
+Geliştirmede (`NODE_ENV` production değilken) eksik `JWT_SECRET` / `EBELGE_CREDENTIALS_KEY` / `PII_*` anahtarları uyarıyla güvensiz geliştirme anahtarlarına düşer; üretimde uygulama bu anahtarlar olmadan açılmaz. Diğer isteğe bağlı ayarlar `.env.example` içinde açıklamalıdır.
+
+### 3. MySQL
+
+```bash
+docker compose up -d mysql
+```
+
+Kapsayıcı `--log-bin-trust-function-creators=1` ile açılır: göçler (migration) değiştirilemezlik tetikleyicileri oluşturur ve MySQL 8'de ikili günlük açıkken SUPER yetkisi olmayan bir hesap bunu ancak bu ayarla yapabilir. Kendi MySQL sunucunuzu kullanıyorsanız aynı ayarı verin (`SET PERSIST log_bin_trust_function_creators = 1;`) veya göçleri SUPER/SYSTEM_VARIABLES_ADMIN yetkili bir hesapla çalıştırın.
+
+### 4. Şemayı oluşturma (göçler)
+
+```bash
+npx nx run backend:migration:run
+```
+
+Boş bir veritabanında tüm göç zincirini (başlangıç şeması → çok kiracılık → … → KVKK) baştan sona çalıştırır. Uygulama göç bekleyen bir veritabanıyla açılmayı reddeder.
+
+### 5. Backend (NestJS)
 
 ```bash
 npx nx serve backend
 ```
 
-### 3. Frontend Uygulamasını Başlatma (Angular)
-Angular uygulamasını port 4200 üzerinde başlatmak ve NestJS proxy entegrasyonu ile çalıştırmak için:
+API `http://localhost:3001/api`, Swagger `http://localhost:3001/api/docs`. İlk açılışta seed servisi boş veritabanını doldurur: referans veriler (il / ilçe / vergi dairesi, yasal parametreler, vergi kodları), "Demo Şirketi" ve demo verileri, `ADMIN_USERNAME` / `ADMIN_PASSWORD` ile yönetici ve (yalnızca production dışında) `manager`, `viewer`, `demo` hesapları. Bu demo hesaplarının şifreleri ya `DEMO_ACCOUNT_PASSWORD` (politikaya uyan tek şifre) ya da hesap başına rastgele üretilip `demo-account-passwords.txt` dosyasına yazılır (günlüğe yazılmaz, depoya eklenmez). İlk girişte şifre belirleme zorunluluğu yoktur; böylece hesabı ilk giren kişi sahiplenemez.
+
+### 6. Frontend (Angular)
 
 ```bash
-npx nx serve frontend
+npx nx serve frontend --port 4300
 ```
+
+Uygulama `http://localhost:4300` adresindedir. İlk girişte KVKK aydınlatma / onay penceresi çıkar.
+
+### Testler
+
+```bash
+npx nx build backend && npx nx build frontend
+npx nx test backend
+npx nx test frontend
+```
+
+`nx test frontend`, Vitest'i Windows'ta sürücü harfi büyük/küçük farkından etkilenmeden çalıştırmak için `apps/frontend/tools/run-unit-tests.mjs` üzerinden `frontend:unit-test` hedefini çağırır.
+
+---
 
 ## API değişiklikleri (entegratörler için)
 
@@ -141,3 +184,10 @@ npx nx serve frontend
 - **Roller:** `auditor` (denetçi) tüm okuma uçlarına erişir, hiçbir şey yazamaz (`AUDITOR_READ_ONLY`). Kullanıcıya ek yetki: `permissions: ["customers.pii.read"]`.
 - **KVKK uçları (`/api/kvkk`):** `status`; aydınlatma metinleri `notices` (taslak üret / yayımla / yürürlükten kaldır), `public/notices/current` (oturumsuz); kabul `acceptances/pending`, `POST acceptances`; rıza `consents` (fatura / sevk için `CONSENT_NOT_REQUIRED`); `retention-policies` (asgari süre altına `RETENTION_BELOW_LEGAL_MINIMUM`, öneri süreler onaylanmadan imhada kullanılmaz); `destruction/runs` (aday listesi, `approve` / `reject`), `destruction/logs`, `destruction/schedule`; başvurular `dsr` (`verify-identity`, `erase`, `export?format=html`, `respond`; 30 gün sayacı); `subjects/:type/:id/export`; ihlaller `incidents` (`confirm` ile 72 saat başlar, `affected`); `subprocessors`; `verbis/status | inventory | inventory.csv | inventory/print`; `settings`; `audit-chain/verify`; `tenant/export` (ZIP) ve `tenant/close` (kapalı şirkette yazma `TENANT_UNDER_RETENTION`).
 - **Veri koruma:** `customers.identityNumber`, `customers.passportNo`, `suppliers.identityNumber` AES-256-GCM ile şifreli (`PII_ENCRYPTION_KEY`), aramada `identityNumberHash` (HMAC, `PII_HMAC_KEY`); üretimde iki anahtar ve `DB_PASSWORD` zorunlu, veritabanı bağlantısı TLS (`DB_SSL`). `audit_logs` ekleme-yalnızca ve hash zincirli (trigger; üretim GRANT'leri `backend/tools/db/kvkk-grants.sql`). Ön yüz CSP'si: `apps/frontend/nginx.conf` (üretim) ve dev-server başlıkları.
+
+### Son uyum düzeltmeleri
+
+- `GET /products`, `GET /products/:id`, barkod araması, ürün oluşturma / güncelleme, depo transferi ve `product_mutated` soket olayı: `availableQuantity` artık **rezerve düşülmüş** satılabilir miktardır (`sellableQuantity − reservedQuantity`, 0'ın altına inmez). Yeni salt okunur alan `sellableQuantity` satılabilir depolardaki stoktur (karantina / yoldaki hariç; stok durumu buna göre hesaplanır).
+- `POST /auth/login`: bilinmeyen kullanıcı, kilitli hesap, bekleyen davet ve hatalı şifre aynı yanıtı verir (400 `AUTH_INVALID_CREDENTIALS`); 423 artık dönmez. Kilit sürerken şifre hiç değerlendirilmez, neden yalnızca denetim günlüğüne yazılır.
+- e-Fatura / e-İrsaliye düzenlenirken GİB kayıtlı kullanıcı önbelleğindeki "kayıtlı değil" yanıtına güvenilmez, entegratörden yeniden sorgulanır.
+- `customers.pii.read` yetkisi olmayanlar (viewer, auditor) belge yanıtlarında ve soket olaylarında gerçek kişi alıcı / müşterinin kimlik numarasını, e-postasını ve telefonunu maskeli görür.

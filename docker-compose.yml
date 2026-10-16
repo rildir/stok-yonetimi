@@ -1,22 +1,29 @@
 version: '3.8'
 
+# Values come from .env (copy .env.example). No secrets are stored in this file.
+#   docker compose up -d mysql          -> database only (local development, host port 3307)
+#   docker compose up -d                -> database + backend + frontend (production-like)
 services:
   # MySQL Database Service
   mysql:
     image: mysql:8.0
     container_name: stok_mysql
     restart: always
+    # Triggers (immutable ledger / documents / audit chain) are created by migrations. With binary
+    # logging on (MySQL 8 default) a non-SUPER account can only create them with this flag.
+    command: ['--log-bin-trust-function-creators=1']
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: stok_yonetimi
-      MYSQL_USER: stok_user
-      MYSQL_PASSWORD: stok_password
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_DATABASE:-stok_yonetimi}
+      MYSQL_USER: ${DB_APP_USERNAME:-stok_user}
+      MYSQL_PASSWORD: ${DB_APP_PASSWORD:?set DB_APP_PASSWORD in .env}
     ports:
-      - '3306:3306'
+      - '3307:3306'
     volumes:
       - mysql_data:/var/lib/mysql
 
-  # NestJS Backend API Service
+  # NestJS Backend API Service (NODE_ENV=production: all keys below are mandatory).
+  # Run the migrations first: `npx nx run backend:migration:run` against this database.
   backend:
     build:
       context: .
@@ -29,10 +36,17 @@ services:
       PORT: 3000
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_USERNAME: stok_user
-      DB_PASSWORD: stok_password
-      DB_DATABASE: stok_yonetimi
-      JWT_SECRET: super_secret_jwt_key_2026_production
+      DB_USERNAME: ${DB_APP_USERNAME:-stok_user}
+      DB_PASSWORD: ${DB_APP_PASSWORD:?set DB_APP_PASSWORD in .env}
+      DB_DATABASE: ${DB_DATABASE:-stok_yonetimi}
+      # private network between the containers; enable TLS (DB_SSL_CA) for a remote database
+      DB_SSL: 'false'
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      EBELGE_CREDENTIALS_KEY: ${EBELGE_CREDENTIALS_KEY:?set EBELGE_CREDENTIALS_KEY in .env}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?set PII_ENCRYPTION_KEY in .env}
+      PII_HMAC_KEY: ${PII_HMAC_KEY:?set PII_HMAC_KEY in .env}
       CORS_ORIGIN: http://localhost:80,http://localhost:4200
     depends_on:
       - mysql

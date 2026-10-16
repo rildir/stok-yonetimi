@@ -101,22 +101,29 @@ export class UserController {
   async login(@Body() dto: LoginDto, @Req() req: any, @Res({ passthrough: true }) res: any) {
     const { username, password } = dto;
     const user = await this.userService.getUserByUsername(username);
+    // Account enumeration: unknown user, locked account, pending invitation and wrong password all
+    // answer with the same status, code and message (400 AUTH_INVALID_CREDENTIALS), and every path
+    // runs one bcrypt comparison so the response time does not tell them apart either. The lockout
+    // stays in force: while locked the password is never evaluated (no oracle for brute force) and
+    // the reason is only written to the audit log.
+    const invalid = () => new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
     if (!user) {
+      this.stockHelper.burnPasswordCheck(password);
       await this.audit.record({ companyId: null, action: 'login_failed', entityType: 'auth', username, after: { reason: 'unknown_user' } });
-      throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
+      throw invalid();
     }
     // Lockout is checked before the password so a locked account cannot be brute-forced.
-    try {
-      this.userService.assertNotLocked(user);
-    } catch (e) {
+    if (this.userService.isLockedNow(user)) {
+      this.stockHelper.burnPasswordCheck(password);
       await this.audit.record({ companyId: user.companyId, action: 'login_failed', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { reason: 'locked' } });
-      throw e;
+      throw invalid();
     }
     // A pending invitation has no usable password: refuse without counting a failure, so that
     // knowing the username is not enough to lock the invitee out. Same response as a wrong password.
     if (user.inviteTokenHash) {
+      this.stockHelper.burnPasswordCheck(password);
       await this.audit.record({ companyId: user.companyId, action: 'login_failed', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { reason: 'invite_pending' } });
-      throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
+      throw invalid();
     }
     const onMigration = async (plainPassword: string) => {
       await this.userService.migratePasswordHash(user, plainPassword);
@@ -133,11 +140,13 @@ export class UserController {
         username: user.username,
         after: { reason: 'invalid_password' },
       });
-      if (locked) this.userService.assertNotLocked(user);
-      throw new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
+      throw invalid();
     }
     // Parallel wrong attempts may have locked the account while this password was being checked.
-    await this.userService.assertNotLockedFresh(user);
+    if (await this.userService.isLockedFresh(user)) {
+      await this.audit.record({ companyId: user.companyId, action: 'login_failed', entityType: 'auth', entityId: user.id, userId: user.id, username: user.username, after: { reason: 'locked' } });
+      throw invalid();
+    }
     // Older accounts may still use a password that predates the policy: the UI suggests a change.
     const passwordPolicyOk = isStrongPassword(password);
     if (user.totpEnabledAt) {

@@ -19,7 +19,9 @@ export interface RegistryAnswer {
 /**
  * GİB registered-user list (kayıtlı kullanıcı listesi) through the integrator: e-Fatura and
  * e-İrsaliye separately (509 IV.1.1, V.5.3). Answers are cached per company for
- * registryCacheHours (default 24) and re-checked right before an invoice / despatch is issued.
+ * registryCacheHours (default 24). At issue time (invoice / despatch) a cached "not registered"
+ * answer is never trusted (refreshNegative): a taxpayer who registered within the cache window
+ * must not receive an e-Arşiv invoice by mistake. A cached positive answer is used as is.
  */
 @Injectable()
 export class RegistryService {
@@ -29,14 +31,14 @@ export class RegistryService {
     private readonly settings: EBelgeSettingsService,
   ) {}
 
-  async check(taxId: string, docType: RegistryDocType, opts: { force?: boolean; manager?: EntityManager } = {}): Promise<RegistryAnswer> {
+  async check(taxId: string, docType: RegistryDocType, opts: { force?: boolean; refreshNegative?: boolean; manager?: EntityManager } = {}): Promise<RegistryAnswer> {
     const m = opts.manager || this.dataSource.manager;
     const companyId = this.tenant.companyId;
     const id = String(taxId || '').trim();
     const cached = await m.findOne(EDocumentRegistryCacheEntity, { where: { companyId, taxId: id, docType } });
     const r = await this.settings.resolve(companyId, m);
     const maxAge = (r.settings.registryCacheHours ?? 24) * 3600_000;
-    if (cached && !opts.force && Date.now() - new Date(cached.checkedAt).getTime() < maxAge) {
+    if (cached && !opts.force && !(opts.refreshNegative && !cached.registered) && Date.now() - new Date(cached.checkedAt).getTime() < maxAge) {
       return { taxId: id, docType, registered: cached.registered, aliases: cached.aliases || [], checkedAt: new Date(cached.checkedAt), cached: true };
     }
     let answer: { registered: boolean; aliases: string[]; title?: string | null };

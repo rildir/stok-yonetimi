@@ -82,7 +82,13 @@ export class EDocumentArchiveService {
     // e-Fatura: cancellation / objection notices are expected within EFATURA_CANCEL_OBJECTION_DAYS of
     // the delivery (TTK 21/2; low-confidence parameter) - a warning only, nothing is blocked.
     let noticeWindow: { days: number; deliveredAt: Date; lastDay: string; deadline: Date; open: boolean; daysLeft: number } | null = null;
-    if (e.documentType === 'INVOICE' && e.direction === 'OUT' && e.gibStatus !== 'CANCELLED') {
+    // Not shown once the invoice is settled: the buyer has answered (KABUL / RED / partial, or the
+    // TICARIFATURA response period ended: AUTO_ACCEPTED) or a cancellation / objection notice has
+    // already been recorded - the 8-day objection reminder no longer applies then.
+    const settled = ['ACCEPTED', 'REJECTED', 'PARTIALLY_ACCEPTED', 'AUTO_ACCEPTED', 'CANCELLED', 'OBJECTION'].includes(String(e.gibStatus || ''))
+      || events.some((x) => ['ACCEPTED', 'REJECTED', 'PARTIALLY_ACCEPTED', 'AUTO_ACCEPTED', 'OBJECTION'].includes(x.status) || x.code === 'OBJECTION')
+      || notices.length > 0;
+    if (e.documentType === 'INVOICE' && e.direction === 'OUT' && !settled) {
       const delivered = events.filter((x) => x.status === 'DELIVERED').sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())[0];
       if (delivered) {
         const days = Number(await this.edocs.param('EFATURA_CANCEL_OBJECTION_DAYS', 8, company.country)) || 8;

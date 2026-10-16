@@ -40,6 +40,13 @@ import { randomUUID } from 'crypto';
 import { ensureImmutabilityTriggers } from '../inventory/immutability-triggers';
 import { pickParameter } from './legal-parameter.service';
 
+/** Non-production demo accounts of the default company (passwords: see SeedService.demoAccountPasswords). */
+const DEMO_ACCOUNTS: (Partial<UserEntity> & { username: string })[] = [
+  { username: 'manager', role: UserRole.MANAGER, fullName: 'Yönetici Demo', email: 'manager@sirket.com', department: 'Stok Yönetimi' },
+  { username: 'viewer', role: UserRole.VIEWER, fullName: 'Gözlemci Demo', email: 'viewer@sirket.com', department: 'Gözlem Ekibi' },
+  { username: 'demo', role: UserRole.VIEWER, fullName: 'Demo Kullanıcısı', email: 'demo@sirket.com', department: 'Demo Modu' },
+];
+
 @Injectable()
 export class SeedService implements OnModuleInit {
   private readonly logger = new Logger(SeedService.name);
@@ -309,6 +316,58 @@ export class SeedService implements OnModuleInit {
     });
   }
 
+  /**
+   * Passwords of the demo accounts (manager / viewer / demo): DEMO_ACCOUNT_PASSWORD when it meets the
+   * policy, otherwise a random password per account. Random ones are written to
+   * DEMO_ACCOUNT_PASSWORDS_FILE (default ./demo-account-passwords.txt, mode 0600), never to the log.
+   */
+  private demoAccountPasswords(usernames = DEMO_ACCOUNTS.map((d) => d.username)): Record<string, string> {
+    const env = process.env.DEMO_ACCOUNT_PASSWORD;
+    const out: Record<string, string> = {};
+    if (env && isStrongPassword(env)) {
+      for (const u of usernames) out[u] = env;
+      return out;
+    }
+    for (const u of usernames) out[u] = `${randomBytes(12).toString('base64url')}#7a`;
+    const file = path.resolve(process.env.DEMO_ACCOUNT_PASSWORDS_FILE || 'demo-account-passwords.txt');
+    try {
+      fs.appendFileSync(file, usernames.map((u) => `${u}: ${out[u]}`).join('\n') + '\n', { mode: 0o600 });
+      this.logger.warn(`Demo account passwords (${usernames.join(', ')}) were written to ${file}; set DEMO_ACCOUNT_PASSWORD to choose one.`);
+    } catch (e) {
+      this.logger.error(`Could not write the demo account passwords to ${file}: ${(e as Error).message}. Set DEMO_ACCOUNT_PASSWORD and restart.`);
+    }
+    return out;
+  }
+
+  /**
+   * Existing installations: a demo account that still carries its old well-known password
+   * (manager123 / viewer123 / demo123) with a pending forced change could be claimed by whoever
+   * signs in first. Such accounts get a new strong password (see demoAccountPasswords) and their
+   * sessions are revoked. A missing "demo" account is recreated the same way. Idempotent.
+   */
+  private async secureDemoAccounts(companyId: string) {
+    const legacy: Record<string, string> = { manager: 'manager123', viewer: 'viewer123', demo: 'demo123' };
+    const toRotate: UserEntity[] = [];
+    for (const d of DEMO_ACCOUNTS) {
+      const u = await this.userRepo.findOne({ where: { username: d.username } });
+      if (!u || u.companyId !== companyId) continue;
+      if (u.mustChangePassword && (await this.stockHelper.verifyPassword(legacy[d.username], u.password))) toRotate.push(u);
+    }
+    const missingDemo = !(await this.userRepo.exists({ where: { username: 'demo' } }));
+    const names = [...toRotate.map((u) => u.username), ...(missingDemo ? ['demo'] : [])];
+    if (!names.length) return;
+    const pw = this.demoAccountPasswords(names);
+    for (const u of toRotate) {
+      this.logger.warn(`Demo account "${u.username}" still had its well-known password; it was replaced.`);
+      await this.userRepo.update({ id: u.id }, { password: this.stockHelper.hashPassword(pw[u.username]), mustChangePassword: false, tokenVersion: (u.tokenVersion || 0) + 1 });
+    }
+    if (missingDemo) {
+      const d = DEMO_ACCOUNTS.find((x) => x.username === 'demo')!;
+      this.logger.log('Seeding demo user account (demo)...');
+      await this.userRepo.save(this.userRepo.create({ ...d, companyId, password: this.stockHelper.hashPassword(pw['demo']), mustChangePassword: false, tokenVersion: 0 }));
+    }
+  }
+
   /** Ensures the default "Demo Şirketi" tenant exists and returns its id. */
   private async ensureDefaultCompany(): Promise<string> {
     const companyRepo = this.dataSource.getRepository(CompanyEntity);
@@ -341,62 +400,20 @@ export class SeedService implements OnModuleInit {
       ];
 
       if (!isProduction) {
-        initialUsers.push(
-          {
-            username: 'manager',
-            password: this.stockHelper.hashPassword('manager123'),
-            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
-            role: UserRole.MANAGER,
-            fullName: 'Yönetici Demo',
-            email: 'manager@sirket.com',
-            department: 'Stok Yönetimi',
-            tokenVersion: 0,
-          },
-          {
-            username: 'viewer',
-            password: this.stockHelper.hashPassword('viewer123'),
-            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
-            role: UserRole.VIEWER,
-            fullName: 'Gözlemci Demo',
-            email: 'viewer@sirket.com',
-            department: 'Gözlem Ekibi',
-            tokenVersion: 0,
-          },
-          {
-            username: 'demo',
-            password: this.stockHelper.hashPassword('demo123'),
-            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
-            role: UserRole.VIEWER,
-            fullName: 'Demo Kullanıcısı',
-            email: 'demo@sirket.com',
-            department: 'Demo Modu',
-            tokenVersion: 0,
-          }
-        );
+        // Demo accounts get strong passwords that are not guessable (DEMO_ACCOUNT_PASSWORD or random,
+        // written to a 0600 file) and need no first-sign-in change: a well-known password with a
+        // forced change would let whoever signs in first claim the account.
+        const demoPw = this.demoAccountPasswords();
+        for (const d of DEMO_ACCOUNTS) {
+          initialUsers.push({ ...d, password: this.stockHelper.hashPassword(demoPw[d.username]), mustChangePassword: false, tokenVersion: 0 });
+        }
       }
 
       for (const u of initialUsers) {
         await this.userRepo.save(this.userRepo.create({ ...u, companyId }));
       }
     } else {
-      // Ensure demo account exists even if DB already seeded
-      const existingDemo = await this.userRepo.findOne({ where: { username: 'demo' } });
-      if (!existingDemo) {
-        this.logger.log('Seeding demo user account (demo; password change required at first sign-in)...');
-        await this.userRepo.save(
-          this.userRepo.create({
-            companyId,
-            username: 'demo',
-            password: this.stockHelper.hashPassword('demo123'),
-            mustChangePassword: true, // well-known demo password: must be changed at first sign-in
-            role: UserRole.VIEWER,
-            fullName: 'Demo Kullanıcısı',
-            email: 'demo@sirket.com',
-            department: 'Demo Modu',
-            tokenVersion: 0,
-          })
-        );
-      }
+      if (process.env.NODE_ENV !== 'production') await this.secureDemoAccounts(companyId);
     }
 
     const categoryCount = await this.categoryRepo.count({ where: { companyId } });

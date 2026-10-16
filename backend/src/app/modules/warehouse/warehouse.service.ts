@@ -16,6 +16,7 @@ import { FinanceService } from '../../shared/services/finance.service';
 import { CreateWarehouseDto, UpdateWarehouseDto } from '../../dto/warehouse.dto';
 import { formatAddress } from '../../entities/address.embedded';
 import { convertAmount } from '../../shared/finance/currency';
+import { attachAvailability } from '../../shared/inventory/reservations';
 
 @Injectable()
 export class WarehouseService {
@@ -278,6 +279,7 @@ export class WarehouseService {
         },
       );
       await this.warehouseStock.attachWarehouseMap(manager, this.companyId, [product]);
+      await attachAvailability(manager, this.companyId, [product]);
       return product;
     });
     this.appGateway.emitToCompany(this.companyId, 'product_mutated', { type: 'update', product: saved });

@@ -60,15 +60,44 @@ export function maskPersonalIdentifiers<T>(value: T): T {
   return walk(value, 0) as T;
 }
 
+/**
+ * A party snapshot or customer record of a natural person (document buyer / receiver / seller of a müstahsil or
+ * expense voucher: taxIdType TCKN / YKN, or an 11-digit taxId without a type). Its e-mail and
+ * phone are personal contact data and are masked like a natural customer's (maskCustomer).
+ */
+function isNaturalPartySnapshot(o: Record<string, unknown>): boolean {
+  const t = String(o['taxIdType'] ?? '').toUpperCase();
+  if (t === 'TCKN' || t === 'YKN') return true;
+  // Customer records (socket payloads, embedded customers): the same rule as maskCustomer.
+  const it = String(o['identityType'] ?? '').toUpperCase();
+  if (it === 'TCKN' || it === 'YKN' || (o['identityType'] !== undefined && o['type'] === 'individual')) return true;
+  return !t && isPersonalId(o['taxId']);
+}
+
 function walk(v: unknown, depth: number): unknown {
   if (depth > 40 || v === null || typeof v !== 'object') return v;
   if (Array.isArray(v)) return v.map((x) => walk(x, depth + 1));
+  const src = v as Record<string, unknown>;
+  const naturalParty = isNaturalPartySnapshot(src);
   const out: Record<string, unknown> = {};
-  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+  for (const [k, val] of Object.entries(src)) {
     if (typeof val === 'string' && ((ID_KEY.test(k) && isPersonalId(val)) || (ALWAYS_KEY.test(k) && val))) out[k] = maskIdentifier(val);
+    else if (naturalParty && typeof val === 'string' && val && k === 'email') out[k] = maskEmail(val);
+    else if (naturalParty && typeof val === 'string' && val && k === 'phone') out[k] = maskIdentifier(val);
     else out[k] = walk(val, depth + 1);
   }
   return out;
+}
+
+/**
+ * Masked copy of an outbound payload (socket events) for recipients without customers.pii.read:
+ * the same deep identifier + natural-party contact masking as HTTP responses, internal keys removed.
+ */
+export function maskPayloadForNonPiiReaders<T>(value: T): T {
+  if (value === null || value === undefined || typeof value !== 'object') {
+    return (typeof value === 'string' ? maskPersonalIdsInText(value) : value) as T;
+  }
+  return stripInternalKeys(maskPersonalIdentifiers(JSON.parse(JSON.stringify(value)))) as T;
 }
 
 /** Fields of a customer that are masked in customer responses (identity) and for non-holders (contact). */

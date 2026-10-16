@@ -31,9 +31,9 @@ describe('error body building', () => {
   it('localizes coded exceptions', () => {
     const ex = new BadRequestException(err('AUTH_INVALID_CREDENTIALS'));
     expect(buildErrorBody(ex, 400, 'en')).toEqual({
-      statusCode: 400, code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid username or password.', error: 'Bad Request',
+      statusCode: 400, code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid username or password. After repeated failed attempts the account is locked for a while.', error: 'Bad Request',
     });
-    expect(buildErrorBody(ex, 400, 'tr').message).toBe('Kullanıcı adı veya şifre hatalı.');
+    expect(buildErrorBody(ex, 400, 'tr').message).toBe('Kullanıcı adı veya şifre hatalı. Art arda hatalı denemelerden sonra hesap bir süre kilitlenir.');
   });
 
   it('supports AppException', () => {
@@ -89,6 +89,6 @@ describe('error body building', () => {
     };
     new I18nExceptionFilter().catch(new BadRequestException(err('AUTH_INVALID_CREDENTIALS')), host);
     expect(status).toHaveBeenCalledWith(400);
-    expect(json.mock.calls[0][0]).toMatchObject({ statusCode: 400, code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid username or password.' });
+    expect(json.mock.calls[0][0]).toMatchObject({ statusCode: 400, code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid username or password. After repeated failed attempts the account is locked for a while.' });
   });
 });

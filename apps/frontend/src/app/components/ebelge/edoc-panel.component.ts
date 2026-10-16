@@ -185,7 +185,10 @@ export class EdocPanelComponent implements OnChanges, OnDestroy {
   eventCode(code: string): string {
     if (code.startsWith('NOTICE_') && this.i18n.has('ebelge.noticeChannel.' + code.slice(7))) return this.i18n.t('ebelge.noticeChannel.' + code.slice(7));
     const key = 'ebelge.eventCode.' + code;
-    return this.i18n.has(key) ? this.i18n.t(key) : code;
+    if (this.i18n.has(key)) return this.i18n.t(key);
+    // Numeric GİB / integrator status codes without a dedicated text.
+    if (/^\d{3,5}$/.test(code)) return this.i18n.t('ebelge.eventCode.gibCode', { code });
+    return code;
   }
 
   /**

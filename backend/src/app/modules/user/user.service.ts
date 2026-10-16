@@ -226,6 +226,18 @@ export class UserService {
     return next.locked;
   }
 
+  /** True while a lockout is active (the sign-in endpoint answers like a wrong password then). */
+  isLockedNow(user: UserEntity, now = new Date()): boolean {
+    return isLocked(user, now);
+  }
+
+  /** Fresh lock state from the database (a parallel request may have locked the account meanwhile). */
+  async isLockedFresh(user: UserEntity, now = new Date()): Promise<boolean> {
+    const row = await this.userRepo.findOne({ where: { id: user.id }, select: ['id', 'lockedUntil'] });
+    if (row) user.lockedUntil = row.lockedUntil ?? null;
+    return isLocked(user, now);
+  }
+
   /** Fresh lock state from the database (a parallel request may have locked the account meanwhile). */
   async assertNotLockedFresh(user: UserEntity, now = new Date()): Promise<void> {
     const row = await this.userRepo.findOne({ where: { id: user.id }, select: ['id', 'lockedUntil'] });

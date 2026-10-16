@@ -337,8 +337,8 @@ import { I18nService, TranslatePipe, MoneyPipe, NumberFormatPipe, AppDatePipe, U
                           }
                           {{ p.quantity | num }} <span class="text-muted">{{ productUnitLabel(p) }}</span>
                         </span>
-                        @if (p.availableQuantity !== undefined && p.availableQuantity !== null && p.availableQuantity !== p.quantity) {
-                          <div class="text-2xs text-muted" [title]="'products.availableHint' | t">{{ 'products.available' | t: { qty: (p.availableQuantity | num) } }}</div>
+                        @if (sellableQuantity(p) !== null && sellableQuantity(p) !== p.quantity) {
+                          <div class="text-2xs text-muted" [title]="'products.availableHint' | t">{{ 'products.available' | t: { qty: (sellableQuantity(p) | num) } }}</div>
                         }
                         @if (p.reservedQuantity) {
                           <div class="text-2xs text-muted" [title]="'products.reservedHint' | t">{{ 'products.reservedFree' | t: { reserved: (p.reservedQuantity | num), free: (freeQuantity(p) | num) } }}</div>
@@ -1446,8 +1446,16 @@ export class ProductsComponent implements OnInit {
     return p.hasExpiry ? `${lot} + ${this.i18n.t('products.tracking.expiry')}` : lot;
   }
 
+  /** Stock in sellable warehouses (before reservations); null when the API did not send it. */
+  sellableQuantity(p: Product): number | null {
+    const v = p.sellableQuantity ?? (p.reservedQuantity ? null : p.availableQuantity);
+    return v === undefined || v === null ? null : Number(v);
+  }
+
   /** Sellable stock not yet reserved by pending despatch-mode orders. */
   freeQuantity(p: Product): number {
+    // The API returns availableQuantity already net of reservations (sellableQuantity = before them).
+    if (p.sellableQuantity !== undefined && p.sellableQuantity !== null) return Math.max(0, Number(p.availableQuantity ?? 0));
     return Math.max(0, Number(p.availableQuantity ?? p.quantity) - Number(p.reservedQuantity || 0));
   }
 

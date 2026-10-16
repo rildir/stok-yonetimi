@@ -146,7 +146,7 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
     const buyer = await this.buyerOf(m, inv);
     let registered = false;
     if (this.registrable(buyer.taxId, buyer.type)) {
-      registered = (await this.registry.check(buyer.taxId as string, 'INVOICE', { manager: m })).registered;
+      registered = (await this.registry.check(buyer.taxId as string, 'INVOICE', { manager: m, refreshNegative: true })).registered;
     }
     const isExport = String(buyer.type || '').toUpperCase() === 'FOREIGN' && inv.typeCode === 'ISTISNA' && (inv.lines || []).some((l) => ['301', '302'].includes(String(l.exemptionCode)));
     const profile = routeInvoiceProfile({ kind: inv.kind, typeCode: inv.typeCode, buyerRegistered: registered, preferredProfile: buyer.preferred, isExport, exportEnabled: r.settings.exportEnabled });
@@ -272,7 +272,7 @@ export class EDocumentService implements OnModuleInit, EDocumentHooks {
     const taxId = b?.taxId || (d.purpose === 'TRANSFER' ? company.taxId : null);
     let registered = false;
     if (this.registrable(taxId || null, b?.taxIdType || (taxId ? (taxId.length === 10 ? 'VKN' : 'TCKN') : null))) {
-      registered = (await this.registry.check(taxId as string, 'DESPATCH', { manager: m })).registered;
+      registered = (await this.registry.check(taxId as string, 'DESPATCH', { manager: m, refreshNegative: true })).registered;
     }
     // 509 V.5.3: always an e-İrsaliye; only the channel to the receiver differs.
     d.deliveryChannel = despatchDeliveryChannel(registered, b?.email);

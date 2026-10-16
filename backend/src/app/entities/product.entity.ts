@@ -60,6 +60,12 @@ export class ProductEntity {
   /** Response-only (not a column): quantity reserved by pending despatch-mode orders. */
   reservedQuantity?: number;
 
+  /**
+   * Response-only (not a column): stock in sellable warehouses. In API responses and socket
+   * events `availableQuantity` is sellableQuantity minus reservedQuantity (presentAvailability).
+   */
+  sellableQuantity?: number;
+
   @Column(qtyColumn())
   minQuantity: number;
 

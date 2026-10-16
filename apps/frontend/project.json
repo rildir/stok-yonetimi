@@ -91,9 +91,10 @@
       "executor": "@nx/eslint:lint"
     },
     "test": {
-      "executor": "@angular/build:unit-test",
+      "executor": "nx:run-commands",
       "options": {
-        "watch": false
+        "command": "node apps/frontend/tools/run-unit-tests.mjs",
+        "cwd": "{workspaceRoot}"
       }
     },
     "serve-static": {
@@ -104,6 +105,12 @@
         "port": 4200,
         "staticFilePath": "dist/apps/frontend/browser",
         "spa": true
+      }
+    },
+    "unit-test": {
+      "executor": "@angular/build:unit-test",
+      "options": {
+        "watch": false
       }
     }
   }
