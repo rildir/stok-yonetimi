@@ -1,4 +1,5 @@
 import { DATA_CATALOG, SUBJECT_GROUP_LABELS, SubjectGroup, catalogText } from './data-catalog';
+import { DEMO_NOTICE_TEXT } from '../demo';
 
 /**
  * Default privacy-notice text (aydınlatma metni, KVKK md. 10; Aydınlatma Yükümlülüğünün Yerine
@@ -133,6 +134,7 @@ export function buildPrivacyNotice(
 
   L.push(tr ? '## 7. İletişim' : '## 7. Contact');
   L.push(`${unvan} - ${contact}${company.phone ? ` - ${company.phone}` : ''}${company.website ? ` - ${company.website}` : ''}`);
+  L.push(`**Demo:** ${DEMO_NOTICE_TEXT[lang]}`);
   return { title, body: L.join('\n\n') };
 }
 
@@ -154,7 +156,7 @@ export function platformDocument(docType: 'TOS' | 'DPA', lang: 'tr' | 'en'): { t
             '## 2. Account security', 'Accounts are personal. Two-factor authentication is mandatory for administrators. Passwords and codes must not be shared.',
             '## 3. Data', 'The customer company owns its data and is the data controller; the operator acts as processor under the Data Processing Agreement.',
             '## 4. Closing the account', 'On closure a full export is provided; data without a legal retention duty is deleted and the rest is kept read-only until the end of retention.',
-          ]).join('\n\n'),
+          ]).concat(['## Demo', DEMO_NOTICE_TEXT[lang]]).join('\n\n'),
     };
   }
   return {
@@ -175,6 +177,6 @@ export function platformDocument(docType: 'TOS' | 'DPA', lang: 'tr' | 'en'): { t
           '## 4. Breach notification', 'The operator informs the controller without delay and supports the 72-hour notification to the Board.',
           '## 5. Data subject requests', 'The operator provides the tools (export, anonymisation, destruction records) to answer requests within 30 days.',
           '## 6. Termination', 'At the end the data is returned to the controller; data without a retention duty is deleted.',
-        ]).join('\n\n'),
+        ]).concat(['## Demo', DEMO_NOTICE_TEXT[lang]]).join('\n\n'),
   };
 }

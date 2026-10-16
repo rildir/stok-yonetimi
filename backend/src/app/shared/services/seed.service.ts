@@ -392,7 +392,7 @@ export class SeedService implements OnModuleInit {
           mustChangePassword: adminPw.mustChange,
           isSuperAdmin: true,
           role: UserRole.ADMIN,
-          fullName: 'Ahmet Ildır',
+          fullName: 'Recep Ildır',
           email: 'admin@sirket.com',
           department: 'Sistem Yönetimi',
           tokenVersion: 0,

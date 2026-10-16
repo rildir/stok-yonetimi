@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { KvkkService, PrivacyNotice } from '../../services/kvkk.service';
 import { SessionService } from '../../services/session.service';
 import { NoticeTextComponent } from '../kvkk/notice-text.component';
+import { DemoNoticeComponent } from '../shared/demo-notice.component';
 import { ModalComponent } from '../modal.component';
 import { IconComponent } from '../shared/icon.component';
 import { NAV_SECTIONS } from '../layout/nav.config';
@@ -21,7 +22,7 @@ const REMEMBER_KEY = 'login_remember_username';
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./auth.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NoticeTextComponent, ModalComponent, IconComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NoticeTextComponent, ModalComponent, IconComponent, DemoNoticeComponent],
   template: `
     <div class="auth">
       <div class="auth-side">
@@ -100,7 +101,7 @@ const REMEMBER_KEY = 'login_remember_username';
                 </div>
               </section>
             </div>
-            <p class="auth-legal">{{ 'kvkk.register.noticeText' | t }} <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('DPA')">{{ 'kvkk.footer.dpa' | t }}</button></p>
+            <p class="auth-legal">{{ 'kvkk.register.noticeText' | t }} <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('DPA')">{{ 'kvkk.footer.dpa' | t }}</button><br /><strong>{{ 'demo.notice.short' | t }}</strong></p>
             <button type="submit" class="btn btn-primary btn-xl btn-block" [class.is-loading]="isRegisterLoading()" [attr.aria-busy]="isRegisterLoading() || null">
               <span>{{ (isRegisterLoading() ? 'login.register.creating' : 'login.register.submit') | t }}</span>
             </button>
@@ -174,6 +175,7 @@ const REMEMBER_KEY = 'login_remember_username';
             </select>
           </div>
           <span class="spacer"></span>
+          <app-demo-notice variant="line" class="in-foot" />
           <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button>
           <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button>
           <span>© {{ year }} Ecelon</span>
@@ -198,7 +200,7 @@ const REMEMBER_KEY = 'login_remember_username';
                   }
                 }
               </div>
-              <div class="pv-me"><span class="av">SK</span><span class="who"><b>Selin Kaya</b><span>{{ 'layout.role.admin' | t }}</span></span><app-icon name="more" /></div>
+              <div class="pv-me"><span class="av">RI</span><span class="who"><b>Recep Ildır</b><span>{{ 'layout.role.admin' | t }}</span></span><app-icon name="more" /></div>
             </div>
             <div class="pv-main">
               <div class="pv-h">{{ 'layout.nav.dashboard' | t }}<span class="btnp">+ {{ 'login.preview.newMovement' | t }}</span></div>

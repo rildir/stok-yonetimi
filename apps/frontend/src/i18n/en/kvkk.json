@@ -215,5 +215,9 @@
   "kvkk.socket.alert": "Security alert ({no}): {title}. Assess whether it is a breach.",
   "kvkk.socket.destruction": "Periodic destruction list {no} ({n} items) awaits your approval.",
   "kvkk.notesSensitiveWarning": "This note may contain special-category personal data ({categories}). Such data must not be written in notes (KVKK art. 6).",
-  "kvkk.accept.progress": "{n} of {total} acknowledged"
+  "kvkk.accept.progress": "{n} of {total} acknowledged",
+  "demo.notice.title": "Demo / portfolio project",
+  "demo.notice.body": "This application is a demo/portfolio project. No commercial service is offered; the companies, people, documents and amounts shown are sample data. The texts are examples only and have no legal effect. Please do not enter real personal data.",
+  "demo.notice.short": "Demo project · Do not enter real data",
+  "demo.doc.watermark": "DEMO — no legal validity"
 }

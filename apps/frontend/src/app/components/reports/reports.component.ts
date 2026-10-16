@@ -413,7 +413,8 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
     const t = (k: string, p?: Record<string, unknown>) => this.i18n.t(k, p as any);
     const esc = (v: unknown) => String(v ?? '').replace(/;/g, ',');
     let csv = '﻿';
-    csv += [t('reports.expiring.col.product'), t('reports.expiring.col.sku'), t('reports.expiring.col.lot'), t('reports.expiring.col.warehouse'),
+    csv += t('demo.doc.watermark') + '\r\n';
+    csv += [t('reports.expiring.col.product'),t('reports.expiring.col.sku'), t('reports.expiring.col.lot'), t('reports.expiring.col.warehouse'),
       t('reports.expiring.col.expiry'), t('reports.expiring.col.qty'), t('reports.expiring.col.daysLeft')].join(';') + '\r\n';
     for (const l of this.expiringLots()) {
       csv += [l.productName, l.sku, l.lotNumber, l.warehouseName, l.expiryDate, l.quantity, l.daysLeft].map(esc).join(';') + '\r\n';
@@ -602,6 +603,7 @@ export class ReportsComponent implements OnInit, AfterViewInit, OnDestroy {
     // 1. Stock Summary Section
     const t = (key: string, params?: any) => this.i18n.t(key, params);
     const cur = this.baseCurrency();
+    csvContent += t('demo.doc.watermark') + '\r\n';
     csvContent += t('reports.csv.summarySection') + '\r\n';
     csvContent += `${t('reports.totalIn')};${this.summary().totalIn}\r\n`;
     csvContent += `${t('reports.totalOut')};${this.summary().totalOut}\r\n`;

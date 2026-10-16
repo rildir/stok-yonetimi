@@ -1,5 +1,6 @@
 import { CompanyEntity } from '../../entities/company.entity';
 import { formatAddress } from '../../entities/address.embedded';
+import { DEMO_DOCUMENT_TEXT, demoBannerHtml } from '../../shared/demo';
 
 /**
  * Printable legal outputs (saved as PDF from the browser): always Turkish (VUK 215/1),
@@ -55,8 +56,8 @@ export function legalPage(title: string, company: CompanyEntity, body: string, o
     .warn { color: #a15c00; } .foot { margin-top: 10px; font-size: 9px; color: #666; }
     @media screen { body { max-width: ${opts.landscape ? '1200px' : '900px'}; margin: 0 auto; } }
   </style></head><body>
-  <h1>${esc(title)}</h1>${companyHeader(company)}${opts.notice ? `<div class="notice">${esc(opts.notice)}</div>` : ''}${body}
-  <div class="foot">Düzenlenme: ${esc(generated)} &middot; Stok Yönetimi</div></body></html>`;
+  ${demoBannerHtml()}<h1>${esc(title)}</h1>${companyHeader(company)}${opts.notice ? `<div class="notice">${esc(opts.notice)}</div>` : ''}${body}
+  <div class="foot">Düzenlenme: ${esc(generated)} &middot; Stok Yönetimi &middot; ${DEMO_DOCUMENT_TEXT}</div></body></html>`;
 }
 
 /** "Ön rapordur, beyanname yerine geçmez" (R21 / R17). */

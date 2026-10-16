@@ -16,6 +16,7 @@ import { ReturnService } from './return.service';
 import { GoodsReceiptService } from './goods-receipt.service';
 import { ExpenseVoucherService } from './expense-voucher.service';
 import { companySnapshot } from './document-support';
+import { demoBannerHtml } from '../../shared/demo';
 
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 const money = (v: unknown, cur = 'TRY') => `${new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v) || 0)} ${cur === 'TRY' ? 'TL' : cur}`;
@@ -98,7 +99,7 @@ export class DocumentPrintService {
       .notice { margin-top: 14px; padding: 8px 10px; border: 2px solid #b00; color: #b00; font-weight: 700; text-align: center; } .ibare { margin-top: 10px; font-weight: 700; }
       .wm { position: fixed; top: 40%; left: 0; right: 0; text-align: center; font-size: 72px; color: rgba(200,0,0,.12); transform: rotate(-20deg); pointer-events: none; }
       .sign { display: flex; gap: 24px; margin-top: 32px; } .sign div { flex: 1; border-top: 1px solid #999; padding-top: 4px; text-align: center; color: #555; }
-    </style></head><body>${opts.watermark ? `<div class="wm">${esc(opts.watermark)}</div>` : ''}${opts.notFiscal ? `<div class="notice">${esc(NOT_FISCAL_DOCUMENT_TEXT)}</div>` : ''}${body}${opts.notFiscal ? `<div class="notice">${esc(NOT_FISCAL_DOCUMENT_TEXT)}</div>` : ''}</body></html>`;
+    </style></head><body>${demoBannerHtml()}${opts.watermark ? `<div class="wm">${esc(opts.watermark)}</div>` : ''}${opts.notFiscal ? `<div class="notice">${esc(NOT_FISCAL_DOCUMENT_TEXT)}</div>` : ''}${body}${opts.notFiscal ? `<div class="notice">${esc(NOT_FISCAL_DOCUMENT_TEXT)}</div>` : ''}</body></html>`;
   }
 
   async despatch(id: string): Promise<string> {

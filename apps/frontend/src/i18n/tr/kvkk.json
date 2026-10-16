@@ -215,5 +215,9 @@
   "kvkk.socket.alert": "Güvenlik alarmı ({no}): {title}. İhlal olup olmadığını değerlendirin.",
   "kvkk.socket.destruction": "Periyodik imha listesi {no} ({n} kalem) onayınızı bekliyor.",
   "kvkk.notesSensitiveWarning": "Bu not özel nitelikli kişisel veri içeriyor olabilir ({categories}). Bu tür veriler not alanına yazılmamalıdır (KVKK md. 6).",
-  "kvkk.accept.progress": "{n} / {total} metin onaylandı"
+  "kvkk.accept.progress": "{n} / {total} metin onaylandı",
+  "demo.notice.title": "Demo / portföy projesi",
+  "demo.notice.body": "Bu uygulama bir demo/portföy projesidir. Ticari bir hizmet sunulmamaktadır; gösterilen şirket, kişi, belge ve tutarlar örnek verilerdir. Metinler yalnızca örnek amaçlıdır ve hukuki bağlayıcılığı yoktur. Lütfen gerçek kişisel veri girmeyin.",
+  "demo.notice.short": "Demo proje · Gerçek veri girmeyin",
+  "demo.doc.watermark": "DEMO — yasal geçerliliği yoktur"
 }

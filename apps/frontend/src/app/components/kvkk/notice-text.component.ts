@@ -1,4 +1,5 @@
 import { Component, Input, computed, signal } from '@angular/core';
+import { DemoNoticeComponent } from '../shared/demo-notice.component';
 
 interface Block {
   kind: 'h' | 'p' | 'li';
@@ -22,6 +23,7 @@ export function noticeBlocks(body: string | null | undefined): Block[] {
 @Component({
   selector: 'app-notice-text',
   standalone: true,
+  imports: [DemoNoticeComponent],
   styles: [`
     :host { display: block; font-size: var(--text-sm); line-height: 1.6; color: var(--color-text); }
     h4 { font-size: var(--text-sm); font-weight: var(--weight-semibold); margin: var(--space-4) 0 var(--space-1); }
@@ -30,6 +32,7 @@ export function noticeBlocks(body: string | null | undefined): Block[] {
     li { margin-bottom: var(--space-1); }
   `],
   template: `
+    @if (demo) { <app-demo-notice /> }
     @for (b of blocks(); track $index) {
       @switch (b.kind) {
         @case ('h') { <h4>@for (p of b.parts; track $index) { @if (p.bold) { <strong>{{ p.text }}</strong> } @else { {{ p.text }} } }</h4> }
@@ -40,6 +43,8 @@ export function noticeBlocks(body: string | null | undefined): Block[] {
   `,
 })
 export class NoticeTextComponent {
+  /** Prepends the demo / portfolio disclaimer (off where the container already shows it). */
+  @Input() demo = true;
   private body = signal('');
   @Input() set text(v: string | null | undefined) {
     this.body.set(v || '');

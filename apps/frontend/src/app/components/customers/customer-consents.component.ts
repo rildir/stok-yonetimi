@@ -5,6 +5,7 @@ import { AppDatePipe, I18nService, TranslatePipe } from '../../i18n';
 import { CONSENT_CHANNELS, CONSENT_PURPOSES, ConsentRecord, KvkkService } from '../../services/kvkk.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { apiError } from '../../services/documents.service';
+import { DemoNoticeComponent } from '../shared/demo-notice.component';
 import { IconComponent } from '../shared/icon.component';
 
 /**
@@ -15,7 +16,7 @@ import { IconComponent } from '../shared/icon.component';
 @Component({
   selector: 'app-customer-consents',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, IconComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, IconComponent, DemoNoticeComponent],
   styles: [`
     :host { display: flex; flex-direction: column; gap: 12px; }
     .cs-note { font-size: var(--text-xs); line-height: 16px; color: var(--fg-3); margin: 0; }
@@ -38,6 +39,7 @@ import { IconComponent } from '../shared/icon.component';
     }
   `],
   template: `
+    <app-demo-notice />
     <p class="cs-note">{{ 'kvkk.consent.legalNote' | t }}</p>
     <div class="cs-list">
       @for (c of items(); track c.id) {

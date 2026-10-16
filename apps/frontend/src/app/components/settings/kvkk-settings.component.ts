@@ -12,6 +12,7 @@ import {
 } from '../../services/kvkk.service';
 import { NoticeTextComponent } from '../kvkk/notice-text.component';
 import { IconComponent } from '../shared/icon.component';
+import { DemoNoticeComponent } from '../shared/demo-notice.component';
 import trKvkkSettings from '../../../i18n/tr/kvkk-settings.json';
 import enKvkkSettings from '../../../i18n/en/kvkk-settings.json';
 
@@ -27,7 +28,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
 @Component({
   selector: 'app-kvkk-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, NoticeTextComponent, IconComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NumberFormatPipe, MoneyPipe, NoticeTextComponent, IconComponent, DemoNoticeComponent],
   styleUrls: ['../../drawer.css', '../documents/documents.css'],
   styles: [`
     :host { display: block; }
@@ -92,6 +93,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
         @if (!canManage()) { <span class="badge badge-neutral"><span class="dot"></span><app-icon name="eye" size="xs" />{{ 'settings.kvkk.readOnly' | t }}</span> }
       </div>
       <div class="card-b kv-body">
+      <app-demo-notice />
 
       @if (status(); as st) {
         <div class="kv-stats">
@@ -178,7 +180,7 @@ const SUBS: Sub[] = ['notices', 'dsr', 'destruction', 'retention', 'processors',
               <div class="doc-field"><label for="nBody">{{ 'settings.kvkk.notices.body' | t }}</label><textarea id="nBody" class="input" [(ngModel)]="draftBody"></textarea></div>
               <div class="doc-actions"><button type="button" class="btn btn-primary" [disabled]="busy()" (click)="saveDraft(n)">{{ 'common.save' | t }}</button></div>
             } @else {
-              <div class="kv-notice"><app-notice-text [text]="n.body"></app-notice-text></div>
+              <div class="kv-notice"><app-notice-text [text]="n.body" [demo]="false"></app-notice-text></div>
             }
           </div>
         }

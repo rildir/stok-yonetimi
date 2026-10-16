@@ -6,6 +6,7 @@ import { parseUbl } from './ubl/parser';
 import { qrPayload, qrSvg } from './qr';
 import { UblAttachment } from './ubl/model';
 import { maskPersonalIdsInText, maskQrPayload } from '../kvkk/masking';
+import { DEMO_DOCUMENT_TEXT, withDemoBanner } from '../demo';
 
 /**
  * Display of e-documents (509 V.3-V.4): the default XSLT (GİB emblem, "T.C. Hazine ve Maliye
@@ -48,6 +49,7 @@ export async function renderHtml(xml: string, opts: { logoDataUri?: string | nul
   if (opts.watermark) {
     html = html.replace('</body>', `<div style="position:fixed;top:40%;left:0;right:0;text-align:center;font-size:64px;color:rgba(200,0,0,.18);transform:rotate(-20deg);pointer-events:none">${escapeAttr(opts.watermark)}</div></body>`);
   }
+  html = withDemoBanner(html);
   if (opts.maskPii) html = maskPersonalIdsInText(html);
   return html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>${html}`;
 }
@@ -106,7 +108,7 @@ export async function htmlToPdf(html: string, footerLabel = 'Sayfa'): Promise<Bu
       margin: { top: '12mm', bottom: '16mm', left: '10mm', right: '10mm' },
       displayHeaderFooter: true,
       headerTemplate: '<span></span>',
-      footerTemplate: `<div style="font-size:8px;width:100%;text-align:center;color:#555">${footerLabel} <span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
+      footerTemplate: `<div style="font-size:8px;width:100%;text-align:center;color:#555">${DEMO_DOCUMENT_TEXT} &middot; ${footerLabel} <span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
     });
   } finally {
     await page.close();

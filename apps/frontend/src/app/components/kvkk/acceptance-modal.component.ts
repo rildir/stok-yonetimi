@@ -6,6 +6,7 @@ import { KvkkService, PrivacyNotice } from '../../services/kvkk.service';
 import { UiStateService } from '../../services/ui-state.service';
 import { NoticeTextComponent } from './notice-text.component';
 import { IconComponent } from '../shared/icon.component';
+import { DemoNoticeComponent } from '../shared/demo-notice.component';
 
 /**
  * First sign-in (R57): the employees' privacy notice and, for administrators, the terms of service
@@ -15,7 +16,7 @@ import { IconComponent } from '../shared/icon.component';
 @Component({
   selector: 'app-acceptance-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NoticeTextComponent, IconComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NoticeTextComponent, IconComponent, DemoNoticeComponent],
   styles: [`
     .acc-modal { width: 720px; }
     .acc-h { justify-content: flex-start; align-items: center; gap: 12px; padding: 20px 20px 14px; box-shadow: inset 0 -1px 0 var(--line); }
@@ -67,6 +68,7 @@ import { IconComponent } from '../shared/icon.component';
             </div>
           </div>
           <div class="modal-b acc-b">
+            <app-demo-notice />
             @for (d of docs(); track d.id; let i = $index) {
               <details class="acc-doc" [class.is-done]="checked().has(d.id)" [open]="i === 0">
                 <summary>
@@ -75,7 +77,7 @@ import { IconComponent } from '../shared/icon.component';
                   <span class="acc-meta">{{ 'kvkk.notice.version' | t }} {{ d.version }} · {{ d.publishedAt | appDate }}</span>
                   <app-icon class="acc-chev" name="chevr" size="sm" />
                 </summary>
-                <div class="acc-text"><app-notice-text [text]="d.body"></app-notice-text></div>
+                <div class="acc-text"><app-notice-text [text]="d.body" [demo]="false"></app-notice-text></div>
                 <label class="check acc-check">
                   <input type="checkbox" [checked]="checked().has(d.id)" (change)="toggle(d.id)" />
                   <span>{{ ('kvkk.accept.check.' + d.docType) | t }}</span>

@@ -2,6 +2,12 @@
 
 **Smart Inventory Panel**, Angular (Frontend) ve NestJS (Backend) ile geliştirilmiş akıllı bir stok yönetimi ve sipariş takip sistemidir. Nx Monorepo yapısında tasarlanmış olup en güncel yazılım standartlarına göre modülerleştirilmiştir.
 
+## ⚠️ Demo / disclaimer
+
+**TR —** Bu uygulama bir demo/portföy projesidir (geliştiren: Recep Ildır). Ticari bir hizmet sunulmamaktadır; uygulamada gösterilen şirket, kişi, belge ve tutarlar örnek verilerdir. KVKK aydınlatma metni, açık rıza, kullanım koşulları, veri işleme sözleşmesi gibi metinler yalnızca örnek amaçlıdır ve hukuki bağlayıcılığı yoktur. Üretilen faturalar, e-Arşiv / e-İrsaliye görünümleri, sayım tutanakları ve KDV ön raporları "DEMO — yasal geçerliliği yoktur" ibaresini taşır; hiçbir belge GİB'e gönderilmez ve yasal belge yerine geçmez. Lütfen gerçek kişisel veri girmeyin.
+
+**EN —** This application is a demo/portfolio project (author: Recep Ildır). No commercial service is offered; the companies, people, documents and amounts shown are sample data. Privacy notices, consent texts, terms of service and the data processing agreement are examples only and have no legal effect. Generated invoices, e-Archive / e-Despatch views, count reports and VAT pre-reports carry a "DEMO — no legal validity" line; nothing is submitted to the tax authority and no output replaces a legal document. Please do not enter real personal data.
+
 ## 🚀 Öne Çıkan Özellikler
 
 - **Stok Takibi & CRUD**: Ürün ekleme, silme ve dinamik stok seviyesi takipleri.

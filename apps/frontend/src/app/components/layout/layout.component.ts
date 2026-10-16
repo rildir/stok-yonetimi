@@ -609,13 +609,13 @@ export class LayoutComponent implements OnInit {
       return {
         username: payload.username,
         role: payload.role,
-        name: payload.username === 'admin' ? 'Ahmet Ildır' :
+        name: payload.username === 'admin' ? 'Recep Ildır' :
               payload.username === 'manager' ? this.i18n.t('layout.demoManager') :
               payload.username === 'viewer' ? this.i18n.t('layout.demoViewer') : payload.username,
         avatar: null
       };
     } catch (e) {
-      return { username: 'admin', role: 'admin', name: 'Ahmet Ildır', avatar: null };
+      return { username: 'admin', role: 'admin', name: 'Recep Ildır', avatar: null };
     }
   });
 
