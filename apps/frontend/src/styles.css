@@ -1,10 +1,12 @@
 /* ==========================================================================
-   ECELON · PRECISION DESIGN SYSTEM — single source of truth for tokens
+   ECELON · BRAND DESIGN SYSTEM — single source of truth for tokens
    --------------------------------------------------------------------------
-   Near-monochrome zinc UI. Surfaces are drawn with a 1px ring (box-shadow,
-   never border) + a 1px inner top highlight. Brand indigo only where it
-   carries meaning: the one primary action, focus, selection, links, checked
-   controls, chart series 1.
+   ecelon identity: cobalt #0041ff (primary), vermillion #ff3d00 (brand accent
+   only — never a status colour), black, master grey #ebebeb. Geometric and
+   sharp: small radii, 1px rings (box-shadow, never border), mono system labels.
+   Space Grotesk for display/headings, Inter for UI text, JetBrains Mono for
+   codes and numbers. Cobalt only where it carries meaning: the primary action,
+   focus, selection, links, checked controls, chart series 1.
 
    1. Fonts             5. Colour — light (+ WCAG notes)
    2. Typography        6. Colour — dark (own steps, not an inversion)
@@ -15,8 +17,8 @@
    drawer.css, component styles) consume ONLY these tokens.
    ========================================================================== */
 
-/* 1. Fonts — Geist (latin-ext covers ç ğ ı İ ö ş ü) + Geist Mono for codes. */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+/* 1. Fonts — Google Fonts css2 serves latin + latin-ext (ç ğ ı İ ö ş ü) by unicode-range. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Space+Grotesk:wght@500..700&family=JetBrains+Mono:wght@400..700&display=swap');
 @import './app/app.css';
 @import './app/drawer.css';
 
@@ -24,8 +26,12 @@
   color-scheme: light;
 
   /* 2. Typography ---------------------------------------------------------- */
-  --font-sans: 'Geist', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --tracking-display: -0.025em;   /* Space Grotesk headings */
+  --tracking-brand: -0.5px;       /* "ecelon" wordmark      */
+  --tracking-sys: 0.08em;         /* mono system labels (SYS, REF //) */
 
   --text-2xs: 11px;  /* nav section labels, mono tags          */
   --text-xs: 12px;   /* labels, help, table header, badges     */
@@ -80,13 +86,15 @@
   --tabbar-h: 60px;
 
   /* 4. Radii, z-index -------------------------------------------------------- */
-  --radius-xs: 4px;    /* checkbox, tag, kbd         */
-  --radius-2xs: 5px;   /* xs button, badge, seg thumb */
-  --radius-sm: 6px;    /* controls                   */
-  --radius-7: 7px;     /* seg track, lg button       */
-  --radius-md: 8px;    /* menus, toasts, choice cards */
-  --radius-lg: 10px;   /* cards, tables              */
-  --radius-xl: 14px;   /* drawer, modal              */
+  /* ecelon is geometric: radii are deliberately small (the mark itself is radius 0) */
+  --radius-0: 0;       /* brand mark, grid tiles      */
+  --radius-xs: 2px;    /* checkbox, tag, kbd         */
+  --radius-2xs: 3px;   /* xs button, badge, seg thumb */
+  --radius-sm: 4px;    /* controls                   */
+  --radius-7: 5px;     /* seg track, lg button       */
+  --radius-md: 5px;    /* menus, toasts, choice cards */
+  --radius-lg: 6px;    /* cards, tables              */
+  --radius-xl: 8px;    /* drawer, modal              */
   --radius-full: 999px;
   --border-width: 1px;
 
@@ -100,134 +108,145 @@
 
   /* 5. Colour — light ----------------------------------------------------------
      Contrast (WCAG 2.1, on --surface #fff unless noted):
-       --fg 17.7 · --fg-2 8.8 · --fg-3 5.8 (5.3 on sunken) · --fg-placeholder 4.56
-       --accent-text 7.2 · white on --accent 6.0 · white on --danger-solid 4.57
-       success 4.8 · warning 4.9 · danger 5.1 (each on its own soft fill)
+       --fg 19.8 · --fg-2 10.4 · --fg-3 5.7 (5.2 on sunken) · --fg-placeholder 4.7
+       --accent-text 8.2 · white on --accent 6.6 · white on --danger-solid 5.1
+       success 4.8 · warning 4.9 · danger 6.2 (each on its own soft fill)
      -------------------------------------------------------------------------- */
-  /* neutrals (zinc, very slightly cool) */
-  --n-0: #ffffff; --n-25: #fcfcfc; --n-50: #f8f8f9; --n-75: #f4f4f5; --n-100: #efeff1;
-  --n-150: #e8e8eb; --n-200: #e1e1e5; --n-300: #d1d1d6; --n-400: #a9a9b1; --n-500: #80808a;
-  --n-600: #63636c; --n-700: #4a4a52; --n-800: #2c2c31; --n-900: #1a1a1e; --n-950: #111113;
+  /* brand constants (theme-independent; the mark, favicon, login panel) */
+  --brand-cobalt: #0041ff;
+  --brand-cobalt-dark: #002ebf;
+  --brand-vermillion: #ff3d00;
+  --brand-black: #000000;
+  --brand-grey: #ebebeb;
+
+  /* neutrals (true grey, from the brand greys #f5f5f5 · #ebebeb · #d0d0d0 · #666) */
+  --n-0: #ffffff; --n-25: #fcfcfc; --n-50: #f9f9f9; --n-75: #f5f5f5; --n-100: #f0f0f0;
+  --n-150: #ebebeb; --n-200: #e3e3e3; --n-300: #d0d0d0; --n-400: #a8a8a8; --n-500: #808080;
+  --n-600: #666666; --n-700: #4a4a4a; --n-800: #2b2b2b; --n-900: #1a1a1a; --n-950: #0f0f0f;
   --white: #ffffff;
   --black: #000000;
 
   /* surfaces */
-  --canvas: #f8f8f9;
+  --canvas: #f5f5f5;
   --surface: #ffffff;
-  --surface-2: #fbfbfc;
-  --surface-sunken: #f4f4f5;
-  --surface-hover: #f4f4f5;
-  --surface-active: #ececef;
-  --overlay: rgba(17, 17, 19, 0.32);
+  --surface-2: #fafafa;
+  --surface-sunken: #f3f3f3;
+  --surface-hover: #f0f0f0;
+  --surface-active: #e8e8e8;
+  --overlay: rgba(0, 0, 0, 0.36);
   --field-bg: #ffffff;
-  --field-bg-readonly: #f8f8f9;
+  --field-bg-readonly: #f7f7f7;
 
   /* text */
-  --fg: #18181b;
-  --fg-2: #4a4a52;
-  --fg-3: #64646d;
-  --fg-placeholder: #75757e;
-  --fg-disabled: #a1a1aa;
+  --fg: #0a0a0a;
+  --fg-2: #3f3f3f;
+  --fg-3: #666666;
+  --fg-placeholder: #737373;
+  --fg-disabled: #a3a3a3;
   --fg-on-accent: #ffffff;
   /* calendar glyph for bare date inputs (background-image cannot read currentColor): --fg-3 */
-  --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364646d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
+  --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='1.6' stroke-linecap='square' stroke-linejoin='miter'%3E%3Crect x='3' y='5' width='18' height='16' rx='1'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
 
   /* lines */
-  --line: #e8e8eb;
-  --line-2: #dcdce0;
-  --line-strong: #cfcfd4;
-  --ring: rgba(17, 17, 19, 0.10);
-  --ring-hover: rgba(17, 17, 19, 0.18);
-  --ring-strong: rgba(17, 17, 19, 0.26);
+  --line: #e8e8e8;
+  --line-2: #dcdcdc;
+  --line-strong: #d0d0d0;
+  --ring: rgba(0, 0, 0, 0.11);
+  --ring-hover: rgba(0, 0, 0, 0.19);
+  --ring-strong: rgba(0, 0, 0, 0.27);
   --highlight: rgba(255, 255, 255, 0.9);
 
-  /* accent (brand indigo) */
-  --accent: #4b4fe0;
-  --accent-hover: #4246d3;
-  --accent-press: #3a3dc0;
-  --accent-edge: #383bb8;
-  --accent-text: #3f43cf;
-  --accent-soft: rgba(75, 79, 224, 0.08);
-  --accent-soft-2: rgba(75, 79, 224, 0.14);
-  --accent-halo: rgba(75, 79, 224, 0.20);
-  --accent-line: rgba(75, 79, 224, 0.28);
-  --accent-grad-top: #5b5fe3;
-  --accent-grad-top-hover: #5458d8;
+  /* accent (ecelon cobalt) */
+  --accent: #0041ff;
+  --accent-hover: #0039e6;
+  --accent-press: #0032cc;
+  --accent-edge: #002ebf;
+  --accent-text: #0037d9;
+  --accent-soft: rgba(0, 65, 255, 0.07);
+  --accent-soft-2: rgba(0, 65, 255, 0.13);
+  --accent-halo: rgba(0, 65, 255, 0.22);
+  --accent-line: rgba(0, 65, 255, 0.30);
+  --accent-grad-top: #1a54ff;
+  --accent-grad-top-hover: #0f4bf5;
+  /* brand accent (vermillion) — the mark, active-nav tick, decorative only */
+  --brand-accent: #ff3d00;
 
-  /* status */
+  /* status — danger is a cool crimson so it never reads as the vermillion brand accent */
   --success: #15803d; --success-soft: #ecfdf3; --success-line: #bbe5c9; --success-dot: #16a34a;
   --warning: #a15c07; --warning-soft: #fff8eb; --warning-line: #f3dcae; --warning-dot: #e08a0b;
-  --danger: #c4320a;  --danger-soft: #fef3f0;  --danger-line: #f6cfc3;  --danger-dot: #e5484d;
-  --danger-solid: #d93a2b; --danger-solid-hover: #c93224; --danger-edge: #b02a1e; --danger-halo: rgba(217, 58, 43, 0.20);
-  --danger-grad-top: #dd4e40;
-  --info: #3f43cf; --info-soft: #f1f1fe; --info-line: #d7d8fa;
-  --neutral-badge-fg: #4a4a52; --neutral-badge-bg: #f1f1f3; --neutral-badge-line: #dcdce0;
+  --danger: #be123c;  --danger-soft: #fff1f3;  --danger-line: #fbcbd5;  --danger-dot: #e11d48;
+  --danger-solid: #d61f45; --danger-solid-hover: #c41a3e; --danger-edge: #a3162f; --danger-halo: rgba(214, 31, 69, 0.20);
+  --danger-grad-top: #db3355;
+  --info: #0037d9; --info-soft: #f0f4ff; --info-line: #cfdcff;
+  --neutral-badge-fg: #4a4a4a; --neutral-badge-bg: #f2f2f2; --neutral-badge-line: #dcdcdc;
 
-  /* charts (dataviz validate_palette: CVD ΔE 21 / 16) */
-  --chart-1: #4b4fe0;
+  /* charts — series 1 is cobalt; the rest stay clear of blue so it remains distinct */
+  --chart-1: #0041ff;
   --chart-2: #0e9384;
   --chart-3: #d97706;
-  --chart-4: #e5484d;
+  --chart-4: #e11d48;
   --chart-5: #8b5cf6;
-  --chart-6: #3b82f6;
-  --chart-grid: #ececef;
-  --chart-axis: #64646d;
+  --chart-6: #65a30d;
+  --chart-grid: #ebebeb;
+  --chart-axis: #666666;
 
   /* component-level steps that differ per theme (so components never need [data-theme] selectors) */
   --btn-bg: #ffffff;
-  --btn-bg-hover: #f8f8f9;
-  --btn-bg-active: #efeff1;
-  --btn-press-inset: inset 0 1px 2px rgba(17, 17, 19, 0.08);
+  --btn-bg-hover: #fafafa;
+  --btn-bg-active: #f0f0f0;
+  --btn-press-inset: inset 0 1px 2px rgba(0, 0, 0, 0.08);
   --seg-thumb: #ffffff;
   --pop-bg: #ffffff;
-  --menu-hover: #f4f4f5;
-  --row-hover: #f6f6f7;
+  --menu-hover: #f3f3f3;
+  --row-hover: #f7f7f7;
   --nav-active-bg: #ffffff;
   --chip-bg: #ffffff;
-  --chip-add-line: #d1d1d6;
-  --crumb-sep: #d1d1d6;
-  --avatar-bg: #e8e8eb;
-  --switch-track: #d1d1d6;
-  --switch-track-disabled: #e8e8eb;
-  --switch-thumb-disabled: #f8f8f9;
-  --ink: #18181b;              /* bulk bar, tooltip — ink in both themes */
-  --ink-fg: #ededef;
-  --ink-fg-2: #d4d4d8;
-  --ink-fg-3: #a1a1aa;
+  --chip-add-line: #d0d0d0;
+  --crumb-sep: #d0d0d0;
+  --avatar-bg: #e8e8e8;
+  --switch-track: #d0d0d0;
+  --switch-track-disabled: #e8e8e8;
+  --switch-thumb-disabled: #f7f7f7;
+  --ink: #0a0a0a;              /* bulk bar, tooltip — ink in both themes */
+  --ink-fg: #ededed;
+  --ink-fg-2: #d4d4d4;
+  --ink-fg-3: #a3a3a3;
   --ink-line: rgba(255, 255, 255, 0.12);
   --ink-hover: rgba(255, 255, 255, 0.08);
-  --ink-accent: #a5a8ff;
-  --ink-danger: #ff8a7a;
+  --ink-accent: #8aa8ff;
+  --ink-danger: #ff8095;
   --cmdk-bg: #ffffff;
-  --cmdk-active: #f4f4f5;
-  --cmdk-foot: #fbfbfc;
-  --panel-ink: #0b0b0d;        /* login marketing panel */
-  --panel-fg: #ededef;
-  --panel-fg-2: #a1a1aa;
-  --panel-fg-3: #8e8e98;
+  --cmdk-active: #f3f3f3;
+  --cmdk-foot: #fafafa;
+  --panel-ink: #000000;        /* login brand panel — brand black in both themes */
+  --panel-fg: #f5f5f5;
+  --panel-fg-2: #ababab;
+  --panel-fg-3: #8c8c8c;
   --panel-line: rgba(255, 255, 255, 0.08);
-  --panel-glow: rgba(91, 95, 232, 0.30);
-  --panel-surface: #151517;    /* dark product preview inside the panel (theme-independent) */
-  --panel-surface-2: #1b1b1f;
-  --panel-line-2: #2a2a2f;
-  --panel-accent-text: #a5a8ff;
-  --panel-chart-1: #7c80f2;
+  --panel-glow: rgba(0, 65, 255, 0.38);
+  --panel-grid-major: rgba(61, 107, 255, 0.20);
+  --panel-grid-minor: rgba(61, 107, 255, 0.07);
+  --panel-surface: #0c0c0c;    /* dark product preview inside the panel (theme-independent) */
+  --panel-surface-2: #151515;
+  --panel-line-2: #282828;
+  --panel-accent-text: #8aa8ff;
+  --panel-chart-1: #3d6bff;
   --panel-chart-2: #1fa595;
   --panel-ok: #4ade80;
   --panel-warn: #fbbf4d;
-  --logo-top: #6a6ef0;
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2364646d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 6l3-3 3 3M5 10l3 3 3-3'/%3E%3C/svg%3E");
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23666666' stroke-width='1.6' stroke-linecap='square' stroke-linejoin='miter'%3E%3Cpath d='M5 6l3-3 3 3M5 10l3 3 3-3'/%3E%3C/svg%3E");
 
   /* 7. Elevation (ring + small drop; never a fat blur) ------------------------ */
-  --shadow-control: 0 0 0 1px var(--ring), 0 1px 2px rgba(17, 17, 19, 0.06);
-  --shadow-control-hover: 0 0 0 1px var(--ring-hover), 0 1px 2px rgba(17, 17, 19, 0.08);
-  --shadow-card: 0 0 0 1px var(--line-2), 0 1px 2px rgba(17, 17, 19, 0.04);
-  --shadow-card-hover: 0 0 0 1px var(--n-300), 0 2px 6px -1px rgba(17, 17, 19, 0.08);
-  --shadow-pop: 0 0 0 1px rgba(17, 17, 19, 0.08), 0 4px 8px -2px rgba(17, 17, 19, 0.08), 0 16px 32px -8px rgba(17, 17, 19, 0.16);
-  --shadow-drawer: 0 0 0 1px rgba(17, 17, 19, 0.08), -24px 0 48px -12px rgba(17, 17, 19, 0.18);
-  --shadow-primary: 0 1px 2px rgba(30, 32, 120, 0.28);
-  --shadow-primary-hover: 0 2px 6px -1px rgba(30, 32, 120, 0.35);
-  --inset-field: inset 0 1px 1px rgba(17, 17, 19, 0.04);
+  --shadow-control: 0 0 0 1px var(--ring), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-control-hover: 0 0 0 1px var(--ring-hover), 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 0 0 1px var(--line-2), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 0 0 1px var(--n-300), 0 2px 6px -1px rgba(0, 0, 0, 0.08);
+  --shadow-pop: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.08), 0 16px 32px -8px rgba(0, 0, 0, 0.16);
+  --shadow-drawer: 0 0 0 1px rgba(0, 0, 0, 0.08), -24px 0 48px -12px rgba(0, 0, 0, 0.18);
+  --shadow-primary: 0 1px 2px rgba(0, 30, 130, 0.30);
+  --shadow-primary-hover: 0 2px 6px -1px rgba(0, 30, 130, 0.36);
+  --inset-field: inset 0 1px 1px rgba(0, 0, 0, 0.04);
 
   /* focus: solid 2px gap + accent ring (3:1 on every surface) + soft halo */
   --focus-ring: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--accent), 0 0 0 6px var(--accent-halo);
@@ -331,7 +350,7 @@
   --status-instock: var(--success);
   --status-lowstock: var(--warning);
   --status-outstock: var(--danger);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-display);
   --font-body: var(--font-sans);
 }
 
@@ -339,35 +358,36 @@
       OS is dark and the user did not pick light. Both blocks must stay identical. */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --canvas: #0e0e10; --surface: #151517; --surface-2: #18181b; --surface-sunken: #0b0b0d;
-  --surface-hover: #1d1d21; --surface-active: #232328; --overlay: rgba(0, 0, 0, 0.6);
-  --field-bg: #0f0f11; --field-bg-readonly: #18181b;
-  --fg: #ededef; --fg-2: #b4b4bc; --fg-3: #8e8e98; --fg-placeholder: #7e7e88; --fg-disabled: #5a5a63; --fg-on-accent: #ffffff;
-  --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
-  --line: #222226; --line-2: #2a2a2f; --line-strong: #3a3a41;
+  --canvas: #0b0b0b; --surface: #131313; --surface-2: #171717; --surface-sunken: #090909;
+  --surface-hover: #1c1c1c; --surface-active: #232323; --overlay: rgba(0, 0, 0, 0.62);
+  --field-bg: #0e0e0e; --field-bg-readonly: #171717;
+  --fg: #ededed; --fg-2: #b5b5b5; --fg-3: #8f8f8f; --fg-placeholder: #808080; --fg-disabled: #5a5a5a; --fg-on-accent: #ffffff;
+  --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='square' stroke-linejoin='miter'%3E%3Crect x='3' y='5' width='18' height='16' rx='1'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
+  --line: #222222; --line-2: #2a2a2a; --line-strong: #3a3a3a;
   --ring: rgba(255, 255, 255, 0.09); --ring-hover: rgba(255, 255, 255, 0.16); --ring-strong: rgba(255, 255, 255, 0.24);
   --highlight: rgba(255, 255, 255, 0.06);
-  --accent: #5b5fe8; --accent-hover: #6a6ef0; --accent-press: #4f53d6; --accent-edge: #4447c9; --accent-text: #a5a8ff;
-  --accent-soft: rgba(124, 128, 242, 0.12); --accent-soft-2: rgba(124, 128, 242, 0.20); --accent-halo: rgba(124, 128, 242, 0.32); --accent-line: rgba(124, 128, 242, 0.36);
-  --accent-grad-top: #6c70f0; --accent-grad-top-hover: #7a7ef5;
+  --accent: #2e63ff; --accent-hover: #2559f5; --accent-press: #1f50e0; --accent-edge: #1a46c8; --accent-text: #8aa8ff;
+  --accent-soft: rgba(61, 107, 255, 0.13); --accent-soft-2: rgba(61, 107, 255, 0.22); --accent-halo: rgba(61, 107, 255, 0.36); --accent-line: rgba(61, 107, 255, 0.42);
+  --accent-grad-top: #3a6bff; --accent-grad-top-hover: #3263fa;
+  --brand-accent: #ff4f17;
   --success: #4ade80; --success-soft: rgba(34, 197, 94, 0.10); --success-line: rgba(34, 197, 94, 0.24); --success-dot: #22c55e;
   --warning: #fbbf4d; --warning-soft: rgba(245, 158, 11, 0.10); --warning-line: rgba(245, 158, 11, 0.26); --warning-dot: #f59e0b;
-  --danger: #ff8a7a; --danger-soft: rgba(239, 68, 68, 0.10); --danger-line: rgba(239, 68, 68, 0.28); --danger-dot: #f2555a;
-  --danger-solid: #d83a2c; --danger-solid-hover: #e4493a; --danger-edge: #a82a1f; --danger-halo: rgba(242, 85, 90, 0.32); --danger-grad-top: #e04a3c;
-  --info: #a5a8ff; --info-soft: rgba(124, 128, 242, 0.12); --info-line: rgba(124, 128, 242, 0.28);
-  --neutral-badge-fg: #c4c4cc; --neutral-badge-bg: #1f1f23; --neutral-badge-line: #303036;
-  --chart-1: #7c80f2; --chart-2: #1fa595; --chart-3: #f5b041; --chart-4: #f06368; --chart-5: #a78bfa; --chart-6: #60a5fa;
-  --chart-grid: #222226; --chart-axis: #8e8e98;
-  --btn-bg: #1b1b1f; --btn-bg-hover: #222227; --btn-bg-active: #19191c; --btn-press-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
-  --seg-thumb: #232328; --pop-bg: #1b1b1f; --menu-hover: #26262b; --row-hover: #1a1a1d; --nav-active-bg: #1d1d21;
-  --chip-bg: #18181b; --chip-add-line: #34343a; --crumb-sep: #3a3a40; --avatar-bg: #2a2a30;
-  --switch-track: #34343a; --switch-track-disabled: #222226; --switch-thumb-disabled: #3a3a40;
-  --ink: #232328; --cmdk-bg: #18181b; --cmdk-active: #232328; --cmdk-foot: #151517; --panel-ink: #111114;
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 6l3-3 3 3M5 10l3 3 3-3'/%3E%3C/svg%3E");
+  --danger: #ff8095; --danger-soft: rgba(244, 63, 94, 0.10); --danger-line: rgba(244, 63, 94, 0.28); --danger-dot: #f43f5e;
+  --danger-solid: #d61f45; --danger-solid-hover: #e3335a; --danger-edge: #a3162f; --danger-halo: rgba(244, 63, 94, 0.32); --danger-grad-top: #dc2f53;
+  --info: #8aa8ff; --info-soft: rgba(61, 107, 255, 0.12); --info-line: rgba(61, 107, 255, 0.28);
+  --neutral-badge-fg: #c4c4c4; --neutral-badge-bg: #1e1e1e; --neutral-badge-line: #303030;
+  --chart-1: #4d7bff; --chart-2: #1fa595; --chart-3: #f5b041; --chart-4: #f43f5e; --chart-5: #a78bfa; --chart-6: #84cc16;
+  --chart-grid: #222222; --chart-axis: #8f8f8f;
+  --btn-bg: #1a1a1a; --btn-bg-hover: #212121; --btn-bg-active: #181818; --btn-press-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  --seg-thumb: #232323; --pop-bg: #1a1a1a; --menu-hover: #252525; --row-hover: #191919; --nav-active-bg: #1c1c1c;
+  --chip-bg: #171717; --chip-add-line: #343434; --crumb-sep: #3a3a3a; --avatar-bg: #2a2a2a;
+  --switch-track: #343434; --switch-track-disabled: #222222; --switch-thumb-disabled: #3a3a3a;
+  --ink: #232323; --cmdk-bg: #171717; --cmdk-active: #232323; --cmdk-foot: #131313; --panel-ink: #000000;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='square' stroke-linejoin='miter'%3E%3Cpath d='M5 6l3-3 3 3M5 10l3 3 3-3'/%3E%3C/svg%3E");
   --shadow-control: 0 0 0 1px var(--ring), 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-control-hover: 0 0 0 1px var(--ring-hover), 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 0 0 1px var(--line-2), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-card-hover: 0 0 0 1px #3a3a41, 0 2px 8px -1px rgba(0, 0, 0, 0.5);
+  --shadow-card-hover: 0 0 0 1px #3a3a3a, 0 2px 8px -1px rgba(0, 0, 0, 0.5);
   --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 16px 40px -8px rgba(0, 0, 0, 0.6);
   --shadow-drawer: 0 0 0 1px rgba(255, 255, 255, 0.07), -24px 0 64px -12px rgba(0, 0, 0, 0.7);
   --shadow-primary: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -377,35 +397,36 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --canvas: #0e0e10; --surface: #151517; --surface-2: #18181b; --surface-sunken: #0b0b0d;
-    --surface-hover: #1d1d21; --surface-active: #232328; --overlay: rgba(0, 0, 0, 0.6);
-    --field-bg: #0f0f11; --field-bg-readonly: #18181b;
-    --fg: #ededef; --fg-2: #b4b4bc; --fg-3: #8e8e98; --fg-placeholder: #7e7e88; --fg-disabled: #5a5a63; --fg-on-accent: #ffffff;
-    --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
-    --line: #222226; --line-2: #2a2a2f; --line-strong: #3a3a41;
+    --canvas: #0b0b0b; --surface: #131313; --surface-2: #171717; --surface-sunken: #090909;
+    --surface-hover: #1c1c1c; --surface-active: #232323; --overlay: rgba(0, 0, 0, 0.62);
+    --field-bg: #0e0e0e; --field-bg-readonly: #171717;
+    --fg: #ededed; --fg-2: #b5b5b5; --fg-3: #8f8f8f; --fg-placeholder: #808080; --fg-disabled: #5a5a5a; --fg-on-accent: #ffffff;
+    --ico-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='square' stroke-linejoin='miter'%3E%3Crect x='3' y='5' width='18' height='16' rx='1'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
+    --line: #222222; --line-2: #2a2a2a; --line-strong: #3a3a3a;
     --ring: rgba(255, 255, 255, 0.09); --ring-hover: rgba(255, 255, 255, 0.16); --ring-strong: rgba(255, 255, 255, 0.24);
     --highlight: rgba(255, 255, 255, 0.06);
-    --accent: #5b5fe8; --accent-hover: #6a6ef0; --accent-press: #4f53d6; --accent-edge: #4447c9; --accent-text: #a5a8ff;
-    --accent-soft: rgba(124, 128, 242, 0.12); --accent-soft-2: rgba(124, 128, 242, 0.20); --accent-halo: rgba(124, 128, 242, 0.32); --accent-line: rgba(124, 128, 242, 0.36);
-    --accent-grad-top: #6c70f0; --accent-grad-top-hover: #7a7ef5;
+    --accent: #2e63ff; --accent-hover: #2559f5; --accent-press: #1f50e0; --accent-edge: #1a46c8; --accent-text: #8aa8ff;
+    --accent-soft: rgba(61, 107, 255, 0.13); --accent-soft-2: rgba(61, 107, 255, 0.22); --accent-halo: rgba(61, 107, 255, 0.36); --accent-line: rgba(61, 107, 255, 0.42);
+    --accent-grad-top: #3a6bff; --accent-grad-top-hover: #3263fa;
+    --brand-accent: #ff4f17;
     --success: #4ade80; --success-soft: rgba(34, 197, 94, 0.10); --success-line: rgba(34, 197, 94, 0.24); --success-dot: #22c55e;
     --warning: #fbbf4d; --warning-soft: rgba(245, 158, 11, 0.10); --warning-line: rgba(245, 158, 11, 0.26); --warning-dot: #f59e0b;
-    --danger: #ff8a7a; --danger-soft: rgba(239, 68, 68, 0.10); --danger-line: rgba(239, 68, 68, 0.28); --danger-dot: #f2555a;
-    --danger-solid: #d83a2c; --danger-solid-hover: #e4493a; --danger-edge: #a82a1f; --danger-halo: rgba(242, 85, 90, 0.32); --danger-grad-top: #e04a3c;
-    --info: #a5a8ff; --info-soft: rgba(124, 128, 242, 0.12); --info-line: rgba(124, 128, 242, 0.28);
-    --neutral-badge-fg: #c4c4cc; --neutral-badge-bg: #1f1f23; --neutral-badge-line: #303036;
-    --chart-1: #7c80f2; --chart-2: #1fa595; --chart-3: #f5b041; --chart-4: #f06368; --chart-5: #a78bfa; --chart-6: #60a5fa;
-    --chart-grid: #222226; --chart-axis: #8e8e98;
-    --btn-bg: #1b1b1f; --btn-bg-hover: #222227; --btn-bg-active: #19191c; --btn-press-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
-    --seg-thumb: #232328; --pop-bg: #1b1b1f; --menu-hover: #26262b; --row-hover: #1a1a1d; --nav-active-bg: #1d1d21;
-    --chip-bg: #18181b; --chip-add-line: #34343a; --crumb-sep: #3a3a40; --avatar-bg: #2a2a30;
-    --switch-track: #34343a; --switch-track-disabled: #222226; --switch-thumb-disabled: #3a3a40;
-    --ink: #232328; --cmdk-bg: #18181b; --cmdk-active: #232328; --cmdk-foot: #151517; --panel-ink: #111114;
-    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 6l3-3 3 3M5 10l3 3 3-3'/%3E%3C/svg%3E");
+    --danger: #ff8095; --danger-soft: rgba(244, 63, 94, 0.10); --danger-line: rgba(244, 63, 94, 0.28); --danger-dot: #f43f5e;
+    --danger-solid: #d61f45; --danger-solid-hover: #e3335a; --danger-edge: #a3162f; --danger-halo: rgba(244, 63, 94, 0.32); --danger-grad-top: #dc2f53;
+    --info: #8aa8ff; --info-soft: rgba(61, 107, 255, 0.12); --info-line: rgba(61, 107, 255, 0.28);
+    --neutral-badge-fg: #c4c4c4; --neutral-badge-bg: #1e1e1e; --neutral-badge-line: #303030;
+    --chart-1: #4d7bff; --chart-2: #1fa595; --chart-3: #f5b041; --chart-4: #f43f5e; --chart-5: #a78bfa; --chart-6: #84cc16;
+    --chart-grid: #222222; --chart-axis: #8f8f8f;
+    --btn-bg: #1a1a1a; --btn-bg-hover: #212121; --btn-bg-active: #181818; --btn-press-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+    --seg-thumb: #232323; --pop-bg: #1a1a1a; --menu-hover: #252525; --row-hover: #191919; --nav-active-bg: #1c1c1c;
+    --chip-bg: #171717; --chip-add-line: #343434; --crumb-sep: #3a3a3a; --avatar-bg: #2a2a2a;
+    --switch-track: #343434; --switch-track-disabled: #222222; --switch-thumb-disabled: #3a3a3a;
+    --ink: #232323; --cmdk-bg: #171717; --cmdk-active: #232323; --cmdk-foot: #131313; --panel-ink: #000000;
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='square' stroke-linejoin='miter'%3E%3Cpath d='M5 6l3-3 3 3M5 10l3 3 3-3'/%3E%3C/svg%3E");
     --shadow-control: 0 0 0 1px var(--ring), 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-control-hover: 0 0 0 1px var(--ring-hover), 0 1px 2px rgba(0, 0, 0, 0.5);
     --shadow-card: 0 0 0 1px var(--line-2), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-card-hover: 0 0 0 1px #3a3a41, 0 2px 8px -1px rgba(0, 0, 0, 0.5);
+    --shadow-card-hover: 0 0 0 1px #3a3a3a, 0 2px 8px -1px rgba(0, 0, 0, 0.5);
     --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 16px 40px -8px rgba(0, 0, 0, 0.6);
     --shadow-drawer: 0 0 0 1px rgba(255, 255, 255, 0.07), -24px 0 64px -12px rgba(0, 0, 0, 0.7);
     --shadow-primary: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -452,9 +473,10 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
-  font-feature-settings: 'ss01', 'cv11';
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.003em;
+  /* Inter: tabular figures are opt-in (.num, numeric cells, KPIs) — Inter's tnum also widens
+     hyphens, which reads as "e - Belge" in running text. */
+  font-feature-settings: 'cv05';
+  letter-spacing: -0.006em;
   background-color: var(--canvas);
   color: var(--fg);
   -webkit-font-smoothing: antialiased;
@@ -466,7 +488,7 @@ body {
 a { text-decoration: none; color: inherit; }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-sans);
+  font-family: var(--font-display);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);

@@ -34,7 +34,7 @@ import { IconComponent } from '../shared/icon.component';
   template: `
     <div class="auth single">
       <div class="auth-side">
-        <div class="auth-brand"><span class="logo-mark" aria-hidden="true">e</span>ecelon</div>
+        <div class="auth-brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-word">ecelon</span></div>
         <main class="auth-col">
           @if (mode() === 'invite' && inviteError()) {
             <div class="auth-form" role="alert">

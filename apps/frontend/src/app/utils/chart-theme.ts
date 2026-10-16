@@ -6,7 +6,7 @@ import { Chart } from 'chart.js/auto';
  * `themechange` window event (dispatched by ThemeService) to follow dark mode.
  *
  * Precision chart rules: Giriş = --chart-1, Çıkış = --chart-2; bars ≤ 14px with
- * 3px rounded tops; dashed grid in --chart-grid; 11px mono axis text in --chart-axis;
+ * 1px (near-square) tops; dashed grid in --chart-grid; 11px mono axis text in --chart-axis;
  * pop-style tooltip; a legend + summary numbers above every chart; no dual axes.
  */
 export function cssVar(name: string, fallback = ''): string {
@@ -17,7 +17,7 @@ export function cssVar(name: string, fallback = ''): string {
 
 /** Categorical series palette (--chart-1 … --chart-6). */
 export function chartPalette(): string[] {
-  return [1, 2, 3, 4, 5, 6].map((i) => cssVar(`--chart-${i}`, '#4b4fe0'));
+  return [1, 2, 3, 4, 5, 6].map((i) => cssVar(`--chart-${i}`, '#0041ff'));
 }
 
 /** Adds alpha to a #rrggbb colour. */
@@ -45,23 +45,23 @@ export interface ChartTokens {
 
 export function chartTokens(): ChartTokens {
   return {
-    text: cssVar('--fg', '#18181b'),
-    muted: cssVar('--chart-axis', '#64646d'),
-    grid: cssVar('--chart-grid', '#ececef'),
+    text: cssVar('--fg', '#0a0a0a'),
+    muted: cssVar('--chart-axis', '#666666'),
+    grid: cssVar('--chart-grid', '#ebebeb'),
     surface: cssVar('--surface', '#ffffff'),
-    border: cssVar('--line-2', '#dcdce0'),
-    primary: cssVar('--chart-1', '#4b4fe0'),
+    border: cssVar('--line-2', '#dcdcdc'),
+    primary: cssVar('--chart-1', '#0041ff'),
     success: cssVar('--success-dot', '#16a34a'),
     warning: cssVar('--warning-dot', '#e08a0b'),
-    danger: cssVar('--danger-dot', '#e5484d'),
+    danger: cssVar('--danger-dot', '#e11d48'),
     palette: chartPalette(),
-    fontSans: cssVar('--font-sans', 'Geist, sans-serif'),
-    fontMono: cssVar('--font-mono', 'Geist Mono, monospace'),
+    fontSans: cssVar('--font-sans', 'Inter, sans-serif'),
+    fontMono: cssVar('--font-mono', 'JetBrains Mono, monospace'),
   };
 }
 
 /** Bar dataset defaults for the Precision look (spread into a dataset). */
-export const PRECISION_BAR = { maxBarThickness: 14, borderRadius: { topLeft: 3, topRight: 3 }, borderSkipped: 'bottom' as const, categoryPercentage: 0.7, barPercentage: 0.9 };
+export const PRECISION_BAR = { maxBarThickness: 14, borderRadius: { topLeft: 1, topRight: 1 }, borderSkipped: 'bottom' as const, categoryPercentage: 0.7, barPercentage: 0.9 };
 
 /** Scale defaults: dashed grid, 11px mono ticks, no axis border. */
 export function precisionScale(t: ChartTokens = chartTokens()) {
@@ -82,16 +82,16 @@ export function applyChartDefaults(): ChartTokens {
   const tooltip = Chart.defaults.plugins.tooltip;
   tooltip.backgroundColor = cssVar('--pop-bg', '#ffffff');
   tooltip.titleColor = t.text;
-  tooltip.bodyColor = cssVar('--fg-2', '#4a4a52');
-  tooltip.borderColor = cssVar('--line-2', '#dcdce0');
+  tooltip.bodyColor = cssVar('--fg-2', '#3f3f3f');
+  tooltip.borderColor = cssVar('--line-2', '#dcdcdc');
   tooltip.borderWidth = 1;
   tooltip.padding = 10;
-  tooltip.cornerRadius = 8;
+  tooltip.cornerRadius = 5;
   tooltip.boxPadding = 4;
   tooltip.titleFont = { family: t.fontSans, size: 12, weight: 600 };
   tooltip.bodyFont = { family: t.fontSans, size: 12 };
   Chart.defaults.plugins.legend.labels.usePointStyle = true;
-  Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+  Chart.defaults.plugins.legend.labels.pointStyle = 'rect';
   Chart.defaults.plugins.legend.labels.boxWidth = 8;
   Chart.defaults.plugins.legend.labels.boxHeight = 8;
   return t;

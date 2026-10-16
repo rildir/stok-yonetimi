@@ -24,7 +24,7 @@ const REMEMBER_KEY = 'login_remember_username';
   template: `
     <div class="auth">
       <div class="auth-side">
-        <div class="auth-brand"><span class="logo-mark" aria-hidden="true">e</span>ecelon</div>
+        <div class="auth-brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-word">ecelon</span></div>
 
         <main class="auth-col">
           @if (mode() === 'register') {
@@ -181,6 +181,12 @@ const REMEMBER_KEY = 'login_remember_username';
 
       <!-- ─── Product panel (decorative, illustrative preview) ─── -->
       <aside class="auth-panel" aria-hidden="true">
+        <div class="auth-sys">
+          <span class="brand-mark"></span>
+          <span class="sys-label"><b>{{ 'login.panel.sys' | t }}</b></span>
+          <span class="spacer"></span>
+          <span class="sys-label">{{ 'login.panel.ref' | t: { year: year } }}</span>
+        </div>
         <span class="auth-kicker"><b>{{ 'login.panel.new' | t }}</b> {{ 'login.panel.kicker' | t }} <app-icon name="chevr" size="xs" /></span>
         <h2>{{ 'login.panel.title' | t }}</h2>
         <p class="sub">{{ 'login.panel.sub' | t }}</p>
@@ -190,10 +196,10 @@ const REMEMBER_KEY = 'login_remember_username';
           <div><b>⌘K</b><span>{{ 'login.panel.proof3' | t }}</span></div>
         </div>
         <div class="auth-shot">
-          <div class="bar"><i></i><i></i><i></i><span>app.ecelon.com/dashboard</span></div>
+          <div class="bar"><i></i><i></i><i></i><span>stok.ecelon.dev/dashboard</span></div>
           <div class="pv">
             <div class="pv-side">
-              <div class="ws"><span class="logo-mark">D</span><b>Demo Ticaret</b></div>
+              <div class="ws"><span class="brand-mark"></span><b class="brand-word">ecelon</b></div>
               <div class="pv-nav on"><app-icon name="home" />{{ 'layout.nav.dashboard' | t }}</div>
               <div class="pv-sec">{{ 'layout.group.stock' | t }}</div>
               <div class="pv-nav"><app-icon name="box" />{{ 'layout.nav.products' | t }}</div>

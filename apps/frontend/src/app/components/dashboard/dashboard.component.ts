@@ -269,7 +269,7 @@ import { IconComponent } from '../shared/icon.component';
     /* Chart */
     .legend { display: flex; gap: 12px; font-size: var(--text-xs); color: var(--fg-3); }
     .legend span, .chart-sum span { display: inline-flex; align-items: center; gap: 6px; }
-    .legend i, .chart-sum i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+    .legend i, .chart-sum i { width: 8px; height: 8px; border-radius: 0; display: inline-block; }
     i.c1 { background: var(--chart-1); }
     i.c2 { background: var(--chart-2); }
     .chart-sum { display: flex; gap: 28px; padding: 14px 16px 0; }

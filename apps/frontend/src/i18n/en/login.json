@@ -110,5 +110,7 @@
   "login.preview.depot": "Depot",
   "login.preview.shelf": "Shelf",
   "login.preview.qty": "Qty",
-  "login.register.passwordHelp": "At least 10 characters with 3 of: uppercase, lowercase, digit, symbol."
+  "login.register.passwordHelp": "At least 10 characters with 3 of: uppercase, lowercase, digit, symbol.",
+  "login.panel.sys": "SYS // Inventory",
+  "login.panel.ref": "REF // {year}"
 }

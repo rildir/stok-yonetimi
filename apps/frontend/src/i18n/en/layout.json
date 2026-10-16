@@ -62,7 +62,7 @@
   "layout.loggedOut": "Logged out.",
   "layout.linkCopied": "Page link copied to clipboard.",
   "layout.linkCopyError": "Could not copy link.",
-  "layout.documentTitle": "{page} — Ecelon",
+  "layout.documentTitle": "{page} · ecelon",
   "layout.nav.customers": "Customers",
   "layout.nav.auditLog": "Audit log",
   "layout.nav.integrations": "Integrations",
@@ -112,5 +112,6 @@
   "layout.tab.products": "Products",
   "layout.tab.movements": "Moves",
   "layout.tab.orders": "Orders",
-  "layout.tab.more": "More"
+  "layout.tab.more": "More",
+  "layout.brand.tag": "Stock"
 }

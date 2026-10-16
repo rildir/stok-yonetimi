@@ -281,7 +281,7 @@ import { IconComponent } from '../shared/icon.component';
     .ht { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .legend { display: flex; gap: 12px; font-size: var(--text-xs); color: var(--fg-3); white-space: nowrap; }
     .legend span, .chart-sum span { display: inline-flex; align-items: center; gap: 6px; }
-    .legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+    .legend i { width: 8px; height: 8px; border-radius: 0; display: inline-block; }
     i.c1 { background: var(--chart-1); }
     .chart-sum { display: flex; gap: 28px; padding: 14px 16px 0; }
     .chart-sum > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

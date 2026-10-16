@@ -62,7 +62,7 @@
   "layout.loggedOut": "Çıkış yapıldı.",
   "layout.linkCopied": "Sayfa bağlantısı panoya kopyalandı.",
   "layout.linkCopyError": "Bağlantı kopyalanamadı.",
-  "layout.documentTitle": "{page} — Ecelon",
+  "layout.documentTitle": "{page} · ecelon",
   "layout.nav.customers": "Müşteriler",
   "layout.nav.auditLog": "Denetim kaydı",
   "layout.nav.integrations": "Entegrasyonlar",
@@ -112,5 +112,6 @@
   "layout.tab.products": "Ürünler",
   "layout.tab.movements": "Hareket",
   "layout.tab.orders": "Sipariş",
-  "layout.tab.more": "Diğer"
+  "layout.tab.more": "Diğer",
+  "layout.brand.tag": "Stok"
 }

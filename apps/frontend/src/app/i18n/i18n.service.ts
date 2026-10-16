@@ -42,12 +42,19 @@ export class I18nService {
   private requested: Lang | null = null;
   /** Resolves when the initial language's dictionary is loaded (awaited by the app initializer). */
   readonly ready: Promise<void>;
+  /** Last brand-only tab title written (starts as index.html's <title>). */
+  private brandTitle = this.document?.title ?? '';
 
   constructor() {
     this.ready = this.ensure(this.lang());
     effect(() => {
       const lang = this.lang();
       this.document?.documentElement?.setAttribute('lang', lang);
+      // Brand tab title ("ecelon · Stok") follows the language (re-runs when a lazy dictionary
+      // arrives). Only replaces the brand title, never a page title set by the app shell.
+      const title = this.t('common.docTitle');
+      const doc = this.document;
+      if (doc && title !== 'common.docTitle' && doc.title === this.brandTitle) { doc.title = title; this.brandTitle = title; }
     });
   }
 

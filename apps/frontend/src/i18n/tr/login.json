@@ -110,5 +110,7 @@
   "login.preview.depot": "Depo",
   "login.preview.shelf": "Raf",
   "login.preview.qty": "Miktar",
-  "login.register.passwordHelp": "En az 10 karakter; büyük harf, küçük harf, rakam ve sembolden en az 3 tür."
+  "login.register.passwordHelp": "En az 10 karakter; büyük harf, küçük harf, rakam ve sembolden en az 3 tür.",
+  "login.panel.sys": "SYS // Stok yönetimi",
+  "login.panel.ref": "REF // {year}"
 }

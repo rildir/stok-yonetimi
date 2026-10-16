@@ -17,5 +17,6 @@
   "common.clear": "Clear",
   "common.dateHint.day": "D",
   "common.dateHint.month": "M",
-  "common.dateHint.year": "Y"
+  "common.dateHint.year": "Y",
+  "common.docTitle": "ecelon · Inventory"
 }

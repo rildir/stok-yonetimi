@@ -27,7 +27,7 @@ const WS_CACHE_KEY = 'ecelon_ws';
 const PROFILE_TIMEOUT_MS = 12000;
 
 /**
- * App shell (Precision): 232px canvas sidebar (workspace, ⌘K trigger, sectioned nav, user row),
+ * App shell (ecelon brand): 232px canvas sidebar (brand row, workspace, ⌘K trigger, sectioned nav, user row),
  * 48px topbar (breadcrumbs · compliance notice pill · TR/EN · theme · bell), scrolling main column,
  * mobile tab bar. Global shortcuts: ⌘K/Ctrl K palette · "/" page search · N then P/M/O/C/B/S/W create ·
  * ⇧T theme · Ctrl/⌘↵ submit the open drawer · Esc closes overlays.
@@ -44,6 +44,20 @@ const PROFILE_TIMEOUT_MS = 12000;
       <aside class="sidebar" [attr.aria-label]="'layout.group.main' | t">
         <div class="sidebar-inner">
           <div class="sb-top">
+            <a routerLink="/dashboard" class="sb-brand" aria-label="ecelon" (click)="isMobileNavOpen.set(false)">
+              <span class="brand-mark" aria-hidden="true"></span>
+              <span class="brand-word" aria-hidden="true">ecelon</span>
+              <span class="sys-label" aria-hidden="true">{{ 'layout.brand.tag' | t }}</span>
+            </a>
+            <button type="button" class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.aria-label]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t">
+              <app-icon name="sidebar" />
+            </button>
+            <button type="button" class="topbar-icon-btn m-only" (click)="isMobileNavOpen.set(false)" [attr.aria-label]="'layout.closeMenu' | t">
+              <app-icon name="x" />
+            </button>
+          </div>
+
+          <div class="sb-ws">
             @if (companyName()) {
               <a routerLink="/dashboard" class="ws" [attr.title]="companyName()">
                 <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
@@ -60,12 +74,6 @@ const PROFILE_TIMEOUT_MS = 12000;
                 <span class="skeleton-text short" aria-hidden="true"></span>
               </div>
             }
-            <button type="button" class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.aria-label]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t">
-              <app-icon name="sidebar" />
-            </button>
-            <button type="button" class="topbar-icon-btn m-only" (click)="isMobileNavOpen.set(false)" [attr.aria-label]="'layout.closeMenu' | t">
-              <app-icon name="x" />
-            </button>
           </div>
 
           <button type="button" class="search-trigger" (click)="openPalette()" [attr.aria-label]="'layout.palette.trigger' | t">
@@ -135,14 +143,12 @@ const PROFILE_TIMEOUT_MS = 12000;
             <b aria-current="page">{{ getBreadcrumbs().page }}</b>
           </nav>
           <div class="mcrumb">
-            @if (companyName()) {
-              <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
-            } @else if (profileState() === 'error') {
+            @if (!companyName() && profileState() === 'error') {
               <button type="button" class="logo-mark is-muted mcrumb-retry" (click)="loadProfile()"
                       [attr.aria-label]="('layout.profileError.title' | t) + ' · ' + ('layout.profileError.retry' | t)"
                       [attr.data-tip]="'layout.profileError.retry' | t"><app-icon name="refresh" size="xs" /></button>
             } @else {
-              <span class="skeleton ws-skel-mark" aria-hidden="true"></span>
+              <span class="brand-mark" aria-hidden="true"></span>
             }
             <b>{{ getBreadcrumbs().page }}</b>
           </div>
@@ -506,7 +512,8 @@ export class LayoutComponent implements OnInit {
     effect(() => {
       this.i18n.lang();
       this.currentUrl();
-      this.titleService.setTitle(this.i18n.t('layout.documentTitle', { page: this.getActivePageTitle() }));
+      const page = this.getActivePageTitle();
+      this.titleService.setTitle(page ? this.i18n.t('layout.documentTitle', { page }) : this.i18n.t('common.docTitle'));
     });
   }
 
@@ -634,7 +641,7 @@ export class LayoutComponent implements OnInit {
     if (url.includes('/settings')) return this.i18n.t('layout.nav.settings');
     if (url.includes('/audit-log')) return this.i18n.t('layout.nav.auditLog');
     if (url.includes('/integrations')) return this.i18n.t('layout.nav.integrations');
-    return 'Ecelon';
+    return '';
   }
 
   getBreadcrumbs(): { category: string; page: string } {

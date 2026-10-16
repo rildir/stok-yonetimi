@@ -78,6 +78,7 @@ interface PaletteItem {
           <span><kbd>Tab</kbd> {{ 'layout.palette.hint.scope' | t }}</span>
           <span class="spacer"></span>
           <span class="mono">{{ 'layout.palette.count' | t: { n: flat().length } }}</span>
+          <span class="brand-mark sm" aria-hidden="true"></span>
         </div>
       </div>
     </div>
