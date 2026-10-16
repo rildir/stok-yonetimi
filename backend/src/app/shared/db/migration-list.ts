@@ -21,6 +21,7 @@ import { CostingReviewFixes1784274140000 } from '../../migrations/1784274140000-
 import { KvkkDataGovernance1784274141000 } from '../../migrations/1784274141000-KvkkDataGovernance';
 import { KvkkReviewFixes1784274142000 } from '../../migrations/1784274142000-KvkkReviewFixes';
 import { KvkkAuditMaskAttestation1784274143000 } from '../../migrations/1784274143000-KvkkAuditMaskAttestation';
+import { RenameLegacySupplierIndex1784274144000 } from '../../migrations/1784274144000-RenameLegacySupplierIndex';
 
 /**
  * Every migration, in order. The application bundle (webpack) cannot glob the
@@ -52,4 +53,5 @@ export const MIGRATIONS = [
   KvkkDataGovernance1784274141000,
   KvkkReviewFixes1784274142000,
   KvkkAuditMaskAttestation1784274143000,
+  RenameLegacySupplierIndex1784274144000,
 ];
