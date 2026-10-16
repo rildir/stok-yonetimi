@@ -10,13 +10,13 @@
   "files": {
     "vendor/UPDATE-CHECKLIST.md": "1ab56d25dd8e3a1535b02f287c3d44d386dfbe4101563f9194d68a53ea187ed4",
     "vendor/gib-amblem.jpg": "8f20027af1f49713bc3b2372352b8375010157d448155c5b40425324677972b1",
-    "vendor/schematron/Aciklamalar.txt": "6eed2bd26243e8fa77a582e9772d19100424a0569433e88e52f836e9aabc8e12",
-    "vendor/schematron/History.txt": "47eb2eb2595ae76106485735ed08848a896f552c3e73b7e59ccd92d45f8f0c36",
-    "vendor/schematron/UBL-TR_Codelist.xml": "b6809ae4d38401b6d3f35e63e52d9ab3a0e014d746e3883514895e919e23b8b2",
-    "vendor/schematron/UBL-TR_Common_Schematron.xml": "90501b6ad503479d445c16dcbac33146ec458d06ad6e2204afdc517fddce609f",
-    "vendor/schematron/UBL-TR_Main_Schematron.xml": "324d6b8e96d4a83c102a335feee1907625bf5125199b0a8b2e62aff4521d23dc",
+    "vendor/schematron/Aciklamalar.txt": "e5fadcfa7af8f1481fe090fdc016660d3a4516939adcb5de9296156a7d4b35cb",
+    "vendor/schematron/History.txt": "fcf924124acf535cb0a24518e08c66f2a1a160d48286ec52fadd2e5195e9ab47",
+    "vendor/schematron/UBL-TR_Codelist.xml": "61e51c21cc57d8fda627ba5ed549fb2b051fbb71e90a63717fafdf2fd12144e2",
+    "vendor/schematron/UBL-TR_Common_Schematron.xml": "b701121103236c4c8cd8123f8beb6920fd16c4024e403a144dbce6b89684a0a8",
+    "vendor/schematron/UBL-TR_Main_Schematron.xml": "9c70ffd84c2edc7172280b5bd2188cf68998dcd3454051354a631a5aee5fc3d1",
     "vendor/schematron/ubltr-schematron.sef.json": "40247d2351dd06cf7f90827bdb5034f910cf6a776284a971c32b7c8510833322",
-    "vendor/ubltr-1.2.1/Degisim-Tablosu.txt": "2f37160fd26582fed1c1c22829c4c2da918bdbac4dc7f2e24039c8cf462b2608",
+    "vendor/ubltr-1.2.1/Degisim-Tablosu.txt": "5d89b74af249f2e1c8b1affa798cd8a30ee8b0e5440d9c9604cb8991b2550eb6",
     "vendor/ubltr-1.2.1/xsdrt/common/CCTS_CCT_SchemaModule-2.1.xsd": "dd546e4809df86b6445589f69f0d6c9df162840ae386574ddfc1da7638103e15",
     "vendor/ubltr-1.2.1/xsdrt/common/UBL-CommonAggregateComponents-2.1.xsd": "186085d67e0daf5bbe78427259ee3df15b3043bd6676b50b0652d264e10bed91",
     "vendor/ubltr-1.2.1/xsdrt/common/UBL-CommonBasicComponents-2.1.xsd": "9e7eb96aaba1bf2092c52d3ccb8c881a710cc48111c568e3eae29746dd6b1cab",
@@ -37,6 +37,6 @@
     "vendor/ubltr-1.2.1/xsdrt/maindoc/UBL-Invoice-2.1.xsd": "b68a25ae3d99435f4e4a39809939183dc8b5d687aeebf2d023f4d4c2a436749e",
     "vendor/ubltr-1.2.1/xsdrt/maindoc/UBL-ReceiptAdvice-2.1.xsd": "9f4637fa5d439ba550807ad5a9afd59f98d215c580583d2fc72eda9a815bb1ca",
     "xslt/edocument.sef.json": "63e77a240a3e1db990480c79be0cb5b143965406222d62e9b05eaa516a18f690",
-    "xslt/edocument.xslt": "73a6ef9e70983dafb35a951e6e6cd8c5ad9d6f97784e604c71a8becd384ab544"
+    "xslt/edocument.xslt": "8ac3b183e5563e49c1cac6429273116f57a17bff17ee0b50ab256d4306410e76"
   }
 }
