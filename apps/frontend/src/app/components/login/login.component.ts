@@ -12,6 +12,7 @@ import { SessionService } from '../../services/session.service';
 import { NoticeTextComponent } from '../kvkk/notice-text.component';
 import { ModalComponent } from '../modal.component';
 import { IconComponent } from '../shared/icon.component';
+import { NAV_SECTIONS } from '../layout/nav.config';
 
 const REMEMBER_KEY = 'login_remember_username';
 
@@ -181,33 +182,23 @@ const REMEMBER_KEY = 'login_remember_username';
 
       <!-- ─── Product panel (decorative, illustrative preview) ─── -->
       <aside class="auth-panel" aria-hidden="true">
-        <div class="auth-sys">
-          <span class="brand-mark"></span>
-          <span class="sys-label"><b>{{ 'login.panel.sys' | t }}</b></span>
-          <span class="spacer"></span>
-          <span class="sys-label">{{ 'login.panel.ref' | t: { year: year } }}</span>
-        </div>
-        <span class="auth-kicker"><b>{{ 'login.panel.new' | t }}</b> {{ 'login.panel.kicker' | t }} <app-icon name="chevr" size="xs" /></span>
         <h2>{{ 'login.panel.title' | t }}</h2>
         <p class="sub">{{ 'login.panel.sub' | t }}</p>
-        <div class="auth-proof">
-          <div><b>e-Fatura</b><span>{{ 'login.panel.proof1' | t }}</span></div>
-          <div><b>KVKK</b><span>{{ 'login.panel.proof2' | t }}</span></div>
-          <div><b>⌘K</b><span>{{ 'login.panel.proof3' | t }}</span></div>
-        </div>
         <div class="auth-shot">
-          <div class="bar"><i></i><i></i><i></i><span>stok.ecelon.dev/dashboard</span></div>
+          <div class="bar"><i></i><i></i><i></i><span>stock.ecelon.space/dashboard</span></div>
           <div class="pv">
             <div class="pv-side">
               <div class="ws"><span class="brand-mark"></span><b class="brand-word">ecelon</b></div>
-              <div class="pv-nav on"><app-icon name="home" />{{ 'layout.nav.dashboard' | t }}</div>
-              <div class="pv-sec">{{ 'layout.group.stock' | t }}</div>
-              <div class="pv-nav"><app-icon name="box" />{{ 'layout.nav.products' | t }}</div>
-              <div class="pv-nav"><app-icon name="swap" />{{ 'layout.nav.stockMovements' | t }}</div>
-              <div class="pv-nav"><app-icon name="warehouse" />{{ 'layout.nav.warehouses' | t }}</div>
-              <div class="pv-sec">{{ 'layout.group.operations' | t }}</div>
-              <div class="pv-nav"><app-icon name="bag" />{{ 'layout.nav.orders' | t }}</div>
-              <div class="pv-nav"><app-icon name="receipt" />{{ 'layout.nav.invoices' | t }}</div>
+              <div class="pv-search"><app-icon name="search" />{{ 'layout.palette.short' | t }}<span class="k">Ctrl K</span></div>
+              <div class="pv-navs">
+                @for (sec of navSections; track $index) {
+                  @if (sec.labelKey) { <div class="pv-sec">{{ sec.labelKey | t }}</div> }
+                  @for (item of sec.items; track item.route) {
+                    <div class="pv-nav" [class.on]="item.route === '/dashboard'"><app-icon [name]="item.icon" />{{ item.labelKey | t }}</div>
+                  }
+                }
+              </div>
+              <div class="pv-me"><span class="av">SK</span><span class="who"><b>Selin Kaya</b><span>{{ 'layout.role.admin' | t }}</span></span><app-icon name="more" /></div>
             </div>
             <div class="pv-main">
               <div class="pv-h">{{ 'layout.nav.dashboard' | t }}<span class="btnp">+ {{ 'login.preview.newMovement' | t }}</span></div>
@@ -233,16 +224,30 @@ const REMEMBER_KEY = 'login_remember_username';
                   </div>
                 </div>
               </div>
+              <div class="pv-card">
+                <div class="pv-card-h">{{ 'login.preview.recent' | t }}</div>
+                <div class="pv-moves">
+                  @for (m of recentMoves; track m.ref) {
+                    <div class="pv-mv">
+                      <span class="kd">{{ ('login.preview.' + m.kind) | t }}</span>
+                      <b>{{ m.n }}</b>
+                      <span class="ref">{{ m.ref }}</span>
+                      <span class="wh">{{ m.wh }}</span>
+                      <span class="qty" [class.in]="m.kind === 'in'">{{ m.qty }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
             </div>
           </div>
         </div>
         <div class="pv-scan">
-          <div class="top"><span class="pulse"></span>{{ 'login.preview.scanned' | t }}<span class="t">09:41</span></div>
+          <div class="top"><span class="dot"></span>{{ 'login.preview.scanned' | t }}<span class="t">09:41</span></div>
           <b>Vida M6×20 · Paslanmaz</b>
           <span class="code">8690000123457 · VDA-M6-20</span>
           <dl>
-            <div><dt>{{ 'login.preview.depot' | t }}</dt><dd>Merkez</dd></div>
-            <div><dt>{{ 'login.preview.shelf' | t }}</dt><dd>A-03-2</dd></div>
+            <div><dt>{{ 'login.preview.depot' | t }}</dt><dd>Gebze</dd></div>
+            <div><dt>{{ 'login.preview.lot' | t }}</dt><dd>L-2609</dd></div>
             <div><dt>{{ 'login.preview.qty' | t }}</dt><dd class="plus">+24</dd></div>
           </dl>
         </div>
@@ -332,6 +337,14 @@ export class LoginComponent {
     { n: 'Vida M6×20 · Paslanmaz', q: 4, min: 40 },
     { n: 'Rulman 6204-2RS', q: 9, min: 30 },
     { n: 'Kablo bağı 200 mm', q: 18, min: 50 },
+  ];
+  /** Mock sidebar mirrors the real one (admin view: every section and item). */
+  readonly navSections = NAV_SECTIONS;
+  readonly recentMoves = [
+    { kind: 'in', n: 'Vida M6×20 · Paslanmaz', ref: 'MK-2026-0318', wh: 'Gebze', qty: '+240' },
+    { kind: 'out', n: 'Rulman 6204-2RS', ref: 'IRS-2026-1142', wh: 'İstanbul', qty: '−36' },
+    { kind: 'transfer', n: 'Kablo bağı 200 mm', ref: 'TR-2026-0087', wh: 'Gebze → İzmir', qty: '120' },
+    { kind: 'out', n: 'Somun M8 · Galvaniz', ref: 'IRS-2026-1141', wh: 'İzmir', qty: '−500' },
   ];
 
   private readRemembered(): string {

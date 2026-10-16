@@ -223,15 +223,14 @@
   --panel-fg-2: #ababab;
   --panel-fg-3: #8c8c8c;
   --panel-line: rgba(255, 255, 255, 0.08);
-  --panel-glow: rgba(0, 65, 255, 0.38);
   --panel-grid-major: rgba(61, 107, 255, 0.20);
   --panel-grid-minor: rgba(61, 107, 255, 0.07);
   --panel-surface: #0c0c0c;    /* dark product preview inside the panel (theme-independent) */
   --panel-surface-2: #151515;
   --panel-line-2: #282828;
   --panel-accent-text: #8aa8ff;
-  --panel-chart-1: #3d6bff;
-  --panel-chart-2: #1fa595;
+  --panel-chart-1: #2e5bff;   /* preview chart: cobalt (in) + pale cobalt (out) */
+  --panel-chart-2: #9db2ff;
   --panel-ok: #4ade80;
   --panel-warn: #fbbf4d;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
