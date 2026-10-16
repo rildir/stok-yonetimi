@@ -4,6 +4,10 @@ import { Chart } from 'chart.js/auto';
  * Chart.js cannot read CSS custom properties, so we resolve the design-system
  * tokens (src/styles.css) at render time. Re-render charts on the
  * `themechange` window event (dispatched by ThemeService) to follow dark mode.
+ *
+ * Precision chart rules: Giriş = --chart-1, Çıkış = --chart-2; bars ≤ 14px with
+ * 3px rounded tops; dashed grid in --chart-grid; 11px mono axis text in --chart-axis;
+ * pop-style tooltip; a legend + summary numbers above every chart; no dual axes.
  */
 export function cssVar(name: string, fallback = ''): string {
   if (typeof window === 'undefined') return fallback;
@@ -13,7 +17,7 @@ export function cssVar(name: string, fallback = ''): string {
 
 /** Categorical series palette (--chart-1 … --chart-6). */
 export function chartPalette(): string[] {
-  return [1, 2, 3, 4, 5, 6].map((i) => cssVar(`--chart-${i}`, '#5f63f2'));
+  return [1, 2, 3, 4, 5, 6].map((i) => cssVar(`--chart-${i}`, '#4b4fe0'));
 }
 
 /** Adds alpha to a #rrggbb colour. */
@@ -35,39 +39,57 @@ export interface ChartTokens {
   warning: string;
   danger: string;
   palette: string[];
+  fontSans: string;
+  fontMono: string;
 }
 
 export function chartTokens(): ChartTokens {
   return {
-    text: cssVar('--color-text', '#121722'),
-    muted: cssVar('--chart-axis', '#6b7484'),
-    grid: cssVar('--chart-grid', '#eef0f3'),
-    surface: cssVar('--color-surface', '#ffffff'),
-    border: cssVar('--color-border', '#e2e5ea'),
-    primary: cssVar('--chart-1', '#5f63f2'),
-    success: cssVar('--color-success', '#15803d'),
-    warning: cssVar('--color-warning', '#d97706'),
-    danger: cssVar('--color-danger', '#dc2626'),
+    text: cssVar('--fg', '#18181b'),
+    muted: cssVar('--chart-axis', '#64646d'),
+    grid: cssVar('--chart-grid', '#ececef'),
+    surface: cssVar('--surface', '#ffffff'),
+    border: cssVar('--line-2', '#dcdce0'),
+    primary: cssVar('--chart-1', '#4b4fe0'),
+    success: cssVar('--success-dot', '#16a34a'),
+    warning: cssVar('--warning-dot', '#e08a0b'),
+    danger: cssVar('--danger-dot', '#e5484d'),
     palette: chartPalette(),
+    fontSans: cssVar('--font-sans', 'Geist, sans-serif'),
+    fontMono: cssVar('--font-mono', 'Geist Mono, monospace'),
+  };
+}
+
+/** Bar dataset defaults for the Precision look (spread into a dataset). */
+export const PRECISION_BAR = { maxBarThickness: 14, borderRadius: { topLeft: 3, topRight: 3 }, borderSkipped: 'bottom' as const, categoryPercentage: 0.7, barPercentage: 0.9 };
+
+/** Scale defaults: dashed grid, 11px mono ticks, no axis border. */
+export function precisionScale(t: ChartTokens = chartTokens()) {
+  return {
+    border: { display: false },
+    grid: { color: t.grid, drawTicks: false, tickBorderDash: [3, 3] },
+    ticks: { color: t.muted, padding: 6, font: { family: t.fontMono, size: 11 } },
   };
 }
 
 /** Apply token-driven global defaults (font, colours, tooltip) to Chart.js. */
 export function applyChartDefaults(): ChartTokens {
   const t = chartTokens();
-  Chart.defaults.font.family = cssVar('--font-sans', 'Inter, sans-serif');
+  Chart.defaults.font.family = t.fontSans;
   Chart.defaults.font.size = 12;
   Chart.defaults.color = t.muted;
   Chart.defaults.borderColor = t.grid;
   const tooltip = Chart.defaults.plugins.tooltip;
-  tooltip.backgroundColor = cssVar('--gray-900', '#121722');
-  tooltip.titleColor = '#ffffff';
-  tooltip.bodyColor = '#e2e5ea';
-  tooltip.borderColor = 'rgba(255,255,255,0.08)';
+  tooltip.backgroundColor = cssVar('--pop-bg', '#ffffff');
+  tooltip.titleColor = t.text;
+  tooltip.bodyColor = cssVar('--fg-2', '#4a4a52');
+  tooltip.borderColor = cssVar('--line-2', '#dcdce0');
   tooltip.borderWidth = 1;
   tooltip.padding = 10;
   tooltip.cornerRadius = 8;
   tooltip.boxPadding = 4;
+  tooltip.titleFont = { family: t.fontSans, size: 12, weight: 600 };
+  tooltip.bodyFont = { family: t.fontSans, size: 12 };
   Chart.defaults.plugins.legend.labels.usePointStyle = true;
   Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
   Chart.defaults.plugins.legend.labels.boxWidth = 8;

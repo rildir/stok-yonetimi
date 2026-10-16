@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ViewEncapsulation, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { UiStateService } from '../../services/ui-state.service';
@@ -11,228 +11,270 @@ import { KvkkService, PrivacyNotice } from '../../services/kvkk.service';
 import { SessionService } from '../../services/session.service';
 import { NoticeTextComponent } from '../kvkk/notice-text.component';
 import { ModalComponent } from '../modal.component';
+import { IconComponent } from '../shared/icon.component';
+
+const REMEMBER_KEY = 'login_remember_username';
 
 @Component({
   selector: 'app-login',
+  encapsulation: ViewEncapsulation.None,
+  styleUrls: ['./auth.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NoticeTextComponent, ModalComponent],
+  imports: [CommonModule, FormsModule, TranslatePipe, AppDatePipe, NoticeTextComponent, ModalComponent, IconComponent],
   template: `
-    <div class="login-page">
-      <aside class="login-aside" aria-hidden="false">
-        <div class="login-brand">
-          <span class="login-logo" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-          </span>
-          <h1 class="login-brand-text">ecelon</h1>
-        </div>
-        <p class="login-brand-tagline">{{ 'login.tagline' | t }}</p>
-        <div class="login-aside-art" aria-hidden="true">
-          <span></span><span></span><span></span><span></span>
-        </div>
-        <p class="login-footer-text login-footer-aside">© 2024 Ecelon · {{ 'login.rights' | t }} · <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button></p>
-      </aside>
-      <main class="login-center-column">
-        <!-- Language toggle (user not logged in yet) -->
-        <div class="login-lang-toggle segmented" role="group">
-          <button type="button" [class.active]="i18n.lang() === 'tr'" [attr.aria-pressed]="i18n.lang() === 'tr'" (click)="i18n.setLanguage('tr')">TR</button>
-          <button type="button" [class.active]="i18n.lang() === 'en'" [attr.aria-pressed]="i18n.lang() === 'en'" (click)="i18n.setLanguage('en')">EN</button>
-        </div>
+    <div class="auth">
+      <div class="auth-side">
+        <div class="auth-brand"><span class="logo-mark" aria-hidden="true">e</span>ecelon</div>
 
-        @if (mode() === 'register') {
-        <!-- Register Card -->
-        <div class="login-card">
-          <h2 class="login-card-title">{{ 'login.register.title' | t }}</h2>
-          <form class="login-form" (submit)="doRegister({
+        <main class="auth-col">
+          @if (mode() === 'register') {
+          <!-- ─── Register ─── -->
+          <form class="auth-form wide" (submit)="doRegister({
               companyName: rCompany.value, country: rCountry.value, defaultLanguage: rLang.value,
               baseCurrency: rCurrency.value, timezone: rTz.value, fullName: rFullName.value,
               username: rUsername.value, email: rEmail.value, password: rPassword.value
             }); $event.preventDefault()">
-            <div class="form-field">
-              <input type="text" class="form-input" #rCompany id="regCompany" [placeholder]="'login.register.companyNamePh' | t" required [disabled]="isRegisterLoading()">
-              <label for="regCompany" class="form-label">{{ 'login.register.companyName' | t }}</label>
+            <div>
+              <h1>{{ 'login.register.title' | t }}</h1>
+              <p class="lead-t">{{ 'login.register.lead' | t }}</p>
             </div>
-            <div class="login-grid-2">
-              <div class="form-field">
-                <select class="form-input" #rCountry id="regCountry" [disabled]="isRegisterLoading()">
-                  @for (c of countries; track c.code) { <option [value]="c.code">{{ 'login.country.' + c.code | t }}</option> }
-                </select>
-                <label for="regCountry" class="form-label">{{ 'login.register.country' | t }}</label>
-              </div>
-              <div class="form-field">
-                <select class="form-input" #rLang id="regLang" [disabled]="isRegisterLoading()">
-                  <option value="tr">{{ 'login.lang.tr' | t }}</option>
-                  <option value="en">{{ 'login.lang.en' | t }}</option>
-                </select>
-                <label for="regLang" class="form-label">{{ 'login.register.language' | t }}</label>
-              </div>
-              <div class="form-field">
-                <select class="form-input" #rCurrency id="regCurrency" [disabled]="isRegisterLoading()">
-                  @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
-                </select>
-                <label for="regCurrency" class="form-label">{{ 'login.register.currency' | t }}</label>
-              </div>
-              <div class="form-field">
-                <select class="form-input" #rTz id="regTz" [disabled]="isRegisterLoading()">
-                  @for (tz of timezones; track tz) { <option [value]="tz">{{ 'login.tz.' + tz | t }} ({{ tz }})</option> }
-                </select>
-                <label for="regTz" class="form-label">{{ 'login.register.timezone' | t }}</label>
-              </div>
+            <div>
+              <section class="fsec first">
+                <div class="fsec-h"><span class="n">1</span><h3>{{ 'login.register.sectionCompany' | t }}</h3></div>
+                <div class="fld">
+                  <label class="fld-label" for="regCompany">{{ 'login.register.companyName' | t }}</label>
+                  <div class="field field-lg"><span class="lead"><app-icon name="building" size="sm" /></span><input type="text" #rCompany id="regCompany" [placeholder]="'login.register.companyNamePh' | t" required [disabled]="isRegisterLoading()" autocomplete="organization"></div>
+                </div>
+                <div class="grid-2">
+                  <div class="fld">
+                    <label class="fld-label" for="regCountry">{{ 'login.register.country' | t }}</label>
+                    <div class="field select"><select #rCountry id="regCountry" [disabled]="isRegisterLoading()">
+                      @for (c of countries; track c.code) { <option [value]="c.code">{{ 'login.country.' + c.code | t }}</option> }
+                    </select></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="regLang">{{ 'login.register.language' | t }}</label>
+                    <div class="field select"><select #rLang id="regLang" [disabled]="isRegisterLoading()">
+                      <option value="tr">{{ 'login.lang.tr' | t }}</option>
+                      <option value="en">{{ 'login.lang.en' | t }}</option>
+                    </select></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="regCurrency">{{ 'login.register.currency' | t }}</label>
+                    <div class="field select"><select #rCurrency id="regCurrency" [disabled]="isRegisterLoading()">
+                      @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
+                    </select></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="regTz">{{ 'login.register.timezone' | t }}</label>
+                    <div class="field select"><select #rTz id="regTz" [disabled]="isRegisterLoading()">
+                      @for (tz of timezones; track tz) { <option [value]="tz">{{ 'login.tz.' + tz | t }} ({{ tz }})</option> }
+                    </select></div>
+                  </div>
+                </div>
+              </section>
+              <section class="fsec">
+                <div class="fsec-h"><span class="n">2</span><h3>{{ 'login.register.sectionAdmin' | t }}</h3><p>{{ 'login.register.sectionAdminHint' | t }}</p></div>
+                <div class="grid-2">
+                  <div class="fld span-2">
+                    <label class="fld-label" for="regFullName">{{ 'login.register.fullName' | t }}</label>
+                    <div class="field"><input type="text" #rFullName id="regFullName" [placeholder]="'login.register.fullNamePh' | t" required [disabled]="isRegisterLoading()" autocomplete="name"></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="regUsername">{{ 'login.username' | t }}</label>
+                    <div class="field"><input type="text" #rUsername id="regUsername" [placeholder]="'login.usernamePh' | t" required [disabled]="isRegisterLoading()" autocomplete="username"></div>
+                  </div>
+                  <div class="fld">
+                    <label class="fld-label" for="regEmail">{{ 'login.register.email' | t }}</label>
+                    <div class="field"><input type="email" #rEmail id="regEmail" [placeholder]="'login.register.emailPh' | t" [disabled]="isRegisterLoading()" autocomplete="email"></div>
+                  </div>
+                  <div class="fld span-2">
+                    <label class="fld-label" for="regPassword">{{ 'login.password' | t }}</label>
+                    <div class="field">
+                      <input [type]="showRegPassword() ? 'text' : 'password'" #rPassword id="regPassword" [placeholder]="'login.register.passwordPh' | t" required minlength="6" [disabled]="isRegisterLoading()" autocomplete="new-password">
+                      <span class="trail"><button class="btn btn-ghost btn-xs btn-icon" type="button" (click)="showRegPassword.set(!showRegPassword())" [attr.aria-label]="(showRegPassword() ? 'login.hidePassword' : 'login.showPassword') | t" [attr.aria-pressed]="showRegPassword()"><app-icon [name]="showRegPassword() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
-            <div class="form-field">
-              <input type="text" class="form-input" #rFullName id="regFullName" [placeholder]="'login.register.fullNamePh' | t" required [disabled]="isRegisterLoading()">
-              <label for="regFullName" class="form-label">{{ 'login.register.fullName' | t }}</label>
-            </div>
-            <div class="form-field">
-              <input type="text" class="form-input" #rUsername id="regUsername" [placeholder]="'login.usernamePh' | t" required [disabled]="isRegisterLoading()">
-              <label for="regUsername" class="form-label">{{ 'login.username' | t }}</label>
-            </div>
-            <div class="form-field">
-              <input type="email" class="form-input" #rEmail id="regEmail" [placeholder]="'login.register.emailPh' | t" [disabled]="isRegisterLoading()">
-              <label for="regEmail" class="form-label">{{ 'login.register.email' | t }}</label>
-            </div>
-            <div class="form-field">
-              <input type="password" class="form-input" #rPassword id="regPassword" [placeholder]="'login.register.passwordPh' | t" required minlength="6" [disabled]="isRegisterLoading()">
-              <label for="regPassword" class="form-label">{{ 'login.password' | t }}</label>
-            </div>
-            <p class="login-totp-hint">{{ 'kvkk.register.noticeText' | t }} <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('DPA')">{{ 'kvkk.footer.dpa' | t }}</button></p>
-            <button type="submit" class="btn btn-primary login-submit-btn" [disabled]="isRegisterLoading()">
-              @if (isRegisterLoading()) { {{ 'login.register.creating' | t }} } @else { {{ 'login.register.submit' | t }} }
+            <p class="auth-legal">{{ 'kvkk.register.noticeText' | t }} <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('DPA')">{{ 'kvkk.footer.dpa' | t }}</button></p>
+            <button type="submit" class="btn btn-primary btn-xl btn-block" [class.is-loading]="isRegisterLoading()" [attr.aria-busy]="isRegisterLoading() || null">
+              <span>{{ (isRegisterLoading() ? 'login.register.creating' : 'login.register.submit') | t }}</span>
             </button>
+            <p class="auth-alt">{{ 'login.register.haveAccount' | t }} <button type="button" (click)="mode.set('login')">{{ 'login.register.goLogin' | t }}</button></p>
           </form>
-          <p class="login-switch">
-            {{ 'login.register.haveAccount' | t }}
-            <a href="#" class="forgot-link" (click)="$event.preventDefault(); mode.set('login')">{{ 'login.register.goLogin' | t }}</a>
-          </p>
-        </div>
-        } @else {
-        <!-- Login Card -->
-        <div class="login-card">
-          <h2 class="login-card-title">{{ 'login.title' | t }}</h2>
-          
-          @if (lockedMessage()) { <div class="readonly-banner" role="alert">{{ lockedMessage() }}</div> }
-          @if (totpChallenge()) {
-          <form class="login-form" (submit)="doTotp(); $event.preventDefault()">
-            <p class="login-totp-hint">{{ 'auth.totp.loginHint' | t }}</p>
-            <div class="form-field">
-              <input type="text" class="form-input mono" id="loginTotp" name="totpCode" [(ngModel)]="totpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="11" [placeholder]="'auth.totp.codePh' | t" [disabled]="isLoginLoading()" required autofocus>
-              <label for="loginTotp" class="form-label">{{ 'auth.totp.code' | t }}</label>
+          } @else if (totpChallenge()) {
+          <!-- ─── Second factor ─── -->
+          <form class="auth-form" (submit)="doTotp(); $event.preventDefault()">
+            <div class="auth-state">
+              <span class="ic info"><app-icon name="shield" /></span>
+              <div>
+                <h1>{{ 'login.totp.title' | t }}</h1>
+                <p class="lead-t">{{ 'auth.totp.loginHint' | t }}</p>
+              </div>
             </div>
-            <button type="submit" class="btn btn-primary login-submit-btn" [disabled]="isLoginLoading() || !totpCode.trim()">{{ 'auth.totp.verify' | t }}</button>
-            <button type="button" class="btn btn-secondary" (click)="totpChallenge.set(null); totpCode = ''">{{ 'common.cancel' | t }}</button>
+            @if (lockedMessage()) { <div class="notice notice-danger" role="alert"><app-icon name="alert" /><span class="t">{{ lockedMessage() }}</span></div> }
+            <div class="fld">
+              <label class="fld-label" for="loginTotp">{{ 'auth.totp.code' | t }}</label>
+              <div class="field field-lg"><span class="lead"><app-icon name="hash" size="sm" /></span>
+                <input type="text" class="mono" id="loginTotp" name="totpCode" [(ngModel)]="totpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="11" [placeholder]="'auth.totp.codePh' | t" [disabled]="isLoginLoading()" required autofocus>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-xl btn-block" [class.is-loading]="isLoginLoading()" [disabled]="!totpCode.trim()"><span>{{ 'auth.totp.verify' | t }}</span></button>
+            <button type="button" class="btn btn-ghost btn-lg btn-block" (click)="totpChallenge.set(null); totpCode = ''">{{ 'common.cancel' | t }}</button>
           </form>
           } @else {
-          <form class="login-form" (submit)="lockedMessage.set(null); doLogin(usernameInput.value, passwordInput.value); $event.preventDefault()">
-            <div class="form-field">
-              <input 
-                type="text" 
-                class="form-input"
-                #usernameInput 
-                value="" 
-                [placeholder]="'login.usernamePh' | t" 
-                [disabled]="isLoginLoading()" 
-                id="loginUsername"
-                required
-              >
-              <label for="loginUsername" class="form-label">{{ 'login.username' | t }}</label>
+          <!-- ─── Sign in ─── -->
+          <form class="auth-form" (submit)="lockedMessage.set(null); doLogin(usernameInput.value, passwordInput.value); $event.preventDefault()">
+            <div>
+              <h1>{{ 'login.welcome' | t }}</h1>
+              <p class="lead-t">{{ 'login.lead' | t }}</p>
             </div>
-            
-            <div class="form-field">
-              <input 
-                type="password" 
-                class="form-input"
-                #passwordInput 
-                value="" 
-                placeholder="••••••••" 
-                [disabled]="isLoginLoading()" 
-                id="loginPassword"
-                required
-              >
-              <div class="form-label login-label-row">
-                <span>{{ 'login.password' | t }}</span>
-                <a href="#" class="forgot-link" (click)="$event.preventDefault(); showForgotModal.set(true)">{{ 'login.forgot' | t }}</a>
+            @if (lockedMessage()) { <div class="notice notice-danger" role="alert"><app-icon name="alert" /><span class="t">{{ lockedMessage() }}</span></div> }
+            <div class="auth-fields">
+              <div class="fld">
+                <label class="fld-label" for="loginUsername">{{ 'login.username' | t }}</label>
+                <div class="field field-lg">
+                  <span class="lead"><app-icon name="user" size="sm" /></span>
+                  <input type="text" #usernameInput [value]="rememberedUsername" [placeholder]="'login.usernamePh' | t" [disabled]="isLoginLoading()" id="loginUsername" autocomplete="username" required>
+                </div>
+              </div>
+              <div class="fld">
+                <div class="fld-label"><label for="loginPassword">{{ 'login.password' | t }}</label><a href="#" (click)="$event.preventDefault(); showForgotModal.set(true)">{{ 'login.forgot' | t }}</a></div>
+                <div class="field field-lg">
+                  <span class="lead"><app-icon name="lock" size="sm" /></span>
+                  <input [type]="showPassword() ? 'text' : 'password'" #passwordInput value="" placeholder="••••••••" [disabled]="isLoginLoading()" id="loginPassword" autocomplete="current-password" required>
+                  <span class="trail"><button class="btn btn-ghost btn-xs btn-icon" type="button" (click)="showPassword.set(!showPassword())" [attr.aria-label]="(showPassword() ? 'login.hidePassword' : 'login.showPassword') | t" [attr.aria-pressed]="showPassword()"><app-icon [name]="showPassword() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
+                </div>
+              </div>
+              <div class="auth-split">
+                <label class="check"><input type="checkbox" [checked]="rememberMe()" (change)="rememberMe.set($any($event.target).checked)" />{{ 'login.remember' | t }}</label>
+                <span class="auth-meta"><app-icon name="shield" size="sm" />{{ 'login.secureHint' | t }}</span>
               </div>
             </div>
-            
-            <button 
-              type="submit" 
-              class="btn btn-primary login-submit-btn" 
-              [disabled]="isLoginLoading()"
-            >
-              @if (isLoginLoading()) { 
-                <svg class="login-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="30 70" stroke-linecap="round"/></svg>
-                {{ 'login.signingIn' | t }}
-              } @else { 
-                {{ 'login.submit' | t }}
-              }
+            <button type="submit" class="btn btn-primary btn-xl btn-block" [class.is-loading]="isLoginLoading()" [attr.aria-busy]="isLoginLoading() || null">
+              <span>{{ (isLoginLoading() ? 'login.signingIn' : 'login.submit') | t }}</span><kbd>↵</kbd>
             </button>
+            <div class="auth-or">{{ 'login.or' | t }}</div>
+            <button type="button" class="btn btn-xl btn-block" id="showRegister" (click)="mode.set('register')"><app-icon name="building" />{{ 'login.goRegister' | t }}</button>
+            <p class="auth-alt">{{ 'login.inviteHint' | t }}</p>
           </form>
           }
-          <p class="login-switch">
-            {{ 'login.noAccount' | t }}
-            <a href="#" class="forgot-link" id="showRegister" (click)="$event.preventDefault(); mode.set('register')">{{ 'login.goRegister' | t }}</a>
-          </p>
-        </div>
-        }
+        </main>
 
-        <p class="login-footer-text login-footer-main">© 2024 Ecelon · {{ 'login.rights' | t }} · <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button> · <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button></p>
-      </main>
+        <footer class="auth-foot">
+          <div class="field field-sm select">
+            <span class="lead"><app-icon name="globe" size="sm" /></span>
+            <select [attr.aria-label]="'common.language' | t" (change)="i18n.setLanguage($any($event.target).value)">
+              <option value="tr" [selected]="i18n.lang() === 'tr'">Türkçe</option>
+              <option value="en" [selected]="i18n.lang() === 'en'">English</option>
+            </select>
+          </div>
+          <span class="spacer"></span>
+          <button type="button" class="link-btn" (click)="openNotice('PRIVACY')">{{ 'kvkk.footer.notice' | t }}</button>
+          <button type="button" class="link-btn" (click)="openNotice('TOS')">{{ 'kvkk.footer.tos' | t }}</button>
+          <span>© {{ year }} Ecelon</span>
+        </footer>
+      </div>
+
+      <!-- ─── Product panel (decorative, illustrative preview) ─── -->
+      <aside class="auth-panel" aria-hidden="true">
+        <span class="auth-kicker"><b>{{ 'login.panel.new' | t }}</b> {{ 'login.panel.kicker' | t }} <app-icon name="chevr" size="xs" /></span>
+        <h2>{{ 'login.panel.title' | t }}</h2>
+        <p class="sub">{{ 'login.panel.sub' | t }}</p>
+        <div class="auth-proof">
+          <div><b>e-Fatura</b><span>{{ 'login.panel.proof1' | t }}</span></div>
+          <div><b>KVKK</b><span>{{ 'login.panel.proof2' | t }}</span></div>
+          <div><b>⌘K</b><span>{{ 'login.panel.proof3' | t }}</span></div>
+        </div>
+        <div class="auth-shot">
+          <div class="bar"><i></i><i></i><i></i><span>app.ecelon.com/dashboard</span></div>
+          <div class="pv">
+            <div class="pv-side">
+              <div class="ws"><span class="logo-mark">D</span><b>Demo Ticaret</b></div>
+              <div class="pv-nav on"><app-icon name="home" />{{ 'layout.nav.dashboard' | t }}</div>
+              <div class="pv-sec">{{ 'layout.group.stock' | t }}</div>
+              <div class="pv-nav"><app-icon name="box" />{{ 'layout.nav.products' | t }}</div>
+              <div class="pv-nav"><app-icon name="swap" />{{ 'layout.nav.stockMovements' | t }}</div>
+              <div class="pv-nav"><app-icon name="warehouse" />{{ 'layout.nav.warehouses' | t }}</div>
+              <div class="pv-sec">{{ 'layout.group.operations' | t }}</div>
+              <div class="pv-nav"><app-icon name="bag" />{{ 'layout.nav.orders' | t }}</div>
+              <div class="pv-nav"><app-icon name="receipt" />{{ 'layout.nav.invoices' | t }}</div>
+            </div>
+            <div class="pv-main">
+              <div class="pv-h">{{ 'layout.nav.dashboard' | t }}<span class="btnp">+ {{ 'login.preview.newMovement' | t }}</span></div>
+              <div class="pv-kpis">
+                <div class="pv-kpi"><span>{{ 'login.preview.kpiValue' | t }}</span><b>₺1.248.300<small>,40</small></b></div>
+                <div class="pv-kpi warn"><span>{{ 'login.preview.kpiCritical' | t }}</span><b>7</b></div>
+                <div class="pv-kpi"><span>{{ 'login.preview.kpiOrders' | t }}</span><b>12</b></div>
+                <div class="pv-kpi"><span>{{ 'login.preview.kpiOut' | t }}</span><b>3.482</b></div>
+              </div>
+              <div class="pv-row2">
+                <div class="pv-card">
+                  <div class="pv-card-h">{{ 'login.preview.flow' | t }}<span class="lg"><i></i>{{ 'login.preview.in' | t }}</span><span class="lg"><i></i>{{ 'login.preview.out' | t }}</span></div>
+                  <div class="pv-bars">
+                    @for (b of bars; track $index) { <div><i [style.height.%]="b[0]"></i><i [style.height.%]="b[1]"></i></div> }
+                  </div>
+                </div>
+                <div class="pv-card">
+                  <div class="pv-card-h">{{ 'login.preview.critical' | t }}</div>
+                  <div class="pv-list">
+                    @for (r of criticalRows; track r.n) {
+                      <div class="pv-li"><b>{{ r.n }}</b><span class="q">{{ r.q }} / {{ r.min }}</span><span class="m"><i [style.width.%]="(r.q / r.min) * 100"></i></span></div>
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pv-scan">
+          <div class="top"><span class="pulse"></span>{{ 'login.preview.scanned' | t }}<span class="t">09:41</span></div>
+          <b>Vida M6×20 · Paslanmaz</b>
+          <span class="code">8690000123457 · VDA-M6-20</span>
+          <dl>
+            <div><dt>{{ 'login.preview.depot' | t }}</dt><dd>Merkez</dd></div>
+            <div><dt>{{ 'login.preview.shelf' | t }}</dt><dd>A-03-2</dd></div>
+            <div><dt>{{ 'login.preview.qty' | t }}</dt><dd class="plus">+24</dd></div>
+          </dl>
+        </div>
+      </aside>
+
       @if (notice()) {
-        <app-modal [isOpen]="true" [title]="notice()?.title || ''" (onClose)="notice.set(null)">
-          <p class="notice-meta">{{ 'kvkk.notice.version' | t }} {{ notice()?.version }} · {{ notice()?.publishedAt | appDate }}</p>
+        <app-modal [isOpen]="true" size="lg" [title]="notice()?.title || ''" (onClose)="notice.set(null)">
+          <p class="notice-meta">{{ 'kvkk.notice.version' | t }} <span class="mono">{{ notice()?.version }}</span> · {{ notice()?.publishedAt | appDate }}</p>
           <app-notice-text [text]="notice()?.body"></app-notice-text>
           <div footer class="modal-actions"><button type="button" class="btn btn-primary" (click)="notice.set(null)">{{ 'common.close' | t }}</button></div>
         </app-modal>
       }
 
       @if (showForgotModal()) {
-        <div class="forgot-modal-overlay" (click)="closeForgotModal()">
-          <div class="forgot-modal-card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+        <div class="scrim" (click)="closeForgotModal()">
+          <div class="modal w-sm" role="dialog" aria-modal="true" [attr.aria-label]="'login.reset.title' | t" (click)="$event.stopPropagation()">
             @if (isResetSubmitted()) {
-              <div class="forgot-modal-icon success">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-                </svg>
-              </div>
-              <h3 class="forgot-modal-title">{{ 'login.reset.sentTitle' | t }}</h3>
-              <p class="forgot-modal-desc">
-                {{ 'login.reset.sentDesc' | t }}
-              </p>
-              <button type="button" class="btn btn-primary forgot-modal-btn" (click)="closeForgotModal()">{{ 'login.reset.ok' | t }}</button>
-            } @else {
-              <div class="forgot-modal-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                  <path d="M7 11V7a5 5 0 0110 0v4"></path>
-                </svg>
-              </div>
-              <h3 class="forgot-modal-title">{{ 'login.reset.title' | t }}</h3>
-              <p class="forgot-modal-desc">
-                {{ 'login.reset.desc' | t }}
-              </p>
-
-              <form class="forgot-modal-form" (submit)="doResetPassword(resetUsernameInput.value); $event.preventDefault()">
-                <div class="form-field">
-                  <input 
-                    type="text" 
-                    class="form-input"
-                    #resetUsernameInput 
-                    [placeholder]="'login.reset.usernamePh' | t" 
-                    [disabled]="isResetLoading()" 
-                    id="resetUsername"
-                    required
-                  >
-                  <label for="resetUsername" class="form-label">{{ 'login.username' | t }}</label>
+              <div class="modal-b reset-done">
+                <div class="auth-state">
+                  <span class="ic ok"><app-icon name="okc" /></span>
+                  <div><h2 class="modal-title">{{ 'login.reset.sentTitle' | t }}</h2><p class="reset-p">{{ 'login.reset.sentDesc' | t }}</p></div>
                 </div>
-
-                <div class="forgot-modal-actions">
-                  <button type="button" class="btn btn-secondary" (click)="closeForgotModal()" [disabled]="isResetLoading()">{{ 'common.cancel' | t }}</button>
-                  <button type="submit" class="btn btn-primary" [disabled]="isResetLoading()">
-                    @if (isResetLoading()) {
-                      {{ 'login.reset.sending' | t }}
-                    } @else {
-                      {{ 'login.reset.submit' | t }}
-                    }
-                  </button>
+              </div>
+              <div class="modal-f"><button type="button" class="btn btn-primary" (click)="closeForgotModal()">{{ 'login.reset.ok' | t }}</button></div>
+            } @else {
+              <form (submit)="doResetPassword(resetUsernameInput.value); $event.preventDefault()">
+                <div class="modal-h"><h2>{{ 'login.reset.title' | t }}</h2>
+                  <button type="button" class="modal-close" (click)="closeForgotModal()" [attr.aria-label]="'common.close' | t"><app-icon name="x" /></button>
+                </div>
+                <div class="modal-b">
+                  <p>{{ 'login.reset.desc' | t }}</p>
+                  <div class="fld reset-fld">
+                    <label class="fld-label" for="resetUsername">{{ 'login.username' | t }}</label>
+                    <div class="field"><span class="lead"><app-icon name="user" size="sm" /></span><input type="text" #resetUsernameInput [placeholder]="'login.reset.usernamePh' | t" [disabled]="isResetLoading()" id="resetUsername" required autocomplete="username"></div>
+                  </div>
+                </div>
+                <div class="modal-f">
+                  <button type="button" class="btn btn-ghost" (click)="closeForgotModal()" [disabled]="isResetLoading()">{{ 'common.cancel' | t }}</button>
+                  <button type="submit" class="btn btn-primary" [class.is-loading]="isResetLoading()"><span>{{ (isResetLoading() ? 'login.reset.sending' : 'login.reset.submit') | t }}</span></button>
                 </div>
               </form>
             }
@@ -240,7 +282,13 @@ import { ModalComponent } from '../modal.component';
         </div>
       }
     </div>
-  `
+  `,
+  styles: [`
+    .fsec.first { padding-top: 0; }
+    .reset-done { padding-top: 20px; }
+    .reset-p { margin-top: 6px; }
+    .reset-fld { margin-top: 14px; }
+  `]
 })
 export class LoginComponent {
   router = inject(Router);
@@ -261,6 +309,32 @@ export class LoginComponent {
   totpChallenge = signal<string | null>(null);
   totpCode = '';
   notice = signal<PrivacyNotice | null>(null);
+  // Presentation-only state
+  readonly year = new Date().getFullYear();
+  showPassword = signal(false);
+  showRegPassword = signal(false);
+  /** "Remember my username": keeps only the username on this device; the session length is unchanged. */
+  rememberedUsername = this.readRemembered();
+  rememberMe = signal(!!this.rememberedUsername);
+  readonly bars = [[62, 40], [48, 55], [70, 38], [55, 61], [80, 45], [66, 70], [90, 52], [58, 48], [74, 60], [84, 66]];
+  readonly criticalRows = [
+    { n: 'Vida M6×20 · Paslanmaz', q: 4, min: 40 },
+    { n: 'Rulman 6204-2RS', q: 9, min: 30 },
+    { n: 'Kablo bağı 200 mm', q: 18, min: 50 },
+  ];
+
+  private readRemembered(): string {
+    if (typeof window === 'undefined') return '';
+    try { return localStorage.getItem(REMEMBER_KEY) || ''; } catch { return ''; }
+  }
+
+  private storeRemembered(username: string) {
+    if (typeof window === 'undefined') return;
+    try {
+      if (this.rememberMe() && username.trim()) localStorage.setItem(REMEMBER_KEY, username.trim());
+      else localStorage.removeItem(REMEMBER_KEY);
+    } catch { /* storage unavailable */ }
+  }
 
   openNotice(docType: 'PRIVACY' | 'TOS' | 'DPA') {
     this.kvkk.publicNotice(docType, this.i18n.lang()).subscribe({ next: (n) => this.notice.set(n), error: () => undefined });
@@ -373,6 +447,7 @@ export class LoginComponent {
 
   doLogin(u: string, p: string) {
     if (this.isLoginLoading()) return;
+    this.storeRemembered(u);
     this.isLoginLoading.set(true);
 
     this.http.post<{ token: string; profile?: any; locale?: any; mustChangePassword?: boolean; passwordPolicyOk?: boolean; totpRequired?: boolean; challenge?: string; totpSetupBlocking?: boolean }>(`${environment.apiUrl}/auth/login`, { username: u, password: p }).subscribe({

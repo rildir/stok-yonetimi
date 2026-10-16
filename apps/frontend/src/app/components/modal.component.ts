@@ -1,140 +1,59 @@
 import { Component, Input, Output, EventEmitter, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslatePipe } from '../i18n';
 
+/**
+ * Precision modal frame: 520px (size sm 420 / lg 720), radius 14, 16/600 title,
+ * body capped at 68ch, surface-2 footer with actions on the right.
+ *
+ *   <app-modal [isOpen]="open()" [title]="'…' | t" (onClose)="open.set(false)">
+ *     <p>Body…</p>
+ *     <div footer class="modal-actions">
+ *       <button class="btn btn-ghost">Vazgeç</button><button class="btn btn-primary">Kaydet</button>
+ *     </div>
+ *   </app-modal>
+ *
+ * isDelete: compact destructive confirmation (no header rule; title rendered by the content).
+ */
 @Component({
   selector: 'app-modal',
-  imports: [CommonModule],
+  standalone: true,
+  imports: [CommonModule, TranslatePipe],
   template: `
-    <div *ngIf="isOpen" class="modal-overlay">
-      <!-- Backdrop with blur and fade-in -->
-      <div class="modal-backdrop" (click)="close()"></div>
-
-      <!-- Modal panel with smooth scale/fade-in -->
-      <div class="modal-panel" [class.is-delete]="isDelete">
-        <!-- Header -->
-        <div class="modal-header">
-          <h3 class="modal-title">{{ title }}</h3>
-          <button class="modal-close" (click)="close()">
-            <svg style="width: 18px; height: 18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Content -->
-        <div class="modal-content">
-          <ng-content></ng-content>
-        </div>
-
-        <!-- Footer -->
-        <div class="modal-footer">
-          <ng-content select="[footer]"></ng-content>
+    @if (isOpen) {
+      <div class="scrim" (click)="close()">
+        <div class="modal" [class.w-sm]="size === 'sm'" [class.w-lg]="size === 'lg'" [class.is-delete]="isDelete"
+             role="dialog" aria-modal="true" [attr.aria-label]="title || null" (click)="$event.stopPropagation()">
+          @if (title || !isDelete) {
+            <div class="modal-h">
+              <h2>{{ title }}</h2>
+              <button type="button" class="modal-close" (click)="close()" [attr.aria-label]="'common.close' | t">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+              </button>
+            </div>
+          }
+          <div class="modal-b" [class.is-delete-body]="isDelete">
+            <ng-content></ng-content>
+          </div>
+          <div class="modal-f">
+            <ng-content select="[footer]"></ng-content>
+          </div>
         </div>
       </div>
-    </div>
+    }
   `,
   styles: [`
-    :host {
-      display: block;
-    }
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 1100;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      overflow: hidden;
-    }
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: var(--color-overlay);
-      backdrop-filter: blur(4px);
-      z-index: -1;
-      animation: fadeIn 0.2s ease-out;
-    }
-    .modal-panel {
-      position: relative;
-      width: 100%;
-      max-width: 500px;
-      background: var(--surface, var(--color-surface));
-      border: 1px solid var(--secondary, var(--color-border));
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow-xl, 0 20px 40px -8px rgba(0,0,0,0.1));
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      z-index: 1;
-    }
-    .modal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 18px 24px;
-      border-bottom: 1px solid var(--secondary, var(--color-border-subtle));
-    }
-    .modal-title {
-      font-family: var(--font-heading);
-      font-size: var(--text-lg);
-      font-weight: 600;
-      color: var(--text-primary, var(--color-text));
-      margin: 0;
-    }
-    .modal-close {
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      color: var(--text-muted, var(--color-text-subtle));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px; height: 32px;
-      border-radius: var(--radius-sm, 6px);
-      transition: background 0.15s ease, color 0.15s ease;
-    }
-    .modal-close:hover {
-      background: var(--canvas, var(--color-surface-muted));
-      color: var(--text-primary, var(--color-text));
-    }
-    .modal-content {
-      padding: 24px;
-      font-family: var(--font-body);
-      font-size: 14px;
-      line-height: 1.5;
-      color: var(--text-primary, var(--color-text));
-      max-height: 60vh;
-      overflow-y: auto;
-    }
-    .modal-footer {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 12px;
-      padding: 16px 24px;
-      border-top: 1px solid var(--secondary, var(--color-border-subtle));
-      background: var(--canvas, var(--color-surface-subtle));
-    }
-    .modal-panel.is-delete .modal-header {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-    .modal-panel.is-delete .modal-footer {
-      border-top: none;
-      background: transparent;
-      padding-top: 0;
-    }
-    .modal-panel.is-delete .modal-content {
-      padding: 12px 24px 20px 24px;
-    }
+    :host { display: contents; }
+    .modal-b { max-height: 64vh; }
+    .is-delete-body { padding-top: 20px; }
+    .modal-f:empty { display: none; }
   `]
 })
 export class ModalComponent {
   @Input() isOpen = false;
   @Input() title = '';
   @Input() isDelete = false;
+  @Input() size: 'sm' | 'md' | 'lg' = 'md';
   @Output() onClose = new EventEmitter<void>();
 
   @HostListener('document:keydown.escape')

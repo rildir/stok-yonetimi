@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ViewEncapsulation, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { isStrongPassword, PASSWORD_MIN_CLASSES, PASSWORD_MIN_LENGTH, passwordClasses } from '@stok/tr-compliance';
@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 import { UiStateService } from '../../services/ui-state.service';
 import { SocketService } from '../../services/socket.service';
 import { I18nService, TranslatePipe } from '../../i18n';
+import { IconComponent } from '../shared/icon.component';
 
 /**
  * Two account flows outside the app shell:
@@ -14,59 +15,89 @@ import { I18nService, TranslatePipe } from '../../i18n';
  */
 @Component({
   selector: 'app-account-setup',
+  encapsulation: ViewEncapsulation.None,
+  styleUrls: ['./auth.css'],
   standalone: true,
-  imports: [TranslatePipe],
+  imports: [TranslatePipe, IconComponent],
   styles: [`
-    .setup-page { min-height: 100vh; display: grid; place-items: center; padding: var(--space-6) var(--space-4); background: var(--color-bg); }
-    .setup-card { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-8) var(--space-6); background: var(--color-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
-    .setup-title { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--color-text); margin: 0; }
-    .setup-sub { font-size: var(--text-sm); color: var(--color-text-muted); margin: 0; }
-    .setup-form { display: flex; flex-direction: column; gap: var(--space-4); }
-    .policy { display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); color: var(--color-text-muted); margin: 0; padding: 0; list-style: none; }
-    .policy li.ok { color: var(--color-success-text); }
-    .policy li::before { content: '○ '; }
-    .policy li.ok::before { content: '● '; }
+    .setup-skel { display: flex; flex-direction: column; gap: 10px; }
+    .setup-skel .skeleton-title { width: 70%; height: 22px; }
+    .policy-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--text-xs); color: var(--fg-3); }
+    .policy-list li { display: flex; align-items: center; gap: 6px; }
+    .policy-list li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--fg-disabled); }
+    .policy-list li.ok { color: var(--success); }
+    .policy-list li.ok::before { background: var(--success-dot); box-shadow: none; }
   `],
   template: `
-    <div class="setup-page">
-      <div class="setup-card">
-        @if (mode() === 'invite' && inviteError()) {
-          <h1 class="setup-title">{{ 'login.invite.invalidTitle' | t }}</h1>
-          <p class="setup-sub">{{ 'login.invite.invalid' | t }}</p>
-          <button type="button" class="btn btn-secondary" (click)="router.navigate(['/login'])">{{ 'login.invite.toLogin' | t }}</button>
-        } @else {
-          <div>
-            <h1 class="setup-title">{{ (mode() === 'invite' ? 'login.invite.title' : 'login.changePassword.title') | t }}</h1>
-            <p class="setup-sub">
-              @if (mode() === 'invite') { {{ 'login.invite.subtitle' | t: { name: invite()?.fullName || '', company: invite()?.companyName || '', username: invite()?.username || '' } }} }
-              @else { {{ 'login.changePassword.subtitle' | t }} }
-            </p>
-          </div>
-          <form class="setup-form" (submit)="submit(); $event.preventDefault()">
-            @if (mode() === 'change') {
-              <div class="form-field">
-                <input id="setupCurrent" type="password" class="form-input" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)" />
-                <label for="setupCurrent" class="form-label">{{ 'login.changePassword.current' | t }}</label>
+    <div class="auth single">
+      <div class="auth-side">
+        <div class="auth-brand"><span class="logo-mark" aria-hidden="true">e</span>ecelon</div>
+        <main class="auth-col">
+          @if (mode() === 'invite' && inviteError()) {
+            <div class="auth-form" role="alert">
+              <div class="auth-state">
+                <span class="ic"><app-icon name="alert" /></span>
+                <div>
+                  <h1>{{ 'login.invite.invalidTitle' | t }}</h1>
+                  <p class="lead-t">{{ 'login.invite.invalid' | t }}</p>
+                </div>
               </div>
-            }
-            <div class="form-field">
-              <input id="setupNew" type="password" class="form-input" autocomplete="new-password" [value]="password()" (input)="password.set($any($event.target).value)" />
-              <label for="setupNew" class="form-label">{{ 'login.changePassword.new' | t }}</label>
+              <button type="button" class="btn btn-xl btn-block" (click)="router.navigate(['/login'])"><app-icon name="chevl" />{{ 'login.invite.toLogin' | t }}</button>
             </div>
-            <div class="form-field">
-              <input id="setupConfirm" type="password" class="form-input" autocomplete="new-password" [value]="confirm()" (input)="confirm.set($any($event.target).value)" />
-              <label for="setupConfirm" class="form-label">{{ 'login.changePassword.confirm' | t }}</label>
-              @if (confirm() && confirm() !== password()) { <div class="form-error">{{ 'settings.password.mismatch' | t }}</div> }
+          } @else if (mode() === 'invite' && !invite()) {
+            <div class="auth-form setup-skel" [attr.aria-label]="'common.loading' | t" aria-busy="true">
+              <div class="skeleton skeleton-title"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text short"></div>
             </div>
-            <ul class="policy">
-              <li [class.ok]="password().length >= minLength">{{ 'login.policy.length' | t: { n: minLength } }}</li>
-              <li [class.ok]="classes() >= minClasses">{{ 'login.policy.classes' | t: { n: minClasses } }}</li>
-            </ul>
-            <button type="submit" class="btn btn-primary" [disabled]="!canSubmit() || saving()">
-              @if (saving()) { <span class="spinner-sm spinner-light"></span> } {{ 'login.changePassword.submit' | t }}
-            </button>
-          </form>
-        }
+          } @else {
+            <form class="auth-form" (submit)="submit(); $event.preventDefault()">
+              <div class="auth-state">
+                <span class="ic info"><app-icon [name]="mode() === 'invite' ? 'user' : 'lock'" /></span>
+                <div>
+                  <h1>{{ (mode() === 'invite' ? 'login.invite.title' : 'login.changePassword.title') | t }}</h1>
+                  <p class="lead-t">
+                    @if (mode() === 'invite') { {{ 'login.invite.subtitle' | t: { name: invite()?.fullName || '', company: invite()?.companyName || '', username: invite()?.username || '' } }} }
+                    @else { {{ 'login.changePassword.subtitle' | t }} }
+                  </p>
+                </div>
+              </div>
+              <div class="auth-fields">
+                @if (mode() === 'change') {
+                  <div class="fld">
+                    <label class="fld-label" for="setupCurrent">{{ 'login.changePassword.current' | t }}</label>
+                    <div class="field field-lg"><span class="lead"><app-icon name="lock" size="sm" /></span>
+                      <input id="setupCurrent" [type]="show() ? 'text' : 'password'" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)" />
+                    </div>
+                  </div>
+                }
+                <div class="fld">
+                  <label class="fld-label" for="setupNew">{{ 'login.changePassword.new' | t }}</label>
+                  <div class="field field-lg"><span class="lead"><app-icon name="lock" size="sm" /></span>
+                    <input id="setupNew" [type]="show() ? 'text' : 'password'" autocomplete="new-password" [value]="password()" (input)="password.set($any($event.target).value)" aria-describedby="setupPolicy" />
+                    <span class="trail"><button class="btn btn-ghost btn-xs btn-icon" type="button" (click)="show.set(!show())" [attr.aria-label]="(show() ? 'login.hidePassword' : 'login.showPassword') | t" [attr.aria-pressed]="show()"><app-icon [name]="show() ? 'eyeoff' : 'eye'" size="sm" /></button></span>
+                  </div>
+                  <ul class="policy-list" id="setupPolicy">
+                    <li [class.ok]="password().length >= minLength">{{ 'login.policy.length' | t: { n: minLength } }}</li>
+                    <li [class.ok]="classes() >= minClasses">{{ 'login.policy.classes' | t: { n: minClasses } }}</li>
+                  </ul>
+                </div>
+                <div class="fld">
+                  <label class="fld-label" for="setupConfirm">{{ 'login.changePassword.confirm' | t }}</label>
+                  <div class="field field-lg" [class.is-error]="!!confirm() && confirm() !== password()"><span class="lead"><app-icon name="lock" size="sm" /></span>
+                    <input id="setupConfirm" [type]="show() ? 'text' : 'password'" autocomplete="new-password" [value]="confirm()" (input)="confirm.set($any($event.target).value)"
+                           [attr.aria-invalid]="!!confirm() && confirm() !== password()" aria-describedby="setupConfirmErr" />
+                  </div>
+                  @if (confirm() && confirm() !== password()) { <div class="fld-error" id="setupConfirmErr"><app-icon name="alert" size="sm" />{{ 'settings.password.mismatch' | t }}</div> }
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary btn-xl btn-block" [class.is-loading]="saving()" [disabled]="!canSubmit()">
+                <span>{{ 'login.changePassword.submit' | t }}</span>
+              </button>
+            </form>
+          }
+        </main>
+        <footer class="auth-foot"><span class="spacer"></span><span>© {{ year }} Ecelon</span></footer>
       </div>
     </div>
   `,
@@ -88,6 +119,8 @@ export class AccountSetupComponent implements OnInit {
   password = signal('');
   confirm = signal('');
   saving = signal(false);
+  show = signal(false);
+  readonly year = new Date().getFullYear();
   classes = computed(() => passwordClasses(this.password()));
   canSubmit = computed(
     () => isStrongPassword(this.password()) && this.password() === this.confirm() && (this.mode() === 'invite' || !!this.current()),

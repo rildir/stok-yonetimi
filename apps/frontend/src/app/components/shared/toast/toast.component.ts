@@ -1,12 +1,13 @@
 import { Component, Input, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslatePipe } from '../../../i18n';
 
 export type ToastType = 'success' | 'error' | 'info';
 
 @Component({
   selector: 'app-toast',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   template: `
     @if (isVisible()) {
       <div class="inline-toast" role="status" [class.toast-success]="type() === 'success'" [class.toast-error]="type() === 'error'" [class.toast-info]="type() === 'info'">
@@ -22,36 +23,34 @@ export type ToastType = 'success' | 'error' | 'info';
         <div class="inline-toast-content">
           {{ message() }}
         </div>
-        <button type="button" class="inline-toast-close" (click)="close()" aria-label="×"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        <button type="button" class="inline-toast-close" (click)="close()" [attr.aria-label]="'common.close' | t"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
     }
   `,
   styles: [`
     .inline-toast {
-      display: flex; align-items: center; gap: var(--space-3);
-      padding: var(--space-3) var(--space-4); margin-bottom: var(--space-6);
-      background: var(--color-surface); border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
-      animation: toastIn var(--duration-base) var(--ease-standard);
+      --tone: var(--accent);
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 10px 10px 14px; margin-bottom: 16px;
+      background: var(--pop-bg); border: 0; border-radius: var(--radius-md);
+      box-shadow: var(--shadow-card), inset 3px 0 0 var(--tone);
+      animation: toastIn var(--dur-3) var(--ease-out);
     }
-    .toast-success { background: var(--color-success-subtle); border-color: var(--color-success-border); }
-    .toast-error { background: var(--color-danger-subtle); border-color: var(--color-danger-border); }
-    .toast-info { background: var(--color-info-subtle); border-color: var(--color-info-border); }
-    .inline-toast-icon { flex-shrink: 0; width: 20px; height: 20px; }
+    .toast-success { --tone: var(--success-dot); }
+    .toast-error { --tone: var(--danger-dot); }
+    .toast-info { --tone: var(--accent); }
+    .inline-toast-icon { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; color: var(--tone); }
     .inline-toast-icon svg { width: 100%; height: 100%; }
-    .toast-success .inline-toast-icon { color: var(--color-success); }
-    .toast-error .inline-toast-icon { color: var(--color-danger); }
-    .toast-info .inline-toast-icon { color: var(--color-info); }
-    .inline-toast-content { flex: 1; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text); line-height: 1.45; }
+    .inline-toast-content { flex: 1; font-size: var(--text-sm); font-weight: 500; color: var(--fg); line-height: 1.45; }
     .inline-toast-close {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 28px; height: 28px; background: transparent; border: 0; cursor: pointer;
-      color: var(--color-text-muted); border-radius: var(--radius-sm);
-      transition: background var(--duration-fast) var(--ease-standard);
+      display: inline-flex; align-items: center; justify-content: center; flex: none;
+      width: 24px; height: 24px; background: transparent; border: 0; cursor: pointer;
+      color: var(--fg-3); border-radius: var(--radius-2xs);
+      transition: background-color var(--dur-1) var(--ease-out);
     }
-    .inline-toast-close:hover { background: var(--color-surface-muted); color: var(--color-text); }
+    .inline-toast-close:hover { background: var(--surface-hover); color: var(--fg); }
     .inline-toast-close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-    @keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
   `]
 })
 export class ToastComponent {

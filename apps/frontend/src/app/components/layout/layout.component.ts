@@ -1,4 +1,4 @@
-import { Component, inject, ViewChild, ElementRef, signal, computed, effect, HostListener, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, effect, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -9,377 +9,184 @@ import { FormsModule } from '@angular/forms';
 import { NotificationService } from '../../services/notification.service';
 import { ModalComponent } from '../modal.component';
 import { AppStateService } from '../../services/app-state.service';
-import { InventoryService } from '../../inventory.service';
-import { Subject, of, Observable } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
-import { SearchService, GlobalSearchResult } from '../../services/search.service';
 import { Title } from '@angular/platform-browser';
 import { I18nService, Lang, SUPPORTED_LANGS, TranslatePipe, AppDatePipe } from '../../i18n';
 import { ThemeService } from '../../services/theme.service';
 import { EBelgeBannerComponent } from '../ebelge/ebelge-banner.component';
 import { AcceptanceModalComponent } from '../kvkk/acceptance-modal.component';
-import { KvkkBannerComponent } from '../kvkk/kvkk-banner.component';
 import { NoticeTextComponent } from '../kvkk/notice-text.component';
 import { KvkkService, PrivacyNotice } from '../../services/kvkk.service';
 import { SessionService } from '../../services/session.service';
+import { IconComponent } from '../shared/icon.component';
+import { CommandPaletteComponent, PaletteCommand } from './command-palette.component';
+import { NoticeCenterComponent } from './notice-center.component';
+import { CREATE_ACTIONS, visibleSections } from './nav.config';
 
+/**
+ * App shell (Precision): 232px canvas sidebar (workspace, ⌘K trigger, sectioned nav, user row),
+ * 48px topbar (breadcrumbs · compliance notice pill · TR/EN · theme · bell), scrolling main column,
+ * mobile tab bar. Global shortcuts: ⌘K/Ctrl K palette · "/" page search · N then P/M/O/C/B/S/W create ·
+ * ⇧T theme · Ctrl/⌘↵ submit the open drawer · Esc closes overlays.
+ */
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe, EBelgeBannerComponent, AcceptanceModalComponent, KvkkBannerComponent, NoticeTextComponent],
+  imports: [CommonModule, RouterModule, FormsModule, ModalComponent, TranslatePipe, AppDatePipe, EBelgeBannerComponent, AcceptanceModalComponent, NoticeTextComponent, IconComponent, CommandPaletteComponent, NoticeCenterComponent],
   template: `
     <div class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed()" [class.mobile-nav-open]="isMobileNavOpen()">
       <div class="sidebar-backdrop" (click)="isMobileNavOpen.set(false)"></div>
+
+      <!-- ─── Sidebar ─── -->
       <aside class="sidebar" [attr.aria-label]="'layout.group.main' | t">
         <div class="sidebar-inner">
-          <div class="sidebar-logo">
-            <a routerLink="/dashboard" class="brand">
-              <span class="brand-mark" aria-hidden="true">e</span>
-              <span class="brand-name">ecelon</span>
+          <div class="sb-top">
+            <a routerLink="/dashboard" class="ws" [attr.title]="companyName()">
+              <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
+              <b>{{ companyName() }}</b>
             </a>
-            <button type="button" class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" [attr.aria-label]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" [style.transform]="isSidebarCollapsed() ? 'rotate(180deg)' : 'none'"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+            <button type="button" class="toggle-sidebar-btn" (click)="toggleSidebar()" [attr.aria-label]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t" [attr.title]="(isSidebarCollapsed() ? 'layout.showMenu' : 'layout.hideMenu') | t">
+              <app-icon name="sidebar" />
             </button>
-            <button type="button" class="topbar-icon-btn show-mobile" (click)="isMobileNavOpen.set(false)" [attr.aria-label]="'layout.closeMenu' | t">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            <button type="button" class="topbar-icon-btn m-only" (click)="isMobileNavOpen.set(false)" [attr.aria-label]="'layout.closeMenu' | t">
+              <app-icon name="x" />
             </button>
           </div>
 
-          @if (!isSidebarCollapsed() || isMobileNavOpen()) {
-            <div class="sidebar-search">
-              <div class="sidebar-search-field">
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                <input
-                  #searchInput
-                  type="text"
-                  [attr.aria-label]="'layout.search.placeholder' | t: { shortcut: searchShortcut }"
-                  [placeholder]="'layout.search.placeholder' | t: { shortcut: searchShortcut }"
-                  [ngModel]="navbarSearchQuery()"
-                  (ngModelChange)="onSearchQueryChange($event)"
-                  (keyup.enter)="triggerNavbarSearch()"
-                  (keydown.arrowdown)="onArrowDown($event)"
-                  (keydown.arrowup)="onArrowUp($event)"
-                  (focus)="onSearchFocus()"
-                  (blur)="onSearchBlur()"
-                />
-                <kbd class="kbd hide-mobile">{{ searchShortcut }}</kbd>
-              </div>
-                <!-- Autocomplete suggestions floating dropdown overlay -->
-                @if (isSearchFocused() && navbarSearchQuery().trim() !== '' && allVisibleSuggestions().length > 0) {
-                  <div class="search-suggestions-dropdown">
-                    
-                    <!-- Section: Pages -->
-                    @if (filteredSuggestionsByType('nav').length > 0) {
-                      <div class="search-section">
-                        <div class="search-section-header">
-                          {{ 'layout.search.pages' | t }}
-                        </div>
-                        @for (s of filteredSuggestionsByType('nav'); track s.title) {
-                          <div class="suggestion-item" 
-                               [class.active]="isItemActive(s)"
-                               (mousedown)="selectSuggestion(s); $event.preventDefault()"
-                          >
-                            <div class="suggestion-item-left">
-                              <span class="suggestion-item-title" [innerHTML]="highlightMatch(s.title)"></span>
-                            </div>
-                            <span class="suggestion-item-category">{{ s.category }}</span>
-                          </div>
-                        }
-                      </div>
-                    }
-
-                    <!-- Section: Actions -->
-                    @if (filteredSuggestionsByType('action').length > 0) {
-                      <div class="search-section">
-                        <div class="search-section-header">
-                          {{ 'layout.search.actions' | t }}
-                        </div>
-                        @for (s of filteredSuggestionsByType('action'); track s.title) {
-                          <div class="suggestion-item" 
-                               [class.active]="isItemActive(s)"
-                               (mousedown)="selectSuggestion(s); $event.preventDefault()"
-                          >
-                            <div class="suggestion-item-left">
-                              <span class="suggestion-item-title" style="color: var(--primary);" [innerHTML]="highlightMatch(s.title)"></span>
-                            </div>
-                            <span class="suggestion-badge action">{{ 'layout.search.trigger' | t }}</span>
-                          </div>
-                        }
-                      </div>
-                    }
-
-                    <!-- Section: Database matches -->
-                    @if (matchingInventory().length > 0) {
-                      <div class="search-section">
-                        <div class="search-section-header">
-                          {{ 'layout.search.records' | t }}
-                        </div>
-                        @for (item of matchingInventory(); track item.type + '-' + (item.id || item.name)) {
-                          <div class="suggestion-item" 
-                               [class.active]="isItemActive(item)"
-                               (mousedown)="selectSuggestion(item); $event.preventDefault()"
-                          >
-                            <div class="suggestion-item-left">
-                              <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                                <span class="suggestion-item-title" [innerHTML]="highlightMatch(item.name)"></span>
-                                <span class="suggestion-item-subtitle">{{ item.subtitle }}</span>
-                              </div>
-                            </div>
-                            <span class="suggestion-badge">{{ item.typeLabel }}</span>
-                          </div>
-                        }
-                      </div>
-                    }
-                  </div>
-                }
-            </div>
-          }
+          <button type="button" class="search-trigger" (click)="openPalette()" [attr.aria-label]="'layout.palette.trigger' | t">
+            <app-icon name="search" size="sm" />
+            <span class="st-label">{{ 'layout.palette.trigger' | t }}</span>
+            <span class="kbd-group"><kbd>{{ isMac ? '⌘' : 'Ctrl' }}</kbd><kbd>K</kbd></span>
+          </button>
 
           <nav class="nav-list" (click)="isMobileNavOpen.set(false)">
-            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
-              <div class="nav-group-label">{{ 'layout.group.main' | t }}</div>
-            } @else {
-              <div class="nav-group-divider"></div>
-            }
-            <a routerLink="/dashboard" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.dashboard' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
-              <span class="nav-text">{{ 'layout.nav.dashboard' | t }}</span>
-            </a>
-
-            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
-              <div class="nav-group-label">{{ 'layout.group.stock' | t }}</div>
-            } @else {
-              <div class="nav-group-divider"></div>
-            }
-            <a routerLink="/products" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.products' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-              <span class="nav-text">{{ 'layout.nav.products' | t }}</span>
-            </a>
-            <a routerLink="/stock-movements" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockMovements' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
-              <span class="nav-text">{{ 'layout.nav.stockMovements' | t }}</span>
-            </a>
-            <a routerLink="/stock-count" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.stockCount' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
-              <span class="nav-text">{{ 'layout.nav.stockCount' | t }}</span>
-            </a>
-            <a routerLink="/warehouses" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.warehouses' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><rect x="6" y="10" width="12" height="12"/></svg>
-              <span class="nav-text">{{ 'layout.nav.warehouses' | t }}</span>
-            </a>
-
-            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
-              <div class="nav-group-label">{{ 'layout.group.operations' | t }}</div>
-            } @else {
-              <div class="nav-group-divider"></div>
-            }
-            <a routerLink="/orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.orders' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-              <span class="nav-text">{{ 'layout.nav.orders' | t }}</span>
-            </a>
-            <a routerLink="/customers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.customers' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <span class="nav-text">{{ 'layout.nav.customers' | t }}</span>
-            </a>
-            <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.purchaseOrders' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-              <span class="nav-text">{{ 'layout.nav.purchaseOrders' | t }}</span>
-            </a>
-            <a routerLink="/suppliers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.suppliers' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62L18.3 9.38a1 1 0 0 0-.78-.38H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
-              <span class="nav-text">{{ 'layout.nav.suppliers' | t }}</span>
-            </a>
-
-            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
-              <div class="nav-group-label">{{ 'layout.group.documents' | t }}</div>
-            } @else {
-              <div class="nav-group-divider"></div>
-            }
-            <a routerLink="/invoices" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.invoices' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8H8"/><path d="M16 12H8"/><path d="M13 16H8"/></svg>
-              <span class="nav-text">{{ 'layout.nav.invoices' | t }}</span>
-            </a>
-            <a routerLink="/despatches" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.despatches' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
-              <span class="nav-text">{{ 'layout.nav.despatches' | t }}</span>
-            </a>
-            <a routerLink="/goods-receipts" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.goodsReceipts' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><path d="M3.29 7 12 12l8.71-5"/><path d="M12 22V12"/><path d="m17 13 5 5"/><path d="m22 13-5 5"/></svg>
-              <span class="nav-text">{{ 'layout.nav.goodsReceipts' | t }}</span>
-            </a>
-            <a routerLink="/returns" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.returns' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
-              <span class="nav-text">{{ 'layout.nav.returns' | t }}</span>
-            </a>
-            <a routerLink="/expense-vouchers" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.expenseVouchers' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
-              <span class="nav-text">{{ 'layout.nav.expenseVouchers' | t }}</span>
-            </a>
-            @if (currentUser().role === 'admin' || currentUser().role === 'manager') {
-            <a routerLink="/disposals" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.disposals' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-              <span class="nav-text">{{ 'layout.nav.disposals' | t }}</span>
-            </a>
-            }
-            <a routerLink="/inbox" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.inbox' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
-              <span class="nav-text">{{ 'layout.nav.inbox' | t }}</span>
-            </a>
-
-            @if (!isSidebarCollapsed() || isMobileNavOpen()) {
-              <div class="nav-group-label">{{ 'layout.group.system' | t }}</div>
-            } @else {
-              <div class="nav-group-divider"></div>
-            }
-            <a routerLink="/reports" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.reports' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-              <span class="nav-text">{{ 'layout.nav.reports' | t }}</span>
-            </a>
-            <a routerLink="/settings" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.settings' | t">
-              <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-              <span class="nav-text">{{ 'layout.nav.settings' | t }}</span>
-            </a>
-            @if (currentUser().role === 'auditor') {
-              <a routerLink="/audit-log" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.auditLog' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                <span class="nav-text">{{ 'layout.nav.auditLog' | t }}</span>
-              </a>
-            }
-            @if (currentUser().role === 'admin') {
-              <a routerLink="/audit-log" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.auditLog' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                <span class="nav-text">{{ 'layout.nav.auditLog' | t }}</span>
-              </a>
-              <a routerLink="/integrations" routerLinkActive="active" class="nav-btn" [title]="'layout.nav.integrations' | t">
-                <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
-                <span class="nav-text">{{ 'layout.nav.integrations' | t }}</span>
-              </a>
+            @for (sec of navSections(); track $index) {
+              @if (sec.labelKey) {
+                @if (!isSidebarCollapsed() || isMobileNavOpen()) {
+                  <div class="nav-sec">{{ sec.labelKey | t }}</div>
+                } @else {
+                  <div class="nav-group-divider"></div>
+                }
+              }
+              @for (item of sec.items; track item.route) {
+                <a [routerLink]="item.route" routerLinkActive="is-active" ariaCurrentWhenActive="page" class="nav-item" [attr.title]="isSidebarCollapsed() ? (item.labelKey | t) : null">
+                  <app-icon [name]="item.icon" />
+                  <span class="lbl">{{ item.labelKey | t }}</span>
+                </a>
+              }
             }
           </nav>
+
+          <div class="sb-foot">
+            <button type="button" class="me" (click)="toggleProfileDropdown($event)" [attr.aria-expanded]="isProfileOpen()" aria-haspopup="menu">
+              <span class="avatar">
+                @if (currentUser().avatar) { <img [src]="currentUser().avatar" alt="" /> } @else { {{ initials() }} }
+              </span>
+              <span class="who"><b>{{ currentUser().name }}</b><span>{{ roleLabel() }}</span></span>
+              <app-icon name="more" size="sm" />
+            </button>
+            @if (isProfileOpen()) {
+              <div class="pop me-menu" role="menu" (click)="$event.stopPropagation()">
+                <div class="dropdown-header"><strong>{{ currentUser().name }}</strong><span>{{ currentUser().username }}</span></div>
+                <div class="menu-sep"></div>
+                <a routerLink="/settings" class="menu-i" role="menuitem" (click)="isProfileOpen.set(false); isMobileNavOpen.set(false)"><app-icon name="settings" />{{ 'layout.profile.settings' | t }}</a>
+                <button type="button" class="menu-i" role="menuitem" (click)="theme.toggle()">
+                  <app-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" />{{ (theme.theme() === 'dark' ? 'layout.theme.toLight' : 'layout.theme.toDark') | t }}<kbd>⇧T</kbd>
+                </button>
+                <button type="button" class="menu-i" role="menuitemcheckbox" [attr.aria-checked]="theme.density() === 'comfortable'" (click)="theme.toggleDensity()">
+                  <app-icon name="rows" />{{ 'layout.density.comfortable' | t }}
+                  <span class="meta">{{ (theme.density() === 'comfortable' ? 'layout.density.on' : 'layout.density.off') | t }}</span>
+                </button>
+                <button type="button" class="menu-i m-only" role="menuitem" (click)="changeLanguage(i18n.lang() === 'tr' ? 'en' : 'tr')">
+                  <app-icon name="globe" />{{ 'common.language' | t }}<span class="meta">{{ i18n.lang().toUpperCase() }}</span>
+                </button>
+                <div class="menu-sep"></div>
+                <button type="button" class="menu-i danger" role="menuitem" (click)="doLogout(); isProfileOpen.set(false)"><app-icon name="logout" />{{ 'layout.profile.logout' | t }}</button>
+              </div>
+            }
+          </div>
         </div>
       </aside>
 
+      <!-- ─── Main column ─── -->
       <div class="main-layout-wrapper">
-        <header class="top-navbar">
-          <div class="navbar-left">
-            <button type="button" class="topbar-icon-btn mobile-menu-btn" (click)="isMobileNavOpen.set(true)" [attr.aria-label]="'layout.openMenu' | t">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-            </button>
-            <nav class="breadcrumbs" [attr.aria-label]="'layout.breadcrumb' | t">
-              <span class="hide-mobile">{{ getBreadcrumbs().category }}</span>
-              <svg class="crumb-sep hide-mobile" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              <span class="crumb-current" aria-current="page">{{ getBreadcrumbs().page }}</span>
-            </nav>
+        <header class="topbar">
+          <button type="button" class="topbar-icon-btn m-only" (click)="isMobileNavOpen.set(true)" [attr.aria-label]="'layout.openMenu' | t">
+            <app-icon name="menu" />
+          </button>
+          <nav class="crumbs d-only" [attr.aria-label]="'layout.breadcrumb' | t">
+            <span>{{ getBreadcrumbs().category }}</span>
+            <span class="sep" aria-hidden="true">/</span>
+            <b aria-current="page">{{ getBreadcrumbs().page }}</b>
+          </nav>
+          <div class="mcrumb">
+            <span class="logo-mark" aria-hidden="true">{{ companyInitial() }}</span>
+            <b>{{ getBreadcrumbs().page }}</b>
+          </div>
+          <span class="spacer"></span>
+
+          <span class="d-only"><app-notice-center mode="pill"></app-notice-center></span>
+
+          <div class="lang-switch d-only" role="group" [attr.aria-label]="'common.language' | t">
+            @for (l of languages; track l) {
+              <button type="button" (click)="changeLanguage(l)" [disabled]="isLangSaving()" [attr.aria-pressed]="i18n.lang() === l" [attr.title]="('layout.lang.' + l) | t">{{ l.toUpperCase() }}</button>
+            }
           </div>
 
-          <div class="navbar-right">
-            <div class="lang-switch" role="group" [attr.aria-label]="'common.language' | t">
-              @for (l of languages; track l) {
-                <button type="button"
-                        (click)="changeLanguage(l)"
-                        [disabled]="isLangSaving()"
-                        [attr.aria-pressed]="i18n.lang() === l"
-                        [attr.title]="('layout.lang.' + l) | t">
-                  {{ l.toUpperCase() }}
-                </button>
-              }
-            </div>
+          <button type="button" class="topbar-icon-btn m-only" (click)="openPalette()" [attr.aria-label]="'layout.palette.trigger' | t">
+            <app-icon name="search" />
+          </button>
+          <button type="button" class="topbar-icon-btn d-only" (click)="theme.toggle()"
+                  [attr.aria-label]="(theme.theme() === 'dark' ? 'layout.theme.toLight' : 'layout.theme.toDark') | t"
+                  [attr.data-tip]="(theme.theme() === 'dark' ? 'layout.theme.toLight' : 'layout.theme.toDark') | t">
+            <app-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" />
+          </button>
 
-            <button type="button" class="topbar-icon-btn" (click)="theme.toggle()"
-                    [attr.aria-label]="(theme.theme() === 'dark' ? 'layout.theme.toLight' : 'layout.theme.toDark') | t"
-                    [attr.title]="(theme.theme() === 'dark' ? 'layout.theme.toLight' : 'layout.theme.toDark') | t">
-              @if (theme.theme() === 'dark') {
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-              } @else {
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-              }
+          <div class="notification-widget">
+            <button type="button" class="notif-btn" (click)="toggleNotifDropdown($event)" [attr.aria-expanded]="isNotifOpen()"
+                    [attr.aria-label]="('layout.notifications.title' | t) + (notifService.unreadCount() > 0 ? ' (' + notifService.unreadCount() + ')' : '')">
+              <app-icon name="bell" />
+              @if (notifService.unreadCount() > 0) { <span class="notif-badge" aria-hidden="true"></span> }
             </button>
-
-            <div class="notification-widget">
-              <button type="button" class="notif-btn" (click)="toggleNotifDropdown($event)" [attr.aria-label]="'layout.notifications.title' | t">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                @if (notifService.unreadCount() > 0) {
-                  <span class="notif-badge">{{ notifService.unreadCount() }}</span>
-                }
-              </button>
-              @if (isNotifOpen()) {
-                <div class="notif-dropdown" (click)="$event.stopPropagation()">
-                  <div class="notif-header">
-                    <h4>{{ 'layout.notifications.title' | t }}</h4>
-                    <div class="notif-actions">
-                      @if (notifService.notifications().length > 0) {
-                        <button class="notif-action-link" (click)="notifService.markAllAsRead()">{{ 'layout.notifications.markAllRead' | t }}</button>
-                        <span class="divider">•</span>
-                        <button class="notif-action-link" (click)="notifService.clearAll()">{{ 'layout.notifications.clear' | t }}</button>
-                      }
-                    </div>
-                  </div>
-                  <div class="notif-list">
-                    @if (notifService.notifications().length === 0) {
-                      <div class="notif-empty">
-                        <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2m16 4h-2a2 2 0 00-2 2v1a2 2 0 00-2 2H8a2 2 0 00-2-2v-1a2 2 0 00-2-2H2"/>
-                        </svg>
-                        <span>{{ 'layout.notifications.empty' | t }}</span>
-                      </div>
-                    } @else {
-                      @for (n of notifService.notifications(); track n.id) {
-                        <div class="notif-item" [class.unread]="!n.read" (click)="notifService.markAsRead(n.id)">
-                          <div class="notif-indicator" [class]="n.type"></div>
-                          <div class="notif-content">
-                            <p class="notif-message">{{ n.key ? i18n.t(n.key, n.params) : n.message }}</p>
-                            <span class="notif-time">{{ n.createdAt | appDate: 'short' }}</span>
-                          </div>
-                        </div>
-                      }
+            @if (isNotifOpen()) {
+              <div class="notif-dropdown" (click)="$event.stopPropagation()">
+                <div class="m-only"><app-notice-center mode="inline"></app-notice-center></div>
+                <div class="notif-header">
+                  <h4>{{ 'layout.notifications.title' | t }}</h4>
+                  <div class="notif-actions">
+                    @if (notifService.notifications().length > 0) {
+                      <button class="notif-action-link" (click)="notifService.markAllAsRead()">{{ 'layout.notifications.markAllRead' | t }}</button>
+                      <span class="divider" aria-hidden="true">·</span>
+                      <button class="notif-action-link" (click)="notifService.clearAll()">{{ 'layout.notifications.clear' | t }}</button>
                     }
                   </div>
                 </div>
-              }
-            </div>
-
-            <span class="topbar-divider"></span>
-
-            <div class="profile-widget" (click)="toggleProfileDropdown($event)">
-              <div class="avatar-circle">
-                @if (currentUser().avatar) {
-                  <img [src]="currentUser().avatar" alt="" />
-                } @else {
-                  {{ currentUser().name.charAt(0) }}
-                }
-              </div>
-              <div class="user-info">
-                <span class="user-name">{{ 'layout.profile.greeting' | t: { name: currentUser().name } }}</span>
-                <span class="user-role">
-                  {{ 'layout.profile.account' | t }}
-                  <svg class="dropdown-chevron" [class.open]="isProfileOpen()" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </span>
-              </div>
-              @if (isProfileOpen()) {
-                <div class="profile-dropdown" (click)="$event.stopPropagation()">
-                  <div class="dropdown-header">
-                    <strong>{{ currentUser().name }}</strong>
-                    <span>{{ currentUser().username }}</span>
-                  </div>
-                  <div class="dropdown-divider"></div>
-                  <a routerLink="/settings" (click)="isProfileOpen.set(false)" class="dropdown-item">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                    {{ 'layout.profile.settings' | t }}
-                  </a>
-                  <button (click)="doLogout(); isProfileOpen.set(false)" class="dropdown-item logout">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                    {{ 'layout.profile.logout' | t }}
-                  </button>
+                <div class="notif-list">
+                  @if (notifService.notifications().length === 0) {
+                    <div class="notif-empty">
+                      <app-icon name="inbox" size="lg" />
+                      <span>{{ 'layout.notifications.empty' | t }}</span>
+                    </div>
+                  } @else {
+                    @for (n of notifService.notifications(); track n.id) {
+                      <div class="notif-item" [class.unread]="!n.read" (click)="notifService.markAsRead(n.id)">
+                        <div class="notif-indicator" [class]="n.type"></div>
+                        <div class="notif-content">
+                          <p class="notif-message">{{ n.key ? i18n.t(n.key, n.params) : n.message }}</p>
+                          <span class="notif-time">{{ n.createdAt | appDate: 'short' }}</span>
+                        </div>
+                      </div>
+                    }
+                  }
                 </div>
-              }
-            </div>
+              </div>
+            }
           </div>
         </header>
 
-        <main class="main-content">
+        <main class="main-content" id="main">
           @if (ui.isReadonly()) {
             <div class="readonly-banner">
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <app-icon name="info" />
               @if (ui.isAuditor()) {
                 <span><strong>{{ 'kvkk.auditor.title' | t }}</strong> {{ 'kvkk.auditor.message' | t }}</span>
               } @else {
@@ -388,7 +195,6 @@ import { SessionService } from '../../services/session.service';
             </div>
           }
           <app-ebelge-banner></app-ebelge-banner>
-          <app-kvkk-banner></app-kvkk-banner>
           <router-outlet></router-outlet>
           <footer class="app-legal-footer">
             <button type="button" class="link-btn" (click)="openNotice()">{{ 'kvkk.footer.notice' | t }}</button>
@@ -398,34 +204,41 @@ import { SessionService } from '../../services/session.service';
         </main>
       </div>
 
+      <!-- ─── Mobile tab bar ─── -->
+      <nav class="tabbar" [attr.aria-label]="'layout.tabbar' | t">
+        <a routerLink="/dashboard" routerLinkActive="is-active" ariaCurrentWhenActive="page"><app-icon name="home" />{{ 'layout.tab.overview' | t }}</a>
+        <a routerLink="/products" routerLinkActive="is-active" ariaCurrentWhenActive="page"><app-icon name="box" />{{ 'layout.tab.products' | t }}</a>
+        <a routerLink="/stock-movements" routerLinkActive="is-active" ariaCurrentWhenActive="page"><app-icon name="swap" />{{ 'layout.tab.movements' | t }}</a>
+        <a routerLink="/orders" routerLinkActive="is-active" ariaCurrentWhenActive="page"><app-icon name="bag" />{{ 'layout.tab.orders' | t }}</a>
+        <button type="button" (click)="isMobileNavOpen.set(true)" [attr.aria-label]="'layout.openMenu' | t"><app-icon name="more" />{{ 'layout.tab.more' | t }}</button>
+      </nav>
+
+      @if (paletteOpen()) {
+        <app-command-palette [role]="currentUser().role" [isDark]="theme.theme() === 'dark'" (closed)="paletteOpen.set(false)" (command)="onPaletteCommand($event)"></app-command-palette>
+      }
+
       <app-acceptance-modal></app-acceptance-modal>
       @if (noticeOpen()) {
-        <app-modal [isOpen]="true" [title]="noticeOpen()?.title || ('kvkk.footer.notice' | t)" (onClose)="noticeOpen.set(null)">
-          <p class="notice-meta">{{ 'kvkk.notice.version' | t }} {{ noticeOpen()?.version }} · {{ noticeOpen()?.publishedAt | appDate }}</p>
+        <app-modal [isOpen]="true" size="lg" [title]="noticeOpen()?.title || ('kvkk.footer.notice' | t)" (onClose)="noticeOpen.set(null)">
+          <p class="notice-meta">{{ 'kvkk.notice.version' | t }} <span class="mono">{{ noticeOpen()?.version }}</span> · {{ noticeOpen()?.publishedAt | appDate }}</p>
           <app-notice-text [text]="noticeOpen()?.body"></app-notice-text>
           <div footer class="modal-actions"><button type="button" class="btn btn-primary" (click)="noticeOpen.set(null)">{{ 'common.close' | t }}</button></div>
         </app-modal>
       }
 
       @if (ui.confirmConfig()?.isDelete) {
-        <app-modal [isOpen]="!!ui.confirmConfig()" [title]="''" [isDelete]="true" (onClose)="isConfirmLoading() ? null : ui.closeConfirm()">
+        <app-modal [isOpen]="!!ui.confirmConfig()" [title]="''" [isDelete]="true" size="sm" (onClose)="isConfirmLoading() ? null : ui.closeConfirm()">
           <div class="confirm-dialog">
-            <div class="confirm-dialog-icon">
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-            </div>
+            <div class="confirm-dialog-icon"><app-icon name="trash" /></div>
             <h3 class="confirm-dialog-title">{{ ui.confirmConfig()?.title }}</h3>
             <p class="confirm-dialog-text">{{ ui.confirmConfig()?.message }}</p>
           </div>
           <div footer class="modal-actions">
-            <button type="button" class="btn btn-secondary" (click)="ui.closeConfirm()" [disabled]="isConfirmLoading()">
+            <button type="button" class="btn btn-ghost" (click)="ui.closeConfirm()" [disabled]="isConfirmLoading()">
               {{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}
             </button>
-            <button type="button" class="btn btn-danger" (click)="confirmGlobalAction()" [disabled]="isConfirmLoading()">
-              @if (isConfirmLoading()) {
-                <span class="spinner-sm spinner-light"></span> {{ 'layout.confirm.deleting' | t }}
-              } @else {
-                {{ ui.confirmConfig()?.confirmText || ('common.delete' | t) }}
-              }
+            <button type="button" class="btn btn-danger" [class.is-loading]="isConfirmLoading()" (click)="confirmGlobalAction()" [attr.aria-busy]="isConfirmLoading() || null">
+              <span>{{ ui.confirmConfig()?.confirmText || ('common.delete' | t) }}</span>
             </button>
           </div>
         </app-modal>
@@ -433,7 +246,7 @@ import { SessionService } from '../../services/session.service';
         <app-modal [isOpen]="!!ui.confirmConfig()" [title]="ui.confirmConfig()?.title || ''" (onClose)="ui.closeConfirm()">
           <p class="confirm-dialog-text">{{ ui.confirmConfig()?.message }}</p>
           <div footer class="modal-actions">
-            <button type="button" class="btn btn-secondary" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}</button>
+            <button type="button" class="btn btn-ghost" (click)="ui.closeConfirm()">{{ ui.confirmConfig()?.cancelText || ('layout.confirm.cancel' | t) }}</button>
             <button type="button" class="btn btn-primary" (click)="confirmGlobalAction()">{{ ui.confirmConfig()?.confirmText || ('common.confirm' | t) }}</button>
           </div>
         </app-modal>
@@ -447,401 +260,116 @@ export class LayoutComponent implements OnInit {
   socketService = inject(SocketService);
   http = inject(HttpClient);
   state = inject(AppStateService);
-  inventoryService = inject(InventoryService);
-  searchService = inject(SearchService);
   i18n = inject(I18nService);
   private titleService = inject(Title);
   isConfirmLoading = signal(false);
   isLangSaving = signal(false);
   languages: Lang[] = SUPPORTED_LANGS;
-  
-  @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
-  searchShortcut = 'Ctrl+K';
+  isMac = false;
+  paletteOpen = signal(false);
+  private chordN = false;
+  private chordTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit() {
     if (typeof window !== 'undefined') {
       const platform = navigator.platform || '';
       const userAgent = navigator.userAgent || '';
-      const isMac = /mac/i.test(platform) || /mac/i.test(userAgent);
-      this.searchShortcut = isMac ? '⌘K' : 'Ctrl+K';
+      this.isMac = /mac/i.test(platform) || /mac/i.test(userAgent);
     }
   }
 
-  navbarSearchQuery = signal('');
-  searchResults = signal<GlobalSearchResult | null>(null);
-  private searchSubject = new Subject<string>();
+  navSections = computed(() => visibleSections(this.currentUser().role));
+  companyName = computed(() => this.ui.userProfile()?.company?.name || 'ecelon');
+  companyInitial = computed(() => (this.companyName().trim().charAt(0) || 'e').toLocaleUpperCase(this.i18n.locale()));
+  initials = computed(() => {
+    const parts = String(this.currentUser().name || '').trim().split(/\s+/).filter(Boolean);
+    return ((parts[0]?.charAt(0) || '') + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toLocaleUpperCase(this.i18n.locale());
+  });
+  roleLabel = computed(() => {
+    const role = this.currentUser().role;
+    const key = 'layout.role.' + role;
+    const t = this.i18n.t(key);
+    return t === key ? role : t;
+  });
 
-  isSearchFocused = signal(false);
-  activeIndex = signal<number>(-1);
-  warehouses = signal<any[]>([]);
-  suppliers = signal<any[]>([]);
+  openPalette() {
+    this.isMobileNavOpen.set(false);
+    this.isProfileOpen.set(false);
+    this.isNotifOpen.set(false);
+    this.paletteOpen.set(true);
+  }
+
+  onPaletteCommand(c: PaletteCommand) {
+    if (c === 'theme') this.theme.toggle();
+    else if (c === 'density') this.theme.toggleDensity();
+    else if (c === 'lang') this.changeLanguage(this.i18n.lang() === 'tr' ? 'en' : 'tr');
+    else if (c === 'logout') this.doLogout();
+  }
+
+  private static isTyping(t: EventTarget | null): boolean {
+    const el = t as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
 
   @HostListener('document:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
-    // Ctrl+K or Cmd+K
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    const key = event.key;
+    const mod = event.ctrlKey || event.metaKey;
+    // ⌘K / Ctrl K — command palette
+    if (mod && key.toLowerCase() === 'k') {
       event.preventDefault();
-      if (this.searchInput) {
-        this.searchInput.nativeElement.focus();
-        this.isSearchFocused.set(true);
-      }
-    }
-  }
-
-  onSearchQueryChange(val: string) {
-    this.navbarSearchQuery.set(val);
-    this.searchSubject.next(val);
-  }
-
-  private suggestionsSource = [
-    {
-      titleKey: 'layout.nav.warehouses',
-      type: 'nav',
-      categoryKey: 'layout.group.stock',
-      route: '/warehouses',
-      icon: '🏢',
-      keywords: ['depo', 'yönetimi', 'warehouses', 'warehouse', 'depolar', 'şube', 'şubeler']
-    },
-    {
-      titleKey: 'layout.nav.products',
-      type: 'nav',
-      categoryKey: 'layout.group.stock',
-      route: '/products',
-      icon: '📦',
-      keywords: ['ürün', 'yönetimi', 'products', 'product', 'ürünler', 'stok', 'stoklar', 'malzeme']
-    },
-    {
-      titleKey: 'layout.nav.stockMovements',
-      type: 'nav',
-      categoryKey: 'layout.group.stock',
-      route: '/stock-movements',
-      icon: '🔄',
-      keywords: ['stok', 'hareketleri', 'giriş', 'çıkış', 'transfer', 'sevk', 'movements', 'movement', 'stock']
-    },
-    {
-      titleKey: 'layout.nav.stockCount',
-      type: 'nav',
-      categoryKey: 'layout.group.stock',
-      route: '/stock-count',
-      icon: '📋',
-      keywords: ['sayım', 'stok sayımı', 'count', 'inventory', 'envanter']
-    },
-    {
-      titleKey: 'layout.nav.orders',
-      type: 'nav',
-      categoryKey: 'layout.group.operations',
-      route: '/orders',
-      icon: '🛒',
-      keywords: ['sipariş', 'takibi', 'orders', 'order', 'sales', 'siparişler', 'müşteri', 'satış']
-    },
-    {
-      titleKey: 'layout.nav.customers',
-      type: 'nav',
-      categoryKey: 'layout.group.operations',
-      route: '/customers',
-      icon: '👥',
-      keywords: ['müşteri', 'müşteriler', 'customer', 'customers', 'client', 'cari', 'alıcı']
-    },
-    {
-      titleKey: 'layout.nav.purchaseOrders',
-      type: 'nav',
-      categoryKey: 'layout.group.operations',
-      route: '/purchase-orders',
-      icon: '💳',
-      keywords: ['satın', 'alma', 'purchase', 'po', 'tedarik', 'sipariş', 'procurement']
-    },
-    {
-      titleKey: 'layout.nav.suppliers',
-      type: 'nav',
-      categoryKey: 'layout.group.operations',
-      route: '/suppliers',
-      icon: '🏭',
-      keywords: ['tedarikçi', 'tedarikçiler', 'suppliers', 'supplier', 'vendor', 'üretici', 'satıcı']
-    },
-    {
-      titleKey: 'layout.nav.reports',
-      type: 'nav',
-      categoryKey: 'layout.group.analytics',
-      route: '/reports',
-      icon: '📊',
-      keywords: ['raporlar', 'analiz', 'reports', 'analytics', 'report', 'istatistik', 'grafik']
-    },
-    {
-      titleKey: 'layout.nav.settings',
-      type: 'nav',
-      categoryKey: 'layout.group.analytics',
-      route: '/settings',
-      icon: '⚙️',
-      keywords: ['ayarlar', 'settings', 'profile', 'security', 'password', 'language', 'profil', 'güvenlik', 'şifre']
-    },
-    {
-      titleKey: 'layout.action.newOrder',
-      type: 'action',
-      categoryKey: 'layout.group.operations',
-      route: '/orders',
-      openParam: 'new',
-      icon: '➕🛒',
-      keywords: ['yeni', 'sipariş', 'oluştur', 'ekle', 'create', 'order', 'satış']
-    },
-    {
-      titleKey: 'layout.action.newProduct',
-      type: 'action',
-      categoryKey: 'layout.group.stock',
-      route: '/products',
-      openParam: 'new',
-      icon: '➕📦',
-      keywords: ['yeni', 'ürün', 'ekle', 'create', 'product', 'stok']
-    },
-    {
-      titleKey: 'layout.action.newWarehouse',
-      type: 'action',
-      categoryKey: 'layout.group.stock',
-      route: '/warehouses',
-      openParam: 'new',
-      icon: '➕🏢',
-      keywords: ['yeni', 'depo', 'tanımla', 'ekle', 'create', 'warehouse']
-    },
-    {
-      titleKey: 'layout.action.newSupplier',
-      type: 'action',
-      categoryKey: 'layout.group.operations',
-      route: '/suppliers',
-      openParam: 'new',
-      icon: '➕🏭',
-      keywords: ['yeni', 'tedarikçi', 'ekle', 'create', 'supplier']
-    },
-    {
-      titleKey: 'layout.action.newPurchaseOrder',
-      type: 'action',
-      categoryKey: 'layout.group.operations',
-      route: '/purchase-orders',
-      openParam: 'new',
-      icon: '➕💳',
-      keywords: ['yeni', 'satın', 'alma', 'siparişi', 'ekle', 'create', 'purchase', 'po']
-    }
-  ];
-
-  /** Suggestions with titles/categories resolved in the active language. */
-  suggestionsList = computed(() => this.suggestionsSource.map(s => ({
-    ...s,
-    title: this.i18n.t(s.titleKey),
-    category: this.i18n.t(s.categoryKey)
-  })));
-
-  translateStatus(status: string): string {
-    const keys: Record<string, string> = {
-      'Completed': 'shared.orderStatus.completed',
-      'Pending': 'shared.orderStatus.pending',
-      'Cancelled': 'shared.orderStatus.cancelled',
-      'Draft': 'shared.poStatus.draft',
-      'Sent': 'shared.poStatus.sent',
-      'Partially Received': 'shared.poStatus.partiallyReceived',
-      'Received': 'shared.poStatus.received'
-    };
-    return keys[status] ? this.i18n.t(keys[status]) : status;
-  }
-
-  filteredSuggestions = computed(() => {
-    const query = this.navbarSearchQuery().toLowerCase().trim();
-    if (!query) {
-      return this.suggestionsList();
-    }
-    return this.suggestionsList().filter(s =>
-      s.title.toLowerCase().includes(query) ||
-      s.category.toLowerCase().includes(query) ||
-      s.keywords.some(k => k.toLowerCase().includes(query))
-    );
-  });
-
-  filteredSuggestionsByType(type: 'nav' | 'action') {
-    return this.filteredSuggestions().filter(s => s.type === type);
-  }
-
-  matchingInventory = computed(() => {
-    const results = this.searchResults();
-    if (!results) return [];
-
-    const matches: any[] = [];
-
-    // Match products
-    if (results.products && results.products.length > 0) {
-      results.products.forEach(p => {
-        matches.push({
-          id: p.id,
-          name: p.name,
-          type: 'product',
-          typeLabel: this.i18n.t('layout.search.type.product'),
-          subtitle: this.i18n.t('layout.search.productSubtitle', { sku: p.sku, qty: this.i18n.formatNumber(p.quantity), unit: p.unit || this.i18n.t('layout.search.unitDefault') }),
-          icon: '📦',
-          route: '/products',
-          openParam: `edit-${p.id}`
-        });
-      });
-    }
-
-    // Match orders
-    if (results.orders && results.orders.length > 0) {
-      results.orders.forEach(o => {
-        matches.push({
-          id: o.id,
-          name: o.orderNumber,
-          type: 'order',
-          typeLabel: this.i18n.t('layout.search.type.order'),
-          subtitle: this.i18n.t('layout.search.orderSubtitle', { customer: o.customerName, total: this.i18n.formatMoney(o.totalAmount), status: this.translateStatus(o.status) }),
-          icon: '🛒',
-          route: '/orders',
-          openParam: `edit-${o.id}`
-        });
-      });
-    }
-
-    // Match purchase orders
-    if (results.purchaseOrders && results.purchaseOrders.length > 0) {
-      results.purchaseOrders.forEach(po => {
-        matches.push({
-          id: po.id,
-          name: po.poNumber,
-          type: 'purchaseOrder',
-          typeLabel: this.i18n.t('layout.search.type.purchaseOrder'),
-          subtitle: this.i18n.t('layout.search.poSubtitle', { supplier: po.supplierName, total: this.i18n.formatMoney(po.totalAmount), status: this.translateStatus(po.status) }),
-          icon: '💳',
-          route: '/purchase-orders',
-          openParam: `edit-${po.id}`
-        });
-      });
-    }
-
-    // Match warehouses
-    if (results.warehouses && results.warehouses.length > 0) {
-      results.warehouses.forEach(w => {
-        matches.push({
-          id: w.id,
-          name: w.name,
-          type: 'warehouse',
-          typeLabel: this.i18n.t('layout.search.type.warehouse'),
-          subtitle: this.i18n.t('layout.search.warehouseSubtitle', { code: w.code, address: [w.address?.district, w.address?.province].filter(Boolean).join(' / ') || '-' }),
-          icon: '🏢',
-          route: '/warehouses'
-        });
-      });
-    }
-
-    // Match suppliers
-    if (results.suppliers && results.suppliers.length > 0) {
-      results.suppliers.forEach(s => {
-        matches.push({
-          id: s.id,
-          name: s.name,
-          type: 'supplier',
-          typeLabel: this.i18n.t('layout.search.type.supplier'),
-          subtitle: this.i18n.t('layout.search.supplierSubtitle', { contact: s.contactPerson || '-', rating: s.rating }),
-          icon: '🏭',
-          route: '/suppliers'
-        });
-      });
-    }
-
-    return matches;
-  });
-
-  allVisibleSuggestions = computed(() => {
-    const list: any[] = [];
-    this.filteredSuggestionsByType('nav').forEach(s => list.push(s));
-    this.filteredSuggestionsByType('action').forEach(s => list.push(s));
-    this.matchingInventory().forEach(item => list.push(item));
-    return list;
-  });
-
-  isItemActive(item: any): boolean {
-    const list = this.allVisibleSuggestions();
-    const idx = this.activeIndex();
-    if (idx >= 0 && idx < list.length) {
-      const active = list[idx];
-      if (item.type === 'nav' || item.type === 'action') {
-        return active.title === item.title && active.route === item.route;
-      } else {
-        return active.name === item.name && active.type === item.type;
-      }
-    }
-    return false;
-  }
-
-  onArrowDown(event: Event) {
-    event.preventDefault();
-    const list = this.allVisibleSuggestions();
-    if (list.length === 0) return;
-    this.activeIndex.update(idx => idx < list.length - 1 ? idx + 1 : 0);
-  }
-
-  onArrowUp(event: Event) {
-    event.preventDefault();
-    const list = this.allVisibleSuggestions();
-    if (list.length === 0) return;
-    this.activeIndex.update(idx => idx > 0 ? idx - 1 : list.length - 1);
-  }
-
-  onSearchFocus() {
-    this.isSearchFocused.set(true);
-    this.activeIndex.set(-1);
-    this.inventoryService.getWarehouses().subscribe(data => this.warehouses.set(data));
-    this.inventoryService.getSuppliers().subscribe(data => this.suppliers.set(data));
-  }
-
-  onSearchBlur() {
-    setTimeout(() => {
-      this.isSearchFocused.set(false);
-    }, 250);
-  }
-
-  triggerNavbarSearch() {
-    const query = this.navbarSearchQuery().trim();
-    const list = this.allVisibleSuggestions();
-    const idx = this.activeIndex();
-
-    // If a suggestion item is highlighted, execute that selection
-    if (idx >= 0 && idx < list.length) {
-      this.selectSuggestion(list[idx]);
+      if (this.paletteOpen()) this.paletteOpen.set(false);
+      else this.openPalette();
       return;
     }
-
-    if (query) {
-      const currentUrl = this.router.url.split('?')[0];
-      const searchableRoutes = ['/products', '/warehouses', '/suppliers', '/orders', '/purchase-orders', '/stock-movements'];
-      let targetRoute = '/products'; // Default fallback
-
-      if (searchableRoutes.includes(currentUrl)) {
-        targetRoute = currentUrl;
+    // ⌘↵ / Ctrl ↵ — submit the open drawer (clicks its primary button)
+    if (mod && key === 'Enter' && !this.paletteOpen() && typeof document !== 'undefined') {
+      const btn = document.querySelector<HTMLButtonElement>('.drawer-footer .btn-primary:not(:disabled), .drawer-f .btn-primary:not(:disabled)');
+      if (btn) {
+        event.preventDefault();
+        btn.click();
       }
-
-      this.router.navigate([targetRoute], { queryParams: { q: query } });
-      this.isSearchFocused.set(false);
-      this.navbarSearchQuery.set('');
-      this.searchResults.set(null);
+      return;
     }
-  }
+    if (mod || event.altKey || this.paletteOpen() || LayoutComponent.isTyping(event.target)) return;
+    if (typeof document !== 'undefined' && document.querySelector('.drawer-overlay, .drawer, .scrim, .modal-backdrop, .acc-overlay')) return;
 
-  selectSuggestion(suggestion: any) {
-    this.isSearchFocused.set(false);
-    this.activeIndex.set(-1);
-    const queryParams: any = suggestion.openParam ? { open: suggestion.openParam } : {};
-    this.router.navigate([suggestion.route], { queryParams });
-    this.navbarSearchQuery.set('');
-    this.searchResults.set(null);
-  }
-
-  highlightMatch(text: string): string {
-    const query = this.navbarSearchQuery().toLowerCase().trim();
-    if (!query) return text;
-    const index = text.toLowerCase().indexOf(query);
-    if (index === -1) return text;
-    const originalText = text.substring(index, index + query.length);
-    const regex = new RegExp(this.escapeRegExp(originalText), 'g');
-    return text.replace(regex, `<strong style="color: #F08804; font-weight: 700;">$&</strong>`);
-  }
-
-  private escapeRegExp(string: string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // "/" — focus the page's search field
+    if (key === '/') {
+      const el = Array.from(document.querySelectorAll<HTMLInputElement>('.main-content [data-page-search], .main-content .search-box input, .main-content .toolbar .field input[type="search"], .main-content input[type="search"]'))
+        .find((i) => i.offsetParent !== null && !i.disabled);
+      if (el) {
+        event.preventDefault();
+        el.focus();
+        el.select?.();
+      }
+      return;
+    }
+    // ⇧T — theme
+    if (key === 'T' && event.shiftKey) {
+      event.preventDefault();
+      this.theme.toggle();
+      return;
+    }
+    // N then <key> — create
+    if (this.chordN) {
+      this.chordN = false;
+      if (this.chordTimer) clearTimeout(this.chordTimer);
+      const action = CREATE_ACTIONS.find((a) => a.key === key.toUpperCase());
+      if (action) {
+        event.preventDefault();
+        this.router.navigate([action.route], { queryParams: { open: 'new' } });
+      }
+      return;
+    }
+    if ((key === 'n' || key === 'N') && !event.shiftKey) {
+      this.chordN = true;
+      if (this.chordTimer) clearTimeout(this.chordTimer);
+      this.chordTimer = setTimeout(() => (this.chordN = false), 1200);
+    }
   }
 
   confirmGlobalAction() {
@@ -926,7 +454,7 @@ export class LayoutComponent implements OnInit {
     };
     this.session.startIdleWatch();
     this.router.events.subscribe(e => {
-      if (e instanceof NavigationEnd) { this.currentUrl.set(e.urlAfterRedirects); this.isMobileNavOpen.set(false); }
+      if (e instanceof NavigationEnd) { this.currentUrl.set(e.urlAfterRedirects); this.isMobileNavOpen.set(false); this.paletteOpen.set(false); }
     });
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
@@ -945,26 +473,6 @@ export class LayoutComponent implements OnInit {
       this.i18n.lang();
       this.currentUrl();
       this.titleService.setTitle(this.i18n.t('layout.documentTitle', { page: this.getActivePageTitle() }));
-    });
-
-    // Global Search Debounced Subscription
-    this.searchSubject.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      switchMap(query => {
-        const trimmed = query.trim();
-        if (!trimmed || trimmed.length < 2) {
-          return of(null);
-        }
-        return this.searchService.search(trimmed).pipe(
-          catchError(err => {
-            console.error('Global search error:', err);
-            return of(null);
-          })
-        );
-      })
-    ).subscribe(results => {
-      this.searchResults.set(results);
     });
   }
 
@@ -997,6 +505,13 @@ export class LayoutComponent implements OnInit {
     this.isNotifOpen.set(false);
   }
 
+  @HostListener('document:keydown.escape')
+  closeOnEscape() {
+    this.isProfileOpen.set(false);
+    this.isNotifOpen.set(false);
+    this.isMobileNavOpen.set(false);
+  }
+
   currentUser = computed(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('smart_inventory_token') : null;
     if (!token) return { username: this.i18n.t('layout.guest'), role: 'guest', name: this.i18n.t('layout.guestUser'), avatar: null };
@@ -1010,7 +525,7 @@ export class LayoutComponent implements OnInit {
           avatar: profile.avatar
         };
       }
-      
+
       const payloadBase64 = token.split('.')[1];
       const payloadJson = decodeURIComponent(atob(payloadBase64).split('').map(c => {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);

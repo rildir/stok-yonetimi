@@ -15,11 +15,15 @@ import { EBelgeStatus } from '../../models/ebelge.models';
   standalone: true,
   imports: [RouterModule, TranslatePipe, AppDatePipe],
   styles: [`
-    .eb-band { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-3); font-size: var(--text-sm); border: var(--border-width) solid var(--color-border); }
-    .eb-band.danger { background: var(--color-danger-subtle); color: var(--color-danger-text); }
-    .eb-band.warning { background: var(--color-warning-subtle); color: var(--color-warning-text); }
-    .eb-band.info { background: var(--color-primary-subtle); color: var(--color-primary-text); }
-    .eb-band a { color: inherit; font-weight: var(--weight-semibold); }
+    :host { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+    :host:empty { display: none; margin: 0; }
+    .eb-band { --tone: var(--info); --tone-soft: var(--info-soft); --tone-line: var(--info-line); --tone-dot: var(--accent);
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 36px; padding: 8px 12px;
+      border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--fg); background: var(--tone-soft);
+      box-shadow: inset 0 0 0 1px var(--tone-line), inset 3px 0 0 var(--tone-dot); }
+    .eb-band.danger { --tone: var(--danger); --tone-soft: var(--danger-soft); --tone-line: var(--danger-line); --tone-dot: var(--danger-dot); }
+    .eb-band.warning { --tone: var(--warning); --tone-soft: var(--warning-soft); --tone-line: var(--warning-line); --tone-dot: var(--warning-dot); }
+    .eb-band a { color: var(--accent-text); font-weight: 500; }
   `],
   template: `
     @if (st(); as s) {

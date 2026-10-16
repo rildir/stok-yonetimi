@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, computed, inject } from '@angular/core';
+import { Component, HostBinding, Input, OnInit, computed, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { ComplianceService } from '../../services/compliance.service';
 import { UiStateService } from '../../services/ui-state.service';
@@ -17,25 +17,37 @@ import { I18nService, TranslatePipe } from '../../i18n';
   styles: [`
     :host { display: flex; flex-direction: column; gap: var(--space-2); }
     :host:empty { display: none; }
-    .alert-banner a { color: inherit; font-weight: var(--weight-semibold); white-space: nowrap; }
-    .alert-banner-text { flex: 1; min-width: 0; }
+    :host(.as-list) { gap: 0; }
   `],
   template: `
     @for (a of visible(); track $index) {
-      <div class="alert-banner" [class.alert-banner--danger]="a.severity === 'error'" [class.alert-banner--warning]="a.severity === 'warning'" [class.alert-banner--info]="a.severity === 'info'" [attr.role]="a.severity === 'error' ? 'alert' : 'status'">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          @if (a.severity === 'info') { <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/> }
-          @else { <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/> }
-        </svg>
-        <span class="alert-banner-text">{{ text(a) }}</span>
-        @if (isAdmin() && link(a); as l) { <a [routerLink]="['/settings']" [queryParams]="{ tab: l }">{{ 'compliance.fix' | t }} →</a> }
-      </div>
+      @if (variant === 'list') {
+        <div class="notice-row" [class.is-danger]="a.severity === 'error'" [class.is-info]="a.severity === 'info'" [attr.role]="a.severity === 'error' ? 'alert' : null">
+          <span class="dot" aria-hidden="true"></span>
+          <div class="t">
+            {{ text(a) }}
+            @if (isAdmin() && link(a); as l) { <br /><a [routerLink]="['/settings']" [queryParams]="{ tab: l }">{{ 'compliance.fix' | t }} →</a> }
+          </div>
+        </div>
+      } @else {
+        <div class="alert-banner" [class.alert-banner--danger]="a.severity === 'error'" [class.alert-banner--warning]="a.severity === 'warning'" [class.alert-banner--info]="a.severity === 'info'" [attr.role]="a.severity === 'error' ? 'alert' : 'status'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            @if (a.severity === 'info') { <circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/> }
+            @else { <path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17.5v.01"/> }
+          </svg>
+          <span class="alert-banner-text">{{ text(a) }}</span>
+          @if (isAdmin() && link(a); as l) { <a [routerLink]="['/settings']" [queryParams]="{ tab: l }">{{ 'compliance.fix' | t }} →</a> }
+        </div>
+      }
     }
   `,
 })
 export class ComplianceBannersComponent implements OnInit {
   /** Settings view shows info-level notices too. */
   @Input() showAll = false;
+  /** 'banner' = inline notices; 'list' = compact rows for the topbar notice popover. */
+  @Input() variant: 'banner' | 'list' = 'banner';
+  @HostBinding('class.as-list') get asList() { return this.variant === 'list'; }
 
   private api = inject(ComplianceService);
   private ui = inject(UiStateService);
