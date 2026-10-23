@@ -34,6 +34,8 @@ services:
       - '3000:3000'
     environment:
       PORT: 3000
+      # main.ts binds to 127.0.0.1 by default; the container must accept traffic from the frontend container
+      BIND_HOST: 0.0.0.0
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USERNAME: ${DB_APP_USERNAME:-stok_user}

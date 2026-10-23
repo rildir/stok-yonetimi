@@ -108,7 +108,8 @@ async function bootstrap() {
   SwaggerModule.setup(`${globalPrefix}/docs`, app, document);
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  // Loopback only: nginx on the host is the public entry point. docker-compose overrides BIND_HOST=0.0.0.0.
+  await app.listen(port, process.env.BIND_HOST || '127.0.0.1');
   Logger.log(
     `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`,
   );
